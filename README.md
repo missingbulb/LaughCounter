@@ -17,8 +17,8 @@ LaughCounter never touches it.
   uses macOS's **built-in** laughter detection, so there's **nothing to install**
   (no Python, no TensorFlow, no Homebrew) and nothing left behind when you delete
   it. Menu-bar count, a blip when a laugh is logged, and a hands-free "I just
-  laughed" voice command. You download a ready-made `.dmg` that GitHub builds for
-  you — no Xcode. **See [`mac/README.md`](mac/README.md).**
+  laughed" voice command. **⬇️ [Download the latest `LaughCounter.dmg`](https://github.com/missingbulb/LaughCounter/releases/latest/download/LaughCounter.dmg)**
+  (a ready-made build from GitHub — no Xcode). **See [`mac/README.md`](mac/README.md).**
 - **🐍 Python reference / simulator (this folder)** — a fully-tested,
   cross-platform implementation with a phone-friendly web dashboard, feedback
   commands, stats, and an offline `simulate` mode. Great for trying the whole
