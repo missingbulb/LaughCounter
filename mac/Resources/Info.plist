@@ -5,6 +5,8 @@
 <dict>
     <key>CFBundleExecutable</key>
     <string>LaughCounter</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>com.laughcounter.app</string>
     <key>CFBundleName</key>
