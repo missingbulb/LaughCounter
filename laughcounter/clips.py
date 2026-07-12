@@ -5,8 +5,9 @@ Why save audio at all, when the rest of LaughCounter is careful never to? Becaus
 detector and the "who laughed" model get better over time without you ever having
 to hand-label a training set. The trade-off is deliberate and local:
 
-* Only a few seconds **around a detected (or manually marked) laugh** are saved —
-  never a continuous recording of the room.
+* Only a few seconds **around a detected laugh** are saved — never a continuous
+  recording of the room. (A manually marked laugh records only its metadata; no
+  audio is captured for it.)
 * Clips live on your Mac mini under ``~/.laughcounter/clips`` and go nowhere else.
 * Delete the folder any time and the audio is gone; the counts stay.
 
@@ -52,21 +53,33 @@ class ClipRecorder:
     """
 
     def __init__(self, sample_rate: int, out_dir: str | Path,
-                 padding: float = 1.0, max_seconds: float = 12.0):
+                 padding: float = 1.0, max_seconds: float = 12.0,
+                 resync_tolerance: float = 0.5):
         self.sample_rate = sample_rate
         self.out_dir = Path(out_dir)
         self.padding = padding
         self._max_samples = int(max_seconds * sample_rate)
+        self._resync_tolerance = resync_tolerance
         self._buf: list = []
         self._buf_start: Optional[float] = None  # ts of self._buf[0]
 
     def push(self, ts: float, waveform: Sequence[float]) -> None:
-        """Add a freshly captured buffer that begins at time ``ts``."""
+        """Add a freshly captured buffer that begins at time ``ts``.
+
+        If ``ts`` diverges from what the accumulated sample count implies (dropped
+        audio, an input overrun, or a clock step), the buffer is realigned to
+        ``ts`` so later extraction windows stay anchored to real time.
+        """
         samples = _to_float_list(waveform)
         if not samples:
             return
         if self._buf_start is None:
             self._buf_start = ts
+        else:
+            expected = self._buf_start + len(self._buf) / self.sample_rate
+            if abs(ts - expected) > self._resync_tolerance:
+                self._buf = []
+                self._buf_start = ts
         self._buf.extend(samples)
         overflow = len(self._buf) - self._max_samples
         if overflow > 0:
@@ -74,9 +87,12 @@ class ClipRecorder:
             self._buf_start += overflow / self.sample_rate
 
     def extract(self, start: float, end: float) -> Optional[list]:
-        """Return the buffered samples covering ``[start-padding, end+padding]``.
+        """Return the buffered samples overlapping ``[start-padding, end+padding]``.
 
-        Returns ``None`` if that span isn't (fully) in the rolling buffer.
+        The span is clamped to whatever is currently in the rolling buffer, so at
+        the very start of listening (or if padding reaches past the newest audio)
+        the returned clip may be shorter than the full padded window. Returns
+        ``None`` only when there is no overlap at all.
         """
         if self._buf_start is None or not self._buf:
             return None
@@ -89,9 +105,11 @@ class ClipRecorder:
         return self._buf[lo:hi]
 
     def save(self, start: float, end: float, name: Optional[str] = None) -> Optional[str]:
-        """Write the audio covering ``[start-padding, end+padding]`` to a WAV.
+        """Write the buffered audio overlapping ``[start-padding, end+padding]``.
 
-        Returns the file path, or ``None`` if that span isn't in the buffer.
+        Returns the file path, or ``None`` if none of that span is still buffered.
+        The clip may be shorter than the full padded window at buffer edges (see
+        :meth:`extract`).
         """
         chunk = self.extract(start, end)
         if not chunk:

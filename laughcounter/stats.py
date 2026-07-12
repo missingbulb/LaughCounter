@@ -28,7 +28,8 @@ def compute(
     """Summarise ``rows`` (as returned by :class:`~laughcounter.storage.Storage`).
 
     ``rejected`` events (your "that wasn't a laugh" feedback) are excluded from
-    every count. All bucketing is in local time.
+    every count *except* ``by_label``, which tallies all labels (including
+    ``rejected``) as a detection-health readout. All bucketing is in local time.
 
     Args:
         rows: Event dicts with at least ``start_ts`` and ``duration``. May carry

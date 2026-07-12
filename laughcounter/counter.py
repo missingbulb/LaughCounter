@@ -91,6 +91,13 @@ class LaughCounter:
         soft = score >= self.exit_threshold
         result: Optional[LaughEvent] = None
 
+        # Close a stale episode FIRST, independently of this frame's loudness.
+        # If we only did this on quiet frames, a laugh resuming with a loud frame
+        # after a > merge_gap silence — or the first frame after dropped/batched
+        # frames during silence — would be mis-merged into the previous episode.
+        if self._start is not None and ts - self._last_active > self.merge_gap:
+            result = self._finalize()
+
         if self._start is None:
             # No episode open. Only a confident frame may start one.
             if loud:
@@ -98,9 +105,6 @@ class LaughCounter:
         elif soft:
             # Episode continues (or resumes within a bridged silence).
             self._extend(ts, score)
-        elif ts - self._last_active > self.merge_gap:
-            # Silence has outlasted the merge gap: the episode is over.
-            result = self._finalize()
 
         return result
 

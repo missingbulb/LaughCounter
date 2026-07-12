@@ -113,8 +113,16 @@ class Config:
         self.config_path.write_text(json.dumps(data, indent=2, sort_keys=True))
         return self.config_path
 
-    def make_counter(self, source: str = "mic"):
-        """Build a :class:`~laughcounter.counter.LaughCounter` from this config."""
+    def make_counter(self, source: str = "mic", frame_seconds: float | None = None):
+        """Build a :class:`~laughcounter.counter.LaughCounter` from this config.
+
+        ``frame_seconds`` is how much audio each score covers — i.e. the spacing
+        between frames fed to the counter. It defaults to ``hop_seconds`` (the
+        cadence of the synthetic ``simulate`` stream), but the live microphone
+        path yields one score per full window, so ``listen`` passes
+        ``window_seconds`` instead. Getting this right keeps episode durations
+        and the ``min_duration`` cutoff accurate on the real path.
+        """
         from .counter import LaughCounter
 
         return LaughCounter(
@@ -122,6 +130,6 @@ class Config:
             exit_threshold=self.exit_threshold,
             min_duration=self.min_duration,
             merge_gap=self.merge_gap,
-            frame_seconds=self.hop_seconds,
+            frame_seconds=self.hop_seconds if frame_seconds is None else frame_seconds,
             source=source,
         )

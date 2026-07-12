@@ -84,8 +84,15 @@ class Storage:
     def _migrate(self) -> None:
         existing = {r["name"] for r in self._conn.execute("PRAGMA table_info(laughs)")}
         for name, decl in _ADDED_COLUMNS.items():
-            if name not in existing:
+            if name in existing:
+                continue
+            try:
                 self._conn.execute(f"ALTER TABLE laughs ADD COLUMN {name} {decl}")
+            except sqlite3.OperationalError as exc:
+                # Another process may have added the column between our PRAGMA
+                # read and this ALTER (SQLite has no ADD COLUMN IF NOT EXISTS).
+                if "duplicate column name" not in str(exc):
+                    raise
 
     # -- writing ------------------------------------------------------------
 
@@ -259,9 +266,13 @@ def read_rows(db_path: str | Path) -> list[dict]:
         conn.close()
 
 
-def apply_mark(db_path: str | Path, who: str = "me", now: Optional[float] = None) -> dict:
-    """Thread-safe "I just laughed" for the dashboard/CLI."""
-    with Storage(db_path) as store:
+def apply_mark(db_path: str | Path, who: str = "me", now: Optional[float] = None,
+               jsonl_path: str | Path | None = None) -> dict:
+    """Thread-safe "I just laughed" for the dashboard/CLI.
+
+    ``jsonl_path`` is optional so a missed-laugh row also lands in the JSONL log.
+    """
+    with Storage(db_path, jsonl_path) as store:
         return store.mark(now=now, who=who)
 
 

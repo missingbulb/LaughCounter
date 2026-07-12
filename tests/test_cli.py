@@ -100,6 +100,15 @@ def test_reject_missing_id_fails(tmp_path, capsys):
     assert rc == 1
 
 
+def test_simulate_zero_count_errors(tmp_path):
+    assert main(["--home", str(tmp_path), "simulate", "-n", "0"]) == 2
+
+
+def test_simulate_too_dense_errors(tmp_path):
+    # Far too many laughs to fit one day cleanly → friendly error, no crash/leak.
+    assert main(["--home", str(tmp_path), "simulate", "-n", "100000", "--days", "1"]) == 2
+
+
 def test_simulate_is_deterministic(tmp_path):
     # Two runs with the same seed produce the same laughter *pattern*. Absolute
     # timestamps are anchored to wall-clock "now" (which differs between runs),

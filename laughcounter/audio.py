@@ -51,6 +51,7 @@ class MicrophoneSource:
             q.put(indata.copy())
 
         blocksize = self.window_samples
+        last_ts = None
         with sd.InputStream(
             samplerate=self.sample_rate,
             channels=1,
@@ -62,7 +63,13 @@ class MicrophoneSource:
             while True:  # pragma: no cover - realtime loop
                 block = q.get()
                 waveform = np.asarray(block, dtype=np.float32).reshape(-1)
-                yield time.time(), waveform
+                # Wall-clock can step backwards (NTP); the counter requires
+                # non-decreasing timestamps, so clamp to keep it monotonic.
+                ts = time.time()
+                if last_ts is not None and ts <= last_ts:
+                    ts = last_ts + 1e-6
+                last_ts = ts
+                yield ts, waveform
 
 
 class WavFileSource:

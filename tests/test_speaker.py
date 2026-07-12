@@ -58,6 +58,16 @@ def test_profiles_dimension_mismatch():
         profiles.add_embedding("me", [1.0, 2.0, 3.0])
 
 
+def test_profiles_tolerate_corrupt_file(tmp_path):
+    path = tmp_path / "s.json"
+    path.write_text("{ this is not valid json")
+    profiles = SpeakerProfiles(path)  # must not raise
+    assert profiles.data == {}
+    profiles.add_embedding("me", [1.0, 2.0])
+    profiles.save()
+    assert SpeakerProfiles(path).centroids()["me"] == [1.0, 2.0]
+
+
 def test_null_identifier():
     assert NullIdentifier().identify([0.1, 0.2]) == ("unknown", 0.0)
 

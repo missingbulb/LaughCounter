@@ -57,3 +57,15 @@ def test_recorder_save_outside_buffer_returns_none():
 def test_recorder_empty_extract_none():
     rec = ClipRecorder(sample_rate=10, out_dir="/unused")
     assert rec.extract(0.0, 1.0) is None
+
+
+def test_recorder_resyncs_after_gap():
+    # A large jump between wall-clock ts and the sample-count implied time should
+    # realign the buffer, so extraction stays anchored to real time.
+    rec = ClipRecorder(sample_rate=10, out_dir="/unused", padding=0.0,
+                       max_seconds=100, resync_tolerance=0.5)
+    rec.push(0.0, [0.0] * 10)     # t=0..1
+    rec.push(100.0, [0.9] * 10)   # claims t=100 but count implies ~1.0 → resync
+    assert rec._buf_start == pytest.approx(100.0)
+    assert rec._buf == [0.9] * 10
+    assert rec.extract(100.0, 101.0) == [0.9] * 10

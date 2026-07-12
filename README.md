@@ -177,12 +177,15 @@ Raise `enter_threshold` if it counts non-laughs; lower it if it misses quiet chu
 
 ## Privacy
 
-- Runs entirely on your Mac mini; **nothing goes to the cloud**, and your Google
-  speaker is untouched.
+- Runs on your Mac mini; **your audio never leaves it** and your Google speaker is
+  untouched. The one exception is a **one-time model download** on first use
+  (YAMNet from Google's TF Hub, and, if you enable it, the speaker model from
+  Hugging Face); after that it runs fully offline. No audio is ever uploaded.
 - LaughCounter does **not** record the room. It keeps only a **few seconds around
-  each detected (or marked) laugh** — because you asked it to, so it can improve —
-  under `~/.laughcounter/clips`. Delete that folder anytime; the counts remain. Set
-  `save_clips = false` to keep none.
+  each *detected* laugh** — because you asked it to, so it can improve — under
+  `~/.laughcounter/clips`. (Tapping “I just laughed” logs the *event* for training
+  signal but doesn't capture audio.) Delete that folder anytime; the counts remain.
+  Set `save_clips = false` to keep none.
 - The mic hears only where you put it — placing it in the living room is what scopes
   LaughCounter to the living room.
 - The dashboard binds to `127.0.0.1` unless you pass `--host 0.0.0.0` to reach it

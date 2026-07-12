@@ -94,6 +94,24 @@ def test_post_mark_and_label(tmp_path):
         resp = conn.getresponse()
         resp.read()
         assert resp.status == 400
+
+        # Wrong content type → 415 (basic CSRF protection).
+        conn.request("POST", "/api/mark", json.dumps({"who": "me"}),
+                     {"Content-Type": "text/plain"})
+        resp = conn.getresponse()
+        resp.read()
+        assert resp.status == 415
+
+        # A literal JSON null (or any non-object) → 400, never a hang.
+        conn.request("POST", "/api/mark", "null", headers)
+        resp = conn.getresponse()
+        resp.read()
+        assert resp.status == 400
+
+        conn.request("POST", "/api/mark", "[1, 2, 3]", headers)
+        resp = conn.getresponse()
+        resp.read()
+        assert resp.status == 400
         conn.close()
     finally:
         server.shutdown()

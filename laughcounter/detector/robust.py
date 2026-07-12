@@ -45,11 +45,14 @@ def _resolve_model_dir(model_dir: str | None) -> str:
 
 
 class RobustLaughterDetector(Detector):
-    """Experimental live wrapper around the jrgillick model.
+    """Experimental setup hook for the jrgillick model.
 
-    Delegates buffer scoring to the authors' own segmentation code (loaded from
-    ``model_dir``) so we reuse their tested inference path rather than
-    reimplementing it. Requires torch + librosa + the repo checkout.
+    Live per-buffer scoring is **not implemented** — :meth:`score` raises with a
+    pointer to the recommended workflow (run the model offline over your saved
+    clips, which is exactly what its file-based tool is built for). ``__init__``
+    still validates that the repo checkout and torch are present, so selecting
+    ``detector = "robust"`` fails fast and clearly rather than silently doing
+    nothing. Requires torch + the repo checkout.
     """
 
     def __init__(self, sample_rate: int = 16000, window_seconds: float = 2.0,

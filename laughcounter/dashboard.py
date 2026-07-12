@@ -34,7 +34,11 @@ def build_stats(db_path: str | Path) -> dict:
     return stats.compute(rows, now=utcnow())
 
 
-def make_server(db_path: str | Path, host: str = "127.0.0.1", port: int = 8422):
+_MAX_BODY = 64 * 1024  # generous cap for the tiny JSON bodies we accept
+
+
+def make_server(db_path: str | Path, host: str = "127.0.0.1", port: int = 8422,
+                jsonl_path: str | Path | None = None):
     """Create (but do not start) a :class:`ThreadingHTTPServer` for the dashboard."""
     db_path = str(db_path)
 
@@ -51,15 +55,22 @@ def make_server(db_path: str | Path, host: str = "127.0.0.1", port: int = 8422):
 
         def do_POST(self):  # noqa: N802 - http.server API
             path = self.path.split("?", 1)[0]
+            # Require a JSON content type. Browsers must preflight application/json
+            # cross-origin, which gives these mutating endpoints basic CSRF
+            # protection even when the dashboard is bound to 0.0.0.0.
+            ctype = self.headers.get("Content-Type", "")
+            if "application/json" not in ctype:
+                self._send(415, "application/json", b'{"error":"send application/json"}')
+                return
             data = self._read_json()
             if data is None:
-                return
+                return  # _read_json already sent an error response
             try:
                 if path == "/api/mark":
                     who = data.get("who", "me")
                     if who not in ("me", "guest"):
                         who = "me"
-                    result = apply_mark(db_path, who=who)
+                    result = apply_mark(db_path, who=who, jsonl_path=jsonl_path)
                 elif path == "/api/label":
                     rowid = int(data["id"])
                     action = str(data["action"])
@@ -73,16 +84,26 @@ def make_server(db_path: str | Path, host: str = "127.0.0.1", port: int = 8422):
             self._send(200, "application/json", json.dumps(result).encode("utf-8"))
 
         def _read_json(self):
+            """Return a JSON object body, or send an error response and return None."""
             try:
                 length = int(self.headers.get("Content-Length", 0) or 0)
             except ValueError:
                 length = 0
+            if length > _MAX_BODY:
+                self._send(413, "application/json", b'{"error":"body too large"}')
+                return None
             body = self.rfile.read(length) if length else b""
             try:
-                return json.loads(body or b"{}")
+                parsed = json.loads(body or b"{}")
             except json.JSONDecodeError:
                 self._send(400, "application/json", b'{"error":"bad json"}')
                 return None
+            if not isinstance(parsed, dict):
+                # A literal null / list / string is not a request we understand;
+                # reject explicitly so the client always gets a response.
+                self._send(400, "application/json", b'{"error":"expected a json object"}')
+                return None
+            return parsed
 
         def _send(self, code: int, content_type: str, body: bytes):
             self.send_response(code)
@@ -98,9 +119,10 @@ def make_server(db_path: str | Path, host: str = "127.0.0.1", port: int = 8422):
     return ThreadingHTTPServer((host, port), Handler)
 
 
-def serve(db_path: str | Path, host: str = "127.0.0.1", port: int = 8422) -> None:
+def serve(db_path: str | Path, host: str = "127.0.0.1", port: int = 8422,
+          jsonl_path: str | Path | None = None) -> None:
     """Run the dashboard until interrupted."""
-    server = make_server(db_path, host, port)
+    server = make_server(db_path, host, port, jsonl_path=jsonl_path)
     print(f"LaughCounter dashboard → http://{host}:{port}  (Ctrl+C to stop)")
     try:
         server.serve_forever()

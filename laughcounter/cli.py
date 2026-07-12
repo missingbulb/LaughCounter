@@ -114,21 +114,46 @@ def _synth_frames(intervals, hop, merge_gap, rng, enter):
             yield last + m * hop, 0.0  # last one has gap > merge_gap → finalise
 
 
+def _synth_footprint(merge_gap, hop):
+    """Seconds each synthetic laugh reserves for its trailing merge-gap silence."""
+    n_silent = int(merge_gap / hop) + 1
+    return (n_silent + 1) * hop
+
+
+def _min_slot(min_duration, merge_gap, hop):
+    """Smallest per-laugh time slot that still yields a clean, monotonic stream."""
+    return (min_duration + 0.5) + _synth_footprint(merge_gap, hop) + hop
+
+
 def _make_intervals(count, days, now, rng, min_duration, merge_gap, hop):
     window = max(1.0, days * 86400.0)
     start = now - window
     slot = window / count
+    tail = _synth_footprint(merge_gap, hop)
+    min_dur = min_duration + 0.5
+    dur_ceiling = min(6.0, slot - tail - hop)  # keep each laugh's footprint in its slot
     intervals = []
     for i in range(count):
         slot_start = start + i * slot
-        dur = rng.uniform(min_duration + 0.5, min(6.0, max(min_duration + 0.6, slot * 0.4)))
-        room = max(0.0, slot - dur - 3 * hop - merge_gap)
+        dur = rng.uniform(min_dur, dur_ceiling) if dur_ceiling > min_dur else min_dur
+        room = max(0.0, slot - dur - tail - hop)
         laugh_start = slot_start + rng.uniform(0, room)
         intervals.append((laugh_start, dur))
     return intervals
 
 
 def cmd_simulate(args, cfg: Config) -> int:
+    if args.count < 1:
+        print("error: --count must be at least 1", file=sys.stderr)
+        return 2
+    window = max(1.0, args.days * 86400.0)
+    slot = window / args.count
+    needed = _min_slot(cfg.min_duration, cfg.merge_gap, cfg.hop_seconds)
+    if slot < needed:
+        print(f"error: can't fit {args.count} laughs into {args.days} day(s) cleanly. "
+              f"Reduce --count or raise --days.", file=sys.stderr)
+        return 2
+
     rng = random.Random(args.seed)
     now = utcnow()
     counter = cfg.make_counter(source="simulate")
@@ -188,8 +213,16 @@ def cmd_listen(args, cfg: Config) -> int:
         ClipRecorder(cfg.sample_rate, cfg.clips_dir, cfg.clip_padding, cfg.clip_max_seconds)
         if cfg.save_clips else None
     )
-    source = MicrophoneSource(cfg.sample_rate, detector.window_samples, device=args.device)
-    counter = cfg.make_counter(source="mic")
+    # A bare-integer --device is a device index; anything else is a name substring.
+    device = args.device
+    if isinstance(device, str) and device.isdigit():
+        device = int(device)
+
+    source = MicrophoneSource(cfg.sample_rate, detector.window_samples, device=device)
+    # The mic yields one score per full window, so the counter's per-frame
+    # coverage is window_seconds here, not hop_seconds (see Config.make_counter).
+    frame_seconds = detector.window_samples / cfg.sample_rate
+    counter = cfg.make_counter(source="mic", frame_seconds=frame_seconds)
     storage = Storage(cfg.db_path, cfg.jsonl_path)
 
     print("😂  Listening for laughter…  (Ctrl+C to stop)")
@@ -198,21 +231,29 @@ def cmd_listen(args, cfg: Config) -> int:
         print(f"    saving laugh clips to {cfg.clips_dir}")
     try:
         for ts, waveform in source:  # pragma: no cover - realtime
-            if recorder is not None:
-                recorder.push(ts, waveform)
-            score = detector.score(waveform)
-            event = counter.update(ts, score)
+            try:
+                if recorder is not None:
+                    recorder.push(ts, waveform)
+                score = detector.score(waveform)
+                event = counter.update(ts, score)
+            except Exception as exc:  # noqa: BLE001 - one bad frame must not stop listening
+                print(f"  (skipped a frame: {exc})", file=sys.stderr)
+                continue
             if event:
-                clip_path = recorder.save(event.start, event.end) if recorder else None
-                speaker = "unknown"
-                laugh_audio = recorder.extract(event.start, event.end) if recorder else None
-                if laugh_audio:
-                    try:
-                        speaker, _ = identifier.identify(laugh_audio)
-                    except Exception:  # noqa: BLE001 - never let ID break listening
-                        speaker = "unknown"
-                event = replace(event, speaker=speaker, clip_path=clip_path)
-                storage.add(event)
+                try:
+                    clip_path = recorder.save(event.start, event.end) if recorder else None
+                    speaker = "unknown"
+                    laugh_audio = recorder.extract(event.start, event.end) if recorder else None
+                    if laugh_audio:
+                        try:
+                            speaker, _ = identifier.identify(laugh_audio)
+                        except Exception:  # noqa: BLE001 - never let ID break listening
+                            speaker = "unknown"
+                    event = replace(event, speaker=speaker, clip_path=clip_path)
+                    storage.add(event)
+                except Exception as exc:  # noqa: BLE001 - a save error must not stop listening
+                    print(f"  (could not log a laugh: {exc})", file=sys.stderr)
+                    continue
                 notify.laugh_logged(counter.count, speaker,
                                     sound=cfg.notify_sound,
                                     banner_notification=cfg.notify_banner)
@@ -294,7 +335,7 @@ def cmd_serve(args, cfg: Config) -> int:
     port = args.port or cfg.dashboard_port
     # Ensure the database exists so the first page load has a table to read.
     Storage(cfg.db_path, cfg.jsonl_path).close()
-    serve(cfg.db_path, host=host, port=port)
+    serve(cfg.db_path, host=host, port=port, jsonl_path=cfg.jsonl_path)
     return 0
 
 

@@ -23,6 +23,7 @@ from __future__ import annotations
 import abc
 import json
 import math
+import os
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -70,7 +71,14 @@ class SpeakerProfiles:
         self.path = Path(path)
         self.data: dict = {}
         if self.path.exists():
-            self.data = json.loads(self.path.read_text())
+            try:
+                loaded = json.loads(self.path.read_text() or "{}")
+                if isinstance(loaded, dict):
+                    self.data = loaded
+            except (json.JSONDecodeError, OSError):
+                # A corrupt/half-written profile file shouldn't block startup;
+                # start empty and let the next save() overwrite it cleanly.
+                self.data = {}
 
     def centroids(self) -> dict:
         return {name: prof["centroid"] for name, prof in self.data.items()}
@@ -91,7 +99,10 @@ class SpeakerProfiles:
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.data, indent=2))
+        # Write atomically so a crash mid-write can't corrupt the profile.
+        tmp = self.path.with_suffix(self.path.suffix + ".tmp")
+        tmp.write_text(json.dumps(self.data, indent=2))
+        os.replace(tmp, self.path)
 
 
 class SpeakerIdentifier(abc.ABC):
@@ -146,7 +157,7 @@ class EcapaEmbedder:
         self.sample_rate = sample_rate
         self._model = EncoderClassifier.from_hparams(
             source="speechbrain/spkrec-ecapa-voxceleb",
-            savedir="~/.laughcounter/models/ecapa",
+            savedir=os.path.expanduser("~/.laughcounter/models/ecapa"),
         )
 
     def __call__(self, waveform: Sequence[float]) -> list:  # pragma: no cover - needs model
