@@ -30,6 +30,12 @@ final class LaughDetector: NSObject, SNResultsObserving {
     private var baseSampleTime: AVAudioFramePosition?
     private var startEpoch: Double = 0
 
+    // Diagnostics: confirm results are arriving and what laugh scores they carry,
+    // so a "no laughs detected" report is answerable from the activity log alone.
+    private var sawFirstResult = false
+    private var windowsThisBeat = 0
+    private var maxScoreThisBeat = 0.0
+
     func configure(format: AVAudioFormat) throws {
         let analyzer = SNAudioStreamAnalyzer(format: format)
         let request = try SNClassifySoundRequest(classifierIdentifier: .version1)
@@ -53,7 +59,12 @@ final class LaughDetector: NSObject, SNResultsObserving {
     /// Forget the stream anchor so the next buffer re-anchors timing. Call when
     /// (re)starting the audio stream.
     func reset() {
-        queue.async { [weak self] in self?.baseSampleTime = nil }
+        queue.async { [weak self] in
+            self?.baseSampleTime = nil
+            self?.sawFirstResult = false
+            self?.windowsThisBeat = 0
+            self?.maxScoreThisBeat = 0
+        }
     }
 
     // MARK: SNResultsObserving
@@ -82,6 +93,19 @@ final class LaughDetector: NSObject, SNResultsObserving {
         var windowDur = CMTimeGetSeconds(classification.timeRange.duration)
         if !windowDur.isFinite || windowDur <= 0 { windowDur = 0.5 }
         let epoch = startEpoch + (windowStart.isFinite ? windowStart : 0)
+
+        if !sawFirstResult {
+            sawFirstResult = true
+            AppLog.shared.log("first analysis result received")
+        }
+        windowsThisBeat += 1
+        if laughScore > maxScoreThisBeat { maxScoreThisBeat = laughScore }
+        if windowsThisBeat >= 60 {
+            AppLog.shared.log(String(format: "detection heartbeat: %d windows, max laugh score %.2f",
+                                     windowsThisBeat, maxScoreThisBeat))
+            windowsThisBeat = 0
+            maxScoreThisBeat = 0
+        }
 
         onObservation?(LaughObservation(
             time: epoch, windowDuration: windowDur,

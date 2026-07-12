@@ -101,8 +101,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         detector.reset()
         audio.stop()
         do {
-            let format = try audio.start()
+            // Configure the analyzer BEFORE audio flows, so no early buffers are
+            // dropped and analysis reliably starts (matches the original order).
+            let format = try audio.prepareFormat()
             try detector.configure(format: format)
+            try audio.start(format: format)
             listening = true
             AppLog.shared.log("listening started "
                 + "(sampleRate=\(Int(format.sampleRate)), channels=\(format.channelCount))")

@@ -9,23 +9,19 @@ final class AudioHub {
     /// Called for every captured buffer, on the audio thread.
     var onBuffer: ((AVAudioPCMBuffer, AVAudioTime) -> Void)?
 
-    /// The input format currently in use (valid only once `start()` has run).
+    /// The input format currently in use (valid only once `start(format:)` ran).
     private(set) var activeFormat: AVAudioFormat?
 
     var isRunning: Bool { engine.isRunning }
 
-    /// Start capturing and return the live input format actually in use.
-    ///
-    /// The input node's format is only reliable *after* the engine is prepared —
-    /// reading it too early (e.g. right after launch) can yield a 0 Hz / 0-channel
-    /// format, which then silently produces no analysis results even though the tap
-    /// is running. We prepare first, validate, and hand the real format back so the
-    /// detector is configured to match. Idempotent: safe to call to (re)start.
-    @discardableResult
-    func start() throws -> AVAudioFormat {
-        let input = engine.inputNode
+    /// Prepare the engine and return the validated live input format **without**
+    /// starting capture. The input node's format is only reliable after prepare;
+    /// returning it first lets the detector be configured to match *before* any
+    /// audio flows (the analyzer must exist before buffers arrive, or the first
+    /// buffers are dropped and analysis can fail to start).
+    func prepareFormat() throws -> AVAudioFormat {
         engine.prepare()
-        let format = input.outputFormat(forBus: 0)
+        let format = engine.inputNode.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw NSError(domain: "LaughCounter", code: 1, userInfo: [
                 NSLocalizedDescriptionKey:
@@ -33,13 +29,18 @@ final class AudioHub {
                     + "channels=\(format.channelCount))",
             ])
         }
+        return format
+    }
+
+    /// Install the tap and start capture, using a format from `prepareFormat()`.
+    func start(format: AVAudioFormat) throws {
+        let input = engine.inputNode
         input.removeTap(onBus: 0)   // no-op if none installed; keeps restart clean
         input.installTap(onBus: 0, bufferSize: 8192, format: format) { [weak self] buffer, when in
             self?.onBuffer?(buffer, when)
         }
         try engine.start()
         activeFormat = format
-        return format
     }
 
     func stop() {
