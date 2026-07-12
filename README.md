@@ -11,6 +11,23 @@ LaughCounter never touches it.
 
 ---
 
+## Two ways to run it
+
+- **🍎 Native macOS app (recommended for the Mac mini)** — a tiny menu-bar app that
+  uses macOS's **built-in** laughter detection, so there's **nothing to install**
+  (no Python, no TensorFlow, no Homebrew) and nothing left behind when you delete
+  it. Menu-bar count, a blip when a laugh is logged, and a hands-free "I just
+  laughed" voice command. You download a ready-made `.dmg` that GitHub builds for
+  you — no Xcode. **See [`mac/README.md`](mac/README.md).**
+- **🐍 Python reference / simulator (this folder)** — a fully-tested,
+  cross-platform implementation with a phone-friendly web dashboard, feedback
+  commands, stats, and an offline `simulate` mode. Great for trying the whole
+  pipeline anywhere. Documented below.
+
+The two share the same simple JSONL log format. For the full reasoning behind the
+architecture — deployment options, how misses become improvements, and the
+who-laughed plan — see **[`docs/DESIGN-AND-TRADEOFFS.md`](docs/DESIGN-AND-TRADEOFFS.md)**.
+
 ## Does something like this already exist?
 
 Sort of, but nothing that fits this setup:
