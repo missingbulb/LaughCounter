@@ -17,7 +17,10 @@ final class LaughDetector: NSObject, SNResultsObserving {
     /// Called with a full observation for each analysed window.
     var onObservation: ((LaughObservation) -> Void)?
 
-    private static let laughKeywords = ["laugh", "giggle", "chuckle", "chortle", "snicker"]
+    // Stems, not whole words: the classifier emits gerunds like "giggling", so
+    // "giggle" would miss it — "giggl" matches both "giggle" and "giggling".
+    private static let laughKeywords = ["laugh", "giggl", "chuckl", "chortl",
+                                        "snicker", "cackl", "guffaw"]
     // Sounds that usually mean the laughter is coming from a TV / recording rather
     // than a person in the room. Matched as case-insensitive substrings so we're
     // robust to the exact spelling of the classifier's identifiers.
@@ -30,11 +33,9 @@ final class LaughDetector: NSObject, SNResultsObserving {
     private var baseSampleTime: AVAudioFramePosition?
     private var startEpoch: Double = 0
 
-    // Diagnostics: confirm results are arriving and what laugh scores they carry,
-    // so a "no laughs detected" report is answerable from the activity log alone.
+    // One log line per stream confirming the analysis pipeline is delivering
+    // results after a (re)start — so "it stopped detecting" is diagnosable.
     private var sawFirstResult = false
-    private var windowsThisBeat = 0
-    private var maxScoreThisBeat = 0.0
 
     func configure(format: AVAudioFormat) throws {
         let analyzer = SNAudioStreamAnalyzer(format: format)
@@ -62,8 +63,6 @@ final class LaughDetector: NSObject, SNResultsObserving {
         queue.async { [weak self] in
             self?.baseSampleTime = nil
             self?.sawFirstResult = false
-            self?.windowsThisBeat = 0
-            self?.maxScoreThisBeat = 0
         }
     }
 
@@ -97,14 +96,6 @@ final class LaughDetector: NSObject, SNResultsObserving {
         if !sawFirstResult {
             sawFirstResult = true
             AppLog.shared.log("first analysis result received")
-        }
-        windowsThisBeat += 1
-        if laughScore > maxScoreThisBeat { maxScoreThisBeat = laughScore }
-        if windowsThisBeat >= 60 {
-            AppLog.shared.log(String(format: "detection heartbeat: %d windows, max laugh score %.2f",
-                                     windowsThisBeat, maxScoreThisBeat))
-            windowsThisBeat = 0
-            maxScoreThisBeat = 0
         }
 
         onObservation?(LaughObservation(

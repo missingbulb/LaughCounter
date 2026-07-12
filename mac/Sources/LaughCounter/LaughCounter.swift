@@ -58,7 +58,11 @@ final class LaughCounter {
     /// Hysteresis exit — an open episode stays open while confidence holds above this.
     var exitThreshold = 0.2
     var minDuration = 0.4
-    var mergeGap = 1.0
+    // Bridge gaps up to this long so one laugh spanning several analysis windows
+    // is one episode, not several. The built-in classifier emits ~3s windows
+    // every ~1.5s, so this must exceed that hop or every overlapping window
+    // becomes its own (duplicate) laugh with a fixed ~3s duration.
+    var mergeGap = 2.0
     var frameSeconds = 0.5   // fallback window length if the API doesn't supply one
 
     /// Emit sub-threshold episodes (peak below `countThreshold`) via `onCandidate`.

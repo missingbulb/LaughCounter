@@ -15,6 +15,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // we suppress that notification around our own (re)starts to avoid a restart
     // loop that would keep the engine from ever running long enough to detect.
     private var suppressConfigChange = false
+    // Single-flight + rate-limit for (re)starts: repeatedly stop/starting a USB
+    // mic in quick succession can wedge it, so restarts can never overlap or
+    // rapid-cycle — an extra request while one is in flight is coalesced to one.
+    private var restartInFlight = false
+    private var restartQueued = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -78,7 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self = self else { return }
                 self.micGranted = granted
                 if granted {
-                    self.startListening()
+                    self.requestListening()
                     self.requestSpeech()
                 } else {
                     AppLog.shared.log("microphone access denied", level: "ERROR")
@@ -88,18 +93,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Idempotent "ensure we are listening": (re)configure the detector to the
-    /// live input format and (re)start the engine. Safe to call on launch, after
-    /// wake, on an audio-configuration change, or from the Resume menu item — this
-    /// is the single recovery path for all of those.
-    private func startListening() {
+    /// Single-flight, rate-limited entry to (re)start listening. Every trigger
+    /// (launch, wake, config-change, manual resume) goes through here so the audio
+    /// engine can never overlap-restart or rapid-cycle — which can wedge a USB mic.
+    /// Tears down, lets the input device settle briefly, then re-acquires.
+    private func requestListening() {
         guard micGranted else { return }
-        // Ignore the config-change notifications our own stop/start will emit.
-        suppressConfigChange = true
+        if restartInFlight {           // coalesce; don't stack restarts
+            restartQueued = true
+            return
+        }
+        restartInFlight = true
+        suppressConfigChange = true    // ignore the config-changes our stop/start emits
         counter.flush()
         counter.reset()
         detector.reset()
         audio.stop()
+        listening = false
+        refreshTitle()
+        // Let the (USB) input device release before re-acquiring — reacquiring
+        // immediately after teardown is what can wedge some USB mics.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            self?.finishListening()
+        }
+    }
+
+    private func finishListening() {
         do {
             // Configure the analyzer BEFORE audio flows, so no early buffers are
             // dropped and analysis reliably starts (matches the original order).
@@ -117,14 +136,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         refreshTitle()
         buildMenu()
-        // Release the guard once the engine has settled, so genuine later device
-        // changes are still handled.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            self?.suppressConfigChange = false
+        // Settle window: no further restart (or config-change reaction) until the
+        // engine has run undisturbed for a moment. Then honor any coalesced request.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            guard let self = self else { return }
+            self.suppressConfigChange = false
+            self.restartInFlight = false
+            if self.restartQueued {
+                self.restartQueued = false
+                self.requestListening()
+            }
         }
     }
 
     private func stopListening(reason: String) {
+        restartQueued = false
         counter.flush()
         audio.stop()
         listening = false
@@ -166,8 +192,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func didWake() {
         AppLog.shared.log("system woke — resuming listening shortly")
         // Give the audio hardware a moment to settle after wake before restarting.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            self?.startListening()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.requestListening()
         }
     }
 
@@ -175,11 +201,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The notification can arrive on any thread; touch state only on main.
         DispatchQueue.main.async { [weak self] in
             guard let self = self, !self.suppressConfigChange else { return }
-            self.suppressConfigChange = true   // coalesce a burst of changes
             AppLog.shared.log("audio configuration changed — reconfiguring")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                self?.startListening()
-            }
+            self.requestListening()   // single-flighted + rate-limited inside
         }
     }
 
@@ -228,7 +251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func logMiss() { markMissed(source: "button") }
     @objc private func resumeListening() {
         AppLog.shared.log("manual resume requested")
-        startListening()
+        requestListening()
     }
     @objc private func openLog() { store.revealInFinder() }
     @objc private func openActivityLog() {

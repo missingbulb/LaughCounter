@@ -75,7 +75,7 @@ one JSON object per line, fields in a fixed order:
 | `label` | `auto` (detected), `missed` (you told us we missed one), `candidate` (sub-threshold — logged for tuning, **not counted**), `rejected` (not counted) |
 | `start` / `end` | epoch seconds of the laugh's real start/end (from the classifier's window timing) |
 | `peak` | highest laughter confidence during the laugh (0–1, rounded) |
-| `duration` | `end − start` in seconds |
+| `duration` | `end − start` in seconds. **Coarse:** the built-in classifier analyses in ~3s windows, so a single laugh reads ~3s; only laughs spanning several windows read longer. It's a rough length, not a precise one. |
 | `mean` | average laughter confidence across the laugh |
 | `source` | `mic` (auto), `voice` (spoken “I just laughed”), `button` (menu / ⌘L) |
 | `type` | which laugh class fired (e.g. giggle, chuckle), when known |
