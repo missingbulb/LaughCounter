@@ -17,6 +17,15 @@ mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"   # drag-to-Applications shortcut
 
+# Give the mounted volume the app's icon. Baking .VolumeIcon.icns into the source
+# folder (and flagging the folder as having a custom icon) is carried through by
+# hdiutil, so the install window shows the 😄 icon — no fragile Finder scripting.
+ICNS="$APP/Contents/Resources/AppIcon.icns"
+if [ -f "$ICNS" ]; then
+    cp "$ICNS" "$STAGE/.VolumeIcon.icns"
+    command -v SetFile >/dev/null && SetFile -a C "$STAGE" || true
+fi
+
 hdiutil create -volname "LaughCounter" \
     -srcfolder "$STAGE" -ov -format UDZO "$DMG"
 

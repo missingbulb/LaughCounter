@@ -1,0 +1,41 @@
+name: Release macOS DMG
+
+# Publishing flow: pushing a version tag (e.g. `git tag v0.2.0 && git push --tags`)
+# builds the app, packages the DMG, and publishes a GitHub Release with
+# LaughCounter.dmg attached. That keeps the README's stable "latest release"
+# download link (releases/latest/download/LaughCounter.dmg) pointing at a real DMG.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write           # needed to create the Release and attach the .dmg
+
+jobs:
+  release:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: mac
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift toolchain
+        run: swift --version
+
+      - name: Build LaughCounter.app
+        run: bash scripts/build-app.sh
+
+      - name: Package .dmg
+        run: bash scripts/make-dmg.sh
+
+      - name: Publish Release with DMG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Create the release with the DMG attached; if the release already exists
+        # (e.g. created in the UI, or a re-run), just (re)upload the DMG to it.
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/LaughCounter.dmg \
+            --title "LaughCounter $GITHUB_REF_NAME" --generate-notes \
+          || gh release upload "$GITHUB_REF_NAME" dist/LaughCounter.dmg --clobber
