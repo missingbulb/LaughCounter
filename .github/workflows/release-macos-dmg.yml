@@ -1,13 +1,18 @@
 name: Release macOS DMG
 
-# Publishing flow: pushing a version tag (e.g. `git tag v0.2.0 && git push --tags`)
-# builds the app, packages the DMG, and publishes a GitHub Release with
-# LaughCounter.dmg attached. That keeps the README's stable "latest release"
-# download link (releases/latest/download/LaughCounter.dmg) pointing at a real DMG.
+# Publishing flow — two equivalent ways to cut a release, both build the app,
+# package the DMG, and attach it to a GitHub Release so the README's stable
+# "latest release" link (releases/latest/download/LaughCounter.dmg) resolves:
+#   * push a version tag: `git tag v0.2.0 && git push origin v0.2.0`, or
+#   * publish a Release from the GitHub UI (handy on mobile) that creates the tag.
+# The tag-push path creates the Release with GITHUB_TOKEN, which by design does
+# not re-fire the `release` event, so there's no double build.
 
 on:
   push:
     tags: ["v*"]
+  release:
+    types: [published]
 
 permissions:
   contents: write           # needed to create the Release and attach the .dmg
