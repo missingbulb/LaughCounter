@@ -1,0 +1,12 @@
+# Optional dependencies for real microphone listening + laughter detection.
+# The core app (simulate, stats, serve, export, the whole test suite) needs
+# none of these — install them only when you want to run `laughcounter listen`.
+#
+#   pip install -r requirements-yamnet.txt
+# or, equivalently:
+#   pip install "laughcounter[yamnet]"
+
+numpy>=1.21
+sounddevice>=0.4
+tensorflow>=2.11
+tensorflow-hub>=0.13
