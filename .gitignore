@@ -13,3 +13,6 @@ venv/
 *.db
 *.jsonl
 .laughcounter/
+/.claudinite/*
+!/.claudinite/sync-claudinite.sh
+/.claudinite.new/
