@@ -16,6 +16,9 @@ struct LaughEvent {
     let mean: Double
     let type: String            // which laugh class dominated ("" if unknown)
     let context: [ContextScore] // top non-laugh classes heard during the episode
+    let origin: String          // hypothesis about the source: "me" | "tv"
+    let originReason: String    // human-readable why, for the activity log
+    let tvSignal: Double        // strongest produced-audio context confidence (0…1)
 }
 
 /// One analysed window handed to the counter. Carries the *real* audio timing
@@ -51,33 +54,35 @@ struct LaughObservation {
 final class LaughCounter {
     /// Peak confidence an episode must reach to be *counted* as a real laugh.
     var countThreshold = 0.5
-    /// Lower bar at which we start tracking an episode at all. Episodes that peak
-    /// between here and `countThreshold` are logged as candidates (see
-    /// `logCandidates`) rather than counted — useful for tuning.
-    var enterThreshold = 0.3
+    /// Lower bar at which we start tracking an episode at all. Deliberately low so
+    /// near-misses are logged as candidates too — later "I laughed" feedback can be
+    /// aligned against a nearby low-confidence event instead of nothing.
+    var enterThreshold = 0.15
     /// Hysteresis exit — an open episode stays open while confidence holds above this.
-    var exitThreshold = 0.2
+    var exitThreshold = 0.1
     var minDuration = 0.4
-    var mergeGap = 1.0
+    // Bridge gaps up to this long so one laugh spanning several analysis windows
+    // is one episode, not several. The built-in classifier emits ~3s windows
+    // every ~1.5s, so this must exceed that hop or every overlapping window
+    // becomes its own (duplicate) laugh with a fixed ~3s duration.
+    var mergeGap = 2.0
     var frameSeconds = 0.5   // fallback window length if the API doesn't supply one
 
     /// Emit sub-threshold episodes (peak below `countThreshold`) via `onCandidate`.
     var logCandidates = true
 
-    /// TV de-confliction: suppress a *counted* episode when the strongest TV-context
-    /// class in it is at least this fraction of the episode's peak laughter
-    /// confidence. `1.0` (the default) is conservative — TV context must *out-score*
-    /// the laugh before it's discarded; lower it to filter more aggressively.
-    var tvContextRatio = 1.0
+    /// You-vs-TV attribution: if the strongest "produced-audio" context class
+    /// (music / speech / audience / instruments) reaches this confidence, the
+    /// episode is hypothesised to come from the TV rather than a person in the
+    /// room. A guess, not a verdict — laughs are still logged, just attributed.
+    var tvThreshold = 0.3
 
-    /// Called (on the caller's thread) when a laugh episode is finalised and kept.
+    /// Called (on the caller's thread) when a counted laugh is finalised. The
+    /// event's `origin` carries the you-vs-TV hypothesis.
     var onLaugh: ((LaughEvent) -> Void)?
-    /// Called for a sub-threshold episode (peak < `countThreshold`) — for logging
-    /// and tuning, not counting.
+    /// Called for a sub-threshold episode (peak < `countThreshold`) — logged for
+    /// alignment/tuning, not counted. Also carries an `origin` hypothesis.
     var onCandidate: ((LaughEvent) -> Void)?
-    /// Called when a *counted* episode was discarded as TV/laugh-track audio. The
-    /// second argument is a human-readable reason for the operational log.
-    var onSuppressed: ((LaughEvent, String) -> Void)?
 
     private var start: Double?
     private var lastActive = 0.0
@@ -148,25 +153,37 @@ final class LaughCounter {
         guard let s = start else { return }
         let end = lastActive + (lastWindow > 0 ? lastWindow : frameSeconds)
         let duration = end - s
-        let capturedPeak = peak, capturedContext = peakContext, capturedLabel = peakContextLabel
-        let event = LaughEvent(
-            start: s, end: end, duration: duration,
-            peak: peak, mean: n > 0 ? sum / Double(n) : 0,
-            type: peakType,
-            context: contextAgg.sorted { $0.value > $1.value }.prefix(3)
-                .map { ContextScore(label: $0.key, confidence: $0.value) })
+        let capPeak = peak
+        let capMean = n > 0 ? sum / Double(n) : 0
+        let capType = peakType
+        let tvSignal = peakContext
+        let tvLabel = peakContextLabel
+        let ctx = contextAgg.sorted { $0.value > $1.value }.prefix(3)
+            .map { ContextScore(label: $0.key, confidence: $0.value) }
         resetEpisode()
 
         guard duration >= minDuration else { return }
-        if capturedPeak < countThreshold {
-            if logCandidates { onCandidate?(event) }
-            return
+
+        // You-vs-TV hypothesis: a strong produced-audio context (soundtrack,
+        // dialogue, audience, instruments) points at the TV; clean laughter with
+        // little of that points at a person in the room.
+        let origin: String
+        let reason: String
+        if tvSignal >= tvThreshold {
+            origin = "tv"
+            reason = String(format: "%@=%.2f (soundtrack/audience) → TV",
+                            tvLabel.isEmpty ? "produced-audio" : tvLabel, tvSignal)
+        } else {
+            origin = "me"
+            reason = String(format: "clean laughter, tv-context %.2f → you", tvSignal)
         }
-        if capturedContext > 0 && capturedContext >= capturedPeak * tvContextRatio {
-            let reason = String(format: "tv-context %@=%.2f >= laugh=%.2f",
-                                capturedLabel.isEmpty ? "?" : capturedLabel,
-                                capturedContext, capturedPeak)
-            onSuppressed?(event, reason)
+
+        let event = LaughEvent(start: s, end: end, duration: duration,
+                               peak: capPeak, mean: capMean, type: capType,
+                               context: ctx, origin: origin,
+                               originReason: reason, tvSignal: tvSignal)
+        if capPeak < countThreshold {
+            if logCandidates { onCandidate?(event) }
         } else {
             onLaugh?(event)
         }

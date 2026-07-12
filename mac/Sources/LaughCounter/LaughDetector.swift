@@ -17,18 +17,31 @@ final class LaughDetector: NSObject, SNResultsObserving {
     /// Called with a full observation for each analysed window.
     var onObservation: ((LaughObservation) -> Void)?
 
-    private static let laughKeywords = ["laugh", "giggle", "chuckle", "chortle", "snicker"]
-    // Sounds that usually mean the laughter is coming from a TV / recording rather
-    // than a person in the room. Matched as case-insensitive substrings so we're
-    // robust to the exact spelling of the classifier's identifiers.
-    private static let tvKeywords = ["applause", "crowd", "cheer", "audience",
-                                     "television", "music", "clapping"]
+    // Stems, not whole words: the classifier emits gerunds like "giggling", so
+    // "giggle" would miss it — "giggl" matches both "giggle" and "giggling".
+    private static let laughKeywords = ["laugh", "giggl", "chuckl", "chortl",
+                                        "snicker", "cackl", "guffaw"]
+    // "Produced-audio" classes that point at a TV / recording rather than a person
+    // in the room: a soundtrack (music, instruments), dialogue (speech, chatter),
+    // and a broadcast audience (crowd, applause, cheering). Matched as
+    // case-insensitive substrings, so "guitar"/"electric_guitar" both hit "guitar".
+    // The strongest of these becomes the episode's `tvSignal` for you-vs-TV attribution.
+    private static let tvKeywords = [
+        "applause", "crowd", "cheer", "audience", "television", "clapping",
+        "music", "speech", "chatter", "singing", "orchestra",
+        "drum", "percussion", "instrument", "guitar", "piano", "violin",
+        "string", "bassoon", "flute", "trumpet", "didgeridoo", "saxophone",
+    ]
 
     // The analyzer wants monotonically increasing frame positions starting near 0.
     // We anchor those positions (and the wall-clock epoch) to the first buffer of
     // each stream, so window timestamps are real audio times, valid across restarts.
     private var baseSampleTime: AVAudioFramePosition?
     private var startEpoch: Double = 0
+
+    // One log line per stream confirming the analysis pipeline is delivering
+    // results after a (re)start — so "it stopped detecting" is diagnosable.
+    private var sawFirstResult = false
 
     func configure(format: AVAudioFormat) throws {
         let analyzer = SNAudioStreamAnalyzer(format: format)
@@ -53,7 +66,10 @@ final class LaughDetector: NSObject, SNResultsObserving {
     /// Forget the stream anchor so the next buffer re-anchors timing. Call when
     /// (re)starting the audio stream.
     func reset() {
-        queue.async { [weak self] in self?.baseSampleTime = nil }
+        queue.async { [weak self] in
+            self?.baseSampleTime = nil
+            self?.sawFirstResult = false
+        }
     }
 
     // MARK: SNResultsObserving
@@ -82,6 +98,11 @@ final class LaughDetector: NSObject, SNResultsObserving {
         var windowDur = CMTimeGetSeconds(classification.timeRange.duration)
         if !windowDur.isFinite || windowDur <= 0 { windowDur = 0.5 }
         let epoch = startEpoch + (windowStart.isFinite ? windowStart : 0)
+
+        if !sawFirstResult {
+            sawFirstResult = true
+            AppLog.shared.log("first analysis result received")
+        }
 
         onObservation?(LaughObservation(
             time: epoch, windowDuration: windowDur,

@@ -11,6 +11,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let voice = VoiceCommand()
     private var micGranted = false
     private var listening = false
+    // (Re)starting the engine itself posts .AVAudioEngineConfigurationChange, so
+    // we suppress that notification around our own (re)starts to avoid a restart
+    // loop that would keep the engine from ever running long enough to detect.
+    private var suppressConfigChange = false
+    // Single-flight + rate-limit for (re)starts: repeatedly stop/starting a USB
+    // mic in quick succession can wedge it, so restarts can never overlap or
+    // rapid-cycle — an extra request while one is in flight is coalesced to one.
+    private var restartInFlight = false
+    private var restartQueued = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -25,26 +34,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: wiring
 
     private func wireUp() {
-        // A detected laugh → log it and give one confirming blip.
+        // A counted laugh → log it with the you-vs-TV hypothesis, and blip only for
+        // *your* laughs (blipping at every TV laugh would be maddening).
         counter.onLaugh = { [weak self] event in
             guard let self = self else { return }
             self.store.append(event)
-            AppLog.shared.log(String(format: "laugh logged type=%@ peak=%.2f dur=%.2f",
-                                     event.type.isEmpty ? "?" : event.type,
-                                     event.peak, event.duration))
-            Chime.play(times: 1)
+            AppLog.shared.log(String(format: "laugh logged origin=%@ peak=%.2f dur=%.2f — %@",
+                                     event.origin, event.peak, event.duration, event.originReason))
+            if event.origin == "me" { Chime.play(times: 1) }
             DispatchQueue.main.async { self.refreshTitle() }
         }
-        // Sub-threshold episode → log it as a candidate for later tuning, silently
-        // (no blip, doesn't change the count).
+        // Sub-threshold episode → log it as a candidate (silent, uncounted) so later
+        // "I laughed" feedback has a nearby event to align to.
         counter.onCandidate = { [weak self] event in
             self?.store.append(event, label: "candidate")
-            AppLog.shared.log(String(format: "candidate (sub-threshold) logged peak=%.2f dur=%.2f",
-                                     event.peak, event.duration))
-        }
-        // A laugh judged to be TV / laugh-track audio → note it, don't count it.
-        counter.onSuppressed = { _, reason in
-            AppLog.shared.log("laugh suppressed (\(reason))")
+            AppLog.shared.log(String(format: "candidate logged origin=%@ peak=%.2f dur=%.2f — %@",
+                                     event.origin, event.peak, event.duration, event.originReason))
         }
         // Each analysis window → feed the counter (real audio timing inside).
         detector.onObservation = { [weak self] obs in
@@ -74,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self = self else { return }
                 self.micGranted = granted
                 if granted {
-                    self.startListening()
+                    self.requestListening()
                     self.requestSpeech()
                 } else {
                     AppLog.shared.log("microphone access denied", level: "ERROR")
@@ -84,19 +89,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Idempotent "ensure we are listening": (re)configure the detector to the
-    /// live input format and (re)start the engine. Safe to call on launch, after
-    /// wake, on an audio-configuration change, or from the Resume menu item — this
-    /// is the single recovery path for all of those.
-    private func startListening() {
+    /// Single-flight, rate-limited entry to (re)start listening. Every trigger
+    /// (launch, wake, config-change, manual resume) goes through here so the audio
+    /// engine can never overlap-restart or rapid-cycle — which can wedge a USB mic.
+    /// Tears down, lets the input device settle briefly, then re-acquires.
+    private func requestListening() {
         guard micGranted else { return }
+        if restartInFlight {           // coalesce; don't stack restarts
+            restartQueued = true
+            return
+        }
+        restartInFlight = true
+        suppressConfigChange = true    // ignore the config-changes our stop/start emits
         counter.flush()
         counter.reset()
         detector.reset()
         audio.stop()
+        listening = false
+        refreshTitle()
+        // Let the (USB) input device release before re-acquiring — reacquiring
+        // immediately after teardown is what can wedge some USB mics.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            self?.finishListening()
+        }
+    }
+
+    private func finishListening() {
         do {
-            let format = try audio.start()
+            // Configure the analyzer BEFORE audio flows, so no early buffers are
+            // dropped and analysis reliably starts (matches the original order).
+            let format = try audio.prepareFormat()
             try detector.configure(format: format)
+            try audio.start(format: format)
             listening = true
             AppLog.shared.log("listening started "
                 + "(sampleRate=\(Int(format.sampleRate)), channels=\(format.channelCount))")
@@ -108,9 +132,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         refreshTitle()
         buildMenu()
+        // Settle window: no further restart (or config-change reaction) until the
+        // engine has run undisturbed for a moment. Then honor any coalesced request.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            guard let self = self else { return }
+            self.suppressConfigChange = false
+            self.restartInFlight = false
+            if self.restartQueued {
+                self.restartQueued = false
+                self.requestListening()
+            }
+        }
     }
 
     private func stopListening(reason: String) {
+        restartQueued = false
         counter.flush()
         audio.stop()
         listening = false
@@ -152,23 +188,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func didWake() {
         AppLog.shared.log("system woke — resuming listening shortly")
         // Give the audio hardware a moment to settle after wake before restarting.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            self?.startListening()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.requestListening()
         }
     }
 
     @objc private func audioConfigChanged(_ note: Notification) {
-        AppLog.shared.log("audio configuration changed — reconfiguring")
-        DispatchQueue.main.async { [weak self] in self?.startListening() }
+        // The notification can arrive on any thread; touch state only on main.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, !self.suppressConfigChange else { return }
+            AppLog.shared.log("audio configuration changed — reconfiguring")
+            self.requestListening()   // single-flighted + rate-limited inside
+        }
     }
 
     // MARK: menu bar
 
     private func refreshTitle() {
         let icon = listening ? "😄" : "🎙️"
-        statusItem.button?.title = "\(icon) \(store.todayCount())"
+        let me = store.todayCount(origin: "me")
+        let tv = store.todayCount(origin: "tv")
+        // Two counters: your laughs vs the TV's, today.
+        statusItem.button?.title = "\(icon) \(me)  📺 \(tv)"
         statusItem.button?.toolTip = listening
-            ? "LaughCounter is listening"
+            ? "Today — you: \(me) · TV: \(tv)"
             : "LaughCounter — not listening (open menu to resume)"
     }
 
@@ -207,7 +250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func logMiss() { markMissed(source: "button") }
     @objc private func resumeListening() {
         AppLog.shared.log("manual resume requested")
-        startListening()
+        requestListening()
     }
     @objc private func openLog() { store.revealInFinder() }
     @objc private func openActivityLog() {

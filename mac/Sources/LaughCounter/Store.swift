@@ -34,6 +34,9 @@ final class LaughStore {
             ("duration", .num(round2(event.duration))),
             ("mean", .num(round2(event.mean))),
             ("source", .str(source)),
+            ("origin", .str(event.origin)),
+            ("tv_signal", .num(round2(event.tvSignal))),
+            ("origin_reason", .str(event.originReason)),
         ]
         if !event.type.isEmpty {
             fields.append(("type", .str(event.type)))
@@ -50,12 +53,16 @@ final class LaughStore {
     /// command (`"voice"`) from a menu/keyboard click (`"button"`).
     func appendMissed(source: String = "voice") {
         let now = Date().timeIntervalSince1970
+        // A miss you reported is, by definition, you.
         append(LaughEvent(start: now - 0.5, end: now, duration: 0.5,
-                          peak: 0, mean: 0, type: "", context: []),
+                          peak: 0, mean: 0, type: "", context: [],
+                          origin: "me", originReason: "you reported it", tvSignal: 0),
                source: source, label: "missed")
     }
 
-    func todayCount() -> Int {
+    /// Count today's counted laughs (excludes candidates/rejects). Pass `origin`
+    /// ("me" or "tv") to count just that bucket; omit for the total.
+    func todayCount(origin: String? = nil) -> Int {
         guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { return 0 }
         let calendar = Calendar.current
         var count = 0
@@ -63,8 +70,12 @@ final class LaughStore {
             guard let data = line.data(using: .utf8),
                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let start = obj["start"] as? Double else { continue }
-            // Candidates (sub-threshold, logged for tuning) and rejects don't count.
+            // Candidates (sub-threshold, logged for alignment) and rejects don't count.
             if let label = obj["label"] as? String, label == "rejected" || label == "candidate" {
+                continue
+            }
+            // Older entries predate attribution; treat a missing origin as "me".
+            if let origin = origin, (obj["origin"] as? String ?? "me") != origin {
                 continue
             }
             if calendar.isDateInToday(Date(timeIntervalSince1970: start)) { count += 1 }
