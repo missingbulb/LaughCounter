@@ -11,6 +11,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let voice = VoiceCommand()
     private var micGranted = false
     private var listening = false
+    // (Re)starting the engine itself posts .AVAudioEngineConfigurationChange, so
+    // we suppress that notification around our own (re)starts to avoid a restart
+    // loop that would keep the engine from ever running long enough to detect.
+    private var suppressConfigChange = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -90,6 +94,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// is the single recovery path for all of those.
     private func startListening() {
         guard micGranted else { return }
+        // Ignore the config-change notifications our own stop/start will emit.
+        suppressConfigChange = true
         counter.flush()
         counter.reset()
         detector.reset()
@@ -108,6 +114,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         refreshTitle()
         buildMenu()
+        // Release the guard once the engine has settled, so genuine later device
+        // changes are still handled.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.suppressConfigChange = false
+        }
     }
 
     private func stopListening(reason: String) {
@@ -158,8 +169,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func audioConfigChanged(_ note: Notification) {
-        AppLog.shared.log("audio configuration changed — reconfiguring")
-        DispatchQueue.main.async { [weak self] in self?.startListening() }
+        // The notification can arrive on any thread; touch state only on main.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, !self.suppressConfigChange else { return }
+            self.suppressConfigChange = true   // coalesce a burst of changes
+            AppLog.shared.log("audio configuration changed — reconfiguring")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                self?.startListening()
+            }
+        }
     }
 
     // MARK: menu bar
