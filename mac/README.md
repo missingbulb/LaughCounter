@@ -78,18 +78,28 @@ one JSON object per line, fields in a fixed order:
 | `duration` | `end − start` in seconds. **Coarse:** the built-in classifier analyses in ~3s windows, so a single laugh reads ~3s; only laughs spanning several windows read longer. It's a rough length, not a precise one. |
 | `mean` | average laughter confidence across the laugh |
 | `source` | `mic` (auto), `voice` (spoken “I just laughed”), `button` (menu / ⌘L) |
+| `origin` | you-vs-TV **hypothesis**: `me` or `tv` |
+| `tv_signal` | strongest produced-audio context (0–1) the hypothesis is based on |
+| `origin_reason` | plain-language why (e.g. `music=0.66 (soundtrack/audience) → TV`) |
 | `type` | which laugh class fired (e.g. giggle, chuckle), when known |
-| `context` | top competing non-laugh classes heard — used to spot TV audio |
+| `context` | top competing non-laugh classes heard |
 
-**Sub-threshold logging:** anything that clears a lower bar but not the counting
-threshold is written with `label:"candidate"` so you can analyse near-misses and
-tune thresholds later — candidates never affect the menu-bar count.
+**You vs the TV (two counters).** The menu bar shows `😄 N  📺 M` — your laughs vs
+the TV's, today. Each laugh gets a *hypothesis*, not a verdict: a strong
+produced-audio context (music, dialogue, audience, instruments — `tv_signal ≥ 0.3`)
+is attributed to the TV; clean laughter with little of that is attributed to you.
+Only *your* laughs blip. It will guess wrong sometimes (a real laugh over TV music),
+which is why every laugh is still logged with its reasoning — nothing is discarded.
+The class-based classifier can't hear *who* laughed; a loudness/proximity signal and,
+eventually, laugh enrollment would sharpen it.
 
-**TV de-confliction:** a would-be laugh whose TV-context classes (applause, crowd,
-music…) out-score the laughter is *suppressed* — not counted — and the reason is
-written to the **activity log** (`laughcounter.log`, next to the laugh log; open it
-from the menu). That log also records lifecycle events (started / slept / woke /
-reconfigured / errors), so if listening ever stops you can see why.
+**Sub-threshold logging:** anything that clears a deliberately low bar but not the
+counting threshold is written with `label:"candidate"` (uncounted) — so near-misses
+are on record and later “I laughed” feedback can be aligned to a nearby event.
+
+**Activity log:** lifecycle events (started / slept / woke / reconfigured / errors)
+and each laugh's hypothesis go to `laughcounter.log` next to the laugh log (open it
+from the menu), so if listening ever stops — or a guess looks off — you can see why.
 
 ## Notes & limits
 

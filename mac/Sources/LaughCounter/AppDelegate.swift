@@ -34,26 +34,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: wiring
 
     private func wireUp() {
-        // A detected laugh → log it and give one confirming blip.
+        // A counted laugh → log it with the you-vs-TV hypothesis, and blip only for
+        // *your* laughs (blipping at every TV laugh would be maddening).
         counter.onLaugh = { [weak self] event in
             guard let self = self else { return }
             self.store.append(event)
-            AppLog.shared.log(String(format: "laugh logged type=%@ peak=%.2f dur=%.2f",
-                                     event.type.isEmpty ? "?" : event.type,
-                                     event.peak, event.duration))
-            Chime.play(times: 1)
+            AppLog.shared.log(String(format: "laugh logged origin=%@ peak=%.2f dur=%.2f — %@",
+                                     event.origin, event.peak, event.duration, event.originReason))
+            if event.origin == "me" { Chime.play(times: 1) }
             DispatchQueue.main.async { self.refreshTitle() }
         }
-        // Sub-threshold episode → log it as a candidate for later tuning, silently
-        // (no blip, doesn't change the count).
+        // Sub-threshold episode → log it as a candidate (silent, uncounted) so later
+        // "I laughed" feedback has a nearby event to align to.
         counter.onCandidate = { [weak self] event in
             self?.store.append(event, label: "candidate")
-            AppLog.shared.log(String(format: "candidate (sub-threshold) logged peak=%.2f dur=%.2f",
-                                     event.peak, event.duration))
-        }
-        // A laugh judged to be TV / laugh-track audio → note it, don't count it.
-        counter.onSuppressed = { _, reason in
-            AppLog.shared.log("laugh suppressed (\(reason))")
+            AppLog.shared.log(String(format: "candidate logged origin=%@ peak=%.2f dur=%.2f — %@",
+                                     event.origin, event.peak, event.duration, event.originReason))
         }
         // Each analysis window → feed the counter (real audio timing inside).
         detector.onObservation = { [weak self] obs in
@@ -210,9 +206,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refreshTitle() {
         let icon = listening ? "😄" : "🎙️"
-        statusItem.button?.title = "\(icon) \(store.todayCount())"
+        let me = store.todayCount(origin: "me")
+        let tv = store.todayCount(origin: "tv")
+        // Two counters: your laughs vs the TV's, today.
+        statusItem.button?.title = "\(icon) \(me)  📺 \(tv)"
         statusItem.button?.toolTip = listening
-            ? "LaughCounter is listening"
+            ? "Today — you: \(me) · TV: \(tv)"
             : "LaughCounter — not listening (open menu to resume)"
     }
 
