@@ -78,8 +78,8 @@ final class LaughDetector: NSObject, SNResultsObserving {
         }
         let topContext = Array(nonLaugh.sorted { $0.confidence > $1.confidence }.prefix(3))
 
-        let windowStart = CMTimeGetSeconds(result.timeRange.start)
-        var windowDur = CMTimeGetSeconds(result.timeRange.duration)
+        let windowStart = CMTimeGetSeconds(classification.timeRange.start)
+        var windowDur = CMTimeGetSeconds(classification.timeRange.duration)
         if !windowDur.isFinite || windowDur <= 0 { windowDur = 0.5 }
         let epoch = startEpoch + (windowStart.isFinite ? windowStart : 0)
 
