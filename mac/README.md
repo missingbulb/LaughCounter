@@ -23,8 +23,19 @@ The app is built for you by GitHub Actions on a macOS runner:
 ## Install
 
 1. Open `LaughCounter.dmg` and drag **LaughCounter** into **Applications**.
-2. First launch only: **right-click the app → Open → Open** (it's ad-hoc signed, so
-   this one-time step gets past Gatekeeper — no paid Apple account needed).
+2. **Get past Gatekeeper (first launch only).** The app is ad-hoc signed but not
+   notarized (that needs a paid Apple Developer account), so macOS blocks the first
+   open with *“Apple could not verify LaughCounter is free of malware.”* Clear it
+   **one of two ways**:
+   - **System Settings:** click **Done** on the warning, then open **System
+     Settings → Privacy & Security**, scroll to **Security**, and click **Open
+     Anyway** next to *“LaughCounter was blocked…”*. Confirm **Open Anyway** again.
+   - **Terminal (most reliable):** after dragging it to Applications, run
+     `xattr -dr com.apple.quarantine /Applications/LaughCounter.app`, then open it
+     normally.
+
+   > On **macOS 15 (Sequoia)** the old **right-click → Open** shortcut no longer
+   > bypasses this — you must use one of the two methods above.
 3. Approve **Microphone** and **Speech Recognition** when prompted.
 4. A 😄 with a number appears in your menu bar. That's it.
 
