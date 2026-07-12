@@ -35,31 +35,48 @@ struct LaughObservation {
 /// Turns a stream of per-window observations into discrete laughs, using a
 /// hysteresis state machine:
 ///
-/// * start when confidence rises to `enterThreshold`,
+/// * start tracking when confidence rises to `enterThreshold`,
 /// * keep going while it stays above the lower `exitThreshold` (hysteresis),
 /// * bridge silences shorter than `mergeGap` (a fit of giggles = one laugh),
 /// * only record episodes lasting at least `minDuration`.
+///
+/// An episode is **counted** as a real laugh only if its peak confidence reaches
+/// `countThreshold`. Episodes that clear the lower `enterThreshold` but not
+/// `countThreshold` are emitted as **candidates** (`onCandidate`) — logged for
+/// later analysis / threshold tuning, but not counted.
 ///
 /// Episode length comes from the observations' real window bounds, so a laugh
 /// that spans several windows reports its true duration instead of a fixed 0.5s.
 /// Deterministic and I/O-free.
 final class LaughCounter {
-    var enterThreshold = 0.5
-    var exitThreshold = 0.3
+    /// Peak confidence an episode must reach to be *counted* as a real laugh.
+    var countThreshold = 0.5
+    /// Lower bar at which we start tracking an episode at all. Episodes that peak
+    /// between here and `countThreshold` are logged as candidates (see
+    /// `logCandidates`) rather than counted — useful for tuning.
+    var enterThreshold = 0.3
+    /// Hysteresis exit — an open episode stays open while confidence holds above this.
+    var exitThreshold = 0.2
     var minDuration = 0.4
     var mergeGap = 1.0
     var frameSeconds = 0.5   // fallback window length if the API doesn't supply one
 
-    /// TV de-confliction: suppress an episode when the strongest TV-context class
-    /// in it is at least this fraction of the episode's peak laughter confidence.
-    /// `1.0` (the default) is conservative — TV context must *out-score* the laugh
-    /// before it's discarded; lower it to filter more aggressively.
+    /// Emit sub-threshold episodes (peak below `countThreshold`) via `onCandidate`.
+    var logCandidates = true
+
+    /// TV de-confliction: suppress a *counted* episode when the strongest TV-context
+    /// class in it is at least this fraction of the episode's peak laughter
+    /// confidence. `1.0` (the default) is conservative — TV context must *out-score*
+    /// the laugh before it's discarded; lower it to filter more aggressively.
     var tvContextRatio = 1.0
 
     /// Called (on the caller's thread) when a laugh episode is finalised and kept.
     var onLaugh: ((LaughEvent) -> Void)?
-    /// Called when an episode was discarded as TV/laugh-track audio. The second
-    /// argument is a human-readable reason for the operational log.
+    /// Called for a sub-threshold episode (peak < `countThreshold`) — for logging
+    /// and tuning, not counting.
+    var onCandidate: ((LaughEvent) -> Void)?
+    /// Called when a *counted* episode was discarded as TV/laugh-track audio. The
+    /// second argument is a human-readable reason for the operational log.
     var onSuppressed: ((LaughEvent, String) -> Void)?
 
     private var start: Double?
@@ -141,6 +158,10 @@ final class LaughCounter {
         resetEpisode()
 
         guard duration >= minDuration else { return }
+        if capturedPeak < countThreshold {
+            if logCandidates { onCandidate?(event) }
+            return
+        }
         if capturedContext > 0 && capturedContext >= capturedPeak * tvContextRatio {
             let reason = String(format: "tv-context %@=%.2f >= laugh=%.2f",
                                 capturedLabel.isEmpty ? "?" : capturedLabel,

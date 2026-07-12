@@ -64,6 +64,33 @@ a GitHub Release with `LaughCounter.dmg` attached — which is what the
 [latest-release download link](https://github.com/missingbulb/LaughCounter/releases/latest/download/LaughCounter.dmg)
 at the top resolves to.
 
+## The laugh log
+
+Laughs are appended to `~/Library/Application Support/LaughCounter/laughs.jsonl`,
+one JSON object per line, fields in a fixed order:
+
+| field | meaning |
+|-------|---------|
+| `start_iso` | human-readable start time (ISO-8601) |
+| `label` | `auto` (detected), `missed` (you told us we missed one), `candidate` (sub-threshold — logged for tuning, **not counted**), `rejected` (not counted) |
+| `start` / `end` | epoch seconds of the laugh's real start/end (from the classifier's window timing) |
+| `peak` | highest laughter confidence during the laugh (0–1, rounded) |
+| `duration` | `end − start` in seconds |
+| `mean` | average laughter confidence across the laugh |
+| `source` | `mic` (auto), `voice` (spoken “I just laughed”), `button` (menu / ⌘L) |
+| `type` | which laugh class fired (e.g. giggle, chuckle), when known |
+| `context` | top competing non-laugh classes heard — used to spot TV audio |
+
+**Sub-threshold logging:** anything that clears a lower bar but not the counting
+threshold is written with `label:"candidate"` so you can analyse near-misses and
+tune thresholds later — candidates never affect the menu-bar count.
+
+**TV de-confliction:** a would-be laugh whose TV-context classes (applause, crowd,
+music…) out-score the laughter is *suppressed* — not counted — and the reason is
+written to the **activity log** (`laughcounter.log`, next to the laugh log; open it
+from the menu). That log also records lifecycle events (started / slept / woke /
+reconfigured / errors), so if listening ever stops you can see why.
+
 ## Notes & limits
 
 See [`../docs/DESIGN-AND-TRADEOFFS.md`](../docs/DESIGN-AND-TRADEOFFS.md) for the

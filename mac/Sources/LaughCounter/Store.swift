@@ -63,7 +63,10 @@ final class LaughStore {
             guard let data = line.data(using: .utf8),
                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let start = obj["start"] as? Double else { continue }
-            if (obj["label"] as? String) == "rejected" { continue }
+            // Candidates (sub-threshold, logged for tuning) and rejects don't count.
+            if let label = obj["label"] as? String, label == "rejected" || label == "candidate" {
+                continue
+            }
             if calendar.isDateInToday(Date(timeIntervalSince1970: start)) { count += 1 }
         }
         return count

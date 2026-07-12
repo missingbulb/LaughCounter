@@ -35,6 +35,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Chime.play(times: 1)
             DispatchQueue.main.async { self.refreshTitle() }
         }
+        // Sub-threshold episode → log it as a candidate for later tuning, silently
+        // (no blip, doesn't change the count).
+        counter.onCandidate = { [weak self] event in
+            self?.store.append(event, label: "candidate")
+            AppLog.shared.log(String(format: "candidate (sub-threshold) logged peak=%.2f dur=%.2f",
+                                     event.peak, event.duration))
+        }
         // A laugh judged to be TV / laugh-track audio → note it, don't count it.
         counter.onSuppressed = { _, reason in
             AppLog.shared.log("laugh suppressed (\(reason))")
@@ -184,7 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(withTitle: "I just laughed (log a miss)",
                      action: #selector(logMiss), keyEquivalent: "l")
-        menu.addItem(withTitle: listening ? "Restart listening" : "Resume listening",
+        menu.addItem(withTitle: listening ? "Restart listening" : "Start listening",
                      action: #selector(resumeListening), keyEquivalent: "r")
         menu.addItem(withTitle: "Open laugh log…",
                      action: #selector(openLog), keyEquivalent: "")
