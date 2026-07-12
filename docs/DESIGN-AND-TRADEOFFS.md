@@ -10,6 +10,29 @@ leaving the house. Nice-to-have: tell *your* laugh apart from guests'.
 
 ---
 
+## 0. Requirements (captured from the conversation)
+
+Every requirement gathered while scoping this, and where each is handled.
+
+| Requirement | How it's addressed |
+| --- | --- |
+| One-bedroom apartment; **only living-room laughs** | The mic is placed in the living room — physical placement is what scopes detection to that room (§1, §6). |
+| **Google speaker must keep working** as a Google speaker | LaughCounter never touches it; it uses its own microphone. Nothing is installed on or intercepted from the speaker (§6). |
+| Runs on the **always-on Mac mini** (in the living room) | Native menu-bar app; add to Login Items to auto-start (§1). |
+| **No built-in mic** on the Mac mini; prefer not to buy one | Use a **USB/webcam mic you already own**, plugged into the mini in the living room. (The Google speaker's mic is locked to Google and can't be tapped; the mini has no mic of its own — so some mic is required, but not a purchase.) |
+| Doesn't need to be **100% correct at release**; improve over time | Feedback loop tunes detection now and trains a personalised model later (§2, §3). |
+| **Indication** when a laugh is logged; a way to say **it missed one** | Menu-bar count + a soft blip on each log; "I just laughed" logs a miss (§3). |
+| **Voice** feedback: hear "I just laughed" and mark it; confirm it registered | On-device speech recognition + a **double blip** on trigger (§3). |
+| **Menu-bar** running indicator | The 😄 status item is present whenever the app runs (§3). |
+| Tell **who laughed** — me vs. others; possibly multiple people | Optional second stage: me-vs-guest is reliable; named people possible with limits (§4). |
+| **Save laugh samples** to improve quality; **avoid hand-labeling**; reuse existing algorithms | Built-in pretrained detector (no data needed); saved clips + Create ML transfer learning later (§2, §5). |
+| **Many ways to laugh** — don't overfit one style | Matches several laughter classes; Create ML uses transfer learning; a who-profile is a running average over many laughs (§2, §4). |
+| Tell me if an **existing product** already does this | Surveyed in the root `README.md` ("Does something like this already exist?") — nothing fits, hence self-hosted. |
+| **Keep the Mac clean**; no unfamiliar installers | Native app uses only built-in frameworks — no Python/TensorFlow/Homebrew; trash the app to uninstall (§1). |
+| **Don't build the DMG myself** — use a service | GitHub Actions macOS runners build and package the `.dmg` for download (§1). |
+
+---
+
 ## 1. Deployment: how it runs on the Mac
 
 We considered four shapes. The short version: **a small native menu-bar app is
