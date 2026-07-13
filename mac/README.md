@@ -52,17 +52,18 @@ the committed `Resources/AppIcon.png` master is turned into a multi-resolution
 
 ## Cutting a release
 
-Releases are published automatically from a version tag:
-
-```bash
-git tag v0.2.0
-git push origin v0.2.0
-```
-
-The **Release macOS DMG** workflow builds the app, packages the DMG, and publishes
-a GitHub Release with `LaughCounter.dmg` attached — which is what the
+Releases publish **automatically**. On every push to `main` that touches `mac/**`,
+the **Release macOS DMG** workflow builds the app, packages the DMG, and
+creates/updates the GitHub Release for the app's current version (read from
+`Info.plist`), attaching `LaughCounter.dmg` — which is what the
 [latest-release download link](https://github.com/missingbulb/LaughCounter/releases/latest/download/LaughCounter.dmg)
-at the top resolves to.
+resolves to.
+
+So to **ship a new version**, bump `CFBundleShortVersionString` in
+`Resources/Info.plist` and merge to `main` — a new `v<version>` Release appears on
+its own. (Merges that keep the same version just refresh that Release's DMG.) You
+can also publish a Release from the GitHub UI, or run the workflow manually from
+the Actions tab.
 
 ## The laugh log
 

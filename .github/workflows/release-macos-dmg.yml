@@ -1,21 +1,26 @@
 name: Release macOS DMG
 
-# Publishing flow — two equivalent ways to cut a release, both build the app,
-# package the DMG, and attach it to a GitHub Release so the README's stable
-# "latest release" link (releases/latest/download/LaughCounter.dmg) resolves:
-#   * push a version tag: `git tag v0.2.0 && git push origin v0.2.0`, or
-#   * publish a Release from the GitHub UI (handy on mobile) that creates the tag.
-# The tag-push path creates the Release with GITHUB_TOKEN, which by design does
-# not re-fire the `release` event, so there's no double build.
+# Publishes the DMG to GitHub Releases so the README's stable "latest release"
+# link (releases/latest/download/LaughCounter.dmg) always resolves.
+#
+# It runs automatically on every push to `main` that touches the app: it builds
+# the DMG and creates/updates the Release for the current app version (read from
+# Info.plist), attaching LaughCounter.dmg. GITHUB_TOKEN can create the tag and
+# Release from within Actions (a session's git proxy cannot). Publishing a Release
+# from the GitHub UI, or a manual dispatch, work too.
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths:
+      - "mac/**"
+      - ".github/workflows/release-macos-dmg.yml"
   release:
     types: [published]
+  workflow_dispatch:
 
 permissions:
-  contents: write           # needed to create the Release and attach the .dmg
+  contents: write           # create the tag/Release and attach the .dmg
 
 jobs:
   release:
@@ -35,12 +40,27 @@ jobs:
       - name: Package .dmg
         run: bash scripts/make-dmg.sh
 
+      - name: Resolve release tag
+        id: rel
+        # On a UI-published release, use its tag; otherwise derive v<version> from
+        # the app's Info.plist so a version bump publishes a new Release.
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "release" ]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)"
+            tag="v$version"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
       - name: Publish Release with DMG
         env:
           GH_TOKEN: ${{ github.token }}
-        # Create the release with the DMG attached; if the release already exists
-        # (e.g. created in the UI, or a re-run), just (re)upload the DMG to it.
+        # Create the Release (and its tag at this commit) with the DMG attached; if
+        # it already exists, just (re)upload the DMG. A Release made with
+        # GITHUB_TOKEN does not re-fire the `release` event, so there's no loop.
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/LaughCounter.dmg \
-            --title "LaughCounter $GITHUB_REF_NAME" --generate-notes \
-          || gh release upload "$GITHUB_REF_NAME" dist/LaughCounter.dmg --clobber
+          tag='${{ steps.rel.outputs.tag }}'
+          gh release create "$tag" dist/LaughCounter.dmg \
+            --title "LaughCounter $tag" --generate-notes --target "$GITHUB_SHA" \
+          || gh release upload "$tag" dist/LaughCounter.dmg --clobber

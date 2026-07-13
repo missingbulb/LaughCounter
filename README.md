@@ -9,6 +9,12 @@ from a one-tap "I just laughed" whenever it misses one.
 Everything runs locally. Your Google speaker keeps working as a Google speaker —
 LaughCounter never touches it.
 
+### ⬇️ Download
+
+**[Get the latest macOS app → `LaughCounter.dmg`](https://github.com/missingbulb/LaughCounter/releases/latest/download/LaughCounter.dmg)** · [all releases](https://github.com/missingbulb/LaughCounter/releases)
+
+A ready-made build, published automatically on every change to `main` — no Xcode. See [`mac/README.md`](mac/README.md) to install.
+
 ---
 
 ## Two ways to run it
