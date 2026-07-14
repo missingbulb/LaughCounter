@@ -53,6 +53,23 @@ bash scripts/make-dmg.sh      # -> dist/LaughCounter.dmg
 
 Requires the Swift toolchain (Xcode Command Line Tools). No third-party packages.
 
+This produces an **ad-hoc-signed** app (the Gatekeeper step under *Install*
+applies). To instead sign it with a real **Developer ID** and notarize it — so
+it opens with no warning — you need a paid Apple Developer account, then:
+
+```bash
+export MACOS_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+bash scripts/build-app.sh          # signs with Hardened Runtime + entitlements
+bash scripts/make-dmg.sh
+export APPLE_ID=you@example.com APPLE_TEAM_ID=XXXXXXXXXX APPLE_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+bash scripts/notarize-dmg.sh       # submits to Apple + staples the ticket
+```
+
+CI does this automatically when the matching repository secrets are set — see
+[`.github/workflows/build-macos-dmg.yml`](../.github/workflows/build-macos-dmg.yml).
+This is the **non–App Store** path; a Mac App Store build additionally requires
+the App Sandbox and a different (Apple Distribution) certificate.
+
 ## Notes & limits
 
 See [`../docs/DESIGN-AND-TRADEOFFS.md`](../docs/DESIGN-AND-TRADEOFFS.md) for the

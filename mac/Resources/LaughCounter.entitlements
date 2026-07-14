@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      Hardened Runtime entitlements for Developer ID distribution + notarization.
+      The Hardened Runtime is required by Apple's notary service; under it,
+      microphone access must be explicitly granted with this resource-access
+      exception. (Speech recognition is gated at runtime by TCC + the
+      NSSpeechRecognitionUsageDescription string in Info.plist, not by a
+      codesign entitlement, so it needs nothing here.)
+
+      NOTE: this is the NON-App-Store track — it deliberately does NOT enable the
+      App Sandbox. A Mac App Store build would additionally need
+      com.apple.security.app-sandbox and a different (Apple Distribution) cert.
+    -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+</dict>
+</plist>
