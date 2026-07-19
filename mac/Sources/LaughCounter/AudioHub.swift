@@ -35,6 +35,24 @@ final class AudioHub {
     /// Install the tap and start capture, using a format from `prepareFormat()`.
     func start(format: AVAudioFormat) throws {
         let input = engine.inputNode
+        // Re-validate the live hardware format right before installing the tap.
+        // The device can vanish or change between prepareFormat() and here (dock
+        // unplug, wake-time re-enumeration), and installTap with a format that no
+        // longer matches the hardware raises an *uncatchable* NSException instead
+        // of throwing. Checking now converts the realistic stale-format cases into
+        // a catchable error the caller's teardown path handles — it narrows the
+        // race window to microseconds but cannot close it entirely (AVAudioEngine
+        // offers nothing atomic), so this path is hardened, not crash-proof.
+        let live = input.outputFormat(forBus: 0)
+        guard live.sampleRate == format.sampleRate,
+              live.channelCount == format.channelCount else {
+            throw NSError(domain: "LaughCounter", code: 2, userInfo: [
+                NSLocalizedDescriptionKey:
+                    "input device changed between prepare and start "
+                    + "(expected \(format.sampleRate)Hz/\(format.channelCount)ch, "
+                    + "live \(live.sampleRate)Hz/\(live.channelCount)ch)",
+            ])
+        }
         input.removeTap(onBus: 0)   // no-op if none installed; keeps restart clean
         input.installTap(onBus: 0, bufferSize: 8192, format: format) { [weak self] buffer, when in
             self?.onBuffer?(buffer, when)
@@ -45,7 +63,11 @@ final class AudioHub {
 
     func stop() {
         engine.inputNode.removeTap(onBus: 0)
-        if engine.isRunning { engine.stop() }
+        // Unconditional: engine.stop() is safe on a non-running engine, and it also
+        // releases what engine.prepare() allocated — a prepare()-then-throw path
+        // (prepareFormat/configure failing before start) would otherwise leave the
+        // initialized input unit holding the device.
+        engine.stop()
         activeFormat = nil
     }
 }

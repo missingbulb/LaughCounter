@@ -13,5 +13,10 @@ up into the shared canon) — not a reason to capture it anywhere else.
 - [ci-release.md](ci-release.md) — **before touching the release/CI workflows
   (`.github/workflows/*-macos-dmg.yml`).** How the DMG gets published to GitHub
   Releases, and the trigger gotchas learned wiring it up.
+- [mac-audio-lifecycle.md](mac-audio-lifecycle.md) — **before touching engine
+  start/stop, sleep/wake, exit handling, or `VoiceCommand` in
+  `mac/Sources/LaughCounter/`.** The release-the-mic-on-every-path invariant
+  (USB webcam mics wedge otherwise), signal routing, generation-guarded deferred
+  work, and config-change reconciliation.
 
 @ci-release.md
