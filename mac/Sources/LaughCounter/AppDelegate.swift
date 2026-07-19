@@ -21,8 +21,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var restartInFlight = false
     private var restartQueued = false
 
+    // Opt-in "keep the Mac awake so it keeps hearing laughs during a long movie".
+    // Off by default; the choice persists across launches. While enabled *and*
+    // listening we hold a power assertion that blocks idle *system* sleep (the
+    // display can still sleep — we only need audio to keep running). It does not
+    // block lid-close or a manual Sleep, and it costs battery, so it's opt-in.
+    private let keepAwakeDefaultsKey = "keepMacAwakeWhileListening"
+    private var keepAwake = false
+    private var sleepAssertion: NSObjectProtocol?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        keepAwake = UserDefaults.standard.bool(forKey: keepAwakeDefaultsKey)  // false if unset
         refreshTitle()
         buildMenu()
         wireUp()
@@ -213,6 +223,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.toolTip = listening
             ? "Today — you: \(me) · TV: \(tv)"
             : "LaughCounter — not listening (open menu to resume)"
+        // refreshTitle() is called after every `listening` transition, so it's the
+        // one chokepoint that keeps the power assertion in sync with the state.
+        updateSleepAssertion()
+    }
+
+    /// Hold the idle-system-sleep assertion iff the user opted in *and* we're
+    /// actually listening; release it otherwise. Idempotent — safe to call on any
+    /// state change. Main-thread only (every caller is already on main).
+    private func updateSleepAssertion() {
+        let shouldHold = keepAwake && listening
+        if shouldHold, sleepAssertion == nil {
+            sleepAssertion = ProcessInfo.processInfo.beginActivity(
+                options: [.idleSystemSleepDisabled],
+                reason: "LaughCounter is listening for laughs")
+            AppLog.shared.log("keep-awake: holding idle-sleep assertion")
+        } else if !shouldHold, let token = sleepAssertion {
+            ProcessInfo.processInfo.endActivity(token)
+            sleepAssertion = nil
+            AppLog.shared.log("keep-awake: released idle-sleep assertion")
+        }
     }
 
     private func buildMenu() {
@@ -236,6 +266,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                      action: #selector(logMiss), keyEquivalent: "l")
         menu.addItem(withTitle: listening ? "Restart listening" : "Start listening",
                      action: #selector(resumeListening), keyEquivalent: "r")
+
+        let keepAwakeItem = NSMenuItem(title: "Keep Mac awake while listening",
+                                       action: #selector(toggleKeepAwake), keyEquivalent: "")
+        keepAwakeItem.state = keepAwake ? .on : .off
+        keepAwakeItem.toolTip = "Blocks idle sleep so laughs are still heard during a long "
+            + "movie. Won't stop lid-close or manual Sleep, and uses more battery."
+        menu.addItem(keepAwakeItem)
         menu.addItem(withTitle: "Open laugh log…",
                      action: #selector(openLog), keyEquivalent: "")
         menu.addItem(withTitle: "Open activity log…",
@@ -251,6 +288,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func resumeListening() {
         AppLog.shared.log("manual resume requested")
         requestListening()
+    }
+    @objc private func toggleKeepAwake() {
+        keepAwake.toggle()
+        UserDefaults.standard.set(keepAwake, forKey: keepAwakeDefaultsKey)
+        AppLog.shared.log("keep-awake \(keepAwake ? "enabled" : "disabled")")
+        updateSleepAssertion()
+        buildMenu()   // reflect the checkmark
     }
     @objc private func openLog() { store.revealInFinder() }
     @objc private func openActivityLog() {
@@ -277,6 +321,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         restartQueued = false    // don't let a coalesced restart fire mid-teardown
         voice.stop()             // cancel speech recognition; release its stream
         audio.stop()             // remove the input tap and stop the engine
+        listening = false
+        updateSleepAssertion()   // drop the keep-awake assertion if we held one
         AppLog.shared.log("app terminated — microphone released")
     }
 
