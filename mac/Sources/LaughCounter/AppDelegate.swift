@@ -257,9 +257,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.activateFileViewerSelecting([AppLog.shared.fileURL])
     }
     @objc private func quit() {
-        counter.flush()
         AppLog.shared.log("app quitting")
         NSApp.terminate(nil)
+    }
+
+    /// Clean up before the process exits. Reached for *every* exit path — the menu
+    /// Quit item, ⌘Q, and a logout/shutdown — because `NSApp.terminate` posts this
+    /// after `applicationShouldTerminate` approves.
+    ///
+    /// Releasing the microphone here is the whole point: if the process dies with
+    /// the input tap still installed and the engine running, its CoreAudio IOProc
+    /// stays registered on the input device. Some USB webcam mics get wedged by
+    /// that and go silent — no input registered in System Settings — until they're
+    /// physically unplugged and reconnected. Tearing down the tap + engine (and the
+    /// speech recogniser, which also holds the audio stream) deregisters the IOProc
+    /// so the device is handed cleanly back to the system.
+    func applicationWillTerminate(_ notification: Notification) {
+        counter.flush()          // persist any laugh still in progress
+        restartQueued = false    // don't let a coalesced restart fire mid-teardown
+        voice.stop()             // cancel speech recognition; release its stream
+        audio.stop()             // remove the input tap and stop the engine
+        AppLog.shared.log("app terminated — microphone released")
     }
 
     private func showMicDenied() {
