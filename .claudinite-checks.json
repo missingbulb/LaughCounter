@@ -1,6 +1,12 @@
 {
   "packs": [
     "basics",
+    {
+      "id": "barriers",
+      "via": [
+        "basics"
+      ]
+    },
     "grow_with_claudinite",
     "tidy-repo",
     "github-actions"
