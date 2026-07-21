@@ -1,7 +1,7 @@
 # LaughCounter — local project procedures
 
 Project-specific instructions for this repo, layered on the shared Claudinite
-canon mounted read-only at `.claudinite/`. Where a local rule refines a canon
+canon (vendored into the repo, read-only). Where a local rule refines a canon
 rule, the local one wins — it carries this project's concrete files and gotchas.
 Routing index, not a payload: read the matching doc when its trigger fires; don't
 pre-load.
