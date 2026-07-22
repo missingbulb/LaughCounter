@@ -28,6 +28,7 @@ jobs:
     defaults:
       run:
         working-directory: mac
+        shell: bash   # runs steps with `bash -o pipefail` so piped commands fail loudly
     steps:
       - uses: actions/checkout@v4
 
