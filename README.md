@@ -9,6 +9,12 @@ from a one-tap "I just laughed" whenever it misses one.
 Everything runs locally. Your Google speaker keeps working as a Google speaker —
 LaughCounter never touches it.
 
+### ⬇️ Download
+
+**[Get the latest macOS app → `LaughCounter.dmg`](https://github.com/missingbulb/LaughCounter/releases/latest/download/LaughCounter.dmg)** · [all releases](https://github.com/missingbulb/LaughCounter/releases)
+
+A ready-made build, published automatically on every change to `main` — no Xcode. See [`mac/README.md`](mac/README.md) to install.
+
 ---
 
 ## Two ways to run it
@@ -17,8 +23,8 @@ LaughCounter never touches it.
   uses macOS's **built-in** laughter detection, so there's **nothing to install**
   (no Python, no TensorFlow, no Homebrew) and nothing left behind when you delete
   it. Menu-bar count, a blip when a laugh is logged, and a hands-free "I just
-  laughed" voice command. You download a ready-made `.dmg` that GitHub builds for
-  you — no Xcode. **See [`mac/README.md`](mac/README.md).**
+  laughed" voice command. **⬇️ [Download the latest `LaughCounter.dmg`](https://github.com/missingbulb/LaughCounter/releases/latest/download/LaughCounter.dmg)**
+  (a ready-made build from GitHub — no Xcode). **See [`mac/README.md`](mac/README.md).**
 - **🐍 Python reference / simulator (this folder)** — a fully-tested,
   cross-platform implementation with a phone-friendly web dashboard, feedback
   commands, stats, and an offline `simulate` mode. Great for trying the whole

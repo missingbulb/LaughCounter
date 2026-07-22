@@ -1,4 +1,7 @@
+## Project-specific procedures
 
-@.claudinite/CLAUDE.md
+Local instructions for this repo, layered on the shared Claudinite canon
+(vendored at `.claudinite/shared/`, injected at session start). Routing index —
+read the matching doc when its topic is in front of you.
 
-> Claudinite self-check: if the `@.claudinite/CLAUDE.md` import above did not resolve (the `.claudinite/` payload is absent — e.g. no `.claudinite/README.md`), the Claudinite harness is **not active** this session. Treat it as not loaded and confirm with the user before substantive work, since a launch-layer hook failure can eat the sync hook's own not-loaded directive.
+@dev/procedures/CLAUDE.md

@@ -3,16 +3,16 @@ name: Build macOS DMG
 # Builds the native LaughCounter.app and packages it into a downloadable .dmg —
 # entirely on GitHub's macOS runners, so nobody needs Xcode locally.
 #
-# Where to get the DMG:
-#  * Any run: open the run under the "Actions" tab → download the
-#    "LaughCounter-dmg" artifact.
-#  * Tagged releases: publish a GitHub Release and the .dmg is attached to it.
+# This is the CI build for feature branches: every push that touches the app
+# produces a downloadable artifact. `main` is owned by release-macos-dmg.yml, which
+# builds and publishes the DMG to a GitHub Release — so this excludes `main` to
+# avoid a duplicate build.
 #
 # Signing & notarization (optional): if the following repository secrets are
 # set, the .dmg is signed with a Developer ID identity and notarized by Apple,
 # so it opens with no Gatekeeper warning. Without them, the build still works
 # and produces an ad-hoc-signed .dmg (see mac/README.md "Install"). Requires a
-# paid Apple Developer account.
+# paid Apple Developer account. (release-macos-dmg.yml uses the same secrets.)
 #   MACOS_CERT_P12       base64 of the "Developer ID Application" cert (.p12)
 #   MACOS_CERT_PASSWORD  the .p12 export password
 #   MACOS_SIGN_IDENTITY  e.g. "Developer ID Application: Your Name (TEAMID)"
@@ -23,15 +23,13 @@ name: Build macOS DMG
 on:
   workflow_dispatch:        # lets you build on demand from the Actions tab
   push:
-    branches: ["**"]
+    branches: ["**", "!main"]
     paths:
       - "mac/**"
       - ".github/workflows/build-macos-dmg.yml"
-  release:
-    types: [published]
 
 permissions:
-  contents: write           # needed to attach the .dmg to a Release
+  contents: read
 
 jobs:
   build:
@@ -102,9 +100,3 @@ jobs:
           name: LaughCounter-dmg
           path: mac/dist/LaughCounter.dmg
           if-no-files-found: error
-
-      - name: Attach DMG to release
-        if: github.event_name == 'release'
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/LaughCounter.dmg --clobber
-        env:
-          GH_TOKEN: ${{ github.token }}

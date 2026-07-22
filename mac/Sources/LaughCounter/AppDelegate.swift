@@ -9,32 +9,85 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let audio = AudioHub()
     private let detector = LaughDetector()
     private let voice = VoiceCommand()
-    private var micReady = false
+    private var micGranted = false
+    private var listening = false
+    // (Re)starting the engine itself posts .AVAudioEngineConfigurationChange, so
+    // we suppress that notification around our own (re)starts to avoid a restart
+    // loop that would keep the engine from ever running long enough to detect.
+    private var suppressConfigChange = false
+    // Single-flight + rate-limit for (re)starts: repeatedly stop/starting a USB
+    // mic in quick succession can wedge it, so restarts can never overlap or
+    // rapid-cycle — an extra request while one is in flight is coalesced to one.
+    private var restartInFlight = false
+    private var restartQueued = false
+    // Every intentional stop (sleep, terminate) and every accepted restart bumps
+    // this; the delayed finishListening/settle closures capture it when scheduled
+    // and abort if it moved. Without it, a stop can't cancel the +0.4s restart it
+    // raced with — sleep during that gap would start the engine going *into*
+    // sleep (carrying a live IOProc into sleep, the wedge condition), or fire it
+    // at wake before the hardware settles. asyncAfter timers scheduled before
+    // sleep fire immediately ON wake, which makes this race very reachable.
+    private var restartGeneration = 0
+    // A config-change notification arrived while suppressConfigChange was up.
+    // The suppression must swallow our own stop/start echoes (reacting to them
+    // would loop), but it can also swallow a *genuine* device event — noted here
+    // so the settle closure can reconcile by state instead of losing the event.
+    private var configChangeSwallowed = false
+    // True from willSleep until the post-wake settle delay ends. Gates both
+    // requestListening and the config-change handler: CoreAudio tears down /
+    // switches devices while the machine heads into sleep, and reacting to those
+    // notifications would restart capture into sleep right after the intentional
+    // willSleep teardown.
+    private var sleeping = false
+    // Speech may only auto-(re)start once authorization was actually granted.
+    private var speechAuthorized = false
+
+    // Opt-in "keep the Mac awake so it keeps hearing laughs during a long movie".
+    // Off by default; the choice persists across launches. While enabled *and*
+    // listening we hold a power assertion that blocks idle *system* sleep (the
+    // display can still sleep — we only need audio to keep running). It does not
+    // block lid-close or a manual Sleep, and it costs battery, so it's opt-in.
+    private let keepAwakeDefaultsKey = "keepMacAwakeWhileListening"
+    private var keepAwake = false
+    private var sleepAssertion: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        keepAwake = UserDefaults.standard.bool(forKey: keepAwakeDefaultsKey)  // false if unset
         refreshTitle()
         buildMenu()
         wireUp()
+        observeSystemEvents()
+        AppLog.shared.log("app launched")
         requestPermissionsAndStart()
     }
 
     // MARK: wiring
 
     private func wireUp() {
-        // A detected laugh → log it and give one confirming blip.
+        // A counted laugh → log it with the you-vs-TV hypothesis, and blip only for
+        // *your* laughs (blipping at every TV laugh would be maddening).
         counter.onLaugh = { [weak self] event in
             guard let self = self else { return }
             self.store.append(event)
-            Chime.play(times: 1)
+            AppLog.shared.log(String(format: "laugh logged origin=%@ peak=%.2f dur=%.2f — %@",
+                                     event.origin, event.peak, event.duration, event.originReason))
+            if event.origin == "me" { Chime.play(times: 1) }
             DispatchQueue.main.async { self.refreshTitle() }
         }
-        // Each analysis result → feed the counter (wall-clock timestamp).
-        detector.onLaughterScore = { [weak self] score in
-            self?.counter.update(timestamp: Date().timeIntervalSince1970, score: score)
+        // Sub-threshold episode → log it as a candidate (silent, uncounted) so later
+        // "I laughed" feedback has a nearby event to align to.
+        counter.onCandidate = { [weak self] event in
+            self?.store.append(event, label: "candidate")
+            AppLog.shared.log(String(format: "candidate logged origin=%@ peak=%.2f dur=%.2f — %@",
+                                     event.origin, event.peak, event.duration, event.originReason))
         }
-        // "I just laughed" (voice or menu) → log a miss and blip twice.
-        voice.onTrigger = { [weak self] in self?.markMissed() }
+        // Each analysis window → feed the counter (real audio timing inside).
+        detector.onObservation = { [weak self] obs in
+            self?.counter.update(obs)
+        }
+        // "I just laughed": spoken command vs the menu/keyboard get different sources.
+        voice.onTrigger = { [weak self] in self?.markMissed(source: "voice") }
         // One mic tap, fanned out to both consumers.
         audio.onBuffer = { [weak self] buffer, when in
             self?.detector.analyze(buffer, at: when)
@@ -42,8 +95,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func markMissed() {
-        store.appendMissed()
+    private func markMissed(source: String) {
+        store.appendMissed(source: source)
+        AppLog.shared.log("missed laugh logged via \(source)")
         Chime.play(times: 2)
         DispatchQueue.main.async { self.refreshTitle() }
     }
@@ -54,60 +108,253 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
             DispatchQueue.main.async {
                 guard let self = self else { return }
+                self.micGranted = granted
                 if granted {
-                    self.startAudio()
+                    self.requestListening()
                     self.requestSpeech()
                 } else {
+                    AppLog.shared.log("microphone access denied", level: "ERROR")
                     self.showMicDenied()
                 }
             }
         }
     }
 
-    private func startAudio() {
-        do {
-            try detector.configure(format: audio.inputFormat)
-            try audio.start()
-            micReady = true
-            refreshTitle()
-        } catch {
-            NSLog("LaughCounter: could not start listening: \(error.localizedDescription)")
-            statusItem.button?.title = "😄 ⚠️"
+    /// Single-flight, rate-limited entry to (re)start listening. Every trigger
+    /// (launch, wake, config-change, manual resume) goes through here so the audio
+    /// engine can never overlap-restart or rapid-cycle — which can wedge a USB mic.
+    /// Tears down, lets the input device settle briefly, then re-acquires.
+    private func requestListening() {
+        guard micGranted else { return }
+        if sleeping {                  // heading into (or settling out of) sleep:
+            // the post-wake resume is the one path out; log so a swallowed manual
+            // click is visible in the activity log rather than silently ignored
+            AppLog.shared.log("listening request ignored (sleep transition in progress)")
+            return
         }
+        if restartInFlight {           // coalesce; don't stack restarts
+            restartQueued = true
+            return
+        }
+        restartInFlight = true
+        suppressConfigChange = true    // ignore the config-changes our stop/start emits
+        configChangeSwallowed = false  // fresh window; note only events from this cycle
+        restartGeneration &+= 1
+        let generation = restartGeneration
+        counter.flush()
+        counter.reset()
+        detector.reset()
+        audio.stop()
+        listening = false
+        refreshTitle()
+        // Let the (USB) input device release before re-acquiring — reacquiring
+        // immediately after teardown is what can wedge some USB mics.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            self?.finishListening(generation: generation)
+        }
+    }
+
+    private func finishListening(generation: Int) {
+        // A stop (sleep/terminate) superseded this restart while it waited — the
+        // mic must stay released, not be re-acquired behind the stop's back.
+        guard generation == restartGeneration else { return }
+        do {
+            // Configure the analyzer BEFORE audio flows, so no early buffers are
+            // dropped and analysis reliably starts (matches the original order).
+            let format = try audio.prepareFormat()
+            try detector.configure(format: format)
+            try audio.start(format: format)
+            listening = true
+            AppLog.shared.log("listening started "
+                + "(sampleRate=\(Int(format.sampleRate)), channels=\(format.channelCount))")
+        } catch {
+            audio.stop()
+            listening = false
+            AppLog.shared.log("could not start listening: \(error.localizedDescription)",
+                              level: "ERROR")
+        }
+        refreshTitle()
+        buildMenu()
+        // Settle window: no further restart (or config-change reaction) until the
+        // engine has run undisturbed for a moment. Then honor any coalesced request.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            guard let self = self, generation == self.restartGeneration else { return }
+            self.suppressConfigChange = false
+            self.restartInFlight = false
+            let swallowed = self.configChangeSwallowed
+            self.configChangeSwallowed = false
+            if self.restartQueued {
+                self.restartQueued = false
+                self.requestListening()
+            } else if self.listening && !self.audio.isRunning {
+                // A genuine config change landed inside the suppress window and
+                // halted the engine (AVAudioEngine stops rendering when the
+                // device changes under it). The suppression rightly ignored the
+                // notification — self-emitted ones would loop — so reconcile by
+                // state instead: "listening" but engine dead means we owe a
+                // restart, otherwise the UI claims listening while nothing flows.
+                AppLog.shared.log("engine halted during settle — restarting", level: "WARN")
+                self.requestListening()
+            } else if !self.listening && swallowed {
+                // Complementary case: this cycle's start FAILED (no device yet),
+                // and the device's arrival notification landed inside the window.
+                // Dropping it would leave the app "not listening" with no further
+                // event to recover on. One retry per swallowed event — a dead mic
+                // emits no events, so this can't poll forever.
+                AppLog.shared.log("device event during settle after failed start — retrying")
+                self.requestListening()
+            }
+        }
+    }
+
+    private func stopListening(reason: String) {
+        // Invalidate the whole in-flight restart machinery, not just the queue
+        // flag: a pending finishListening must never fire after an intentional
+        // stop (it would re-acquire the mic right as the system sleeps), and the
+        // in-flight/suppress latches must not stay stuck blocking future starts.
+        restartGeneration &+= 1
+        restartInFlight = false
+        restartQueued = false
+        suppressConfigChange = false
+        counter.flush()
+        voice.stop()     // symmetric with resume; recognition restarts on wake
+        audio.stop()
+        listening = false
+        AppLog.shared.log("listening stopped (\(reason))")
+        refreshTitle()
+        buildMenu()
     }
 
     private func requestSpeech() {
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             DispatchQueue.main.async {
-                guard status == .authorized else { return }
+                guard status == .authorized else {
+                    AppLog.shared.log("speech recognition not authorized", level: "WARN")
+                    return
+                }
+                self?.speechAuthorized = true
                 self?.voice.start()
                 self?.buildMenu()
             }
         }
     }
 
+    // MARK: system power / audio events
+
+    private func observeSystemEvents() {
+        let ws = NSWorkspace.shared.notificationCenter
+        ws.addObserver(self, selector: #selector(willSleep),
+                       name: NSWorkspace.willSleepNotification, object: nil)
+        ws.addObserver(self, selector: #selector(didWake),
+                       name: NSWorkspace.didWakeNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(audioConfigChanged),
+                                               name: .AVAudioEngineConfigurationChange,
+                                               object: audio.engine)
+    }
+
+    @objc private func willSleep() {
+        // Gate BEFORE tearing down: CoreAudio switches/removes devices while the
+        // machine heads into sleep, and the resulting config-change notifications
+        // must not restart capture behind this intentional stop.
+        sleeping = true
+        stopListening(reason: "system sleep")
+    }
+
+    @objc private func didWake() {
+        AppLog.shared.log("system woke — resuming listening shortly")
+        // Stay gated (`sleeping`) through the settle delay so wake-time device
+        // re-enumeration can't trigger an early, un-settled restart; the resume
+        // below is the one entry point out of sleep. Capture the generation so a
+        // quick re-sleep (lid closed again during the delay) aborts this resume —
+        // willSleep bumps the generation, and this timer would otherwise fire
+        // immediately on the *next* wake, un-gating and restarting un-settled.
+        let generation = restartGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self = self, generation == self.restartGeneration else { return }
+            self.sleeping = false
+            self.requestListening()
+            if self.speechAuthorized { self.voice.start() }   // idempotent
+        }
+    }
+
+    @objc private func audioConfigChanged(_ note: Notification) {
+        // The notification can arrive on any thread; touch state only on main.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, !self.sleeping else { return }
+            if self.suppressConfigChange {
+                self.configChangeSwallowed = true   // reconciled at settle time
+                return
+            }
+            AppLog.shared.log("audio configuration changed — reconfiguring")
+            self.requestListening()   // single-flighted + rate-limited inside
+        }
+    }
+
     // MARK: menu bar
 
     private func refreshTitle() {
-        let icon = micReady ? "😄" : "🎙️"
-        statusItem.button?.title = "\(icon) \(store.todayCount())"
-        statusItem.button?.toolTip = micReady
-            ? "LaughCounter is listening"
-            : "LaughCounter — waiting for microphone access"
+        let icon = listening ? "😄" : "🎙️"
+        let me = store.todayCount(origin: "me")
+        let tv = store.todayCount(origin: "tv")
+        // Two counters: your laughs vs the TV's, today.
+        statusItem.button?.title = "\(icon) \(me)  📺 \(tv)"
+        statusItem.button?.toolTip = listening
+            ? "Today — you: \(me) · TV: \(tv)"
+            : "LaughCounter — not listening (open menu to resume)"
+        // refreshTitle() is called after every `listening` transition, so it's the
+        // one chokepoint that keeps the power assertion in sync with the state.
+        updateSleepAssertion()
+    }
+
+    /// Hold the idle-system-sleep assertion iff the user opted in *and* we're
+    /// actually listening; release it otherwise. Idempotent — safe to call on any
+    /// state change. Main-thread only (every caller is already on main).
+    private func updateSleepAssertion() {
+        let shouldHold = keepAwake && listening
+        if shouldHold, sleepAssertion == nil {
+            sleepAssertion = ProcessInfo.processInfo.beginActivity(
+                options: [.idleSystemSleepDisabled],
+                reason: "LaughCounter is listening for laughs")
+            AppLog.shared.log("keep-awake: holding idle-sleep assertion")
+        } else if !shouldHold, let token = sleepAssertion {
+            ProcessInfo.processInfo.endActivity(token)
+            sleepAssertion = nil
+            AppLog.shared.log("keep-awake: released idle-sleep assertion")
+        }
     }
 
     private func buildMenu() {
         let menu = NSMenu()
         menu.addItem(withTitle: "LaughCounter", action: nil, keyEquivalent: "")
+
+        let stateItem = NSMenuItem(
+            title: listening ? "Status: listening" : "Status: not listening",
+            action: nil, keyEquivalent: "")
+        stateItem.isEnabled = false
+        menu.addItem(stateItem)
+
         let voiceState = voice.isAvailable ? "on — say “I just laughed”" : "unavailable"
-        let voiceItem = NSMenuItem(title: "Voice feedback: \(voiceState)", action: nil, keyEquivalent: "")
+        let voiceItem = NSMenuItem(title: "Voice feedback: \(voiceState)",
+                                   action: nil, keyEquivalent: "")
         voiceItem.isEnabled = false
         menu.addItem(voiceItem)
+
         menu.addItem(.separator())
         menu.addItem(withTitle: "I just laughed (log a miss)",
                      action: #selector(logMiss), keyEquivalent: "l")
+        menu.addItem(withTitle: listening ? "Restart listening" : "Start listening",
+                     action: #selector(resumeListening), keyEquivalent: "r")
+
+        let keepAwakeItem = NSMenuItem(title: "Keep Mac awake while listening",
+                                       action: #selector(toggleKeepAwake), keyEquivalent: "")
+        keepAwakeItem.state = keepAwake ? .on : .off
+        keepAwakeItem.toolTip = "Blocks idle sleep so laughs are still heard during a long "
+            + "movie. Won't stop lid-close or manual Sleep, and uses more battery."
+        menu.addItem(keepAwakeItem)
         menu.addItem(withTitle: "Open laugh log…",
                      action: #selector(openLog), keyEquivalent: "")
+        menu.addItem(withTitle: "Open activity log…",
+                     action: #selector(openActivityLog), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit LaughCounter",
                      action: #selector(quit), keyEquivalent: "q")
@@ -115,9 +362,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
     }
 
-    @objc private func logMiss() { markMissed() }
+    @objc private func logMiss() { markMissed(source: "button") }
+    @objc private func resumeListening() {
+        AppLog.shared.log("manual resume requested")
+        requestListening()
+    }
+    @objc private func toggleKeepAwake() {
+        keepAwake.toggle()
+        UserDefaults.standard.set(keepAwake, forKey: keepAwakeDefaultsKey)
+        AppLog.shared.log("keep-awake \(keepAwake ? "enabled" : "disabled")")
+        updateSleepAssertion()
+        buildMenu()   // reflect the checkmark
+    }
     @objc private func openLog() { store.revealInFinder() }
-    @objc private func quit() { counter.flush(); NSApp.terminate(nil) }
+    @objc private func openActivityLog() {
+        NSWorkspace.shared.activateFileViewerSelecting([AppLog.shared.fileURL])
+    }
+    @objc private func quit() {
+        AppLog.shared.log("app quitting")
+        NSApp.terminate(nil)
+    }
+
+    /// Clean up before the process exits. Reached for every exit path that goes
+    /// through `NSApp.terminate` — the menu Quit item, ⌘Q, the logout/shutdown
+    /// quit Apple Event, and the SIGTERM/SIGINT/SIGHUP sources in main.swift that
+    /// route catchable signals here. Not reached for SIGKILL (Force Quit,
+    /// `kill -9`) or a crash — those are uncatchable; nothing in-process can
+    /// release the mic on them.
+    ///
+    /// Releasing the microphone here is the whole point: if the process dies with
+    /// the input tap still installed and the engine running, its CoreAudio IOProc
+    /// stays registered on the input device. Some USB webcam mics get wedged by
+    /// that and go silent — no input registered in System Settings — until they're
+    /// physically unplugged and reconnected. Tearing down the tap + engine (and the
+    /// speech recogniser, which also holds the audio stream) deregisters the IOProc
+    /// so the device is handed cleanly back to the system.
+    func applicationWillTerminate(_ notification: Notification) {
+        sleeping = true          // gate any late config-change reaction during teardown
+        // stopListening: flushes the in-progress laugh, invalidates pending
+        // restarts (generation bump), stops speech, removes the tap, stops the
+        // engine, and (via refreshTitle) drops the keep-awake assertion.
+        stopListening(reason: "app terminating")
+        AppLog.shared.log("app terminated — microphone released")
+    }
 
     private func showMicDenied() {
         statusItem.button?.title = "😄 ⚠️"

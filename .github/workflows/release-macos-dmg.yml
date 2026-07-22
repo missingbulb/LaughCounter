@@ -1,0 +1,111 @@
+name: Release macOS DMG
+
+# Publishes the DMG to GitHub Releases so the README's stable "latest release"
+# link (releases/latest/download/LaughCounter.dmg) always resolves.
+#
+# It runs automatically on every push to `main` that touches the app: it builds
+# the DMG and creates/updates the Release for the current app version (read from
+# Info.plist), attaching LaughCounter.dmg. GITHUB_TOKEN can create the tag and
+# Release from within Actions (a session's git proxy cannot). Publishing a Release
+# from the GitHub UI, or a manual dispatch, work too.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mac/**"
+      - ".github/workflows/release-macos-dmg.yml"
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write           # create the tag/Release and attach the .dmg
+
+jobs:
+  release:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: mac
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift toolchain
+        run: swift --version
+
+      # Signing + notarization only run when the repo has the signing secrets
+      # configured (same set as build-macos-dmg.yml). Without them the published
+      # DMG is ad-hoc-signed and users clear Gatekeeper manually (mac/README.md).
+      - name: Detect signing secrets
+        id: signing
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+        run: |
+          if [ -n "$MACOS_CERT_P12" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No MACOS_CERT_P12 secret set — publishing an ad-hoc (unnotarized) DMG."
+          fi
+
+      - name: Import Developer ID certificate
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PW="$(uuidgen)"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
+          # Make our keychain searchable alongside the login keychain.
+          security list-keychains -d user -s "$KEYCHAIN" \
+            $(security list-keychains -d user | sed 's/["[:space:]]//g')
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Build LaughCounter.app
+        env:
+          MACOS_SIGN_IDENTITY: ${{ steps.signing.outputs.enabled == 'true' && secrets.MACOS_SIGN_IDENTITY || '' }}
+        run: bash scripts/build-app.sh
+
+      - name: Package .dmg
+        run: bash scripts/make-dmg.sh
+
+      - name: Notarize .dmg
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: bash scripts/notarize-dmg.sh
+
+      - name: Resolve release tag
+        id: rel
+        # On a UI-published release, use its tag; otherwise derive v<version> from
+        # the app's Info.plist so a version bump publishes a new Release.
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "release" ]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)"
+            tag="v$version"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Publish Release with DMG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Create the Release (and its tag at this commit) with the DMG attached; if
+        # it already exists, just (re)upload the DMG. A Release made with
+        # GITHUB_TOKEN does not re-fire the `release` event, so there's no loop.
+        run: |
+          tag='${{ steps.rel.outputs.tag }}'
+          gh release create "$tag" dist/LaughCounter.dmg \
+            --title "LaughCounter $tag" --generate-notes --target "$GITHUB_SHA" \
+          || gh release upload "$tag" dist/LaughCounter.dmg --clobber
