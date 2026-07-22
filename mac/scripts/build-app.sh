@@ -34,8 +34,26 @@ else
     echo "warning: AppIcon.png or sips/iconutil missing — app will use the default icon"
 fi
 
-# Ad-hoc code signature. Enough for personal use — on first launch you'll
-# right-click the app and choose Open once to get past Gatekeeper.
-codesign --force --deep --sign - "$APP" || echo "warning: ad-hoc codesign failed (continuing)"
+# Code signature.
+#
+# If MACOS_SIGN_IDENTITY is set (e.g. "Developer ID Application: Name (TEAMID)"),
+# sign for real with the Hardened Runtime + entitlements so the .dmg can be
+# notarized by Apple and opens with no Gatekeeper warning. CI sets this from a
+# secret; see the DMG workflows and scripts/notarize-dmg.sh.
+#
+# Otherwise fall back to an ad-hoc signature — fine for personal use, but macOS
+# will block the first launch. Get past it with System Settings → Privacy &
+# Security → "Open Anyway", or: xattr -dr com.apple.quarantine <app>.
+# See mac/README.md "Install".
+if [ -n "${MACOS_SIGN_IDENTITY:-}" ]; then
+    echo "Signing with Developer ID (Hardened Runtime): $MACOS_SIGN_IDENTITY"
+    codesign --force --options runtime \
+        --entitlements "Resources/LaughCounter.entitlements" \
+        --sign "$MACOS_SIGN_IDENTITY" "$APP"
+    codesign --verify --strict --verbose=2 "$APP"
+else
+    echo "No MACOS_SIGN_IDENTITY set — using ad-hoc signature (not notarizable)."
+    codesign --force --deep --sign - "$APP" || echo "warning: ad-hoc codesign failed (continuing)"
+fi
 
 echo "Built $APP"

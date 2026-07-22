@@ -7,6 +7,18 @@ name: Build macOS DMG
 # produces a downloadable artifact. `main` is owned by release-macos-dmg.yml, which
 # builds and publishes the DMG to a GitHub Release — so this excludes `main` to
 # avoid a duplicate build.
+#
+# Signing & notarization (optional): if the following repository secrets are
+# set, the .dmg is signed with a Developer ID identity and notarized by Apple,
+# so it opens with no Gatekeeper warning. Without them, the build still works
+# and produces an ad-hoc-signed .dmg (see mac/README.md "Install"). Requires a
+# paid Apple Developer account. (release-macos-dmg.yml uses the same secrets.)
+#   MACOS_CERT_P12       base64 of the "Developer ID Application" cert (.p12)
+#   MACOS_CERT_PASSWORD  the .p12 export password
+#   MACOS_SIGN_IDENTITY  e.g. "Developer ID Application: Your Name (TEAMID)"
+#   APPLE_ID             Apple ID email for notarization
+#   APPLE_TEAM_ID        10-char Team ID
+#   APPLE_APP_PASSWORD   app-specific password for that Apple ID
 
 on:
   workflow_dispatch:        # lets you build on demand from the Actions tab
@@ -31,11 +43,56 @@ jobs:
       - name: Swift toolchain
         run: swift --version
 
+      # Signing + notarization only run when the repo has the signing secrets
+      # configured. Without them the build still succeeds and produces an
+      # ad-hoc-signed .dmg (users clear Gatekeeper manually — see mac/README.md).
+      - name: Detect signing secrets
+        id: signing
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+        run: |
+          if [ -n "$MACOS_CERT_P12" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No MACOS_CERT_P12 secret set — building an ad-hoc (unnotarized) DMG."
+          fi
+
+      - name: Import Developer ID certificate
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PW="$(uuidgen)"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
+          # Make our keychain searchable alongside the login keychain.
+          security list-keychains -d user -s "$KEYCHAIN" \
+            $(security list-keychains -d user | sed 's/["[:space:]]//g')
+          rm -f "$RUNNER_TEMP/cert.p12"
+
       - name: Build LaughCounter.app
+        env:
+          MACOS_SIGN_IDENTITY: ${{ steps.signing.outputs.enabled == 'true' && secrets.MACOS_SIGN_IDENTITY || '' }}
         run: bash scripts/build-app.sh
 
       - name: Package .dmg
         run: bash scripts/make-dmg.sh
+
+      - name: Notarize .dmg
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: bash scripts/notarize-dmg.sh
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4

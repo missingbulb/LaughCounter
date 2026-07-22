@@ -27,8 +27,19 @@ every change by GitHub Actions on a macOS runner:
 ## Install
 
 1. Open `LaughCounter.dmg` and drag **LaughCounter** into **Applications**.
-2. First launch only: **right-click the app → Open → Open** (it's ad-hoc signed, so
-   this one-time step gets past Gatekeeper — no paid Apple account needed).
+2. **Get past Gatekeeper (first launch only).** The app is ad-hoc signed but not
+   notarized (that needs a paid Apple Developer account), so macOS blocks the first
+   open with *“Apple could not verify LaughCounter is free of malware.”* Clear it
+   **one of two ways**:
+   - **System Settings:** click **Done** on the warning, then open **System
+     Settings → Privacy & Security**, scroll to **Security**, and click **Open
+     Anyway** next to *“LaughCounter was blocked…”*. Confirm **Open Anyway** again.
+   - **Terminal (most reliable):** after dragging it to Applications, run
+     `xattr -dr com.apple.quarantine /Applications/LaughCounter.app`, then open it
+     normally.
+
+   > On **macOS 15 (Sequoia)** the old **right-click → Open** shortcut no longer
+   > bypasses this — you must use one of the two methods above.
 3. Approve **Microphone** and **Speech Recognition** when prompted.
 4. A 😄 with a number appears in your menu bar. That's it.
 
@@ -49,6 +60,24 @@ Requires the Swift toolchain (Xcode Command Line Tools). No third-party packages
 The app icon is generated from code by `scripts/gen-icon.py` (pure Python stdlib);
 the committed `Resources/AppIcon.png` master is turned into a multi-resolution
 `.icns` at build time with `sips`/`iconutil`.
+
+This produces an **ad-hoc-signed** app (the Gatekeeper step under *Install*
+applies). To instead sign it with a real **Developer ID** and notarize it — so it
+opens with no warning — you need a paid Apple Developer account, then:
+
+```bash
+export MACOS_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+bash scripts/build-app.sh          # signs with Hardened Runtime + entitlements
+bash scripts/make-dmg.sh
+export APPLE_ID=you@example.com APPLE_TEAM_ID=XXXXXXXXXX APPLE_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+bash scripts/notarize-dmg.sh       # submits to Apple + staples the ticket
+```
+
+Both DMG workflows do this automatically when the matching repository secrets are
+set (`MACOS_CERT_P12`, `MACOS_CERT_PASSWORD`, `MACOS_SIGN_IDENTITY`, `APPLE_ID`,
+`APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`) — so published releases open with no
+warning. This is the **non–App Store** path; a Mac App Store build additionally
+requires the App Sandbox and a different (Apple Distribution) certificate.
 
 ## Cutting a release
 
