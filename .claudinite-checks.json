@@ -15,12 +15,12 @@
     {
       "rule": "warning-suppression",
       "path": "laughcounter/cli.py",
-      "reason": "deliberate BLE001 broad-excepts: the listen loop and clip scan must never crash on one bad frame, load failure, ID error, or save error \u2014 resilience is the design intent"
+      "reason": "deliberate BLE001 broad-excepts: the listen loop and clip scan must never crash on one bad frame, load failure, ID error, or save error — resilience is the design intent"
     },
     {
       "rule": "warning-suppression",
       "path": "laughcounter/dashboard.py",
-      "reason": "N802 on do_GET/do_POST is required by Python's http.server BaseHTTPRequestHandler API \u2014 the method names are fixed by the framework and cannot be renamed"
+      "reason": "N802 on do_GET/do_POST is required by Python's http.server BaseHTTPRequestHandler API — the method names are fixed by the framework and cannot be renamed"
     },
     {
       "rule": "warning-suppression",
@@ -30,24 +30,24 @@
     {
       "rule": "warning-suppression",
       "path": "laughcounter/detector/robust.py",
-      "reason": "F401 optional-dependency availability probes (laugh_segmenter, torch) \u2014 imported to detect presence of the optional detector stack, not for direct use"
+      "reason": "F401 optional-dependency availability probes (laugh_segmenter, torch) — imported to detect presence of the optional detector stack, not for direct use"
     },
     {
       "rule": "warning-suppression",
       "path": "laughcounter/detector/yamnet.py",
-      "reason": "F401 optional-dependency availability probe (numpy) \u2014 imported to detect presence of the optional yamnet stack"
+      "reason": "F401 optional-dependency availability probe (numpy) — imported to detect presence of the optional yamnet stack"
     },
     {
       "rule": "warning-suppression",
       "path": "laughcounter/speaker.py",
-      "reason": "F401 optional-dependency availability probe (torch) \u2014 imported to detect presence of the optional speaker-attribution stack"
+      "reason": "F401 optional-dependency availability probe (torch) — imported to detect presence of the optional speaker-attribution stack"
     }
   ],
   "maintenance": {
     "delivery": "auto-merge"
   },
   "claudinite": {
-    "updated": "2026-07-21T22:51:42.430Z",
-    "ref": "d6bca9351cd0396cf068ea1199c6475993623a5d"
+    "updated": "2026-07-23T00:33:16.000Z",
+    "ref": "80783ebbc1b9d37f85d544864c9c55343c5dddea"
   }
 }
