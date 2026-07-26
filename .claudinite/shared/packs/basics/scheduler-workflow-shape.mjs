@@ -2,7 +2,7 @@ import { finding } from '../../engine/checks/helpers/findings.mjs';
 
 // The vendored per-repo scheduler workflow (per-project-scheduling DESIGN §3) is
 // a shape-enforced thin shim: hourly cron on a repo-hashed minute constrained to
-// :10–50, a concurrency group, a workflow_dispatch trigger, and a call into the
+// :10–:50, a concurrency group, a workflow_dispatch trigger, and a call into the
 // vendored engine entry. This asserts that shape wherever the file exists.
 //
 // RELEVANCE FIRST (engine/checks/README.md): a skill/pack check runs on every
@@ -13,9 +13,9 @@ const SCHEDULER_WORKFLOW = '.github/workflows/claudinite-scheduler.yml';
 const rule = {
   id: 'scheduler-workflow-shape',
   severity: 'blocking',
-  description: 'The vendored claudinite-scheduler.yml is a thin shim: hourly :10–50 cron, concurrency, workflow_dispatch, calls the engine',
+  description: 'The vendored claudinite-scheduler.yml is a thin shim: hourly :10–:50 cron, concurrency, workflow_dispatch, calls the engine',
   doc: 'packs/basics/scheduled-tasks.md',
-  why: 'the scheduler is the repo\'s only cron and its slot math anchors on the hour — a cron off the :10–50 band, or a missing concurrency/dispatch guard, silently breaks staggering, double-run safety, or manual runs',
+  why: 'the scheduler is the repo\'s only cron and its slot math anchors on the hour — a cron off the :10–:50 band, or a missing concurrency/dispatch guard, silently breaks staggering, double-run safety, or manual runs',
 
   run(ctx) {
     if (!ctx.files.includes(SCHEDULER_WORKFLOW)) return [];
@@ -37,7 +37,7 @@ const rule = {
         flag(`cron "${cron}" is not an hourly schedule`, 'use "<minute> * * * *" — hourly, so the run-ledger due-slot math catches every slot');
       }
       if (!(Number.isInteger(minute) && minute >= 10 && minute <= 50)) {
-        flag(`cron minute "${parts[0]}" is not a single integer in :10–50`, 'set a fixed minute between 10 and 50 (bootstrap assigns the repo-hashed value) — off-band crons collide with GitHub\'s :00 stampede or the hour boundary the slot math anchors on');
+        flag(`cron minute "${parts[0]}" is not a single integer in :10–:50`, 'set a fixed minute between 10 and 50 (bootstrap assigns the repo-hashed value) — off-band crons collide with GitHub\'s :00 stampede or the hour boundary the slot math anchors on');
       }
     }
     if (!/^\s*workflow_dispatch:/m.test(text)) {
@@ -48,6 +48,17 @@ const rule = {
     }
     if (!/engine\/scheduler\/run\.mjs/.test(text)) {
       flag('does not run the vendored engine entry', 'the job must run node .claudinite/shared/engine/scheduler/run.mjs — all logic lives in the vendored engine, not the workflow');
+    }
+    // Baselining runs as this workflow's `agent_preprocessing` and its `deliver()`
+    // pushes the per-cycle maintenance branch and opens/auto-merges its PR via the
+    // Action GITHUB_TOKEN (agent-preprocessing §7/E4). An explicit `permissions:`
+    // block caps the token, so the scheduler MUST grant these writes or the
+    // self-refresh 403s — an easy-to-miss regression the read-only original had.
+    if (!/^\s*contents:\s*write\b/m.test(text)) {
+      flag('does not grant contents: write', "set permissions.contents: write — baselining's deliver() pushes the maintenance branch; without it the self-refresh 403s");
+    }
+    if (!/^\s*pull-requests:\s*write\b/m.test(text)) {
+      flag('does not grant pull-requests: write', "set permissions.pull-requests: write — baselining's deliver() opens the maintenance PR and arms auto-merge; without it the PR create 403s");
     }
     return out;
   },

@@ -99,7 +99,7 @@ for (const e of packErrors) findings.push(configError(e.what, e.fix));
 const knownIds = new Set(packs.map((p) => p.id));
 for (const name of ctx.config.packs) {
   if (typeof name === 'string' && !knownIds.has(name)) {
-    findings.push(configError(`declares unknown pack \"${name}\"`, `remove it or fix the name — declarable packs: ${[...knownIds].sort().join(', ')}`));
+    findings.push(configError(`declares unknown pack "${name}"`, `remove it or fix the name — declarable packs: ${[...knownIds].sort().join(', ')}`));
   }
 }
 // (Adoption-interview hygiene is a skill-owned check that runs below with the
@@ -111,7 +111,7 @@ for (const name of ctx.config.packs) {
 findings.push(...runActivePackRules(ctx, packs, {
   includeRule: (rule) => rule.scope !== 'work',
   onContributeError: (pack, e) => findings.push(configError(
-    `the \"${pack.id}\" pack's contributedRules failed: ${e.message}`, 'fix the pack manifest, or the contribution it interprets')),
+    `the "${pack.id}" pack's contributedRules failed: ${e.message}`, 'fix the pack manifest, or the contribution it interprets')),
 }));
 
 const blocking = reportFindings(findings, ctx.config, { scopeLabel: 'world', mode: ctx.mode, baseRef: ctx.baseRef });
