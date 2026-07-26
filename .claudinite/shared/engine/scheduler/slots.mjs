@@ -15,7 +15,7 @@
 //     current hour, so an outage evaluates the current poll once and never a
 //     stale one — no special case needed, the most-recent-only rule delivers it.
 //   - Late / early fire is irrelevant: due-ness is schedule math, never
-//     wall-clock equality with the (hashed :10–50) cron minute.
+//     wall-clock equality with the (hashed :10–:50) cron minute.
 //   - First run (`lastSuccess` null / fresh adoption) → every frequency's
 //     most-recent slot is due: the immediate full evaluation that smoke-tests a
 //     newly-wired repo (DESIGN §3.1).
