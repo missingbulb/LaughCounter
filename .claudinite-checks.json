@@ -9,7 +9,8 @@
     },
     "grow_with_claudinite",
     "tidy-repo",
-    "github-actions"
+    "github-actions",
+    "local/on-device-privacy"
   ],
   "accept": [
     {
