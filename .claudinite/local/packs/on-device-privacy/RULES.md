@@ -18,7 +18,10 @@ the user's existing choice, not in a new location.
 **Everything lives in one deletable directory.** `~/.laughcounter` for the Python
 core (overridable via `LAUGHCOUNTER_HOME`), `~/Library/Application
 Support/LaughCounter/` for the app. "Delete the folder and it's gone" is a
-documented property — don't scatter state (caches, model files, logs) outside it.
+documented property, which is why state written elsewhere is a privacy bug and
+not untidiness: it outlives the deletion the user was told was enough. The
+`single-home-dir` check holds the Python side's home-anchored paths; the app's
+directory and any absolute path outside `$HOME` are still yours to judge.
 
 **The one accepted egress is a model download in an optional extra.** The
 `[yamnet]` extra fetches the TF-Hub handle in `detector/yamnet.py`, and the
@@ -30,10 +33,11 @@ Privacy section and here, and keeping it out of the capture path.
 
 **The dashboard is unauthenticated — treat every widening as a user decision.**
 It binds loopback by default; `--host 0.0.0.0` is the user reaching it from their
-phone, and the mutating endpoints require an `application/json` content type so a
-browser must preflight cross-origin (`dashboard.py`'s `do_POST`). Any new
-mutating endpoint keeps that guard; nothing else stands between the LAN and the
-laugh log.
+phone. The `application/json` requirement on mutating endpoints (the
+`json-content-type-guard` check) is doing more work than it looks like: it forces
+a cross-origin browser to preflight, which is the *entire* CSRF story here —
+nothing else stands between the LAN, or a page the user happens to be visiting,
+and the laugh log.
 
 **The disclosure must stay true.** `NSMicrophoneUsageDescription` and
 `NSSpeechRecognitionUsageDescription` tell the user audio is analysed on-device
