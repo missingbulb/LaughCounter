@@ -16,6 +16,8 @@ import { fileURLToPath } from 'node:url';
 import noNetworkClient from './no-network-client.mjs';
 import loopbackDefault from './loopback-default.mjs';
 import onDeviceSpeech from './on-device-speech.mjs';
+import singleHomeDirectory from './single-home-directory.mjs';
+import jsonContentTypeGuard from './json-content-type-guard.mjs';
 
 const repoRoot = dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))));
 
@@ -82,5 +84,73 @@ test('on-device-speech fires on a request that never opts out', () => {
 
 test('on-device-speech stays quiet on the real VoiceCommand', () => {
   const findings = onDeviceSpeech.run(realCtx('mac/Sources/LaughCounter/VoiceCommand.swift'));
+  assert.deepEqual(findings, []);
+});
+
+test('single-home-directory fires on state scattered outside the one directory', () => {
+  const findings = singleHomeDirectory.run(ctxOf({
+    'laughcounter/cache.py': 'MODELS = os.path.expanduser("~/.cache/laughcounter/models")\n',
+    'laughcounter/logs.py': 'LOG = Path.home() / "Documents" / "laughs.log"\n',
+    'mac/Sources/LaughCounter/Cache.swift':
+      'let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]\n',
+    'mac/Sources/LaughCounter/Loose.swift':
+      'let base = FileManager.default.urls(for: .applicationSupportDirectory,\n'
+      + '                                    in: .userDomainMask)[0]\n'
+      + 'let file = base.appendingPathComponent("laughs.jsonl")\n',
+    'mac/Sources/LaughCounter/Home.swift':
+      'let dir = NSHomeDirectory() + "/laughcounter"\n',
+  }));
+  assert.equal(findings.length, 5);
+  assert.match(findings[0].what, /~\/\.cache/);
+  assert.match(findings[1].what, /~\/Documents/);
+  assert.match(findings[2].what, /\.cachesDirectory/);
+  assert.match(findings[3].what, /without being narrowed/);
+  assert.match(findings[4].what, /NSHomeDirectory/);
+});
+
+test('single-home-directory stays quiet on the real state locations', () => {
+  const findings = singleHomeDirectory.run(realCtx(
+    'laughcounter/config.py',       // Path.home() / ".laughcounter"
+    'laughcounter/speaker.py',      // expanduser("~/.laughcounter/models/ecapa")
+    'laughcounter/clips.py',
+    'laughcounter/storage.py',
+    'laughcounter/cli.py',          // prints ~/Library/LaunchAgents — launchd's own location
+    'mac/Sources/LaughCounter/Store.swift',
+    'mac/Sources/LaughCounter/AppLog.swift',
+  ));
+  assert.deepEqual(findings, []);
+});
+
+test('json-content-type-guard fires on a mutating handler with no guard', () => {
+  const findings = jsonContentTypeGuard.run(ctxOf({
+    'laughcounter/dashboard.py':
+      '        def do_POST(self):\n'
+      + '            data = self._read_json()\n'
+      + '            self._send(200, "application/json", b"{}")\n',
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].line, 1);
+  assert.match(findings[0].what, /do_POST never requires an application\/json/);
+});
+
+test('json-content-type-guard fires when the body is read before the guard', () => {
+  const findings = jsonContentTypeGuard.run(ctxOf({
+    'laughcounter/dashboard.py':
+      '        def do_PUT(self):\n'
+      + '            data = self._read_json()\n'
+      + '            ctype = self.headers.get("Content-Type", "")\n'
+      + '            if "application/json" not in ctype:\n'
+      + '                return\n',
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].line, 2);
+  assert.match(findings[0].what, /reads the request body before/);
+});
+
+test('json-content-type-guard stays quiet on the real dashboard', () => {
+  const findings = jsonContentTypeGuard.run(realCtx(
+    'laughcounter/dashboard.py',
+    'laughcounter/cli.py',
+  ));
   assert.deepEqual(findings, []);
 });

@@ -1,6 +1,8 @@
 import noNetworkClient from './no-network-client.mjs';
 import loopbackDefault from './loopback-default.mjs';
 import onDeviceSpeech from './on-device-speech.mjs';
+import singleHomeDirectory from './single-home-directory.mjs';
+import jsonContentTypeGuard from './json-content-type-guard.mjs';
 
 // LaughCounter's defining constraint, as a pack: an always-on microphone in the
 // living room, and the promise that what it hears never leaves the machine. The
@@ -16,5 +18,5 @@ export default {
   detect: null,
   marker: null,
   prose: 'RULES.md',
-  rules: [noNetworkClient, loopbackDefault, onDeviceSpeech],
+  rules: [noNetworkClient, loopbackDefault, onDeviceSpeech, singleHomeDirectory, jsonContentTypeGuard],
 };

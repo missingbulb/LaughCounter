@@ -12,9 +12,10 @@ implementations, because the boundary is the same on either side of them.
 | --- | --- |
 | No outbound client in capture path | `no-network-client` check (`laughcounter/**.py`, `mac/Sources/**.swift`) |
 | Dashboard binds loopback | `loopback-default` check (host defaults in `laughcounter/`) |
+| Mutating endpoints require JSON | `json-content-type-guard` check (`do_POST`/`do_PUT`/… in `laughcounter/`) |
 | Speech recognition on-device | `on-device-speech` check (`SFSpeechAudioBufferRecognitionRequest`) |
+| One deletable home directory | `single-home-directory` check (home-anchored paths, Foundation standard dirs) |
 | Metadata persists, audio doesn't | `RULES.md` prose |
-| One deletable home directory | `RULES.md` prose |
 | Model download is the only egress | `RULES.md` prose |
 | Usage strings stay true | `RULES.md` prose |
 
