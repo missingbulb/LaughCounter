@@ -1,17 +1,15 @@
-# Python
+# Python (only mac/scripts/gen-icon.py remains, but keep bytecode out for good)
 __pycache__/
 *.py[cod]
-*.egg-info/
-.eggs/
+
+# macOS / Xcode
+.DS_Store
 build/
 dist/
-.pytest_cache/
-.venv/
-venv/
+*.xcuserstate
+.swiftpm/
 
 # LaughCounter data (never commit your laugh logs)
-*.db
 *.jsonl
-.laughcounter/
 /.claudinite-hooks.log
 /.claudinite-hooks.log.tmp

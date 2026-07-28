@@ -7,33 +7,38 @@ speech prompts users actually see (`mac/Resources/Info.plist`), and the reason
 several design choices look heavier than they need to. The checks in this pack
 hold the mechanical half; what follows is the judgment half.
 
+There is now exactly one implementation — the native app in `mac/Sources/` — so
+every rule below is about it.
+
 **What may cross the boundary: derived metadata, never audio.** A laugh is
-persisted as time, duration, confidence, and a speaker label — that is what the
-SQLite rows and the JSONL lines carry. Saved clips (`save_clips`, on by default
-in the Python core) are the one place raw audio lands, and it lands on local
-disk under the single home directory, never anywhere else. New persisted fields
-follow the same split; if a feature wants audio, it belongs in `clips/`, under
-the user's existing choice, not in a new location.
+persisted as time, duration, confidence, and an origin label — that is what the
+JSONL lines carry, and `LaughStore` says so in its own header. **No audio is
+stored at all**: there is no clip directory, no buffer written to disk, nothing to
+delete but a text log. A feature that wants to keep audio is not a new field, it
+is a new promise to the user, and it changes the mic prompt with it.
 
-**Everything lives in one deletable directory.** `~/.laughcounter` for the Python
-core (overridable via `LAUGHCOUNTER_HOME`), `~/Library/Application
-Support/LaughCounter/` for the app. "Delete the folder and it's gone" is a
-documented property — don't scatter state (caches, model files, logs) outside it.
+**Everything lives in one deletable directory.**
+`~/Library/Application Support/LaughCounter/` holds the laugh log and the app's
+own diagnostic log, and nothing lands outside it (the one path macOS dictates, not
+us, is a Login Item registration). "Delete the folder and it's gone" is a promise a
+user *acts on* — someone who deletes it believes the mic's whole memory of them
+went with it. So a feature needing somewhere new to keep things extends that
+directory rather than earning a second one.
 
-**The one accepted egress is a model download in an optional extra.** The
-`[yamnet]` extra fetches the TF-Hub handle in `detector/yamnet.py`, and the
-`[speaker]` extra fetches ECAPA weights from Hugging Face — a one-time download,
-made by the ML library, carrying no audio, in a stack the user opted into. The
-always-on paths (the native app's Sound Analysis and Speech, the counting/logging
-core) need no network at all. Adding a *new* egress means saying so in the README
-Privacy section and here, and keeping it out of the capture path.
+**There is no accepted egress — none.** Detection (Sound Analysis) and speech
+recognition (`SFSpeechRecognizer` with on-device recognition required) are both
+built into macOS; no model is downloaded, no telemetry is sent, and the app makes
+no outbound connection of any kind. The `no-network-client` check is therefore
+absolute rather than carve-out-shaped. Adding *any* egress — a model fetch, a
+crash reporter, a sync feature — is a product decision that gets written here and
+in the README *Privacy* section before a line of it is written in Swift.
 
-**There is no server.** The web dashboard was removed on purpose (the laugh log
-is read via the CLI); the Python core neither listens on a socket nor speaks to
-one. Reintroducing any listener — a dashboard, a metrics port, a remote-control
-API — is a product decision about exposing the laugh log, not a feature to slip
-in: it needs the owner's explicit sign-off, a loopback-only default, and a story
-for authentication or CSRF before it lands.
+**There is no server either.** The app listens on no socket. The web dashboard
+that once existed in the Python reference was removed on purpose, along with the
+reference itself. Reintroducing any listener — a dashboard, a metrics port, a
+remote-control API — is a decision about exposing the laugh log, not a feature to
+slip in: it needs the owner's explicit sign-off, a loopback-only default, and a
+story for authentication or CSRF before it lands.
 
 **The disclosure must stay true.** `NSMicrophoneUsageDescription` and
 `NSSpeechRecognitionUsageDescription` tell the user audio is analysed on-device

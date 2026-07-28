@@ -81,8 +81,8 @@ macOS's **Sound Analysis** framework ships a built-in sound classifier that
 recognises hundreds of sounds, **including laughter**, running efficiently on the
 Neural Engine. We use it directly: no model download, no TensorFlow. It emits a
 laughter *confidence* several times a second; a small **hysteresis state machine**
-(the same one proven out in the Python core) turns that into discrete laughs —
-so a fit of giggles counts once and a stray blip counts as none.
+turns that into discrete laughs — so a fit of giggles counts once and a stray blip
+counts as none.
 
 We match several related classes (laughter, giggle, chuckle, snicker, …) rather
 than one, so the counter doesn't overfit to a single style of laugh.
@@ -157,8 +157,7 @@ optional second stage, and it has real limits.
   - *Create ML classifier with people as the classes* — cleanest; great for
     me-vs-guest and a small stable household; a stranger falls into "guest"; adding
     a named person means retraining with their clips.
-  - *Voice-embedding + similarity* (the approach scaffolded in the Python version) —
-    scales to add people without a full retrain and handles "unknown" better, but
+  - *Voice-embedding + similarity* — scales to add people without a full retrain and handles "unknown" better, but
     needs a voice-embedding model converted to Core ML (more moving parts).
 - **Honest limits:** laughter is short and variable, so identity from it is *good,
   not perfect*; telling two rare guests apart is unreliable; each named person must
@@ -196,11 +195,11 @@ laughter-based identification, not a Mac-vs-Python choice.
 
 ---
 
-## 7. The Python reference (`laughcounter/`)
+## 7. One implementation
 
-The repository also contains a fully-tested Python implementation with feedback
-commands, stats, clip-saving and speaker-attribution
-scaffolding. It runs anywhere (great for trying the whole pipeline offline via
-`simulate`) and is the reference for the counting/logging/stats logic the native
-app mirrors. It uses the same JSONL format, so the two interoperate. See the root
-`README.md`.
+The repository once carried a parallel Python implementation (`laughcounter/`),
+written *before* the native app and kept afterwards as a "reference". It was
+removed: it duplicated the whole product, nobody ran it, and it sat against the
+"keep the Mac clean — no Python/TensorFlow/Homebrew" requirement in §0. The
+native app in `mac/` is the product; the comparisons above are kept as the record
+of why that shape won.
