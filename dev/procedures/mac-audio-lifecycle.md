@@ -34,6 +34,50 @@ When cancelling in-flight restarts, also reset `restartInFlight` /
 `restartQueued` / `suppressConfigChange`, or the latches stay stuck and block
 all future starts.
 
+## There is no "returned from standby" notification — fan in, then coalesce
+
+macOS distinguishes sleep depths internally but exposes no standby-specific event:
+`NSWorkspace.didWakeNotification` is all you get, and it is **not equivalent to "the
+machine is back"** — a dark/Power-Nap wake fires it with nobody there and the Mac
+re-sleeps moments later. So `systemDidReturn(reason:)` fans in four signals —
+`didWake`, `screensDidWake`, `sessionDidBecomeActive`, and the distributed
+`com.apple.screenIsUnlocked` — and coalesces them, because a real return fires
+several of them in a burst and each must not schedule its own restart:
+
+- **Coalesce with an id, not a bool.** `pendingResumeID` holds the one in-flight
+  resume; a stale timer compares its captured id and returns without touching
+  state. A bare `resumePending` bool deadlocks: a re-sleep during the delay
+  invalidates the timer, the timer clears the bool, and whichever of the two
+  orderings loses leaves the next wake either unable to schedule (flag stuck true)
+  or double-scheduling.
+- **Gate on owing a resume**, i.e. `sleeping || (listeningIntent && !listening)`.
+  Displays wake and sessions activate with no sleep involved (screensaver, user
+  switching); reacting to those would cycle a healthy engine — the wedge condition.
+- **Always ungate `sleeping` in the resume timer**, even on the "stay off" path, or
+  `requestListening` stays blocked forever and the menu's Start item does nothing.
+- The distributed unlock notification is free here because the app is
+  non–App Store (no App Sandbox). Under the sandbox it silently never arrives; the
+  three workspace triggers still cover the case.
+
+## Resume by *intent*, and retry — a failed post-standby start has no second event
+
+`listening` ("the engine is running") is not the state a wake should branch on.
+`listeningIntent` ("the counter is meant to be running") is: sleep suspends capture
+without clearing it, so a return reactivates only a counter that was actually
+active, while a start that merely *failed* keeps it and stays eligible for recovery.
+Branching on `listening` instead would make any pre-sleep failure permanent.
+
+After a long standby the USB bus was powered down and the mic can still be
+re-enumerating when the settle window closes. That start throws, and — unlike the
+config-change cases — **nothing else will ever fire** to recover from it, so the app
+sits silently "not listening" until someone opens the menu. Hence
+`scheduleStartRetry`: doubling 2s → 32s, capped at `maxStartRetries`, reset on every
+success / system return / manual resume. Bounded on purpose (a mic that is gone for
+good emits nothing and must not be polled forever) and slow on purpose (rapid-cycling
+is what wedges the mic). The wake settle is also stretched 1.0s → 2.5s when the sleep
+lasted longer than `standbyThreshold`; measure that span with `Date()`, **not**
+`ProcessInfo.systemUptime`, which does not advance while the machine is asleep.
+
 ## Config-change suppression must reconcile, not just drop
 
 CoreAudio posts `.AVAudioEngineConfigurationChange` for our *own* stop/start

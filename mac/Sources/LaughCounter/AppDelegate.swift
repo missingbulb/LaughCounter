@@ -42,6 +42,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Speech may only auto-(re)start once authorization was actually granted.
     private var speechAuthorized = false
 
+    // "The counter is meant to be running", as opposed to `listening` ("the
+    // engine actually is"). Sleep/standby suspends capture without clearing the
+    // intent, so the return path knows the counter was active and switches it
+    // back on; a start that merely *failed* keeps the intent too, so the retry
+    // ladder below still applies. It stays false only when we were never meant
+    // to be listening (microphone denied, or before the first start) — and then
+    // a return from standby deliberately resumes nothing.
+    private var listeningIntent = false
+    // Consecutive failed starts. Drives the post-standby retry ladder: a mic
+    // that was powered down for a long standby can take several seconds longer
+    // to re-enumerate than the wake settle delay allows, and a failed start
+    // emits no further event to recover on. Reset on every successful start,
+    // on a system return, and on a manual resume.
+    private var startFailureStreak = 0
+    // Identifies the one in-flight resume. Returning from standby fires a *burst*
+    // of signals (wake, displays, session, unlock) that must schedule a single
+    // resume between them; a stale timer compares its id and does nothing.
+    private var resumeID = 0
+    private var pendingResumeID: Int?
+    // Wall-clock (not systemUptime, which does not advance while asleep) stamp of
+    // the last willSleep, so the return path can tell a brief sleep from a long
+    // standby and give the hardware proportionally longer to come back.
+    private var sleepStartedAt: Date?
+
+    /// Settle delay after an ordinary short sleep.
+    private let wakeSettleDelay = 1.0
+    /// Settle delay after a long sleep/standby, where the machine has powered the
+    /// USB bus down and devices re-enumerate well after the wake notification.
+    private let standbySettleDelay = 2.5
+    /// A sleep at least this long is treated as standby for settling purposes.
+    private let standbyThreshold = 300.0
+    /// Bounded — a mic that never comes back must not be polled forever.
+    private let maxStartRetries = 5
+
     // Opt-in "keep the Mac awake so it keeps hearing laughs during a long movie".
     // Off by default; the choice persists across launches. While enabled *and*
     // listening we hold a power assertion that blocks idle *system* sleep (the
@@ -126,6 +160,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Tears down, lets the input device settle briefly, then re-acquires.
     private func requestListening() {
         guard micGranted else { return }
+        // Record the intent before the sleep gate, so a manual "Start listening"
+        // clicked during a sleep transition is still honored by the resume.
+        listeningIntent = true
         if sleeping {                  // heading into (or settling out of) sleep:
             // the post-wake resume is the one path out; log so a swallowed manual
             // click is visible in the activity log rather than silently ignored
@@ -165,11 +202,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try detector.configure(format: format)
             try audio.start(format: format)
             listening = true
+            startFailureStreak = 0
             AppLog.shared.log("listening started "
                 + "(sampleRate=\(Int(format.sampleRate)), channels=\(format.channelCount))")
         } catch {
             audio.stop()
             listening = false
+            startFailureStreak += 1
             AppLog.shared.log("could not start listening: \(error.localizedDescription)",
                               level: "ERROR")
         }
@@ -203,7 +242,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // emits no events, so this can't poll forever.
                 AppLog.shared.log("device event during settle after failed start — retrying")
                 self.requestListening()
+            } else if !self.listening && self.listeningIntent {
+                // The counter is meant to be on but the start failed and no device
+                // event arrived to hang a retry off. The reachable case is a return
+                // from standby: the machine powered the USB bus down, so the mic is
+                // still re-enumerating when the settle window ends and there is
+                // nothing left to recover on — the app would sit silently "not
+                // listening" until someone opened the menu. So back off and try
+                // again, doubling each time (2s, 4s … 32s) and giving up after
+                // `maxStartRetries`: bounded, because a mic that is gone for good
+                // emits nothing and must not be polled forever, and slow, because
+                // rapid-cycling a USB mic is what wedges it in the first place.
+                self.scheduleStartRetry(generation: generation)
             }
+        }
+    }
+
+    /// Back-off retry after a failed start, generation-guarded like every other
+    /// deferred restart: an intentional stop, or any restart accepted meanwhile,
+    /// moves the generation and this retry aborts rather than re-acquiring the mic
+    /// behind it. Main-thread only.
+    private func scheduleStartRetry(generation: Int) {
+        guard startFailureStreak <= maxStartRetries else {
+            AppLog.shared.log("listening still down after \(maxStartRetries) retries — "
+                + "reconnect the microphone and use “Start listening” in the menu",
+                              level: "ERROR")
+            return
+        }
+        let attempt = startFailureStreak
+        let delay = Double(1 << attempt)      // 2, 4, 8, 16, 32 — attempt ≤ 5
+        AppLog.shared.log("start failed — retrying in \(Int(delay))s "
+            + "(attempt \(attempt) of \(maxStartRetries))", level: "WARN")
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self = self, generation == self.restartGeneration else { return }
+            guard self.listeningIntent, !self.listening else { return }
+            self.requestListening()
         }
     }
 
@@ -216,6 +289,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         restartInFlight = false
         restartQueued = false
         suppressConfigChange = false
+        pendingResumeID = nil   // a resume scheduled before this stop is void
         counter.flush()
         voice.stop()     // symmetric with resume; recognition restarts on wake
         audio.stop()
@@ -245,8 +319,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let ws = NSWorkspace.shared.notificationCenter
         ws.addObserver(self, selector: #selector(willSleep),
                        name: NSWorkspace.willSleepNotification, object: nil)
+        // macOS has no "returned from standby" notification — standby is just a
+        // deeper sleep, and the only guaranteed signal is the ordinary wake. But a
+        // wake is not always a *return*: a dark/Power-Nap wake fires it with nobody
+        // there and the machine drops straight back to sleep, and after a long
+        // standby the mic can still be re-enumerating when our settle window ends.
+        // So take the wake plus every other "the machine is back" signal and funnel
+        // them into one coalesced resume; whichever lands first schedules it, the
+        // later ones act as backstops if that resume didn't get the counter running.
         ws.addObserver(self, selector: #selector(didWake),
                        name: NSWorkspace.didWakeNotification, object: nil)
+        ws.addObserver(self, selector: #selector(screensDidWake),
+                       name: NSWorkspace.screensDidWakeNotification, object: nil)
+        ws.addObserver(self, selector: #selector(sessionDidBecomeActive),
+                       name: NSWorkspace.sessionDidBecomeActiveNotification, object: nil)
+        // Unlocking after standby is the strongest "a person is actually back"
+        // signal, but it only exists as a *distributed* notification. That is fine
+        // for this app (non–App Store, no App Sandbox); under the sandbox it would
+        // simply never arrive, and the workspace triggers above still cover us.
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(screenDidUnlock),
+            name: NSNotification.Name("com.apple.screenIsUnlocked"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(audioConfigChanged),
                                                name: .AVAudioEngineConfigurationChange,
                                                object: audio.engine)
@@ -257,21 +350,75 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // machine heads into sleep, and the resulting config-change notifications
         // must not restart capture behind this intentional stop.
         sleeping = true
+        sleepStartedAt = Date()
+        // stopListening deliberately leaves `listeningIntent` alone: this is a
+        // suspend, not "the counter was switched off", and the return path reads
+        // that intent to decide whether to switch it back on.
         stopListening(reason: "system sleep")
     }
 
-    @objc private func didWake() {
-        AppLog.shared.log("system woke — resuming listening shortly")
+    @objc private func didWake() { systemDidReturn(reason: "system woke") }
+    @objc private func screensDidWake() { systemDidReturn(reason: "displays woke") }
+    @objc private func sessionDidBecomeActive() { systemDidReturn(reason: "session became active") }
+    @objc private func screenDidUnlock() {
+        // Distributed notifications are delivered on the main thread for an app
+        // with a run loop, but say so explicitly rather than rely on it.
+        DispatchQueue.main.async { [weak self] in self?.systemDidReturn(reason: "screen unlocked") }
+    }
+
+    /// One entry point for every "the machine is back" signal (wake from sleep or
+    /// standby, displays waking, the session returning, the screen unlocking).
+    /// Reactivates the counter **only if it was active before** — a Mac that was
+    /// not listening when it went down comes back not listening.
+    private func systemDidReturn(reason: String) {
+        // These signals also fire with no sleep involved at all: the display
+        // waking from the screensaver, a user switching back. Only a machine that
+        // actually owes a resume reacts — restarting capture on every display wake
+        // would rapid-cycle the mic (the wedge condition) for nothing.
+        guard sleeping || (listeningIntent && !listening) else { return }
+        if pendingResumeID != nil { return }   // the burst is one return, one resume
+        // How long we were down, measured from willSleep. Nil means we never slept:
+        // the signal is then a backstop over a start that failed earlier, and it
+        // buys exactly one more attempt — not a fresh retry ladder.
+        let asleep = sleepStartedAt.map { Date().timeIntervalSince($0) }
+        // After a long standby the USB bus was powered down and devices come back
+        // well after the wake notification, so settle for longer before re-acquiring.
+        let standby = (asleep ?? 0) >= standbyThreshold
+        let settle = standby ? standbySettleDelay : wakeSettleDelay
+        let what = listeningIntent ? "resuming listening shortly"
+                                   : "counter was not active, staying off"
+        if let asleep = asleep {
+            AppLog.shared.log(String(format: "%@ after %.0fs %@ — %@", reason, asleep,
+                                     standby ? "standby" : "sleep", what))
+        } else {
+            AppLog.shared.log("\(reason) while listening was down — \(what)")
+        }
+        resumeID &+= 1
+        let id = resumeID
+        pendingResumeID = id
         // Stay gated (`sleeping`) through the settle delay so wake-time device
-        // re-enumeration can't trigger an early, un-settled restart; the resume
-        // below is the one entry point out of sleep. Capture the generation so a
-        // quick re-sleep (lid closed again during the delay) aborts this resume —
-        // willSleep bumps the generation, and this timer would otherwise fire
-        // immediately on the *next* wake, un-gating and restarting un-settled.
+        // re-enumeration can't trigger an early, un-settled restart; this resume is
+        // the one entry point out of sleep. Capture the generation so a quick
+        // re-sleep (lid closed again during the delay) aborts it — willSleep bumps
+        // the generation, and this timer would otherwise fire immediately on the
+        // *next* wake, un-gating and restarting un-settled.
         let generation = restartGeneration
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self = self, generation == self.restartGeneration else { return }
-            self.sleeping = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + settle) { [weak self] in
+            guard let self = self, self.pendingResumeID == id else { return }
+            self.pendingResumeID = nil
+            guard generation == self.restartGeneration else {
+                AppLog.shared.log("wake resume superseded by a later stop — skipping")
+                return
+            }
+            self.sleeping = false          // always ungate, even when staying off,
+            self.sleepStartedAt = nil      // or a manual start would stay blocked
+            guard self.listeningIntent else {
+                AppLog.shared.log("listening not resumed — the counter was off before sleep")
+                return
+            }
+            // A real return from sleep earns a fresh retry ladder; a backstop
+            // signal (no sleep behind it) gets the single attempt below instead.
+            if asleep != nil { self.startFailureStreak = 0 }
             self.requestListening()
             if self.speechAuthorized { self.voice.start() }   // idempotent
         }
@@ -365,6 +512,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func logMiss() { markMissed(source: "button") }
     @objc private func resumeListening() {
         AppLog.shared.log("manual resume requested")
+        startFailureStreak = 0   // an explicit ask earns a full retry ladder again
         requestListening()
     }
     @objc private func toggleKeepAwake() {

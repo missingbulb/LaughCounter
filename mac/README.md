@@ -126,6 +126,15 @@ eventually, laugh enrollment would sharpen it.
 counting threshold is written with `label:"candidate"` (uncounted) — so near-misses
 are on record and later “I laughed” feedback can be aligned to a nearby event.
 
+**Sleep & standby:** the mic is released when the Mac sleeps and picked back up
+when it returns — from a short sleep or from a long standby, where the USB bus was
+powered down and the mic takes a while to reappear (LaughCounter waits longer, then
+retries with a widening gap for about a minute before giving up and telling you so
+in the activity log). It resumes **only if the counter was running when the Mac went
+to sleep**: if listening was off — say the microphone was never granted — waking the
+Mac leaves it off. A wake with nobody there (Power Nap, a screensaver dismissed)
+doesn't restart anything that was already running.
+
 **Activity log:** lifecycle events (started / slept / woke / reconfigured / errors)
 and each laugh's hypothesis go to `laughcounter.log` next to the laugh log (open it
 from the menu), so if listening ever stops — or a guess looks off — you can see why.
