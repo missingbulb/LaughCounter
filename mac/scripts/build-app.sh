@@ -15,8 +15,7 @@ cp "$BIN" "$APP/Contents/MacOS/LaughCounter"
 cp "Resources/Info.plist" "$APP/Contents/Info.plist"
 
 # App icon: build a multi-resolution AppIcon.icns from the 1024² master PNG.
-# The master is generated (reproducibly) by scripts/gen-icon.py and committed, so
-# this step only needs macOS's sips + iconutil.
+# The master PNG is committed, so this step only needs macOS's sips + iconutil.
 ICON_SRC="Resources/AppIcon.png"
 if [ -f "$ICON_SRC" ] && command -v sips >/dev/null && command -v iconutil >/dev/null; then
     echo "Building app icon…"

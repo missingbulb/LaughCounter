@@ -1,22 +1,16 @@
 // The privacy boundary as a check: the always-on capture path may not open an
-// outbound connection. Scans the two runtime trees that touch the microphone —
-// laughcounter/ (the Python reference) and mac/Sources/ (the native app) — for
-// network *client* APIs. It matches call/import tokens, not URL strings, so the
-// optional extras' documented one-time model download (the tfhub handle in
-// detector/yamnet.py, SpeechBrain's in speaker.py) stays legal: that fetch is
-// made by the ML library inside an optional extra and carries no audio.
+// outbound connection. Scans the app's sources (`mac/Sources/`) for network
+// *client* APIs. It matches call/import tokens rather than URL strings, so a
+// comment mentioning a URL stays legal while an actual client does not.
+//
+// Since the Python reference was removed there is exactly one runtime tree and
+// **no accepted egress at all** — detection (Sound Analysis) and speech
+// recognition are both on-device, and nothing downloads a model. That makes this
+// check absolute: any hit is a finding, with no optional-extra carve-out to
+// reason about.
+//
 // Dependency-free by design (a local pack must load without the canon mount),
 // so the finding object is built by hand rather than via the engine helper.
-
-const PY_CLIENTS = [
-  [/^\s*import\s+requests\b/, 'requests'],
-  [/^\s*import\s+httpx\b/, 'httpx'],
-  [/^\s*(?:import\s+urllib\.request|from\s+urllib(?:\.request)?\s+import)\b/, 'urllib.request'],
-  [/^\s*(?:import\s+http\.client|from\s+http\.client\s+import)\b/, 'http.client'],
-  [/^\s*(?:import\s+socket|from\s+socket\s+import)\b/, 'socket'],
-  [/^\s*(?:import\s+(?:ftplib|smtplib)|from\s+(?:ftplib|smtplib)\s+import)\b/, 'an internet protocol client'],
-  [/\burlopen\s*\(/, 'urlopen()'],
-];
 
 const SWIFT_CLIENTS = [
   [/\bURLSession\b/, 'URLSession'],
@@ -25,14 +19,12 @@ const SWIFT_CLIENTS = [
   [/\bNWConnection\b/, 'NWConnection'],
 ];
 
-const inScope = (f) =>
-  (f.startsWith('laughcounter/') && f.endsWith('.py')) ||
-  (f.startsWith('mac/Sources/') && f.endsWith('.swift'));
+const inScope = (f) => f.startsWith('mac/Sources/') && f.endsWith('.swift');
 
 const rule = {
   id: 'on-device-privacy/no-network-client',
   severity: 'blocking',
-  description: 'No outbound network client in the always-on capture path (laughcounter/, mac/Sources/)',
+  description: 'No outbound network client in the always-on capture path (mac/Sources/)',
   doc: '.claudinite/local/packs/on-device-privacy/RULES.md',
   why: "the product's headline promise is that the room's audio never leaves the machine — a client in the capture path is how that promise breaks",
 
@@ -41,10 +33,9 @@ const rule = {
     for (const file of ctx.files.filter(inScope)) {
       const text = ctx.read(file);
       if (text === null) continue;
-      const patterns = file.endsWith('.py') ? PY_CLIENTS : SWIFT_CLIENTS;
       const lines = text.split('\n');
       for (let i = 0; i < lines.length; i += 1) {
-        for (const [pattern, what] of patterns) {
+        for (const [pattern, what] of SWIFT_CLIENTS) {
           if (!pattern.test(lines[i])) continue;
           out.push({
             rule: rule.id,
@@ -53,7 +44,7 @@ const rule = {
             line: i + 1,
             what: `${what} in the capture path (${file})`,
             why: rule.why,
-            fix: 'keep analysis on-device — drop the client, or move the network call into an optional extra that never handles audio (and say so in RULES.md)',
+            fix: 'keep analysis on-device — drop the client; the app has no accepted egress, so adding one is a product decision that belongs in RULES.md first',
             doc: rule.doc,
           });
           break;

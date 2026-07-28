@@ -14,7 +14,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import noNetworkClient from './no-network-client.mjs';
-import loopbackDefault from './loopback-default.mjs';
 import onDeviceSpeech from './on-device-speech.mjs';
 
 const repoRoot = dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))));
@@ -32,40 +31,21 @@ const realCtx = (...paths) => ctxOf(Object.fromEntries(
 
 test('no-network-client fires on a client in the capture path', () => {
   const findings = noNetworkClient.run(ctxOf({
-    'laughcounter/uploader.py': 'import json\nimport requests\n',
     'mac/Sources/LaughCounter/Sync.swift': 'let task = URLSession.shared.dataTask(with: url)\n',
+    'mac/Sources/LaughCounter/Peer.swift': 'import Foundation\nimport Network\n',
   }));
   assert.equal(findings.length, 2);
-  assert.deepEqual(findings.map((f) => f.line), [2, 1]);
-  assert.match(findings[0].what, /requests/);
-  assert.match(findings[1].what, /URLSession/);
+  assert.deepEqual(findings.map((f) => f.line), [1, 2]);
+  assert.match(findings[0].what, /URLSession/);
+  assert.match(findings[1].what, /Network framework/);
 });
 
 test('no-network-client stays quiet on the real capture path', () => {
   const findings = noNetworkClient.run(realCtx(
-    'laughcounter/dashboard.py',        // http.server, loopback — a server, not a client
-    'laughcounter/detector/yamnet.py',  // a TF-Hub URL string, fetched by the library
-    'laughcounter/notify.py',
     'mac/Sources/LaughCounter/AudioHub.swift',
     'mac/Sources/LaughCounter/VoiceCommand.swift',
-  ));
-  assert.deepEqual(findings, []);
-});
-
-test('loopback-default fires on a non-loopback host default', () => {
-  const findings = loopbackDefault.run(ctxOf({
-    'laughcounter/config.py': '    dashboard_host: str = "0.0.0.0"\n',
-    'laughcounter/dashboard.py': 'def serve(db, host: str = "192.168.1.10"):\n    pass\n',
-  }));
-  assert.equal(findings.length, 2);
-  assert.match(findings[0].what, /dashboard_host defaults to "0\.0\.0\.0"/);
-});
-
-test('loopback-default stays quiet on the real defaults', () => {
-  const findings = loopbackDefault.run(realCtx(
-    'laughcounter/config.py',
-    'laughcounter/dashboard.py',
-    'laughcounter/cli.py',
+    'mac/Sources/LaughCounter/Store.swift',
+    'mac/Sources/LaughCounter/LaughDetector.swift',
   ));
   assert.deepEqual(findings, []);
 });
