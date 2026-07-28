@@ -67,6 +67,13 @@ without clearing it, so a return reactivates only a counter that was actually
 active, while a start that merely *failed* keeps it and stays eligible for recovery.
 Branching on `listening` instead would make any pre-sleep failure permanent.
 
+The intent is stored as `offReason: String?` — nil means "meant to be running" and
+`listeningIntent` is derived from it — rather than a bool beside a separate reason
+string. The menu status, the tooltip and the wake log all render that one field, so
+they cannot disagree about whether the counter is off or why ("paused",
+"no microphone access", "starting up"). Menu **Pause listening** sets it; every
+request to listen clears it, which is what asking to listen means.
+
 After a long standby the USB bus was powered down and the mic can still be
 re-enumerating when the settle window closes. That start throws, and — unlike the
 config-change cases — **nothing else will ever fire** to recover from it, so the app

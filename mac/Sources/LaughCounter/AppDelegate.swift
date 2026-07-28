@@ -42,14 +42,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Speech may only auto-(re)start once authorization was actually granted.
     private var speechAuthorized = false
 
-    // "The counter is meant to be running", as opposed to `listening` ("the
-    // engine actually is"). Sleep/standby suspends capture without clearing the
-    // intent, so the return path knows the counter was active and switches it
-    // back on; a start that merely *failed* keeps the intent too, so the retry
-    // ladder below still applies. It stays false only when we were never meant
-    // to be listening (microphone denied, or before the first start) — and then
-    // a return from standby deliberately resumes nothing.
-    private var listeningIntent = false
+    // Why the counter is *not* meant to be running — nil means it is. Held as one
+    // field rather than a bool plus a separate reason so the menu, the tooltip and
+    // the wake path always agree on both whether the counter is off and why.
+    private var offReason: String? = "starting up"
+    /// "The counter is meant to be running", as opposed to `listening` ("the engine
+    /// actually is"). Sleep/standby suspends capture without touching this, so the
+    /// return path knows the counter was active and switches it back on; a start
+    /// that merely *failed* keeps the intent too, so the retry ladder below still
+    /// applies. It is false only when we are not meant to be listening (paused,
+    /// microphone denied, before the first start) — and then a return from standby
+    /// deliberately resumes nothing.
+    private var listeningIntent: Bool { offReason == nil }
     // Consecutive failed starts. Drives the post-standby retry ladder: a mic
     // that was powered down for a long standby can take several seconds longer
     // to re-enumerate than the wake settle delay allows, and a failed start
@@ -147,6 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.requestListening()
                     self.requestSpeech()
                 } else {
+                    self.offReason = "no microphone access"
                     AppLog.shared.log("microphone access denied", level: "ERROR")
                     self.showMicDenied()
                 }
@@ -161,8 +166,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func requestListening() {
         guard micGranted else { return }
         // Record the intent before the sleep gate, so a manual "Start listening"
-        // clicked during a sleep transition is still honored by the resume.
-        listeningIntent = true
+        // clicked during a sleep transition is still honored by the resume — and
+        // so it clears a pause, which is what asking to listen means.
+        offReason = nil
         if sleeping {                  // heading into (or settling out of) sleep:
             // the post-wake resume is the one path out; log so a swallowed manual
             // click is visible in the activity log rather than silently ignored
@@ -386,7 +392,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let standby = (asleep ?? 0) >= standbyThreshold
         let settle = standby ? standbySettleDelay : wakeSettleDelay
         let what = listeningIntent ? "resuming listening shortly"
-                                   : "counter was not active, staying off"
+                                   : "counter is \(offReason ?? "off"), staying off"
         if let asleep = asleep {
             AppLog.shared.log(String(format: "%@ after %.0fs %@ — %@", reason, asleep,
                                      standby ? "standby" : "sleep", what))
@@ -413,7 +419,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.sleeping = false          // always ungate, even when staying off,
             self.sleepStartedAt = nil      // or a manual start would stay blocked
             guard self.listeningIntent else {
-                AppLog.shared.log("listening not resumed — the counter was off before sleep")
+                AppLog.shared.log("listening not resumed — counter is "
+                    + "\(self.offReason ?? "off") (it was not active before sleep)")
                 return
             }
             // A real return from sleep earns a fresh retry ladder; a backstop
@@ -447,7 +454,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.title = "\(icon) \(me)  📺 \(tv)"
         statusItem.button?.toolTip = listening
             ? "Today — you: \(me) · TV: \(tv)"
-            : "LaughCounter — not listening (open menu to resume)"
+            : "LaughCounter — \(offReason ?? "not listening") (open menu to resume)"
         // refreshTitle() is called after every `listening` transition, so it's the
         // one chokepoint that keeps the power assertion in sync with the state.
         updateSleepAssertion()
@@ -475,7 +482,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "LaughCounter", action: nil, keyEquivalent: "")
 
         let stateItem = NSMenuItem(
-            title: listening ? "Status: listening" : "Status: not listening",
+            title: "Status: \(listening ? "listening" : (offReason ?? "not listening"))",
             action: nil, keyEquivalent: "")
         stateItem.isEnabled = false
         menu.addItem(stateItem)
@@ -491,6 +498,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                      action: #selector(logMiss), keyEquivalent: "l")
         menu.addItem(withTitle: listening ? "Restart listening" : "Start listening",
                      action: #selector(resumeListening), keyEquivalent: "r")
+        // Only offered while the counter is meant to be on: once paused, "Start
+        // listening" above is the way back, so there is never a Pause and a Resume
+        // item competing to describe the same state.
+        if listeningIntent {
+            let pauseItem = NSMenuItem(title: "Pause listening",
+                                       action: #selector(pauseListening), keyEquivalent: "p")
+            pauseItem.toolTip = "Stop counting and release the microphone until you "
+                + "start it again. Sleeping the Mac while paused keeps it paused; "
+                + "quitting and relaunching starts it listening again."
+            menu.addItem(pauseItem)
+        }
 
         let keepAwakeItem = NSMenuItem(title: "Keep Mac awake while listening",
                                        action: #selector(toggleKeepAwake), keyEquivalent: "")
@@ -513,7 +531,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func resumeListening() {
         AppLog.shared.log("manual resume requested")
         startFailureStreak = 0   // an explicit ask earns a full retry ladder again
-        requestListening()
+        requestListening()       // clears any pause via offReason = nil
+    }
+    /// Switch the counter off until it's switched back on by hand. Deliberately
+    /// *not* persisted: relaunching starts listening again, which is what an
+    /// always-on box should do after a power cut. Because it clears the intent, a
+    /// sleep/standby taken while paused comes back paused.
+    @objc private func pauseListening() {
+        offReason = "paused"
+        startFailureStreak = 0            // nothing to recover from any more
+        stopListening(reason: "paused by user")
     }
     @objc private func toggleKeepAwake() {
         keepAwake.toggle()
