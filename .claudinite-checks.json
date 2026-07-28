@@ -20,11 +20,6 @@
     },
     {
       "rule": "warning-suppression",
-      "path": "laughcounter/dashboard.py",
-      "reason": "N802 on do_GET/do_POST is required by Python's http.server BaseHTTPRequestHandler API — the method names are fixed by the framework and cannot be renamed"
-    },
-    {
-      "rule": "warning-suppression",
       "path": "laughcounter/notify.py",
       "reason": "deliberate BLE001 broad-except: a notification failure must never break the listening loop"
     },

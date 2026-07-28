@@ -26,8 +26,8 @@ A ready-made build, published automatically on every change to `main` — no Xco
   laughed" voice command. **⬇️ [Download the latest `LaughCounter.dmg`](https://github.com/missingbulb/LaughCounter/releases/latest/download/LaughCounter.dmg)**
   (a ready-made build from GitHub — no Xcode). **See [`mac/README.md`](mac/README.md).**
 - **🐍 Python reference / simulator (this folder)** — a fully-tested,
-  cross-platform implementation with a phone-friendly web dashboard, feedback
-  commands, stats, and an offline `simulate` mode. Great for trying the whole
+  cross-platform implementation with feedback commands, stats, and an offline
+  `simulate` mode. Great for trying the whole
   pipeline anywhere. Documented below.
 
 The two share the same simple JSONL log format. For the full reasoning behind the
@@ -65,9 +65,9 @@ never have to hand-label a training set:
 ## How it works
 
 ```
- USB/webcam mic ─► detector ─► counter ─► storage ─► stats / dashboard
-  (living room)   (YAMNet)    (state      (SQLite +   (CLI + phone-friendly
-                              machine)     clips)      web page + feedback)
+ USB/webcam mic ─► detector ─► counter ─► storage ─► stats
+  (living room)   (YAMNet)    (state      (SQLite +   (CLI + feedback
+                              machine)     clips)      commands)
        │                                     ▲
        └──── short clip saved per laugh ──────┘  (to improve accuracy over time)
 ```
@@ -82,7 +82,7 @@ never have to hand-label a training set:
 4. **Feedback** — a soft blip tells you it caught one; if it missed, one tap logs
    the miss as training data.
 
-The core (counting, storage, stats, dashboard, feedback, CLI) needs **only the
+The core (counting, storage, stats, feedback, CLI) needs **only the
 Python standard library**. TensorFlow, the mic, and the speaker model are optional
 extras used only for live listening.
 
@@ -101,9 +101,9 @@ laughcounter devices
 # 3. Try it (Ctrl+C to stop). Laugh at it!
 laughcounter listen --device "USB"    # index number or a name substring
 
-# 4. See results, from the Mac or your phone
+# 4. See results
 laughcounter stats
-laughcounter serve --host 0.0.0.0     # open http://<mac-mini-ip>:8422 on your phone
+laughcounter log
 ```
 
 **Run it always-on** with launchd:
@@ -120,7 +120,6 @@ The whole pipeline runs offline with synthetic laughs (no installs needed):
 ```bash
 python -m laughcounter simulate -n 30 --seed 1
 python -m laughcounter stats
-python -m laughcounter serve      # http://127.0.0.1:8422
 ```
 
 ---
@@ -130,13 +129,12 @@ python -m laughcounter serve      # http://127.0.0.1:8422
 You don't need it perfect on day one. Two tiny habits improve it:
 
 - **When you laugh and hear a blip** → it caught you, nothing to do.
-- **When you laugh and *don't* hear a blip** → tap **“😂 I just laughed”** on the
-  dashboard (or run `laughcounter mark`). If a detection was near, it's confirmed;
-  if not, the miss is logged as a **false negative** — exactly the example the model
-  most needs.
-- **If it logs something that wasn't a laugh** → “not a laugh” on the dashboard, or
-  `laughcounter reject <id>` (excluded from counts).
-- **If it misattributes** → the “me/guest” buttons, or `laughcounter who <id> guest`.
+- **When you laugh and *don't* hear a blip** → run `laughcounter mark`. If a
+  detection was near, it's confirmed; if not, the miss is logged as a **false
+  negative** — exactly the example the model most needs.
+- **If it logs something that wasn't a laugh** → `laughcounter reject <id>`
+  (excluded from counts).
+- **If it misattributes** → `laughcounter who <id> guest`.
 
 Every correction, plus the saved clips, becomes the material to sharpen detection
 and speaker attribution later — without you ever labeling a dataset up front.
@@ -169,7 +167,6 @@ single giggle.
 | `laughcounter stats [--json]` | Summary: today, week, streaks, who, hours. |
 | `laughcounter log [-n N]` | Recent laughs with ids. |
 | `laughcounter export --format csv\|json` | Export everything. |
-| `laughcounter serve [--host H] [--port P]` | Local web dashboard. |
 | `laughcounter service` | Print a launchd agent for always-on operation. |
 | `laughcounter simulate -n N` | Generate synthetic laughs to try things out. |
 | `laughcounter config [--init]` | Show or write configuration. |
@@ -211,8 +208,6 @@ Raise `enter_threshold` if it counts non-laughs; lower it if it misses quiet chu
   Set `save_clips = false` to keep none.
 - The mic hears only where you put it — placing it in the living room is what scopes
   LaughCounter to the living room.
-- The dashboard binds to `127.0.0.1` unless you pass `--host 0.0.0.0` to reach it
-  from your phone on your home wifi.
 
 ---
 

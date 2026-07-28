@@ -3,7 +3,7 @@
 import json
 
 from laughcounter.events import LaughEvent
-from laughcounter.storage import Storage, read_rows
+from laughcounter.storage import Storage
 
 
 def make_event(start=100.0, dur=2.0, source="test"):
@@ -49,16 +49,3 @@ def test_between(tmp_path):
     got = store.between(10.0, 30.0)  # [10, 30)
     assert [r["start_ts"] for r in got] == [10.0, 20.0]
     store.close()
-
-
-def test_read_rows_missing_db_is_empty(tmp_path):
-    # Fresh path, table never created → helper returns [] instead of raising.
-    assert read_rows(tmp_path / "nope.db") == []
-
-
-def test_read_rows_thread_safe_helper(tmp_path):
-    store = Storage(tmp_path / "l.db")
-    store.add(make_event())
-    store.close()
-    rows = read_rows(tmp_path / "l.db")
-    assert len(rows) == 1

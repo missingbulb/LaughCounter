@@ -70,7 +70,7 @@ def compute(
         per_day_counts.get(today - timedelta(days=i), 0) for i in range(7)
     )
 
-    # Daily histogram for the dashboard, oldest first.
+    # Daily histogram, oldest first.
     per_day = []
     for i in range(day_window - 1, -1, -1):
         d = today - timedelta(days=i)

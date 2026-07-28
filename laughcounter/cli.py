@@ -6,7 +6,6 @@ Subcommands:
     stats     Print a summary of your laughter.
     log       Show the most recent laughs.
     export    Dump all events as CSV or JSON.
-    serve     Launch the local web dashboard.
     config    Show or initialise configuration.
 """
 
@@ -274,7 +273,7 @@ def cmd_listen(args, cfg: Config) -> int:
 
 
 # ---------------------------------------------------------------------------
-# stats / log / export / serve / config
+# stats / log / export / config
 # ---------------------------------------------------------------------------
 
 def cmd_stats(args, cfg: Config) -> int:
@@ -325,17 +324,6 @@ def cmd_export(args, cfg: Config) -> int:
         print(f"Exported {len(rows)} event(s) → {args.out}")
     else:
         sys.stdout.write(text)
-    return 0
-
-
-def cmd_serve(args, cfg: Config) -> int:
-    from .dashboard import serve
-
-    host = args.host or cfg.dashboard_host
-    port = args.port or cfg.dashboard_port
-    # Ensure the database exists so the first page load has a table to read.
-    Storage(cfg.db_path, cfg.jsonl_path).close()
-    serve(cfg.db_path, host=host, port=port, jsonl_path=cfg.jsonl_path)
     return 0
 
 
@@ -533,11 +521,6 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--format", choices=["csv", "json"], default="csv")
     s.add_argument("--out", help="output file (default: stdout)")
     s.set_defaults(func=cmd_export)
-
-    s = sub.add_parser("serve", help="run the local web dashboard")
-    s.add_argument("--host", help="bind address (default 127.0.0.1)")
-    s.add_argument("--port", type=int, help="port (default 8422)")
-    s.set_defaults(func=cmd_serve)
 
     s = sub.add_parser("config", help="show or initialise configuration")
     s.add_argument("--init", action="store_true", help="write a default config file")

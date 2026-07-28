@@ -176,8 +176,7 @@ laughter-based identification, not a Mac-vs-Python choice.
 - **v1 (now):** native menu-bar app — built-in laughter detection, distinct-laugh
   counting, JSONL log, running indicator, confirmation blip, voice "I just laughed"
   → double-blip, menu fallback. *The simplest thing that reliably tracks laughs.*
-- **v2:** the phone-friendly dashboard (already built in the Python reference) wired
-  to the same log; threshold auto-tuning from confirmations/misses.
+- **v2:** threshold auto-tuning from confirmations/misses.
 - **v3:** rolling audio buffer → save clips on misses/confirmations → one-click
   Create ML retrain for a personalised laughter model.
 - **v4:** who-laughed (me vs. guest) via Create ML, with enrollment.
@@ -199,8 +198,8 @@ laughter-based identification, not a Mac-vs-Python choice.
 
 ## 7. The Python reference (`laughcounter/`)
 
-The repository also contains a fully-tested Python implementation with a web
-dashboard, feedback commands, stats, clip-saving and speaker-attribution
+The repository also contains a fully-tested Python implementation with feedback
+commands, stats, clip-saving and speaker-attribution
 scaffolding. It runs anywhere (great for trying the whole pipeline offline via
 `simulate`) and is the reference for the counting/logging/stats logic the native
 app mirrors. It uses the same JSONL format, so the two interoperate. See the root

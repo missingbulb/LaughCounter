@@ -16,13 +16,13 @@ def test_defaults_and_paths(tmp_path):
 def test_save_and_load_roundtrip(tmp_path):
     cfg = Config(home=str(tmp_path))
     cfg.enter_threshold = 0.77
-    cfg.dashboard_port = 9999
+    cfg.mark_window = 9.5
     path = cfg.save()
     assert path.exists()
 
     loaded = Config.load(home=tmp_path)
     assert loaded.enter_threshold == 0.77
-    assert loaded.dashboard_port == 9999
+    assert loaded.mark_window == 9.5
     assert loaded.home == str(tmp_path)
 
 

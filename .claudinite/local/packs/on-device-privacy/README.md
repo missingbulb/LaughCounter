@@ -11,7 +11,6 @@ implementations, because the boundary is the same on either side of them.
 | Rule | How enforced |
 | --- | --- |
 | No outbound client in capture path | `no-network-client` check (`laughcounter/**.py`, `mac/Sources/**.swift`) |
-| Dashboard binds loopback | `loopback-default` check (host defaults in `laughcounter/`) |
 | Speech recognition on-device | `on-device-speech` check (`SFSpeechAudioBufferRecognitionRequest`) |
 | Metadata persists, audio doesn't | `RULES.md` prose |
 | One deletable home directory | `RULES.md` prose |

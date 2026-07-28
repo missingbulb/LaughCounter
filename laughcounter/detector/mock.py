@@ -1,7 +1,7 @@
 """A dependency-free detector for tests and demos.
 
 :class:`ScriptedDetector` returns whatever scores you give it, in order.  It lets
-the whole pipeline — counter, storage, stats, dashboard — run and be verified
+the whole pipeline — counter, storage, stats — run and be verified
 without a microphone or TensorFlow.
 """
 

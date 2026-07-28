@@ -20,9 +20,8 @@ Each event carries:
 ``rejected`` events are excluded from all counts; the rest are what make the
 feedback loop able to improve accuracy.
 
-Connections are short-lived and thread-confined: reads and feedback writes from
-the dashboard each open their own connection, which keeps SQLite happy across
-threads without locking gymnastics.
+Connections are short-lived: each :class:`Storage` opens its own, which keeps
+SQLite happy without locking gymnastics.
 """
 
 from __future__ import annotations
@@ -243,52 +242,3 @@ class Storage:
 
     def __exit__(self, *exc) -> None:
         self.close()
-
-
-# -- thread-safe helpers (each opens its own connection) --------------------
-
-def read_rows(db_path: str | Path) -> list[dict]:
-    """Return all rows from ``db_path``, opening and closing a connection.
-
-    Used by the dashboard so each HTTP request gets its own connection instead
-    of sharing one across threads. Returns ``[]`` if the table does not exist.
-    """
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    try:
-        rows = conn.execute(
-            f"SELECT {_COLUMNS} FROM laughs ORDER BY start_ts ASC"
-        ).fetchall()
-        return [dict(r) for r in rows]
-    except sqlite3.OperationalError:
-        return []
-    finally:
-        conn.close()
-
-
-def apply_mark(db_path: str | Path, who: str = "me", now: Optional[float] = None,
-               jsonl_path: str | Path | None = None) -> dict:
-    """Thread-safe "I just laughed" for the dashboard/CLI.
-
-    ``jsonl_path`` is optional so a missed-laugh row also lands in the JSONL log.
-    """
-    with Storage(db_path, jsonl_path) as store:
-        return store.mark(now=now, who=who)
-
-
-def apply_label(db_path: str | Path, rowid: int, action: str) -> dict:
-    """Thread-safe relabel for the dashboard/CLI.
-
-    ``action`` is one of: ``reject`` (not a laugh), ``confirm``, ``me``,
-    ``guest`` (speaker corrections).
-    """
-    with Storage(db_path) as store:
-        if action == "reject":
-            ok = store.set_label(rowid, "rejected")
-        elif action == "confirm":
-            ok = store.set_label(rowid, "confirmed")
-        elif action in ("me", "guest"):
-            ok = store.set_speaker(rowid, action)
-        else:
-            raise ValueError(f"unknown action {action!r}")
-        return {"ok": bool(ok), "id": int(rowid), "action": action}

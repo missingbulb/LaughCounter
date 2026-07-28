@@ -1,5 +1,4 @@
 import noNetworkClient from './no-network-client.mjs';
-import loopbackDefault from './loopback-default.mjs';
 import onDeviceSpeech from './on-device-speech.mjs';
 
 // LaughCounter's defining constraint, as a pack: an always-on microphone in the
@@ -16,5 +15,5 @@ export default {
   detect: null,
   marker: null,
   prose: 'RULES.md',
-  rules: [noNetworkClient, loopbackDefault, onDeviceSpeech],
+  rules: [noNetworkClient, onDeviceSpeech],
 };

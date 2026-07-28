@@ -22,7 +22,7 @@ def default_home() -> Path:
 
 @dataclass
 class Config:
-    """Tunable parameters for detection, counting and the dashboard."""
+    """Tunable parameters for detection and counting."""
 
     # Audio / model
     sample_rate: int = 16000        # YAMNet expects 16 kHz mono
@@ -52,10 +52,6 @@ class Config:
 
     # How far back an "I just laughed" tap looks to confirm a detection.
     mark_window: float = 8.0
-
-    # Dashboard — bound to localhost by default for privacy.
-    dashboard_host: str = "127.0.0.1"
-    dashboard_port: int = 8422
 
     # Data location (stored as a string so the dataclass stays JSON-friendly).
     home: str = ""

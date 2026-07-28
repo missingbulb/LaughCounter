@@ -1,7 +1,7 @@
 """LaughCounter — listen for laughter at home, count it, and log it.
 
-The core of this package (counting, storage, statistics, the web dashboard and
-the command line interface) depends only on the Python standard library, so it
+The core of this package (counting, storage, statistics and the command line
+interface) depends only on the Python standard library, so it
 runs and is fully testable without installing anything.  The pieces that need
 heavy dependencies — real microphone capture and the YAMNet laughter model —
 live behind small interfaces and are imported lazily, so they are only required

@@ -5,7 +5,7 @@ import sqlite3
 import pytest
 
 from laughcounter.events import LaughEvent
-from laughcounter.storage import Storage, apply_label, apply_mark
+from laughcounter.storage import Storage
 
 
 def make_event(start, dur=1.0, speaker="unknown"):
@@ -65,20 +65,6 @@ def test_set_label_and_speaker_validation(tmp_path):
         store.set_speaker(rid, "nobody")
     assert store.set_label(9999, "rejected") is False  # no such row
     store.close()
-
-
-def test_apply_helpers_are_standalone(tmp_path):
-    db = tmp_path / "l.db"
-    Storage(db).close()  # create schema
-    res = apply_mark(db, who="me", now=1000.0)
-    assert res["action"] == "missed"
-    rid = res["id"]
-    r2 = apply_label(db, rid, "reject")
-    assert r2["ok"] is True
-    r3 = apply_label(db, rid, "guest")
-    assert r3["ok"] is True
-    with pytest.raises(ValueError):
-        apply_label(db, rid, "nonsense")
 
 
 def test_rejected_excluded_from_counts(tmp_path):

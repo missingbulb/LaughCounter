@@ -28,12 +28,12 @@ always-on paths (the native app's Sound Analysis and Speech, the counting/loggin
 core) need no network at all. Adding a *new* egress means saying so in the README
 Privacy section and here, and keeping it out of the capture path.
 
-**The dashboard is unauthenticated — treat every widening as a user decision.**
-It binds loopback by default; `--host 0.0.0.0` is the user reaching it from their
-phone, and the mutating endpoints require an `application/json` content type so a
-browser must preflight cross-origin (`dashboard.py`'s `do_POST`). Any new
-mutating endpoint keeps that guard; nothing else stands between the LAN and the
-laugh log.
+**There is no server.** The web dashboard was removed on purpose (the laugh log
+is read via the CLI); the Python core neither listens on a socket nor speaks to
+one. Reintroducing any listener — a dashboard, a metrics port, a remote-control
+API — is a product decision about exposing the laugh log, not a feature to slip
+in: it needs the owner's explicit sign-off, a loopback-only default, and a story
+for authentication or CSRF before it lands.
 
 **The disclosure must stay true.** `NSMicrophoneUsageDescription` and
 `NSSpeechRecognitionUsageDescription` tell the user audio is analysed on-device
