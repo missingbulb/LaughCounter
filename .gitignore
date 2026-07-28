@@ -1,7 +1,3 @@
-# Python (only mac/scripts/gen-icon.py remains, but keep bytecode out for good)
-__pycache__/
-*.py[cod]
-
 # macOS / Xcode
 .DS_Store
 build/

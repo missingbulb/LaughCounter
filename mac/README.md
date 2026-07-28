@@ -51,15 +51,14 @@ delete `~/Library/Application Support/LaughCounter/`.
 
 ```bash
 cd mac
-python3 scripts/gen-icon.py   # -> Resources/AppIcon.png (only if you edit the icon)
 bash scripts/build-app.sh     # -> dist/LaughCounter.app  (bakes AppIcon.icns)
 bash scripts/make-dmg.sh      # -> dist/LaughCounter.dmg  (with the 😄 volume icon)
 ```
 
-Requires the Swift toolchain (Xcode Command Line Tools). No third-party packages.
-The app icon is generated from code by `scripts/gen-icon.py` (pure Python stdlib);
-the committed `Resources/AppIcon.png` master is turned into a multi-resolution
-`.icns` at build time with `sips`/`iconutil`.
+Requires the Swift toolchain (Xcode Command Line Tools). No third-party packages,
+and no toolchain beyond what macOS ships. The committed `Resources/AppIcon.png`
+master is turned into a multi-resolution `.icns` at build time with
+`sips`/`iconutil` — replace that PNG to change the icon.
 
 This produces an **ad-hoc-signed** app (the Gatekeeper step under *Install*
 applies). To instead sign it with a real **Developer ID** and notarize it — so it

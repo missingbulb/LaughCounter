@@ -4,7 +4,7 @@ import Foundation
 /// Appends laugh events to a JSONL log under
 /// `~/Library/Application Support/LaughCounter/laughs.jsonl`.
 ///
-/// Same greppable spirit as the Python reference. Fields are written in a **fixed
+/// Deliberately greppable. Fields are written in a **fixed
 /// order** every line (`start_iso, label, start, end, peak, duration, mean,
 /// source`, then `type`/`context` when present) so the log diffs cleanly and is
 /// easy to eyeball — `JSONSerialization` can't guarantee key order, so we render
