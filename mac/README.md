@@ -136,14 +136,21 @@ until you pick *Start listening* again — the menu shows `Status: paused` meanw
 It isn't remembered across launches: quitting and reopening starts it listening
 again, which is what an always-on box should do after a power cut.
 
-**Sleep & standby:** the mic is released when the Mac sleeps and picked back up
-when it returns — from a short sleep or from a long standby, where the USB bus was
-powered down and the mic takes a while to reappear (LaughCounter waits longer, then
-retries with a widening gap for about a minute before giving up and telling you so
-in the activity log). It resumes **only if the counter was running when the Mac went
-to sleep**: sleep it while paused, or with the microphone never granted, and it
-comes back off. A wake with nobody there (Power Nap, a screensaver dismissed)
-doesn't restart anything that was already running.
+**Sleep, standby & the sleeping display:** the mic is released when the Mac sleeps
+and picked back up when it returns. It resumes **only if the counter was running
+when the Mac went to sleep**: sleep it while paused, or with the microphone never
+granted, and it comes back off. A wake with nobody there (Power Nap, a screensaver
+dismissed) doesn't restart anything that was already running.
+
+A **USB webcam mic can also disappear while the display sleeps** — macOS tears the
+input device down and it only comes back when the display wakes. Counting pauses
+for that whole window; there is nothing the app can do about it beyond noticing
+and recovering. It keeps checking once a minute and picks up automatically the
+moment the device returns, so the only sign is a gap in the log (and one
+`input device still unavailable` line, not a line a minute). If you want counting
+to continue through a long film, stop the *display* from sleeping — System
+Settings → Lock Screen → *Turn display off* — since *Keep Mac awake while
+listening* deliberately allows display sleep.
 
 **Activity log:** lifecycle events (started / slept / woke / reconfigured / errors)
 and each laugh's hypothesis go to `laughcounter.log` next to the laugh log (open it

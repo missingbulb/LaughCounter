@@ -59,6 +59,24 @@ code satisfied this by accident — `requestListening()`'s `stop()` reached
 rebuilding the engine *after* that call removed the accident: v0.3.0 crashed one
 second into every launch. (#72)
 
+**`outputFormat(forBus:)` cannot tell you the microphone is gone.** For the input
+node, `inputFormat(forBus: 0)` is the *hardware* format — the one `installTap`
+asserts on. `outputFormat(forBus: 0)` is the bus's output format, and with the
+device torn down it still reports a plausible 48 kHz while `inputFormat` reports
+0. Guards written against `outputFormat` therefore pass while the mic is absent
+and leave `installTap` to raise: measured, once a minute for the whole 28 minutes
+the displays slept. Validate `inputFormat`, and require it to agree with
+`outputFormat`, before installing a tap. (#76)
+
+**The mic is unavailable for as long as the displays sleep** — on this Mac mini
+with a Logitech BRIO, `pmset displaysleepnow` tears the input down within
+~20 seconds and it does not return until the displays wake (28 minutes in one
+measurement). Recovery arrives as an `.AVAudioEngineConfigurationChange` when the
+device reappears. So a *bounded* retry ladder is the wrong shape — it expires
+with the cause fully present — and the give-up message must not blame the
+hardware. Back off to a ceiling and keep checking; a cheap format read once a
+minute is nowhere near the rate that cycles a mic.
+
 **Compile-green is not a gate for this file.** Two crash-on-launch builds shipped
 past CI, which only runs `swift build`. Every raise-vs-throw bug here is invisible
 to the compiler and reachable in the first second of a run, so a change to

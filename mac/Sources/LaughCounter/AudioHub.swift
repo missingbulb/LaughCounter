@@ -84,29 +84,55 @@ final class AudioHub {
         // prepare() then raised from a path with no trap in it at all. Anything
         // that can raise on the way to capture gets the same treatment. (#72)
         try ObjCExceptionTrap.run { engine.prepare() }
-        let format = engine.inputNode.outputFormat(forBus: 0)
-        guard format.sampleRate > 0, format.channelCount > 0 else {
+        return try validatedFormat()
+    }
+
+    /// The tap format, checked against the *hardware* format that `installTap`
+    /// asserts on.
+    ///
+    /// Read `inputFormat(forBus: 0)`, not `outputFormat`: `outputFormat` is the
+    /// bus's output format, and with the input device torn down it still reports
+    /// a plausible 48 kHz while `inputFormat` correctly reports 0. Checking
+    /// `outputFormat` therefore could not detect an absent microphone at all — it
+    /// waved through starts that could never succeed and left `installTap` to
+    /// raise, which is what the exception trap kept catching once a minute while
+    /// the displays slept. Requiring the two to agree means `installTap` is never
+    /// reached in the mismatch state. (#76)
+    private func validatedFormat() throws -> AVAudioFormat {
+        let input = engine.inputNode
+        let hardware = input.inputFormat(forBus: 0)
+        let bus = input.outputFormat(forBus: 0)
+        guard hardware.sampleRate > 0, hardware.channelCount > 0 else {
             throw NSError(domain: "LaughCounter", code: 1, userInfo: [
                 NSLocalizedDescriptionKey:
-                    "microphone input format not ready (sampleRate=\(format.sampleRate), "
-                    + "channels=\(format.channelCount))",
+                    "no input hardware — the microphone is not available "
+                    + "(sampleRate=\(hardware.sampleRate), channels=\(hardware.channelCount))",
             ])
         }
-        return format
+        guard hardware.sampleRate == bus.sampleRate,
+              hardware.channelCount == bus.channelCount else {
+            throw NSError(domain: "LaughCounter", code: 2, userInfo: [
+                NSLocalizedDescriptionKey:
+                    "input format unsettled "
+                    + "(hardware \(hardware.sampleRate)Hz/\(hardware.channelCount)ch, "
+                    + "bus \(bus.sampleRate)Hz/\(bus.channelCount)ch)",
+            ])
+        }
+        return bus
     }
 
     /// Install the tap and start capture, using a format from `prepareFormat()`.
     func start(format: AVAudioFormat) throws {
         let input = engine.inputNode
-        // Re-validate the live hardware format right before installing the tap.
-        // The device can still vanish between prepareFormat() and here (dock
-        // unplug, wake-time re-enumeration). On a freshly built engine this reads
-        // the real hardware instead of a stale cache, so it catches the realistic
-        // cases as a throw rather than letting them reach installTap.
-        let live = input.outputFormat(forBus: 0)
+        // Re-validate against the hardware immediately before the tap: the device
+        // can still vanish between prepareFormat() and here (dock unplug,
+        // wake-time re-enumeration), and a mismatch reaching installTap is what
+        // raises. Checking the same pair as prepareFormat did, because the bus
+        // format alone cannot tell an absent device from a present one. (#76)
+        let live = try validatedFormat()
         guard live.sampleRate == format.sampleRate,
               live.channelCount == format.channelCount else {
-            throw NSError(domain: "LaughCounter", code: 2, userInfo: [
+            throw NSError(domain: "LaughCounter", code: 3, userInfo: [
                 NSLocalizedDescriptionKey:
                     "input device changed between prepare and start "
                     + "(expected \(format.sampleRate)Hz/\(format.channelCount)ch, "
@@ -115,13 +141,14 @@ final class AudioHub {
         }
         input.removeTap(onBus: 0)   // no-op if none installed; keeps restart clean
         // Backstop: installTap raises an *uncatchable* NSException if its format
-        // still disagrees with the live hardware, and Swift cannot catch one — it
-        // aborts the process, skipping the tap teardown in applicationWillTerminate
-        // and leaving the IOProc registered, which is exactly what wedges a USB
-        // webcam mic until it is physically re-plugged. The fresh engine above
-        // should make that unreachable; this converts anything left into an
-        // ordinary error the caller's teardown and retry path already handles.
-        // There is no atomic API here, so: belt and braces.
+        // disagrees with the live hardware, and Swift cannot catch one — it aborts
+        // the process, skipping the tap teardown in applicationWillTerminate and
+        // leaving the IOProc registered, which is exactly what wedges a USB webcam
+        // mic until it is physically re-plugged. This is not theoretical and not
+        // dead code: it demonstrably caught that exception once a minute while the
+        // displays slept, which is the only reason the app survived. The guard
+        // above should now keep us off that path; this stays because there is no
+        // atomic API and being wrong here costs the microphone.
         try ObjCExceptionTrap.run {
             input.installTap(onBus: 0, bufferSize: 8192, format: format) { [weak self] buffer, when in
                 self?.onBuffer?(buffer, when)
