@@ -11,6 +11,43 @@ Settings, until physically re-plugged. So the tap + engine must be torn down on
 *every* path where capture ends, and the engine must never rapid-cycle or
 overlap restarts. (#22)
 
+## Never reuse an `AVAudioEngine` across a device change (#61)
+
+An `AVAudioEngine` caches the input hardware format when its input node is first
+materialized, and **the cache does not follow the device**. After CoreAudio tears
+the input down — a USB mic re-enumerating, or coreaudiod dropping its contexts
+when the display sleeps — `inputNode.outputFormat(forBus: 0)` still reports the
+*old* rate, while `installTap` validates against the freshly-queried hardware
+format. They disagree, and `installTap` raises an **uncatchable** NSException:
+`required condition is false: format.sampleRate == inputHWFormat.sampleRate`.
+
+This killed the app on **every** configuration change — six for six over fifteen
+days on the owner's Mac mini, the longest outage fifteen days of nobody noticing.
+The pre-tap guard added in #22 did not help, because it compared the stale cache
+against itself and always passed: not the microsecond race its comment assumed,
+but a design gap. So `AudioHub.prepareFormat()` **builds a new engine every time**
+(stopping the old one first — dropping the last reference to a *running* engine
+abandons its IOProc on the device, the wedge condition). Three consequences:
+
+- **The crash was also the mic-wedge cause.** An uncaught NSException aborts the
+  process, so `applicationWillTerminate` never runs and the tap's IOProc is left
+  registered — the BRIO went dead until physically re-plugged. The exit-path rule
+  below calls crash teardown "residual risk"; at six crashes in fifteen days it
+  was the main risk.
+- **A replaced engine invalidates an observer bound to the old instance**, so
+  `AudioHub` owns the `.AVAudioEngineConfigurationChange` observation and
+  republishes it via `onConfigurationChange` (delivered on main). Registering it
+  from `AppDelegate` against `audio.engine` would go quiet after the first
+  restart — and a quiet config-change observer means the app stops noticing that
+  its microphone vanished.
+- **Swift cannot catch `NSException`**, so the last line of defence is a few
+  lines of Objective-C (`Sources/ObjCExceptionTrap`, its own SwiftPM target — our
+  source, not a dependency). Catching one is only safe because `installTap`
+  validates *before* mutating anything; don't wrap framework calls in general.
+
+Reproduce it without waiting for hardware to misbehave: let the display sleep
+(`displaysleep 20`), and coreaudiod tears its contexts down seconds later.
+
 ## Exit paths: `applicationWillTerminate` is not "every exit path" by itself
 
 `NSApp.terminate` (menu Quit, ⌘Q, the logout/shutdown quit Apple Event) runs

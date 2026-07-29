@@ -346,9 +346,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(screenDidUnlock),
             name: NSNotification.Name("com.apple.screenIsUnlocked"), object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(audioConfigChanged),
-                                               name: .AVAudioEngineConfigurationChange,
-                                               object: audio.engine)
+        // AudioHub owns the .AVAudioEngineConfigurationChange observation because
+        // it replaces the engine on every start (#61) and an observer bound to a
+        // superseded instance would silently stop firing. It delivers on main.
+        audio.onConfigurationChange = { [weak self] in self?.audioConfigChanged() }
     }
 
     @objc private func willSleep() {
@@ -431,17 +432,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc private func audioConfigChanged(_ note: Notification) {
-        // The notification can arrive on any thread; touch state only on main.
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self, !self.sleeping else { return }
-            if self.suppressConfigChange {
-                self.configChangeSwallowed = true   // reconciled at settle time
-                return
-            }
-            AppLog.shared.log("audio configuration changed — reconfiguring")
-            self.requestListening()   // single-flighted + rate-limited inside
+    /// Main-queue only — `AudioHub` delivers the notification there.
+    private func audioConfigChanged() {
+        guard !sleeping else { return }
+        if suppressConfigChange {
+            configChangeSwallowed = true   // reconciled at settle time
+            return
         }
+        AppLog.shared.log("audio configuration changed — reconfiguring")
+        requestListening()   // single-flighted + rate-limited inside
     }
 
     // MARK: menu bar
