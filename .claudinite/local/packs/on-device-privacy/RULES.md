@@ -13,9 +13,10 @@ every rule below is about it.
 **What may cross the boundary: derived metadata, never audio.** A laugh is
 persisted as time, duration, confidence, and an origin label — that is what the
 JSONL lines carry, and `LaughStore` says so in its own header. **No audio is
-stored at all**: there is no clip directory, no buffer written to disk, nothing to
-delete but a text log. A feature that wants to keep audio is not a new field, it
-is a new promise to the user, and it changes the mic prompt with it.
+stored at all** — the `no-audio-persistence` check holds this mechanically for
+v1. A feature that wants to keep audio (the v3 roadmap's rolling buffer) is not
+a new field, it is a new promise to the user: it changes the mic prompt and this
+check together, in the same PR.
 
 **Everything lives in one deletable directory.**
 `~/Library/Application Support/LaughCounter/` holds the laugh log and the app's
