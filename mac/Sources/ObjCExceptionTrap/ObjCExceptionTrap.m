@@ -2,8 +2,8 @@
 
 @implementation ObjCExceptionTrap
 
-+ (BOOL)runBlock:(void (NS_NOESCAPE ^)(void))block
-           error:(NSError *_Nullable *_Nullable)error {
++ (BOOL)run:(void (NS_NOESCAPE ^)(void))block
+      error:(NSError *_Nullable *_Nullable)error {
     @try {
         block();
         return YES;

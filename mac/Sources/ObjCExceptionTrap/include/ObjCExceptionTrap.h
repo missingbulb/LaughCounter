@@ -22,13 +22,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Runs `block`. Returns `YES` if it completed, or `NO` having set `error` to a
 /// description of the `NSException` it raised. Imported into Swift as a throwing
-/// call, so callers write `try ObjCExceptionTrap.runBlock { … }`.
+/// call, so callers write `try ObjCExceptionTrap.run { … }`.
 ///
-/// Named `runBlock:` rather than the more natural `perform:` because `NSObject`
-/// already declares `perform(_:)` in Swift, and overload resolution between the
-/// two is a needless trap for the next reader.
-+ (BOOL)runBlock:(void (NS_NOESCAPE ^)(void))block
-           error:(NSError *_Nullable *_Nullable)error;
+/// The selector is `run:` so it survives Swift's import unchanged. `perform:`
+/// would collide with `NSObject`'s own `perform(_:)`, and `runBlock:` imports as
+/// `run(_:)` anyway — Swift strips a trailing noun that just restates the
+/// argument type, and then marks the spelled-out name obsolete.
++ (BOOL)run:(void (NS_NOESCAPE ^)(void))block
+      error:(NSError *_Nullable *_Nullable)error;
 
 @end
 

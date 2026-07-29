@@ -95,7 +95,7 @@ final class AudioHub {
         // should make that unreachable; this converts anything left into an
         // ordinary error the caller's teardown and retry path already handles.
         // There is no atomic API here, so: belt and braces.
-        try ObjCExceptionTrap.runBlock {
+        try ObjCExceptionTrap.run {
             input.installTap(onBus: 0, bufferSize: 8192, format: format) { [weak self] buffer, when in
                 self?.onBuffer?(buffer, when)
             }
