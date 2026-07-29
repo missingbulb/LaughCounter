@@ -42,8 +42,27 @@ abandons its IOProc on the device, the wedge condition). Three consequences:
   its microphone vanished.
 - **Swift cannot catch `NSException`**, so the last line of defence is a few
   lines of Objective-C (`Sources/ObjCExceptionTrap`, its own SwiftPM target — our
-  source, not a dependency). Catching one is only safe because `installTap`
-  validates *before* mutating anything; don't wrap framework calls in general.
+  source, not a dependency). Catching one is only safe because these calls
+  validate *before* mutating anything; don't wrap framework calls in general.
+  Treat the trap as **unproven** until something demonstrates it catching a real
+  raise: the exception has to unwind through the intervening Swift closure frame,
+  which is not guaranteed to work.
+
+**A new engine must have a node attached before `prepare()`.** `AVAudioEngine`
+initializes its graph inside `prepare()` and asserts `inputNode != nullptr ||
+outputNode != nullptr` — another uncatchable NSException. A freshly constructed
+engine has neither: `inputNode` is created lazily *on first access*, and touching
+the property is what attaches it. `AudioHub.makeEngine()` does that as part of
+building one, so no call ordering elsewhere can get it wrong. The single-engine
+code satisfied this by accident — `requestListening()`'s `stop()` reached
+`engine.inputNode.removeTap(onBus: 0)` long before any `prepare()` — and
+rebuilding the engine *after* that call removed the accident: v0.3.0 crashed one
+second into every launch. (#72)
+
+**Compile-green is not a gate for this file.** Two crash-on-launch builds shipped
+past CI, which only runs `swift build`. Every raise-vs-throw bug here is invisible
+to the compiler and reachable in the first second of a run, so a change to
+`AudioHub` is not verified until it has actually started on a Mac.
 
 Reproduce it without waiting for hardware to misbehave: let the display sleep
 (`displaysleep 20`), and coreaudiod tears its contexts down seconds later.

@@ -13,7 +13,7 @@ import ObjCExceptionTrap
 /// quiet, and a quiet config-change observer means the app stops noticing that
 /// its microphone disappeared.
 final class AudioHub {
-    private var engine = AVAudioEngine()
+    private var engine: AVAudioEngine
     private var configObserver: NSObjectProtocol?
 
     /// Called for every captured buffer, on the audio thread.
@@ -28,7 +28,31 @@ final class AudioHub {
 
     var isRunning: Bool { engine.isRunning }
 
-    init() { observeConfigurationChange() }
+    init() {
+        engine = Self.makeEngine()
+        observeConfigurationChange()
+    }
+
+    /// Build an engine that is safe to `prepare()`.
+    ///
+    /// `AVAudioEngine` initializes its graph inside `prepare()` and asserts that
+    /// at least one node is attached — `inputNode != nullptr || outputNode !=
+    /// nullptr` — raising an uncatchable NSException when none is. A freshly
+    /// constructed engine has none: `inputNode` is created lazily *on first
+    /// access*, and touching the property is what attaches it. So materialize it
+    /// here, as part of building an engine, rather than leaving it to a call
+    /// order somewhere else.
+    ///
+    /// The pre-rebuild code survived only by accident: `requestListening()` calls
+    /// `stop()`, which reaches `engine.inputNode.removeTap(onBus: 0)` and
+    /// materialized the node on the single long-lived engine long before any
+    /// `prepare()`. Rebuilding the engine after that call removed the accident,
+    /// and every launch crashed one second in. (#72)
+    private static func makeEngine() -> AVAudioEngine {
+        let engine = AVAudioEngine()
+        _ = engine.inputNode   // attaches it; do not "simplify" this away
+        return engine
+    }
 
     deinit {
         if let observer = configObserver {
@@ -56,7 +80,10 @@ final class AudioHub {
     /// in `start(format:)` is meaningful again and the two formats agree.
     func prepareFormat() throws -> AVAudioFormat {
         renewEngine()
-        engine.prepare()
+        // Trapped as well as installTap: #59 wrapped only the tap install, and
+        // prepare() then raised from a path with no trap in it at all. Anything
+        // that can raise on the way to capture gets the same treatment. (#72)
+        try ObjCExceptionTrap.run { engine.prepare() }
         let format = engine.inputNode.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw NSError(domain: "LaughCounter", code: 1, userInfo: [
@@ -120,7 +147,7 @@ final class AudioHub {
     /// device instead of deregistering them.
     private func renewEngine() {
         stop()
-        engine = AVAudioEngine()
+        engine = Self.makeEngine()
         observeConfigurationChange()
     }
 
