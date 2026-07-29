@@ -445,6 +445,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: menu bar
 
+    /// `v0.3.1 (5)` — shown in the menu header so the running build is
+    /// identifiable without a terminal.
+    ///
+    /// Read from `Bundle.main`, never a constant in the source: `Info.plist` is
+    /// the one place the version lives, and the release workflow derives the tag
+    /// from it, so a second copy here could disagree with the DMG it shipped in.
+    /// The **build number matters as much as the version**: a merge that doesn't
+    /// change `CFBundleShortVersionString` refreshes the same Release, so several
+    /// distinct builds shipped as `0.2.1` and telling them apart meant reading
+    /// symbol names out of a crash report. `CFBundleVersion` is what separates
+    /// them. (#74)
+    private static var versionLabel: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String
+        let build = info?["CFBundleVersion"] as? String
+        switch (short, build) {
+        case let (version?, build?): return "v\(version) (\(build))"
+        case let (version?, nil): return "v\(version)"
+        default: return "(version unknown)"   // only reachable outside a bundle
+        }
+    }
+
     private func refreshTitle() {
         let icon = listening ? "😄" : "🎙️"
         let me = store.todayCount(origin: "me")
@@ -478,7 +500,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func buildMenu() {
         let menu = NSMenu()
-        menu.addItem(withTitle: "LaughCounter", action: nil, keyEquivalent: "")
+        menu.addItem(withTitle: "LaughCounter \(Self.versionLabel)",
+                     action: nil, keyEquivalent: "")
 
         let stateItem = NSMenuItem(
             title: "Status: \(listening ? "listening" : (offReason ?? "not listening"))",

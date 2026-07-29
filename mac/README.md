@@ -126,6 +126,11 @@ eventually, laugh enrollment would sharpen it.
 counting threshold is written with `label:"candidate"` (uncounted) — so near-misses
 are on record and later “I laughed” feedback can be aligned to a nearby event.
 
+**Which build am I running?** The menu's first line carries it —
+`LaughCounter v0.3.2 (6)`. The number in brackets is the build: two DMGs can share
+a version string when a change ships without a version bump, and the build number
+is what tells them apart.
+
 **Pause:** *Pause listening* (⌘P) stops counting and hands the microphone back
 until you pick *Start listening* again — the menu shows `Status: paused` meanwhile.
 It isn't remembered across launches: quitting and reopening starts it listening
