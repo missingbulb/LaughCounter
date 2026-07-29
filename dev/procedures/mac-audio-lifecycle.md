@@ -85,6 +85,55 @@ to the compiler and reachable in the first second of a run, so a change to
 Reproduce it without waiting for hardware to misbehave: let the display sleep
 (`displaysleep 20`), and coreaudiod tears its contexts down seconds later.
 
+## `listening` never meant audio was arriving — measure the buffers (#79)
+
+`listening` is set because `engine.start()` returned. It has never meant a single
+buffer arrived, and the settle-time reconciliation checks `audio.isRunning`, which
+a running-but-dead engine also satisfies. So the app could hold a wedged device
+for an entire evening with the menu bar reporting "listening" — the one symptom
+the owner sees, saying the one thing that isn't true. Every round of this bug was
+therefore reconstructed after the fact from a log whose only claim was `listening
+started`.
+
+`AudioDiagnostics` closes that: the tap reports every buffer, and 15s of silence
+while we believe we are capturing is an `AUDIO STALL` line plus a distinct menu
+state. Three things about it are load-bearing:
+
+- **Read the HAL, don't build an engine, when you only want to know whether a mic
+  is there.** `AudioObjectGetPropertyData` is a property query that does *not*
+  open the device, so sampling it every five seconds forever is free and cannot
+  cycle anything. `AudioHub.prepareFormat()` is the opposite — it builds an
+  engine, materializes `inputNode` (which opens the device) and calls `prepare()`
+  *before* validating — so the "cheap format read" the retry-ladder comment in
+  `AppDelegate` claims is actually a full device open/close, once a minute for as
+  long as the mic is missing.
+- **`kAudioDevicePropertyDeviceIsRunningSomewhere` is the wedge oracle.** It is
+  true when *any* process has IO running on the device. No buffers arriving while
+  it is true means the running stream is ours and it is dead — as opposed to the
+  device having gone away, which looks identical from inside the app.
+- **Measure buffer silence with `systemUptime`, not `Date()`** — the exact
+  opposite of the sleep-duration rule above, for the opposite reason: this is
+  "how long has the stream been silent *while we were awake*", so a sleep in the
+  middle must not be counted as silence.
+
+Log on state change, not on a timer: a heartbeat every ten minutes, and an
+immediate line when a stall starts or ends or the device set changes. (Same
+reason `scheduleStartRetry` announces its slow mode once — a line a minute for
+half an hour buries everything else.)
+
+## Diagnostics must not assume a toolchain on the owner's Mac
+
+The Mac running LaughCounter installs the DMG from CI and has **no Xcode command
+line tools** — so anything needed to diagnose a live failure has to be either
+shell built into macOS, or compiled into the app by CI. That is why the HAL reads
+live in the app rather than in a helper script.
+
+`command -v swift` does **not** test for a Swift toolchain: `/usr/bin/swift`
+ships on every Mac as a stub that pops the *"install the command line developer
+tools?"* dialog when run, so the check passes and the script prompts the owner to
+install 8 GB of Xcode. Gate on `xcode-select -p >/dev/null 2>&1` first — it fails
+quietly when the tools are absent.
+
 ## Exit paths: `applicationWillTerminate` is not "every exit path" by itself
 
 `NSApp.terminate` (menu Quit, ⌘Q, the logout/shutdown quit Apple Event) runs
