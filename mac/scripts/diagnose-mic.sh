@@ -172,7 +172,12 @@ fi
 
 # --- 6. CoreAudio HAL probe (optional, needs swift) -----------------------
 section "CoreAudio HAL probe"
-if command -v swift >/dev/null 2>&1 && [ -f "$HERE/mic-probe.swift" ]; then
+# `command -v swift` is NOT a usable test: /usr/bin/swift ships on every Mac as
+# a stub that pops the "install the command line developer tools?" dialog when
+# run. Ask xcode-select whether a developer directory exists first — that fails
+# quietly when the tools are absent, and no dialog appears.
+if xcode-select -p >/dev/null 2>&1 && command -v swift >/dev/null 2>&1 \
+   && [ -f "$HERE/mic-probe.swift" ]; then
   if [ "${1:-}" = "--capture" ]; then
     swift "$HERE/mic-probe.swift" --capture >>"$OUT" 2>&1
   else
@@ -180,13 +185,14 @@ if command -v swift >/dev/null 2>&1 && [ -f "$HERE/mic-probe.swift" ]; then
   fi
 else
   {
-    echo "skipped — needs the Xcode command line tools (xcode-select --install)"
-    echo "and mic-probe.swift alongside this script."
+    echo "skipped — no Swift toolchain (and none is needed; do not install one)."
     echo ""
-    echo "Not required: the process state, crash reports and activity log above"
-    echo "separate the failure states on their own. The probe would additionally"
-    echo "report IsRunningSomewhere (whether any process still has IO running on"
-    echo "the device) and the inputFormat/outputFormat pair the app gates on."
+    echo "Nothing decisive is lost. The process state, crash reports and activity"
+    echo "log above separate the failure states on their own. The HAL numbers the"
+    echo "probe would add — IsRunningSomewhere, and the inputFormat/outputFormat"
+    echo "pair the app gates on — are now sampled continuously by the app itself"
+    echo "(AudioDiagnostics), so they appear in the activity log above as"
+    echo "'audio health' / 'audio snapshot' / 'AUDIO STALL' lines."
   } >>"$OUT"
 fi
 
