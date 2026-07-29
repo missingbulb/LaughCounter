@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import noNetworkClient from './no-network-client.mjs';
 import onDeviceSpeech from './on-device-speech.mjs';
+import noAudioPersistence from './no-audio-persistence.mjs';
 
 const repoRoot = dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))));
 
@@ -62,5 +63,36 @@ test('on-device-speech fires on a request that never opts out', () => {
 
 test('on-device-speech stays quiet on the real VoiceCommand', () => {
   const findings = onDeviceSpeech.run(realCtx('mac/Sources/LaughCounter/VoiceCommand.swift'));
+  assert.deepEqual(findings, []);
+});
+
+test('no-audio-persistence fires on an audio-writing API in the capture path', () => {
+  const findings = noAudioPersistence.run(ctxOf({
+    'mac/Sources/LaughCounter/ClipWriter.swift':
+      'let file = try AVAudioFile(forWriting: url, settings: format.settings)\n'
+      + 'let recorder = try AVAudioRecorder(url: url, settings: settings)\n',
+  }));
+  assert.equal(findings.length, 2);
+  assert.deepEqual(findings.map((f) => f.line), [1, 2]);
+  assert.match(findings[0].what, /AVAudioFile/);
+  assert.match(findings[1].what, /AVAudioRecorder/);
+});
+
+test('no-audio-persistence stays quiet on a read-only AVAudioFile load (a bundled sound asset)', () => {
+  const findings = noAudioPersistence.run(ctxOf({
+    'mac/Sources/LaughCounter/CustomChime.swift':
+      'let file = try AVAudioFile(forReading: bundledSoundURL)\n',
+  }));
+  assert.deepEqual(findings, []);
+});
+
+test('no-audio-persistence stays quiet on the real capture path', () => {
+  const findings = noAudioPersistence.run(realCtx(
+    'mac/Sources/LaughCounter/AudioHub.swift',
+    'mac/Sources/LaughCounter/VoiceCommand.swift',
+    'mac/Sources/LaughCounter/Store.swift',
+    'mac/Sources/LaughCounter/LaughDetector.swift',
+    'mac/Sources/LaughCounter/AppLog.swift',
+  ));
   assert.deepEqual(findings, []);
 });
