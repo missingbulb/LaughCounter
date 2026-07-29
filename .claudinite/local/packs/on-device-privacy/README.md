@@ -20,5 +20,4 @@ app, which since the Python reference was removed is the only implementation.
 
 Fixtures: `pack.test.mjs` — `node --test .claudinite/local/packs/on-device-privacy/pack.test.mjs`.
 Each check has a violating fixture it fires on and the repo's real files it stays quiet on. They sit
-in the pack, not alongside the app sources, because a consumer file may not reference into
-`.claudinite/` (the `claudinite-isolation` barrier).
+in the pack, not alongside the app sources (`claudinite-isolation`).

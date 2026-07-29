@@ -12,6 +12,4 @@ the canon home repo's own pack is named for it.
 | --- | --- |
 | Don't prune `.gitignore` while its artifacts are still in the worktree | `RULES.md` prose |
 
-Prose-only so far. The promotion ladder still applies: anything deterministic enough to decide
-mechanically becomes a check in `pack.mjs`'s `rules` (with a red-first fixture in a `pack.test.mjs`
-alongside), and only what a check can't carry stays as prose here.
+Prose-only so far.
