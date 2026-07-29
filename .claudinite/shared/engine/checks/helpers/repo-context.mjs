@@ -88,7 +88,11 @@ function vendoredSet(root, files) {
 // all UTC. Absence means the documented defaults, so an omitted key is not an
 // error; a present one is range-validated at load below. Its declaration is also
 // the per-repo cutover marker during the scheduling rollout (MIGRATION Phase 0.6).
-export const CONFIG_KEYS = ['packs', 'rules', 'accept', 'sharedConstants', 'packConfig', 'maintenance', 'claudinite', 'taskScheduler'];
+// `badges` is the repo's say over the pack-badge row baselining maintains in its
+// README — { readme: 'auto' | 'off' }. Materialized explicitly into every member
+// (the wiring converge writes it) rather than inferred from absence, so the knob
+// sits visibly in the file anyone would open to change it.
+export const CONFIG_KEYS = ['packs', 'rules', 'accept', 'sharedConstants', 'packConfig', 'maintenance', 'claudinite', 'taskScheduler', 'badges'];
 
 // The keys a `schedule` object may carry, and the canonical weekday vocabulary
 // (mirrored from engine/scheduler/slots.mjs WEEKDAYS — kept as a literal here so
@@ -124,7 +128,7 @@ export const PACK_ENTRY_KEYS = ['id', 'config', 'answers', 'rules', 'accept', 'v
 // read this one shape regardless of which form the file used.
 export function loadConfig(root) {
   const path = join(root, '.claudinite-checks.json');
-  const empty = { packs: [], packEntries: [], rules: {}, accept: [], sharedConstants: [], packConfig: {}, taskScheduler: null, claudinite: null, maintenance: null, errors: [] };
+  const empty = { packs: [], packEntries: [], rules: {}, accept: [], sharedConstants: [], packConfig: {}, taskScheduler: null, claudinite: null, maintenance: null, badges: null, errors: [] };
   if (!existsSync(path)) return empty;
 
   let raw;
@@ -283,6 +287,7 @@ export function loadConfig(root) {
     // whole set so no future key can go the same way.
     claudinite: raw.claudinite ?? null,
     maintenance: raw.maintenance ?? null,
+    badges: raw.badges ?? null,
     errors,
   };
 }

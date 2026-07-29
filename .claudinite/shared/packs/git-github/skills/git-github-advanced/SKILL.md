@@ -37,6 +37,10 @@ An automated prompt to commit the working tree (a stop-hook, a CI nag) tells you
 
 The default is to hold a PR until asked. Reverse that when a change's only reviewable output is produced by CI — an e2e/heavy-browser run, or a rendered artifact (a UI-snapshot pixel diff, a generated gallery) that can't be exercised in the local sandbox. Opening the PR is how the change is seen working and how failures surface, so doing it up front — rather than iterating locally first, which proves nothing for these classes — is the faster path to a working, reviewable result. Each CI iteration costs a full round-trip, so get the first one running as early as possible.
 
+## Never `git checkout <ref> -- <paths>` to carry uncommitted edits onto another branch
+
+It reads those paths out of `<ref>`'s **committed** tree and writes them over the working copy — so the uncommitted edits you were trying to move are destroyed, silently and unrecoverably (no reflog, no stash). Move in-progress work either by branching in place (`git checkout -b <new>`, which carries a dirty tree with it) or by committing/stashing first and then restoring on the new branch. In particular never put the checkout in the same `&&` chain as the branch creation: by the time it runs, the edits are already the only copy.
+
 ## Sync early to keep merge conflicts small
 
 Conflict size scales with how long a branch lives and how far it drifts from the default branch. Sync early rather than at the end: when starting work on a branch — and periodically while it's open — bring the latest default branch in first, so the branch carries current sources instead of discovering the gap at merge time. A one-commit-per-PR squash history already keeps each branch a single reviewable unit, so shorter-lived, freshly-synced branches are the norm.

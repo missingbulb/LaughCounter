@@ -9,6 +9,7 @@ import noScheduledFleetExecutor from './no-scheduled-fleet-executor.mjs';
 
 export default {
   id: 'github-actions',
+  badge: 'badge.svg',
   marker: '.github/workflows/*.ya?ml',
   detect: (ctx) => ctx.tracked.some((f) => /^\.github\/workflows\/.+\.ya?ml$/.test(f)),
   prose: null,

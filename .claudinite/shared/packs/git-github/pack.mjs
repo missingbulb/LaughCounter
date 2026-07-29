@@ -6,6 +6,7 @@
 // every declaration — never seeded directly (#385).
 export default {
   id: 'git-github',
+  badge: 'badge.svg',
   detect: null,
   marker: null,
   prose: null,

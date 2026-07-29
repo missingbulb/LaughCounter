@@ -353,7 +353,20 @@ async function main() {
   for (const e of errors) console.log(`! ${e.what}`);
 
   const now = new Date();
-  const lastSuccess = await lastSuccessTime(gh, repo);
+  // The watermark IS the scheduler's state, so a run that cannot read it cannot
+  // compute due-ness at all — and every guess is wrong in a way nobody sees:
+  // "assume fresh" re-fires the first-run set on a mature repo, "assume now"
+  // silently eats the slots it skipped. Fail the run instead. It must exit
+  // NON-ZERO: an exit-0 abort would enter the success ledger and advance the
+  // watermark past the very slots it declined to evaluate. Failing leaves the
+  // watermark untouched, so the next successful run catches them up (#522).
+  let lastSuccess;
+  try {
+    lastSuccess = await lastSuccessTime(gh, repo);
+  } catch (e) {
+    console.error(`${e.message} — cannot compute due slots; failing this run so the next one catches up`);
+    process.exit(1);
+  }
   const schedule = config.taskScheduler;
 
   const due = computeDueTaskSlots(tasks, schedule, now, lastSuccess);

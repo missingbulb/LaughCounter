@@ -264,6 +264,33 @@ export const packEntryId = (entry) =>
 export const isActive = (pack, config) =>
   (config.packs ?? []).some((entry) => packEntryId(entry) === pack.id);
 
+// The MOUNTED SKILL SET: the union of the given packs' bundled skills, as a
+// Map(name -> the skill's directory). A bundled skill is `<pack>/skills/<name>/`
+// carrying a SKILL.md — the one shape, canon and local alike (#385). The packs are
+// taken in the caller's order and the FIRST occurrence of a name wins, so a caller
+// passing canon packs before local ones resolves a shared name to canon.
+//
+// One definition, two readers: the SessionStart mount hook (mount-skills.mjs) turns
+// it into `.claude/skills/` symlinks, and the usage fold asks it which skill names a
+// typed `/command` could possibly be. The mounts themselves are gitignored session
+// state, so anything reasoning about "what is mounted here" must ask the registry —
+// this function — and never the mount directory.
+export function bundledSkillSources(packs) {
+  const byName = new Map();
+  for (const pack of packs) {
+    const bundleRoot = join(pack.dir, 'skills');
+    if (!existsSync(bundleRoot)) continue;
+    let entries;
+    try { entries = readdirSync(bundleRoot, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || byName.has(entry.name)) continue;
+      const dir = join(bundleRoot, entry.name);
+      if (existsSync(join(dir, 'SKILL.md'))) byName.set(entry.name, dir);
+    }
+  }
+  return byName;
+}
+
 // Import closure. A pack can't be imported without the packs it requires: a
 // release pack builds on its coding pack, a project-class pack on the framework
 // pack that implements it. A pack names those in its `requires` list.

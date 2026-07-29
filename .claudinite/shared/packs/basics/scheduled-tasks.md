@@ -38,8 +38,10 @@ retirement of the legacy central planner it replaces) lives in
   default-exports `id` (matching its directory), `frequency` (`hourly | daily-2h
   | daily-1h | daily | daily+1h | weekly | monthly`), `precondition_signals` (the collector
   vocabulary), `agent_model` (`opus | sonnet | haiku | none`), `expected_outcome` (`none |
-  open-pr | merged-pr`), `agent_instructions`, and a `precondition`. The scheduler and
-  executor read agent_model/expected_outcome/frequency from this file — never from the dispatch
+  open-pr | merged-pr`), and a `precondition`. An agentic task (`agent_model !==
+  none`) also carries `agent_instructions`, the worker file the agent reads; a
+  `none` task runs no agent, so the field is not applicable and is omitted. The
+  scheduler and executor read agent_model/expected_outcome/frequency from this file — never from the dispatch
   issue — so an illegal or missing value means a task never fires, fires wrong,
   or writes past its declared ceiling. The same contract
   (`engine/scheduler/task-contract.mjs`) is re-validated at run time, so the

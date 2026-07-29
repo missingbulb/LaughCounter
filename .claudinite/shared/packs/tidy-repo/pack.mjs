@@ -15,6 +15,7 @@
 // there is no ordering barrier and a dimension with nothing to do stays silent.
 export default {
   id: 'tidy-repo',
+  badge: 'badge.svg',
   detect: null,
   marker: null,
   seededByDefault: true,
