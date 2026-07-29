@@ -10,7 +10,8 @@
     "grow_with_claudinite",
     "tidy-repo",
     "github-actions",
-    "local/on-device-privacy"
+    "local/on-device-privacy",
+    "local/laughcounter"
   ],
   "accept": [],
   "maintenance": {
