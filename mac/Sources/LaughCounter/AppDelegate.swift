@@ -77,8 +77,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let standbySettleDelay = 2.5
     /// A sleep at least this long is treated as standby for settling purposes.
     private let standbyThreshold = 300.0
-    /// Bounded — a mic that never comes back must not be polled forever.
+    /// How many fast doubling attempts before dropping to `maxBackoffDelay`.
     private let maxStartRetries = 5
+    /// Ceiling for the retry backoff, and the steady interval after it.
+    private let maxBackoffDelay = 60.0
 
     // Opt-in "keep the Mac awake so it keeps hearing laughs during a long movie".
     // Off by default; the choice persists across launches. While enabled *and*
@@ -269,16 +271,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// moves the generation and this retry aborts rather than re-acquiring the mic
     /// behind it. Main-thread only.
     private func scheduleStartRetry(generation: Int) {
-        guard startFailureStreak <= maxStartRetries else {
-            AppLog.shared.log("listening still down after \(maxStartRetries) retries — "
-                + "reconnect the microphone and use “Start listening” in the menu",
-                              level: "ERROR")
-            return
-        }
         let attempt = startFailureStreak
-        let delay = Double(1 << attempt)      // 2, 4, 8, 16, 32 — attempt ≤ 5
-        AppLog.shared.log("start failed — retrying in \(Int(delay))s "
-            + "(attempt \(attempt) of \(maxStartRetries))", level: "WARN")
+        // Double up to the ceiling, then keep checking at that interval for as
+        // long as the counter is meant to be on. Deliberately never gives up: the
+        // measured cause of a long outage is the input device being torn down
+        // while the displays sleep, which lasted 28 minutes in one observation —
+        // no bounded ladder covers that, and the old five attempts (~62s) expired
+        // with the cause still fully present, telling the user to reconnect a
+        // microphone that was fine. A start attempt is now a cheap format read
+        // that throws before touching the tap, and one a minute is far below any
+        // rate that could cycle a USB mic. (#76)
+        let delay = min(Double(1 << min(attempt, 6)), maxBackoffDelay)
+        if attempt <= maxStartRetries {
+            AppLog.shared.log("start failed — retrying in \(Int(delay))s "
+                + "(attempt \(attempt) of \(maxStartRetries))", level: "WARN")
+        } else if attempt == maxStartRetries + 1 {
+            // Announce the switch to slow checking once, then stay quiet until it
+            // works — a line a minute for half an hour buries everything else.
+            AppLog.shared.log("input device still unavailable — checking every "
+                + "\(Int(maxBackoffDelay))s until it returns (expected while the "
+                + "displays are asleep; no action needed)", level: "WARN")
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self = self, generation == self.restartGeneration else { return }
             guard self.listeningIntent, !self.listening else { return }
