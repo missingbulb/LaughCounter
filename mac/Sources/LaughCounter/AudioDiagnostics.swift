@@ -171,8 +171,19 @@ final class AudioDiagnostics {
         // and CoreAudio's own notification is suppressed around our restarts.
         let devices = Self.inputDevices()
         if devices != lastDevices {
-            AppLog.shared.log("input devices changed — \(Self.describe(devices))",
-                              level: "WARN")
+            // Two very different events wear the same diff, and conflating them
+            // would bury the one that matters. A device appearing or vanishing
+            // (or changing rate/channels/alive) is a hardware event worth a
+            // WARN. `isRunningSomewhere` flipping is usually just us starting or
+            // stopping capture — informative, but not an alarm. Observed
+            // immediately in the field: the first restart after launch logged
+            // "input devices changed" as a WARN when nothing had changed but our
+            // own IO state.
+            let changed = Self.identities(devices) != Self.identities(lastDevices)
+            AppLog.shared.log(
+                (changed ? "input devices changed — " : "input IO state changed — ")
+                    + Self.describe(devices),
+                level: changed ? "WARN" : "INFO")
             lastDevices = devices
         }
 
@@ -353,6 +364,16 @@ final class AudioDiagnostics {
                 isRunningSomewhere:
                     (uint32(id, kAudioDevicePropertyDeviceIsRunningSomewhere) ?? 0) != 0,
                 isDefault: id == defaultDevice)
+        }
+    }
+
+    /// Everything about the input device set *except* whether IO is running on
+    /// it — i.e. the part that changing means the hardware changed under us,
+    /// rather than us having started or stopped capturing.
+    private static func identities(_ devices: [InputDevice]) -> [String] {
+        devices.map {
+            "\($0.uid)|\($0.name)|\($0.transport)|\($0.sampleRate)|\($0.channels)"
+                + "|\($0.isAlive)|\($0.isDefault)"
         }
     }
 

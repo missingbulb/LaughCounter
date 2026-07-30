@@ -121,6 +121,38 @@ immediate line when a stall starts or ends or the device set changes. (Same
 reason `scheduleStartRetry` announces its slow mode once — a line a minute for
 half an hour buries everything else.)
 
+## Opening the default input creates an aggregate device — so a restart churns two
+
+The first field output from `AudioDiagnostics` showed the input device set is not
+just the microphone:
+
+```
+inputs=[*"Logitech BRIO"/usb/48000Hz/2ch/alive=y/running=n
+        "CADefaultDeviceAggregate-70999-0"/grup/48000Hz/2ch/alive=y/running=n]
+```
+
+That second entry is a **private aggregate device** (`grup` =
+`kAudioDeviceTransportTypeAggregate`) that coreaudiod creates *per client* when
+an app captures from the default input, so the client can survive the default
+changing under it. It was already present in the first sample, before capture
+started — i.e. **merely constructing `AudioHub` creates it**, because
+`makeEngine()` materializes `inputNode`, and touching that property opens the
+default input device.
+
+The consequence is that the retry ladder's cost was under-estimated twice over.
+`prepareFormat()` → `renewEngine()` does not merely open and close the
+microphone; it tears down and recreates an aggregate device inside coreaudiod on
+every attempt — a much heavier operation than a device open, and one that has to
+re-resolve the default input each time. That is what runs once a minute, for as
+long as the mic is missing.
+
+It also means the *device set itself* changes on every one of those cycles, as
+the aggregate comes and goes. So a diagnostic that alarms on "the device list
+changed" alarms on our own restarts. Separate the two: an appearing/vanishing
+device (or a changed rate, channel count or alive flag) is a hardware event;
+`isRunningSomewhere` flipping is usually just us. `AudioDiagnostics.identities()`
+is that split.
+
 ## Diagnostics must not assume a toolchain on the owner's Mac
 
 The Mac running LaughCounter installs the DMG from CI and has **no Xcode command
