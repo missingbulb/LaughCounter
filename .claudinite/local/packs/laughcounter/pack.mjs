@@ -6,8 +6,12 @@
 // (detect/marker null).
 export default {
   id: 'laughcounter',
+  ruleRoutingGuidance: {
+    belongs: "LaughCounter's general working lessons about this repo, its build, and its macOS packaging",
+    excludes: 'the on-device privacy boundary — that is on-device-privacy',
+  },
   detect: null,
   marker: null,
   prose: 'RULES.md',
-  rules: [],
+  worldRules: [],
 };
