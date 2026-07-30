@@ -13,7 +13,7 @@ app, which since the Python reference was removed is the only implementation.
 | No outbound client in capture path | `no-network-client` check (`mac/Sources/**.swift`) |
 | Speech recognition on-device | `on-device-speech` check (`SFSpeechAudioBufferRecognitionRequest`) |
 | Metadata persists, audio doesn't | `no-audio-persistence` check (`AVAudioFile`/`AVAudioRecorder`/`ExtAudioFileCreateWithURL`/`AudioFileCreateWithURL`) |
-| One deletable directory | `RULES.md` prose |
+| One deletable directory | `single-storage-directory` check (only `.applicationSupportDirectory` as a search-path root) |
 | No egress at all | `RULES.md` prose |
 | No server / listener | `RULES.md` prose |
 | Usage strings stay true | `RULES.md` prose |

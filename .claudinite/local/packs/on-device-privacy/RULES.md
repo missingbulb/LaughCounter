@@ -20,11 +20,13 @@ check together, in the same PR.
 
 **Everything lives in one deletable directory.**
 `~/Library/Application Support/LaughCounter/` holds the laugh log and the app's
-own diagnostic log, and nothing lands outside it (the one path macOS dictates, not
-us, is a Login Item registration). "Delete the folder and it's gone" is a promise a
-user *acts on* — someone who deletes it believes the mic's whole memory of them
-went with it. So a feature needing somewhere new to keep things extends that
-directory rather than earning a second one.
+own diagnostic log — the `single-storage-directory` check holds this mechanically,
+by allowing `.applicationSupportDirectory` and nothing else as a search-path root.
+"Delete the folder and it's gone" is a promise a user *acts on* — someone who
+deletes it believes the mic's whole memory of them went with it. So a feature
+needing somewhere new to keep things extends that directory rather than earning a
+second one; the one path macOS dictates, not us, is a Login Item registration,
+which names no directory of its own.
 
 **There is no accepted egress — none.** Detection (Sound Analysis) and speech
 recognition (`SFSpeechRecognizer` with on-device recognition required) are both
