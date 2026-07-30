@@ -71,6 +71,11 @@ final class AudioDiagnostics {
     /// counters are reset every tick.
     private var totalBuffers = 0
     private var totalFrames = 0
+    /// Loudest sample seen since the last heartbeat, and how many buffers that
+    /// heartbeat covers. Both span the heartbeat interval so every number on
+    /// that line describes the same window.
+    private var intervalPeak: Float = 0
+    private var buffersThisInterval = 0
 
     /// "The app believes it is capturing." Supplied by `AppDelegate`; without it
     /// a stall is meaningless, since no buffers is correct when paused.
@@ -162,6 +167,12 @@ final class AudioDiagnostics {
         lock.unlock()
         totalBuffers += buffers
         totalFrames += frames
+        // Peak must span the whole heartbeat interval, not the last five-second
+        // sample. Reported beside cumulative buffers/frames, a five-second peak
+        // reads as if it covered the same span — so a laugh mid-interval could
+        // be followed by a quiet moment and the line would report near-silence.
+        intervalPeak = max(intervalPeak, localPeak)
+        buffersThisInterval += buffers
 
         let silence = last.map { now - $0 }
         let listening = isListening?() ?? false
@@ -205,8 +216,21 @@ final class AudioDiagnostics {
             let state = listening ? (stalled ? "listening-but-STALLED" : "listening") : "not listening"
             AppLog.shared.log("audio health: \(state) "
                 + "buffers=\(totalBuffers) frames=\(totalFrames) "
-                + "peak=\(String(format: "%.4f", localPeak)) "
+                + "peak=\(String(format: "%.4f", intervalPeak)) "
                 + "\(healthSuffix(devices: devices))")
+            // Buffers arriving with every sample exactly zero is a third failure
+            // mode, distinct from a stall (no buffers) and from a dead device
+            // (nothing to open): the stream is alive and carrying digital
+            // silence. A real microphone always has a noise floor, so an exact
+            // zero across ten minutes is never the room being quiet — it is a
+            // muted input or a stream that is no longer connected to hardware.
+            if listening, buffersThisInterval > 0, intervalPeak == 0 {
+                AppLog.shared.log("no signal: \(buffersThisInterval) buffers arrived over the "
+                    + "last \(Int(heartbeatInterval))s and every sample was zero — the input is "
+                    + "muted or the stream is not carrying audio", level: "ERROR")
+            }
+            intervalPeak = 0
+            buffersThisInterval = 0
         }
     }
 
