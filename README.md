@@ -1,5 +1,7 @@
 # 😂 LaughCounter
 
+<!-- claudinite:packs -->![basics](../../../../../tmp/claudinite-canon-aZ0Kab/packs/basics/badge.svg "basics") ![barriers](../../../../../tmp/claudinite-canon-aZ0Kab/packs/barriers/badge.svg "barriers") ![git-github](../../../../../tmp/claudinite-canon-aZ0Kab/packs/git-github/badge.svg "git-github") ![grow_with_claudinite](../../../../../tmp/claudinite-canon-aZ0Kab/packs/grow_with_claudinite/badge.svg "grow_with_claudinite") ![tidy-repo](../../../../../tmp/claudinite-canon-aZ0Kab/packs/tidy-repo/badge.svg "tidy-repo") ![github-actions](../../../../../tmp/claudinite-canon-aZ0Kab/packs/github-actions/badge.svg "github-actions")<!-- /claudinite:packs -->
+
 **A thing that listens and counts the laughs.** LaughCounter runs quietly on the
 always-on Mac mini in your living room, listens through a USB/webcam mic, detects
 when you laugh, counts each laugh, tells your laughs from the TV's, and logs it —
