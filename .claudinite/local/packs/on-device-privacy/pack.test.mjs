@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import noNetworkClient from './no-network-client.mjs';
 import onDeviceSpeech from './on-device-speech.mjs';
 import noAudioPersistence from './no-audio-persistence.mjs';
+import singleStorageDirectory from './single-storage-directory.mjs';
 
 const repoRoot = dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))));
 
@@ -93,6 +94,56 @@ test('no-audio-persistence stays quiet on the real capture path', () => {
     'mac/Sources/LaughCounter/Store.swift',
     'mac/Sources/LaughCounter/LaughDetector.swift',
     'mac/Sources/LaughCounter/AppLog.swift',
+  ));
+  assert.deepEqual(findings, []);
+});
+
+test('single-storage-directory fires on a second storage root', () => {
+  const findings = singleStorageDirectory.run(ctxOf({
+    'mac/Sources/LaughCounter/ModelCache.swift':
+      'let base = FileManager.default.urls(for: .cachesDirectory,\n'
+      + '                                   in: .userDomainMask)[0]\n',
+    'mac/Sources/LaughCounter/Export.swift':
+      'let dirs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)\n',
+  }));
+  assert.equal(findings.length, 2);
+  assert.deepEqual(findings.map((f) => f.line), [1, 1]);
+  assert.match(findings[0].what, /cachesDirectory/);
+  assert.match(findings[1].what, /documentDirectory/);
+});
+
+test('single-storage-directory sees a call split across lines', () => {
+  const findings = singleStorageDirectory.run(ctxOf({
+    'mac/Sources/LaughCounter/Scratch.swift':
+      '// two blank-ish lines first\n'
+      + 'let base = FileManager.default.urls(\n'
+      + '    for: .downloadsDirectory,\n'
+      + '    in: .userDomainMask)[0]\n',
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].line, 2);
+});
+
+test('single-storage-directory accepts the fully-qualified allowed case', () => {
+  const findings = singleStorageDirectory.run(ctxOf({
+    'mac/Sources/LaughCounter/Store.swift':
+      'let base = FileManager.default.urls(for: FileManager.SearchPathDirectory.applicationSupportDirectory,\n'
+      + '                                    in: .userDomainMask)[0]\n',
+  }));
+  assert.deepEqual(findings, []);
+});
+
+test('single-storage-directory stays quiet on the real sources', () => {
+  const findings = singleStorageDirectory.run(realCtx(
+    'mac/Sources/LaughCounter/AppLog.swift',
+    'mac/Sources/LaughCounter/Store.swift',
+    'mac/Sources/LaughCounter/AudioHub.swift',
+    'mac/Sources/LaughCounter/VoiceCommand.swift',
+    'mac/Sources/LaughCounter/LaughDetector.swift',
+    'mac/Sources/LaughCounter/AppDelegate.swift',
+    'mac/Sources/LaughCounter/Chime.swift',
+    'mac/Sources/LaughCounter/LaughCounter.swift',
+    'mac/Sources/LaughCounter/main.swift',
   ));
   assert.deepEqual(findings, []);
 });
