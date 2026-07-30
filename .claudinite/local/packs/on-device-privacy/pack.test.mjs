@@ -3,10 +3,9 @@
 //
 //   node --test .claudinite/local/packs/on-device-privacy/pack.test.mjs
 //
-// They live here rather than in tests/ because a consumer file outside
-// .claudinite/ may not reference into it (the claudinite-isolation barrier). The
-// fake ctx is the slice of the engine's context a check actually uses — `files`
-// and `read` — so these tests need neither the canon mount nor a git checkout.
+// They live here rather than in tests/ (`claudinite-isolation`). The fake ctx is
+// the slice of the engine's context a check actually uses — `files` and `read` —
+// so these tests need neither the canon mount nor a git checkout.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
