@@ -9,6 +9,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let audio = AudioHub()
     private let detector = LaughDetector()
     private let voice = VoiceCommand()
+    // Runs for the whole process lifetime, not just while capturing: it samples
+    // buffer liveness and the CoreAudio device list continuously so a mic
+    // failure records itself as it happens. Every previous round of "the mic is
+    // dead after sleep" had to be reconstructed from a log that only ever said
+    // "listening started".
+    private let diagnostics = AudioDiagnostics()
     private var micGranted = false
     private var listening = false
     // (Re)starting the engine itself posts .AVAudioEngineConfigurationChange, so
@@ -99,6 +105,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wireUp()
         observeSystemEvents()
         AppLog.shared.log("app launched")
+        // Before requesting the mic, so the log records what CoreAudio saw at
+        // launch even if permission is denied or the first start fails.
+        diagnostics.start()
         requestPermissionsAndStart()
     }
 
@@ -128,10 +137,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // "I just laughed": spoken command vs the menu/keyboard get different sources.
         voice.onTrigger = { [weak self] in self?.markMissed(source: "voice") }
-        // One mic tap, fanned out to both consumers.
+        // One mic tap, fanned out to both consumers. Diagnostics first, so a
+        // buffer is recorded as having arrived even if a consumer below throws
+        // or hangs — "did audio reach us" must not depend on what we do with it.
         audio.onBuffer = { [weak self] buffer, when in
+            self?.diagnostics.noteBuffer(buffer)
             self?.detector.analyze(buffer, at: when)
             self?.voice.append(buffer)
+        }
+        // No buffers is the correct state when paused or stopped, so the stall
+        // detector needs to know what we believe we are doing.
+        diagnostics.isListening = { [weak self] in self?.listening ?? false }
+        // The menu must stop claiming to listen while nothing is arriving — that
+        // false "listening" is what hid this failure for entire evenings.
+        diagnostics.onStallChanged = { [weak self] _, _ in
+            guard let self = self else { return }
+            self.refreshTitle()
+            self.buildMenu()
         }
     }
 
@@ -211,14 +233,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try audio.start(format: format)
             listening = true
             startFailureStreak = 0
+            // Starts the stall clock from here, so the gap before the *first*
+            // buffer counts: a start that returns cleanly and then delivers
+            // nothing is the exact failure this is here to catch.
+            diagnostics.noteCaptureStarted(format: format)
             AppLog.shared.log("listening started "
                 + "(sampleRate=\(Int(format.sampleRate)), channels=\(format.channelCount))")
         } catch {
             audio.stop()
             listening = false
             startFailureStreak += 1
-            AppLog.shared.log("could not start listening: \(error.localizedDescription)",
-                              level: "ERROR")
+            diagnostics.noteCaptureStopped(reason: "start failed")
+            AppLog.shared.log("could not start listening: \(error.localizedDescription)"
+                + " — \(diagnostics.snapshotLine())", level: "ERROR")
         }
         refreshTitle()
         buildMenu()
@@ -313,6 +340,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         voice.stop()     // symmetric with resume; recognition restarts on wake
         audio.stop()
         listening = false
+        diagnostics.noteCaptureStopped(reason: reason)
         AppLog.shared.log("listening stopped (\(reason))")
         refreshTitle()
         buildMenu()
@@ -371,6 +399,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // must not restart capture behind this intentional stop.
         sleeping = true
         sleepStartedAt = Date()
+        // What the capture path looked like going *in*, so the log carries both
+        // sides of the transition rather than only the transition itself.
+        AppLog.shared.log("entering sleep — \(diagnostics.snapshotLine())")
         // stopListening deliberately leaves `listeningIntent` alone: this is a
         // suspend, not "the counter was switched off", and the return path reads
         // that intent to decide whether to switch it back on.
@@ -437,6 +468,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     + "\(self.offReason ?? "off") (it was not active before sleep)")
                 return
             }
+            // The other side of the sleep transition: what CoreAudio is offering
+            // at the moment we decide to re-acquire, which is the state that
+            // decides whether the start about to run can possibly succeed.
+            AppLog.shared.log("settled after \(reason) — \(self.diagnostics.snapshotLine())")
             // A real return from sleep earns a fresh retry ladder; a backstop
             // signal (no sleep behind it) gets the single attempt below instead.
             if asleep != nil { self.startFailureStreak = 0 }
@@ -452,7 +487,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             configChangeSwallowed = true   // reconciled at settle time
             return
         }
-        AppLog.shared.log("audio configuration changed — reconfiguring")
+        AppLog.shared.log("audio configuration changed — reconfiguring "
+            + "(\(diagnostics.snapshotLine()))")
         requestListening()   // single-flighted + rate-limited inside
     }
 
@@ -480,15 +516,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// What the counter is actually doing, in one phrase, for the menu and the
+    /// tooltip. `listening` alone is not enough to answer that: it only means
+    /// `engine.start()` returned, so it stays true while the app holds a device
+    /// that has stopped delivering. The diagnostics' stall state is what
+    /// separates the two, and every user-facing status renders this one property
+    /// so they cannot disagree about it.
+    private var statusText: String {
+        guard listening else { return offReason ?? "not listening" }
+        return diagnostics.isStalled ? "no audio arriving — microphone may be stuck"
+                                     : "listening"
+    }
+
     private func refreshTitle() {
-        let icon = listening ? "😄" : "🎙️"
+        // A distinct icon for the stalled case: it is not "listening", and it is
+        // not "off" either — the app is holding a microphone that has gone quiet,
+        // which is the state that used to be indistinguishable from working.
+        let icon = listening ? (diagnostics.isStalled ? "🔇" : "😄") : "🎙️"
         let me = store.todayCount(origin: "me")
         let tv = store.todayCount(origin: "tv")
         // Two counters: your laughs vs the TV's, today.
         statusItem.button?.title = "\(icon) \(me)  📺 \(tv)"
-        statusItem.button?.toolTip = listening
+        statusItem.button?.toolTip = listening && !diagnostics.isStalled
             ? "Today — you: \(me) · TV: \(tv)"
-            : "LaughCounter — \(offReason ?? "not listening") (open menu to resume)"
+            : "LaughCounter — \(statusText) (open menu to resume)"
         // refreshTitle() is called after every `listening` transition, so it's the
         // one chokepoint that keeps the power assertion in sync with the state.
         updateSleepAssertion()
@@ -516,10 +567,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "LaughCounter \(Self.versionLabel)",
                      action: nil, keyEquivalent: "")
 
-        let stateItem = NSMenuItem(
-            title: "Status: \(listening ? "listening" : (offReason ?? "not listening"))",
-            action: nil, keyEquivalent: "")
+        let stateItem = NSMenuItem(title: "Status: \(statusText)",
+                                   action: nil, keyEquivalent: "")
         stateItem.isEnabled = false
+        if diagnostics.isStalled {
+            stateItem.toolTip = "The microphone is open but no audio has arrived for a "
+                + "while. Try “Restart listening”; if that doesn't help, the device may "
+                + "need to be unplugged and reconnected. Details are in the activity log."
+        }
         menu.addItem(stateItem)
 
         let voiceState = voice.isAvailable ? "on — say “I just laughed”" : "unavailable"
@@ -609,6 +664,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// so the device is handed cleanly back to the system.
     func applicationWillTerminate(_ notification: Notification) {
         sleeping = true          // gate any late config-change reaction during teardown
+        AppLog.shared.log("terminating — \(diagnostics.snapshotLine())")
+        diagnostics.stop()
         // stopListening: flushes the in-progress laugh, invalidates pending
         // restarts (generation bump), stops speech, removes the tap, stops the
         // engine, and (via refreshTitle) drops the keep-awake assertion.
