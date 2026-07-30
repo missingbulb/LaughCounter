@@ -121,6 +121,79 @@ immediate line when a stall starts or ends or the device set changes. (Same
 reason `scheduleStartRetry` announces its slow mode once — a line a minute for
 half an hour buries everything else.)
 
+## Opening the default input creates an aggregate device — so a restart churns two
+
+The first field output from `AudioDiagnostics` showed the input device set is not
+just the microphone:
+
+```
+inputs=[*"Logitech BRIO"/usb/48000Hz/2ch/alive=y/running=n
+        "CADefaultDeviceAggregate-70999-0"/grup/48000Hz/2ch/alive=y/running=n]
+```
+
+That second entry is a **private aggregate device** (`grup` =
+`kAudioDeviceTransportTypeAggregate`) that coreaudiod creates *per client* when
+an app captures from the default input, so the client can survive the default
+changing under it. It was already present in the first sample, before capture
+started — i.e. **merely constructing `AudioHub` creates it**, because
+`makeEngine()` materializes `inputNode`, and touching that property opens the
+default input device.
+
+The consequence is that the retry ladder's cost was under-estimated twice over.
+`prepareFormat()` → `renewEngine()` does not merely open and close the
+microphone; it tears down and recreates an aggregate device inside coreaudiod on
+every attempt — a much heavier operation than a device open, and one that has to
+re-resolve the default input each time. That is what runs once a minute, for as
+long as the mic is missing.
+
+It also means the *device set itself* changes on every one of those cycles, as
+the aggregate comes and goes. So a diagnostic that alarms on "the device list
+changed" alarms on our own restarts. Separate the two: an appearing/vanishing
+device (or a changed rate, channel count or alive flag) is a hardware event;
+`isRunningSomewhere` flipping is usually just us. `AudioDiagnostics.identities()`
+is that split.
+
+## What the first day of field data settled — and what it did **not** (#79)
+
+Written down because the sections above read as a case against the retry ladder,
+and a future session could mistake that case for a verdict. It is not one.
+
+**Confirmed by measurement:**
+
+- *The instrument is sound.* Buffer accounting is exact — 8192.0 frames per
+  buffer against `installTap`'s `bufferSize`, 5.859 buffers/sec against a
+  theoretical 5.859 — and it reconciles against events it shares no code with: a
+  605s heartbeat window was missing 14.2s of audio, and the log independently
+  recorded a 14s outage inside it.
+- *The aggregate really is destroyed and rebuilt per restart.* The suffix in
+  `CADefaultDeviceAggregate-<pid>-<n>` is a per-client counter; it went `-0` →
+  `-2` across a single unplug/replug. **Use that suffix to count churn** — it is
+  the cheapest available measure of how many times coreaudiod has rebuilt the
+  aggregate for us.
+- *The ladder does run at its ceiling in the wild.* One outage produced five
+  failed starts at 63, 63, 63 and 56 seconds apart — the once-a-minute
+  open/close cycle, observed rather than argued.
+- *The mic leaves on its own, often.* Two spontaneous drop-outs in ~70 minutes
+  with nobody touching the hardware. Restart cycles are frequent even when
+  nothing sleeps, so any per-restart cost is paid far more often than a
+  sleep/wake-shaped mental model suggests.
+
+**Not confirmed, and it is the whole question:** every observed episode
+recovered cleanly — the four-minute one, the nine-second one, and the deliberate
+replug. Churn *happens*; it has **not** been shown to cause the wedge. The wedge
+state (menu claiming "listening", mic dead system-wide, process alive) has not
+recurred since the diagnostics shipped. Don't write the fix until an `AUDIO
+STALL` line with `running=y` says which theory is right.
+
+**A design constraint the data did settle**, for whatever cheap availability
+probe eventually replaces the build-an-engine-to-ask approach: a device can be
+present in the HAL, `alive=y`, and still useless. Mid-teardown the input listed
+as `"(unnamed)"/????/0Hz/2ch/alive=y` — readable enough to enumerate, with an
+unreadable name, unknown transport and a **zero sample rate**. So the probe must
+require a nonzero rate (and sane channel count), not mere presence, or it will
+wave through starts that cannot succeed — the same trap as `outputFormat` above,
+one layer down.
+
 ## Diagnostics must not assume a toolchain on the owner's Mac
 
 The Mac running LaughCounter installs the DMG from CI and has **no Xcode command
