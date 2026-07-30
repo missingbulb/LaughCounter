@@ -13,8 +13,12 @@ import singleStorageDirectory from './single-storage-directory.mjs';
 // fingerprinted (detect/marker null).
 export default {
   id: 'on-device-privacy',
+  ruleRoutingGuidance: {
+    belongs: 'the promise that what the microphone hears never leaves the machine — the privacy boundary',
+    excludes: "LaughCounter's other working lessons — those are laughcounter",
+  },
   detect: null,
   marker: null,
   prose: 'RULES.md',
-  rules: [noNetworkClient, onDeviceSpeech, noAudioPersistence, singleStorageDirectory],
+  worldRules: [noNetworkClient, onDeviceSpeech, noAudioPersistence, singleStorageDirectory],
 };
