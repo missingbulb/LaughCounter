@@ -11,5 +11,7 @@ the canon home repo's own pack is named for it.
 | Rule | How enforced |
 | --- | --- |
 | Don't prune `.gitignore` while its artifacts are still in the worktree | `RULES.md` prose |
+| Re-ask "not statically checkable" after the tree changes | `RULES.md` prose |
+| Author a check as a positive whitelist, not a ban list | `RULES.md` prose |
 
 Prose-only so far.
