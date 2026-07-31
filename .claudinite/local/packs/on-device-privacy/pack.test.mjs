@@ -16,6 +16,7 @@ import noNetworkClient from './no-network-client.mjs';
 import onDeviceSpeech from './on-device-speech.mjs';
 import noAudioPersistence from './no-audio-persistence.mjs';
 import singleStorageDirectory from './single-storage-directory.mjs';
+import noListener from './no-listener.mjs';
 
 const repoRoot = dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))));
 
@@ -129,6 +130,59 @@ test('single-storage-directory accepts the fully-qualified allowed case', () => 
       'let base = FileManager.default.urls(for: FileManager.SearchPathDirectory.applicationSupportDirectory,\n'
       + '                                    in: .userDomainMask)[0]\n',
   }));
+  assert.deepEqual(findings, []);
+});
+
+test('no-listener fires on every shape of inbound listener', () => {
+  const findings = noListener.run(ctxOf({
+    'mac/Sources/LaughCounter/Dashboard.swift':
+      'import Vapor\n'
+      + 'let listener = try NWListener(using: .tcp, on: 8080)\n'
+      + 'let fd = socket(AF_INET, SOCK_STREAM, 0)\n',
+    'mac/Sources/LaughCounter/Agent.swift':
+      'let xpc = NSXPCListener(machServiceName: "com.laughcounter.agent")\n'
+      + 'let port = SocketPort(tcpPort: 9000)\n'
+      + 'let s = CFSocketCreate(nil, AF_INET, SOCK_STREAM, 0, 0, nil, nil)\n',
+  }));
+  assert.equal(findings.length, 6);
+  assert.deepEqual(findings.map((f) => f.line), [1, 2, 3, 1, 2, 3]);
+  assert.match(findings[0].what, /HTTP server framework/);
+  assert.match(findings[1].what, /NWListener/);
+  assert.match(findings[2].what, /socket\(2\)/);
+  assert.match(findings[3].what, /NSXPCListener/);
+  assert.match(findings[4].what, /SocketPort/);
+  assert.match(findings[5].what, /CFSocket/);
+});
+
+// The false alarm the check is built to avoid: this app's whole vocabulary is
+// "listening" (at the microphone), which must never read as a socket.
+test("no-listener stays quiet on the mic's listening vocabulary", () => {
+  const findings = noListener.run(ctxOf({
+    'mac/Sources/LaughCounter/AppDelegate.swift':
+      'private var listening = false\n'
+      + 'private func requestListening() {\n'
+      + '    self.finishListening()\n'
+      + '    hub.stopListening()\n'
+      + '}\n'
+      + '// The menu must stop claiming to listen while nothing is arriving.\n'
+      + 'let key = "keepMacAwakeWhileListening"\n',
+  }));
+  assert.deepEqual(findings, []);
+});
+
+test('no-listener stays quiet on the real sources', () => {
+  const findings = noListener.run(realCtx(
+    'mac/Sources/LaughCounter/AppDelegate.swift',
+    'mac/Sources/LaughCounter/AudioHub.swift',
+    'mac/Sources/LaughCounter/AudioDiagnostics.swift',
+    'mac/Sources/LaughCounter/VoiceCommand.swift',
+    'mac/Sources/LaughCounter/Store.swift',
+    'mac/Sources/LaughCounter/AppLog.swift',
+    'mac/Sources/LaughCounter/LaughDetector.swift',
+    'mac/Sources/LaughCounter/LaughCounter.swift',
+    'mac/Sources/LaughCounter/Chime.swift',
+    'mac/Sources/LaughCounter/main.swift',
+  ));
   assert.deepEqual(findings, []);
 });
 

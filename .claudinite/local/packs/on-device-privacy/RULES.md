@@ -36,13 +36,6 @@ absolute rather than carve-out-shaped. Adding *any* egress — a model fetch, a
 crash reporter, a sync feature — is a product decision that gets written here and
 in the README *Privacy* section before a line of it is written in Swift.
 
-**There is no server either.** The app listens on no socket. The web dashboard
-that once existed in the Python reference was removed on purpose, along with the
-reference itself. Reintroducing any listener — a dashboard, a metrics port, a
-remote-control API — is a decision about exposing the laugh log, not a feature to
-slip in: it needs the owner's explicit sign-off, a loopback-only default, and a
-story for authentication or CSRF before it lands.
-
 **The disclosure must stay true.** `NSMicrophoneUsageDescription` and
 `NSSpeechRecognitionUsageDescription` tell the user audio is analysed on-device
 and not recorded. If the app's behaviour ever changes, those strings change with

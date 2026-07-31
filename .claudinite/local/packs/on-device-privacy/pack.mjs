@@ -2,6 +2,7 @@ import noNetworkClient from './no-network-client.mjs';
 import onDeviceSpeech from './on-device-speech.mjs';
 import noAudioPersistence from './no-audio-persistence.mjs';
 import singleStorageDirectory from './single-storage-directory.mjs';
+import noListener from './no-listener.mjs';
 
 // LaughCounter's defining constraint, as a pack: an always-on microphone in the
 // living room, and the promise that what it hears never leaves the machine. The
@@ -20,5 +21,5 @@ export default {
   detect: null,
   marker: null,
   prose: 'RULES.md',
-  worldRules: [noNetworkClient, onDeviceSpeech, noAudioPersistence, singleStorageDirectory],
+  worldRules: [noNetworkClient, onDeviceSpeech, noAudioPersistence, singleStorageDirectory, noListener],
 };
