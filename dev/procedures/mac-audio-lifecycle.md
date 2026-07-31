@@ -306,6 +306,32 @@ specifically. Treat this as removing the only mechanism by which we could
 plausibly damage a device — not as a confirmed root-cause fix. **If it recurs,
 that is information, not a reason to assume the gate failed.**
 
+### A settle gate applies to arrivals you *witnessed*, not to what was already there
+
+The gate above shipped in 0.5.0 with a bug that made the app look broken on every
+launch: it refused to start listening for ~19 seconds, which reads as "it doesn't
+start" and sent the owner to the menu to switch it on by hand.
+
+Two things compounded:
+
+- **`Timer(timeInterval:repeats:)` does not fire immediately.** The first sample
+  lands one `sampleInterval` (5s) *after* `AudioDiagnostics.start()`, and
+  `usableInputSince` was only ever set inside `sample()` — so for the app's first
+  five seconds the probe reported "no input device" about a microphone sitting
+  right there. Any state a timer maintains needs **seeding at start**, not just
+  updating on tick.
+- **Then the settle clock started from first observation**, costing another 6s,
+  and the retry ladder's 2→4→8s backoff pushed the first viable attempt to ~19s.
+
+The conceptual error is the second one, and it is the reusable lesson: *"it
+appeared N seconds ago" is a claim you can only make about a transition you
+watched happen.* A device that was already present when sampling began has been
+there for as long as the Mac has been up; there is no enumeration race to lose,
+and waiting is pure cost. So `usableInputFor` reports `.greatestFiniteMagnitude`
+for a device found already present (`witnessedArrival == false`), and a real
+duration only for one seen to arrive — which is exactly the wedge case the gate
+exists for, and still gets its full settle window.
+
 ## Diagnostics must not assume a toolchain on the owner's Mac
 
 The Mac running LaughCounter installs the DMG from CI and has **no Xcode command
