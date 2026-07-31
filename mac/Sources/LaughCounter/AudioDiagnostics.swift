@@ -79,6 +79,11 @@ final class AudioDiagnostics {
     /// Start of the current unbroken run of "CoreAudio is offering an input
     /// device we could actually open" (`systemUptime`), nil if it is not.
     private var usableInputSince: TimeInterval?
+    /// Whether we actually *saw* the current input device arrive, as opposed to
+    /// finding it already there when sampling began. Only a witnessed arrival
+    /// can be mid-enumeration from our point of view, so only a witnessed
+    /// arrival has a settle time worth waiting out.
+    private var witnessedArrival = false
     private var lastHeartbeat: TimeInterval = 0
     private var lastDevices: [InputDevice] = []
     private var activeFormat: AVAudioFormat?
@@ -133,8 +138,18 @@ final class AudioDiagnostics {
     /// finished arriving" are different claims: a USB mic is enumerating for a
     /// while after it first appears in the HAL, and opening one mid-enumeration
     /// is the other half of the same suspicion.
+    ///
+    /// A device that was **already present when we started watching** reports
+    /// `.greatestFiniteMagnitude`, i.e. "settled, as far as anyone can tell".
+    /// "It appeared N seconds ago" is a claim that can only be made about an
+    /// arrival we witnessed; a mic that was there before this process existed
+    /// has been there for however long the Mac has been up, and there is no
+    /// enumeration race to lose. Measuring from first *observation* instead made
+    /// every launch refuse for ~19s and look like the app hadn't started. (#100 follow-up)
     var usableInputFor: TimeInterval? {
-        usableInputSince.map { ProcessInfo.processInfo.systemUptime - $0 }
+        guard let since = usableInputSince else { return nil }
+        guard witnessedArrival else { return .greatestFiniteMagnitude }
+        return ProcessInfo.processInfo.systemUptime - since
     }
 
     // MARK: lifecycle
@@ -144,6 +159,15 @@ final class AudioDiagnostics {
         guard timer == nil else { return }
         lastHeartbeat = ProcessInfo.processInfo.systemUptime
         lastDevices = Self.inputDevices()
+        // Seed the availability probe from this first look, because the timer
+        // below does not fire until `sampleInterval` has elapsed — so without
+        // this, `usableInputFor` is nil for the app's first five seconds and the
+        // start path refuses on a microphone that is sitting right there. Not a
+        // witnessed arrival: whatever is present now predates us. (#100 follow-up)
+        if Self.hasUsableInput(lastDevices) {
+            usableInputSince = ProcessInfo.processInfo.systemUptime
+            witnessedArrival = false
+        }
         let timer = Timer(timeInterval: sampleInterval, repeats: true) { [weak self] _ in
             self?.sample()
         }
@@ -250,9 +274,14 @@ final class AudioDiagnostics {
         // Track how long a genuinely openable input has been on offer, so the
         // start path can consult this instead of opening a device to find out.
         if Self.hasUsableInput(devices) {
-            if usableInputSince == nil { usableInputSince = now }
+            if usableInputSince == nil {
+                // An arrival we watched happen — this one gets a settle window.
+                usableInputSince = now
+                witnessedArrival = true
+            }
         } else {
             usableInputSince = nil
+            witnessedArrival = false
         }
 
         // Extend or break the run of digital silence. Only judged when buffers
