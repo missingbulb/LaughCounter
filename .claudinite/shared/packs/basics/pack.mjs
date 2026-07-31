@@ -12,6 +12,7 @@ import catalogCompleteness from './catalog-completeness.mjs';
 import claudiniteIsolation from './claudinite-isolation.mjs';
 import schedulerWorkflowShape from './scheduler-workflow-shape.mjs';
 import taskDeclarationShape from './task-declaration-shape.mjs';
+import conformanceWorkflow from './conformance-workflow.mjs';
 
 // The baseline pack: working discipline, the task lifecycle, and the core
 // checks. Declared explicitly like every other pack — no pack is active by
@@ -53,6 +54,9 @@ export default {
     // the workflow / a tasks/<name>/task.mjs of its own.
     schedulerWorkflowShape,
     taskDeclarationShape,
+    // And the CI half of the same discipline: a member whose world sweep cannot
+    // run on a pull request has no gate, and its maintenance PR never lands.
+    conformanceWorkflow,
   ],
   // Rules that judge the change and the session in front of you — the branch's
   // commits, the diff, the conversation.
