@@ -83,6 +83,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let standbySettleDelay = 2.5
     /// A sleep at least this long is treated as standby for settling purposes.
     private let standbyThreshold = 300.0
+    /// How long an input device must have been continuously present in the HAL
+    /// before we will open it. Longer than `AudioDiagnostics`' 5s sample
+    /// interval, so it always spans at least one full sample and can never be
+    /// satisfied by the same observation that first revealed the device — which
+    /// is exactly what happened when the mic came back wedged. (#88)
+    private let deviceSettleDelay = 6.0
     /// How many fast doubling attempts before dropping to `maxBackoffDelay`.
     private let maxStartRetries = 5
     /// Ceiling for the retry backoff, and the steady interval after it.
@@ -148,9 +154,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // No buffers is the correct state when paused or stopped, so the stall
         // detector needs to know what we believe we are doing.
         diagnostics.isListening = { [weak self] in self?.listening ?? false }
-        // The menu must stop claiming to listen while nothing is arriving — that
-        // false "listening" is what hid this failure for entire evenings.
-        diagnostics.onStallChanged = { [weak self] _, _ in
+        // The menu must stop claiming to listen the moment the capture path
+        // stops delivering audio — that false "listening" is what hid this
+        // failure for entire evenings, and then hid it again in its no-signal
+        // shape while the diagnostics were logging the truth at ERROR. (#88)
+        diagnostics.onHealthChanged = { [weak self] _ in
             guard let self = self else { return }
             self.refreshTitle()
             self.buildMenu()
@@ -226,6 +234,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // mic must stay released, not be re-acquired behind the stop's back.
         guard generation == restartGeneration else { return }
         do {
+            // Ask the HAL whether there is anything worth opening BEFORE
+            // building an engine to find out. Both callers land here — the
+            // retry ladder and the config-change handler — so this is the one
+            // chokepoint in front of the only expensive question in the app.
+            try requireSettledInputDevice()
             // Configure the analyzer BEFORE audio flows, so no early buffers are
             // dropped and analysis reliably starts (matches the original order).
             let format = try audio.prepareFormat()
@@ -293,6 +306,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Refuse to open the microphone unless CoreAudio is offering one worth
+    /// opening, and it has been on offer long enough to have finished arriving.
+    /// Throws into `finishListening`'s existing catch, so a refusal reuses the
+    /// whole failed-start path — logged, counted, retried — rather than needing
+    /// a second recovery mechanism beside it.
+    ///
+    /// This is the fix for the thing that made this app abnormal (#88). Building
+    /// an `AVAudioEngine` to ask "is there a mic?" is not a format read: the
+    /// engine materializes `inputNode`, which opens the default input device and
+    /// mints a hidden per-client aggregate device inside coreaudiod, and every
+    /// failed attempt tears that back down. One measured outage ran that cycle
+    /// ~210 times over 3h40m — a rate of device open/close no ordinary audio app
+    /// comes close to, against hardware that was not there to begin with. The
+    /// diagnostics timer answers the same question every five seconds with HAL
+    /// property reads that open nothing, so the ladder was paying that price for
+    /// information it already had.
+    ///
+    /// The settle requirement is the second half. The wedge episode opened the
+    /// device *in the same second it appeared* in the HAL (a config-change
+    /// notification arriving mid-enumeration, not the ladder), and a USB audio
+    /// device is still bringing its streaming interface up for a while after it
+    /// first becomes enumerable. Requiring it to have been continuously present
+    /// across at least one full diagnostics sample means we never do that again.
+    /// **Unproven as the cause** — the device reported a sane 48kHz/2ch when we
+    /// grabbed it — but it costs one retry interval and removes the one action
+    /// we take that could plausibly damage a device mid-enumeration.
+    private func requireSettledInputDevice() throws {
+        guard let present = diagnostics.usableInputFor else {
+            throw NSError(domain: "LaughCounter", code: 10, userInfo: [
+                NSLocalizedDescriptionKey:
+                    "no input hardware — CoreAudio is offering no input device "
+                    + "that could be opened",
+            ])
+        }
+        guard present >= deviceSettleDelay else {
+            throw NSError(domain: "LaughCounter", code: 11, userInfo: [
+                NSLocalizedDescriptionKey: String(
+                    format: "input device appeared %.0fs ago — letting it finish "
+                        + "enumerating before opening it", present),
+            ])
+        }
+    }
+
     /// Back-off retry after a failed start, generation-guarded like every other
     /// deferred restart: an intentional stop, or any restart accepted meanwhile,
     /// moves the generation and this retry aborts rather than re-acquiring the mic
@@ -305,9 +361,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // while the displays sleep, which lasted 28 minutes in one observation —
         // no bounded ladder covers that, and the old five attempts (~62s) expired
         // with the cause still fully present, telling the user to reconnect a
-        // microphone that was fine. A start attempt is now a cheap format read
-        // that throws before touching the tap, and one a minute is far below any
-        // rate that could cycle a USB mic. (#76)
+        // microphone that was fine. (#76)
+        //
+        // This comment used to claim an attempt was "a cheap format read". It was
+        // not — `prepareFormat()` built an engine, opened the default input and
+        // churned a hidden aggregate device, ~210 times over one outage. It *is*
+        // one now, because `requireSettledInputDevice()` refuses on a free HAL
+        // read before any of that happens, so a check against absent hardware
+        // costs nothing and touches nothing. (#88)
         let delay = min(Double(1 << min(attempt, 6)), maxBackoffDelay)
         if attempt <= maxStartRetries {
             AppLog.shared.log("start failed — retrying in \(Int(delay))s "
@@ -519,27 +580,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// What the counter is actually doing, in one phrase, for the menu and the
     /// tooltip. `listening` alone is not enough to answer that: it only means
     /// `engine.start()` returned, so it stays true while the app holds a device
-    /// that has stopped delivering. The diagnostics' stall state is what
-    /// separates the two, and every user-facing status renders this one property
-    /// so they cannot disagree about it.
+    /// that has stopped delivering *and* while it holds one that delivers
+    /// nothing but zeros. The diagnostics' health is what separates the three,
+    /// and every user-facing status renders this one property so they cannot
+    /// disagree about it.
     private var statusText: String {
         guard listening else { return offReason ?? "not listening" }
-        return diagnostics.isStalled ? "no audio arriving — microphone may be stuck"
-                                     : "listening"
+        switch diagnostics.health {
+        case .ok:       return "listening"
+        case .stalled:  return "no audio arriving — microphone may be stuck"
+        // Names the remedy, because it is the only one that works and it is not
+        // one anybody guesses: the device looks perfectly healthy everywhere it
+        // is reported, including in System Settings.
+        case .noSignal: return "microphone is silent — unplug it and reconnect it"
+        }
     }
 
     private func refreshTitle() {
-        // A distinct icon for the stalled case: it is not "listening", and it is
-        // not "off" either — the app is holding a microphone that has gone quiet,
-        // which is the state that used to be indistinguishable from working.
-        let icon = listening ? (diagnostics.isStalled ? "🔇" : "😄") : "🎙️"
+        // A distinct icon per unhealthy state: neither is "listening", and
+        // neither is "off" either — the app is holding a microphone that isn't
+        // working, the state that used to be indistinguishable from working.
+        // ⚠️ rather than 🔇 for no-signal because that one needs the owner to
+        // get up and physically re-plug something; nothing else clears it.
+        var icon = "🎙️"
+        if listening {
+            switch diagnostics.health {
+            case .ok:       icon = "😄"
+            case .stalled:  icon = "🔇"
+            case .noSignal: icon = "⚠️"
+            }
+        }
         let me = store.todayCount(origin: "me")
         let tv = store.todayCount(origin: "tv")
         // Two counters: your laughs vs the TV's, today.
         statusItem.button?.title = "\(icon) \(me)  📺 \(tv)"
-        statusItem.button?.toolTip = listening && !diagnostics.isStalled
+        // "open menu to resume" is wrong advice for no-signal — resuming cannot
+        // fix a device that survives a full process exit, so don't offer it.
+        let hint = diagnostics.health == .noSignal
+            ? "(reconnect the microphone)" : "(open menu to resume)"
+        statusItem.button?.toolTip = listening && diagnostics.health == .ok
             ? "Today — you: \(me) · TV: \(tv)"
-            : "LaughCounter — \(statusText) (open menu to resume)"
+            : "LaughCounter — \(statusText) \(hint)"
         // refreshTitle() is called after every `listening` transition, so it's the
         // one chokepoint that keeps the power assertion in sync with the state.
         updateSleepAssertion()
@@ -570,10 +651,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let stateItem = NSMenuItem(title: "Status: \(statusText)",
                                    action: nil, keyEquivalent: "")
         stateItem.isEnabled = false
-        if diagnostics.isStalled {
+        switch diagnostics.health {
+        case .ok:
+            break
+        case .stalled:
             stateItem.toolTip = "The microphone is open but no audio has arrived for a "
                 + "while. Try “Restart listening”; if that doesn't help, the device may "
                 + "need to be unplugged and reconnected. Details are in the activity log."
+        case .noSignal:
+            // Deliberately does not suggest "Restart listening" first: measured
+            // on this failure, restarting the engine, quitting the app entirely
+            // and restarting coreaudiod all left the device streaming silence.
+            // Only re-plugging it worked, so that is what the tooltip says. (#88)
+            stateItem.toolTip = "The microphone is delivering audio at the normal rate, "
+                + "but every sample is silent — the device is connected and not actually "
+                + "capturing. Unplug it and plug it back in. Restarting listening or "
+                + "quitting LaughCounter will not clear this, and the device still looks "
+                + "healthy in System Settings. Details are in the activity log."
         }
         menu.addItem(stateItem)
 

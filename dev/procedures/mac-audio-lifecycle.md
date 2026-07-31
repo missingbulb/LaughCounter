@@ -185,6 +185,10 @@ state (menu claiming "listening", mic dead system-wide, process alive) has not
 recurred since the diagnostics shipped. Don't write the fix until an `AUDIO
 STALL` line with `running=y` says which theory is right.
 
+> **Superseded — read the next section.** The wedge did recur, and the evidence
+> arrived in a shape this paragraph did not anticipate: there was no `AUDIO
+> STALL` line at all. Don't wait for one.
+
 **A design constraint the data did settle**, for whatever cheap availability
 probe eventually replaces the build-an-engine-to-ask approach: a device can be
 present in the HAL, `alive=y`, and still useless. Mid-teardown the input listed
@@ -193,6 +197,114 @@ unreadable name, unknown transport and a **zero sample rate**. So the probe must
 require a nonzero rate (and sane channel count), not mere presence, or it will
 wave through starts that cannot succeed — the same trap as `outputFormat` above,
 one layer down.
+
+## The wedge recurred, and it lives *below* coreaudiod (#88)
+
+It came back on 0.4.1, and in a third shape — **no `AUDIO STALL`, ever**. Buffers
+were arriving at the full rate (3545 per 600s against a theoretical 3515) from a
+device reporting `alive=y/running=y/48000Hz/2ch`, and **every sample was exactly
+zero**, for half an hour, system-wide — System Settings → Sound → Input showed a
+dead meter too. Not the stall (buffers stopped), not the vanish (`inputs=NONE`):
+the mode `AudioDiagnostics` had anticipated in a comment and never seen — a
+device that is enumerated and streaming and *not capturing*.
+
+**The escalation ladder, tried in order, is the finding:**
+
+| Attempted | Cleared it |
+| --- | --- |
+| Quitting LaughCounter (full `applicationWillTerminate` teardown) | no |
+| `sudo killall coreaudiod` | no |
+| Physically unplugging and re-plugging the mic | **yes** |
+
+That settles what the release-the-mic invariant never could: **this wedge is not
+in our process, and not in coreaudiod's user-space state either.** It survives
+every client dying *and* the audio daemon being restarted from scratch; only a USB
+re-enumeration takes the device out of it. Two consequences outrank the rest of
+this file:
+
+- **No in-process recovery can work, so do not build one.** A restart ladder
+  against this state is pure churn — it cannot succeed, and cycling is the thing
+  we already believe is dangerous. The app's whole job here is to *notice fast,
+  say so honestly, and name the one remedy that works.*
+- **"Release the mic on every path" is necessary but not sufficient.** The
+  teardown ran correctly on Quit and the device stayed wedged. A clean exit
+  prevents the IOProc-abandonment cause; it does not prevent this one.
+
+**What shipped is reporting, not recovery.** `no signal` was already detected and
+logged at ERROR every ten minutes — and it drove **nothing**: `isStalled` tripped
+only on *absent* buffers, so the menu bar showed 😄 "listening" for the whole
+outage while the log said the opposite. That is exactly the sin #79 set out to
+kill, recurring one layer up, and it is why this round *again* had to be
+reconstructed from a log instead of noticed. So `AudioDiagnostics` publishes a
+three-state `health` (`ok` / `stalled` / `noSignal`), every user-facing surface
+renders it, and the no-signal text says **unplug it** rather than "try Restart
+listening" — because restarting is measured not to work. When a state has exactly
+one remedy, the UI must name that remedy, not the generic one.
+
+**Detection moved off the heartbeat.** The old check ran inside the 600s heartbeat
+block, so a dead stream was invisible for up to ten minutes and then repeated an
+identical ERROR every ten minutes for as long as it lasted. It is judged on the 5s
+sample tick over a 60s window of all-zero buffers now, and logged once per
+transition. 60s is safe against a quiet room by a wide margin — a real capsule
+always has a noise floor, and the window covers ~350 buffers.
+
+**"Only a replug clears it" is not "we didn't cause it."** Those are separate
+claims and this file conflated them for one round: the ladder above establishes
+that the state is *irreversible once triggered*, and says nothing about what
+triggers it. The trigger question is answered below.
+
+## Never build an `AVAudioEngine` to ask whether a microphone exists (#88)
+
+This is the thing that made LaughCounter abnormal, and no other app on the owner's
+Mac wedges the mic on sleep.
+
+`AudioHub.prepareFormat()` → `renewEngine()` → `makeEngine()`, and `makeEngine()`
+touches `engine.inputNode`. **That property access opens the default input device
+and mints a hidden per-client aggregate device inside coreaudiod**
+(`CADefaultDeviceAggregate-<pid>-<n>`); a failed start tears it back down. So a
+"retry" was never a format read — it was a device open plus an aggregate
+create/destroy. One measured outage ran that cycle **~210 times over 3h40m**,
+against hardware that was not there at all.
+
+Two independent things say that is the wrong shape:
+
+- **The information was already free.** `AudioDiagnostics` reads
+  `kAudioHardwarePropertyDevices` and the per-device properties every five
+  seconds, entirely with `AudioObjectGetPropertyData` property queries that open
+  nothing. The expensive question was never buying an answer we didn't have.
+- **The symptom shape is a known CoreAudio failure with this exact fingerprint.**
+  `AVAudioEngine`'s hidden aggregate going stale presents as *engine running,
+  buffers completing, no audio* — which is our no-signal state precisely, and it
+  is documented on the output side with "only switching the device and back fixes
+  it" (our replug). Ours had gone further than a stale aggregate, since `killall
+  coreaudiod` did not clear it — but the failure family is the same, and we were
+  churning the exact object at the centre of it.
+
+So `finishListening()` now calls `requireSettledInputDevice()` **before**
+`prepareFormat()`, and it throws into the existing failed-start catch — so a
+refusal reuses the whole logged/counted/retried path rather than growing a second
+recovery mechanism beside it. Two requirements:
+
+- **A device the HAL says is openable**, judged by `AudioDiagnostics.hasUsableInput`:
+  non-aggregate (counting our own aggregate would report a usable input *because*
+  we already opened one), alive, and with a **nonzero rate and sane channel
+  count** — mere presence is the `outputFormat` trap one layer down.
+- **Continuously present for `deviceSettleDelay` (6s)**, which is longer than the
+  5s sample interval, so the gate can never be satisfied by the same observation
+  that first revealed the device. The wedge episode opened the mic *in the same
+  second it appeared* — via the config-change handler, not the ladder, which is
+  why the gate belongs at `finishListening` where both paths meet.
+
+Effect on the measured outage: **~210 device opens → 0.** Nothing is opened until
+there is something to open.
+
+**What is proven and what is not.** Proven: the churn was real, was
+under-costed by its own comment, and is unlike any ordinary audio app. *Not*
+proven: that it caused the wedge. The mic reported a sane `48000Hz/2ch/alive=y`
+when we grabbed it, which is evidence against the mid-enumeration story
+specifically. Treat this as removing the only mechanism by which we could
+plausibly damage a device — not as a confirmed root-cause fix. **If it recurs,
+that is information, not a reason to assume the gate failed.**
 
 ## Diagnostics must not assume a toolchain on the owner's Mac
 

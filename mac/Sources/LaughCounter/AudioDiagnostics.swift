@@ -40,6 +40,14 @@ final class AudioDiagnostics {
     /// Buffers arrive roughly every 0.17s (8192 frames at 48kHz), so this is
     /// two orders of magnitude of slack — it cannot fire on jitter.
     private let stallThreshold: TimeInterval = 15
+    /// Buffers arriving at the full rate with *every* sample exactly zero for
+    /// this long is a dead stream, not a quiet room: a real microphone always
+    /// has a noise floor, and this window covers ~350 buffers (~180k
+    /// stride-sampled points), so an exact 0.0 across all of them cannot be
+    /// silence in front of a live capsule. Judged per five-second sample, so it
+    /// is caught in a minute rather than on the ten-minute heartbeat — the
+    /// failure it names needs the owner to go and unplug something. (#88)
+    private let noSignalThreshold: TimeInterval = 60
     /// Routine "everything is fine" line, so the log shows the counter alive
     /// across a long quiet evening rather than going silent and looking dead.
     private let heartbeatInterval: TimeInterval = 600
@@ -63,7 +71,14 @@ final class AudioDiagnostics {
     // MARK: main-side state
 
     private var timer: Timer?
-    private var stalled = false
+    /// Start of the current unbroken run of all-zero buffers (`systemUptime`),
+    /// or nil if the last sample carried signal. Judged per sample rather than
+    /// against `intervalPeak`, which spans the whole heartbeat and would smear
+    /// one laugh across ten minutes of dead stream.
+    private var zeroSince: TimeInterval?
+    /// Start of the current unbroken run of "CoreAudio is offering an input
+    /// device we could actually open" (`systemUptime`), nil if it is not.
+    private var usableInputSince: TimeInterval?
     private var lastHeartbeat: TimeInterval = 0
     private var lastDevices: [InputDevice] = []
     private var activeFormat: AVAudioFormat?
@@ -71,21 +86,56 @@ final class AudioDiagnostics {
     /// counters are reset every tick.
     private var totalBuffers = 0
     private var totalFrames = 0
-    /// Loudest sample seen since the last heartbeat, and how many buffers that
-    /// heartbeat covers. Both span the heartbeat interval so every number on
-    /// that line describes the same window.
+    /// Loudest sample seen since the last heartbeat. Spans the heartbeat
+    /// interval so every number on that line describes the same window.
     private var intervalPeak: Float = 0
-    private var buffersThisInterval = 0
+
+    /// What the capture path is *doing*, as distinct from what the app believes
+    /// it is doing. `listening` only ever meant `engine.start()` returned, so it
+    /// is true in all three of these states.
+    enum Health: Equatable {
+        /// Buffers arriving, carrying audio.
+        case ok
+        /// No buffers at all. The device went away, or the stream is dead.
+        case stalled
+        /// Buffers arriving at the full rate, every sample exactly zero: the
+        /// device is enumerated and streaming, but not capturing. Measured once
+        /// (#88) and it survived process exit *and* a coreaudiod restart — only
+        /// physically re-plugging the microphone cleared it, so there is nothing
+        /// this process can do about it beyond saying so.
+        case noSignal
+    }
 
     /// "The app believes it is capturing." Supplied by `AppDelegate`; without it
     /// a stall is meaningless, since no buffers is correct when paused.
     var isListening: (() -> Bool)?
-    /// Fired on main when the stall state flips, with the silence duration.
-    /// Lets the menu bar stop claiming to listen while nothing is arriving.
-    var onStallChanged: ((Bool, TimeInterval) -> Void)?
+    /// Fired on main whenever `health` changes. Lets the menu bar stop claiming
+    /// to listen while the capture path is not actually delivering audio.
+    var onHealthChanged: ((Health) -> Void)?
 
-    /// Whether the capture path is currently believed dead. Main-thread only.
-    private(set) var isStalled = false
+    /// What the capture path is currently believed to be doing. Main-thread only.
+    private(set) var health: Health = .ok
+
+    /// How long CoreAudio has *continuously* been offering an input device we
+    /// could actually open, or nil if it is not offering one at all.
+    ///
+    /// This exists so nothing else has to build an `AVAudioEngine` to find out
+    /// whether a microphone is there. Materializing `inputNode` opens the
+    /// default input **and mints a hidden per-client aggregate device inside
+    /// coreaudiod**, so asking that way costs a device open plus an aggregate
+    /// create/destroy every time — which the retry ladder was doing once a
+    /// minute, ~210 times over one 3h40m outage. This answer is already being
+    /// computed every five seconds out of pure HAL property reads that never
+    /// open anything, so the expensive way to ask was never buying information
+    /// we didn't have. (#88)
+    ///
+    /// The *duration* rather than a bool because "it is there" and "it has
+    /// finished arriving" are different claims: a USB mic is enumerating for a
+    /// while after it first appears in the HAL, and opening one mid-enumeration
+    /// is the other half of the same suspicion.
+    var usableInputFor: TimeInterval? {
+        usableInputSince.map { ProcessInfo.processInfo.systemUptime - $0 }
+    }
 
     // MARK: lifecycle
 
@@ -139,7 +189,7 @@ final class AudioDiagnostics {
         lock.lock()
         lastBufferUptime = ProcessInfo.processInfo.systemUptime
         lock.unlock()
-        clearStall(logging: false)
+        resetHealth()
     }
 
     /// Capture stopped on purpose. Clears the stall clock so an intentional stop
@@ -149,7 +199,7 @@ final class AudioDiagnostics {
         lock.lock()
         lastBufferUptime = nil
         lock.unlock()
-        clearStall(logging: false)
+        resetHealth()
     }
 
     // MARK: sampling
@@ -172,7 +222,6 @@ final class AudioDiagnostics {
         // reads as if it covered the same span — so a laugh mid-interval could
         // be followed by a quiet moment and the line would report near-silence.
         intervalPeak = max(intervalPeak, localPeak)
-        buffersThisInterval += buffers
 
         let silence = last.map { now - $0 }
         let listening = isListening?() ?? false
@@ -198,50 +247,95 @@ final class AudioDiagnostics {
             lastDevices = devices
         }
 
-        if listening, let silence = silence, silence >= stallThreshold {
-            if !stalled {
-                stalled = true
-                isStalled = true
-                AppLog.shared.log("AUDIO STALL: no buffers for "
-                    + String(format: "%.0fs", silence)
-                    + " while listening — \(healthSuffix(devices: devices))", level: "ERROR")
-                onStallChanged?(true, silence)
-            }
-        } else if buffers > 0 {
-            clearStall(logging: true)
+        // Track how long a genuinely openable input has been on offer, so the
+        // start path can consult this instead of opening a device to find out.
+        if Self.hasUsableInput(devices) {
+            if usableInputSince == nil { usableInputSince = now }
+        } else {
+            usableInputSince = nil
         }
+
+        // Extend or break the run of digital silence. Only judged when buffers
+        // actually arrived: a sample with none says nothing about signal, and
+        // treating it as either would make a stall look like a recovery.
+        if listening, buffers > 0 {
+            if localPeak > 0 {
+                zeroSince = nil
+            } else if zeroSince == nil {
+                zeroSince = now
+            }
+        }
+
+        // Stall outranks no-signal — with no buffers at all there is nothing to
+        // judge the samples of, and "the stream stopped" is the more specific
+        // claim. They are mutually exclusive in practice for the same reason.
+        let next: Health
+        if listening, let silence = silence, silence >= stallThreshold {
+            next = .stalled
+        } else if listening, let zeroSince = zeroSince,
+                  now - zeroSince >= noSignalThreshold {
+            next = .noSignal
+        } else {
+            next = .ok
+        }
+        setHealth(next, silence: silence, zeroFor: zeroSince.map { now - $0 },
+                  devices: devices)
 
         if now - lastHeartbeat >= heartbeatInterval {
             lastHeartbeat = now
-            let state = listening ? (stalled ? "listening-but-STALLED" : "listening") : "not listening"
+            var state = "not listening"
+            if listening {
+                switch health {
+                case .ok:       state = "listening"
+                case .stalled:  state = "listening-but-STALLED"
+                case .noSignal: state = "listening-but-SILENT"
+                }
+            }
             AppLog.shared.log("audio health: \(state) "
                 + "buffers=\(totalBuffers) frames=\(totalFrames) "
                 + "peak=\(String(format: "%.4f", intervalPeak)) "
                 + "\(healthSuffix(devices: devices))")
-            // Buffers arriving with every sample exactly zero is a third failure
-            // mode, distinct from a stall (no buffers) and from a dead device
-            // (nothing to open): the stream is alive and carrying digital
-            // silence. A real microphone always has a noise floor, so an exact
-            // zero across ten minutes is never the room being quiet — it is a
-            // muted input or a stream that is no longer connected to hardware.
-            if listening, buffersThisInterval > 0, intervalPeak == 0 {
-                AppLog.shared.log("no signal: \(buffersThisInterval) buffers arrived over the "
-                    + "last \(Int(heartbeatInterval))s and every sample was zero — the input is "
-                    + "muted or the stream is not carrying audio", level: "ERROR")
-            }
             intervalPeak = 0
-            buffersThisInterval = 0
         }
     }
 
-    private func clearStall(logging: Bool) {
-        guard stalled else { return }
-        stalled = false
-        isStalled = false
-        if logging {
-            AppLog.shared.log("audio recovered — buffers are arriving again")
+    /// The one place a health transition is logged and published, so the log and
+    /// the menu bar can never disagree about it. Logs on the *transition* only:
+    /// the previous no-signal check was bolted to the heartbeat and repeated an
+    /// identical ERROR every ten minutes for as long as the failure lasted,
+    /// which is the line-a-minute noise this class is meant to avoid.
+    private func setHealth(_ next: Health, silence: TimeInterval?,
+                           zeroFor: TimeInterval?, devices: [InputDevice]) {
+        guard next != health else { return }
+        let previous = health
+        health = next
+        switch next {
+        case .stalled:
+            AppLog.shared.log("AUDIO STALL: no buffers for "
+                + String(format: "%.0fs", silence ?? 0)
+                + " while listening — \(healthSuffix(devices: devices))", level: "ERROR")
+        case .noSignal:
+            AppLog.shared.log("NO SIGNAL: buffers arriving at the normal rate for "
+                + String(format: "%.0fs", zeroFor ?? 0)
+                + " with every sample exactly zero — the microphone is enumerated but "
+                + "not capturing. Unplugging it and reconnecting it is the only known "
+                + "fix; quitting this app and restarting coreaudiod both leave it in "
+                + "this state — \(healthSuffix(devices: devices))", level: "ERROR")
+        case .ok:
+            AppLog.shared.log(previous == .stalled
+                ? "audio recovered — buffers are arriving again"
+                : "audio recovered — the stream is carrying signal again")
         }
-        onStallChanged?(false, 0)
+        onHealthChanged?(next)
+    }
+
+    /// Capture started or stopped on purpose: drop back to `.ok` without logging
+    /// a recovery, because nothing recovered — we simply started or stopped.
+    private func resetHealth() {
+        zeroSince = nil
+        guard health != .ok else { return }
+        health = .ok
+        onHealthChanged?(.ok)
     }
 
     private func healthSuffix(devices: [InputDevice]) -> String {
@@ -388,6 +482,28 @@ final class AudioDiagnostics {
                 isRunningSomewhere:
                     (uint32(id, kAudioDevicePropertyDeviceIsRunningSomewhere) ?? 0) != 0,
                 isDefault: id == defaultDevice)
+        }
+    }
+
+    /// Is any of these a device we could actually open and capture from?
+    ///
+    /// Three requirements, and the last two are the ones that bite:
+    ///
+    /// - **Not an aggregate.** `CADefaultDeviceAggregate-<pid>-<n>` is the
+    ///   hidden per-client device coreaudiod mints for *us* when we open the
+    ///   default input. Counting it would make the probe report a usable input
+    ///   because we already opened one — true and useless.
+    /// - **A sane format, not mere presence.** Mid-teardown an input lists as
+    ///   `"(unnamed)"/????/0Hz/2ch/alive=y`: readable enough to enumerate and
+    ///   impossible to capture from. A probe that accepts presence waves
+    ///   through starts that cannot succeed — the same trap `outputFormat` set
+    ///   one layer up. (#79)
+    /// - **Alive**, which is the cheap part and the only one anyone remembers.
+    private static func hasUsableInput(_ devices: [InputDevice]) -> Bool {
+        let aggregate = fourCC(UInt32(kAudioDeviceTransportTypeAggregate))
+        return devices.contains {
+            $0.isAlive && $0.sampleRate > 0 && $0.channels > 0
+                && $0.transport != aggregate
         }
     }
 
