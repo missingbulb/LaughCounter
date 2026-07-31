@@ -14,8 +14,8 @@ app, which since the Python reference was removed is the only implementation.
 | Speech recognition on-device | `on-device-speech` check (`SFSpeechAudioBufferRecognitionRequest`) |
 | Metadata persists, audio doesn't | `no-audio-persistence` check (`AVAudioFile`/`AVAudioRecorder`/`ExtAudioFileCreateWithURL`/`AudioFileCreateWithURL`) |
 | One deletable directory | `single-storage-directory` check (only `.applicationSupportDirectory` as a search-path root) |
+| No server / listener | `no-listener` check (`NWListener`/`NSXPCListener`/`CFSocket*`/`SocketPort`/`socket(2)`/an embedded HTTP-server import) |
 | No egress at all | `RULES.md` prose |
-| No server / listener | `RULES.md` prose |
 | Usage strings stay true | `RULES.md` prose |
 
 Fixtures: `pack.test.mjs` — `node --test .claudinite/local/packs/on-device-privacy/pack.test.mjs`.
