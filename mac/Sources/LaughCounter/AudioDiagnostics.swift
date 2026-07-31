@@ -76,6 +76,9 @@ final class AudioDiagnostics {
     /// against `intervalPeak`, which spans the whole heartbeat and would smear
     /// one laugh across ten minutes of dead stream.
     private var zeroSince: TimeInterval?
+    /// Start of the current unbroken run of "CoreAudio is offering an input
+    /// device we could actually open" (`systemUptime`), nil if it is not.
+    private var usableInputSince: TimeInterval?
     private var lastHeartbeat: TimeInterval = 0
     private var lastDevices: [InputDevice] = []
     private var activeFormat: AVAudioFormat?
@@ -112,6 +115,27 @@ final class AudioDiagnostics {
 
     /// What the capture path is currently believed to be doing. Main-thread only.
     private(set) var health: Health = .ok
+
+    /// How long CoreAudio has *continuously* been offering an input device we
+    /// could actually open, or nil if it is not offering one at all.
+    ///
+    /// This exists so nothing else has to build an `AVAudioEngine` to find out
+    /// whether a microphone is there. Materializing `inputNode` opens the
+    /// default input **and mints a hidden per-client aggregate device inside
+    /// coreaudiod**, so asking that way costs a device open plus an aggregate
+    /// create/destroy every time — which the retry ladder was doing once a
+    /// minute, ~210 times over one 3h40m outage. This answer is already being
+    /// computed every five seconds out of pure HAL property reads that never
+    /// open anything, so the expensive way to ask was never buying information
+    /// we didn't have. (#88)
+    ///
+    /// The *duration* rather than a bool because "it is there" and "it has
+    /// finished arriving" are different claims: a USB mic is enumerating for a
+    /// while after it first appears in the HAL, and opening one mid-enumeration
+    /// is the other half of the same suspicion.
+    var usableInputFor: TimeInterval? {
+        usableInputSince.map { ProcessInfo.processInfo.systemUptime - $0 }
+    }
 
     // MARK: lifecycle
 
@@ -221,6 +245,14 @@ final class AudioDiagnostics {
                     + Self.describe(devices),
                 level: changed ? "WARN" : "INFO")
             lastDevices = devices
+        }
+
+        // Track how long a genuinely openable input has been on offer, so the
+        // start path can consult this instead of opening a device to find out.
+        if Self.hasUsableInput(devices) {
+            if usableInputSince == nil { usableInputSince = now }
+        } else {
+            usableInputSince = nil
         }
 
         // Extend or break the run of digital silence. Only judged when buffers
@@ -450,6 +482,28 @@ final class AudioDiagnostics {
                 isRunningSomewhere:
                     (uint32(id, kAudioDevicePropertyDeviceIsRunningSomewhere) ?? 0) != 0,
                 isDefault: id == defaultDevice)
+        }
+    }
+
+    /// Is any of these a device we could actually open and capture from?
+    ///
+    /// Three requirements, and the last two are the ones that bite:
+    ///
+    /// - **Not an aggregate.** `CADefaultDeviceAggregate-<pid>-<n>` is the
+    ///   hidden per-client device coreaudiod mints for *us* when we open the
+    ///   default input. Counting it would make the probe report a usable input
+    ///   because we already opened one — true and useless.
+    /// - **A sane format, not mere presence.** Mid-teardown an input lists as
+    ///   `"(unnamed)"/????/0Hz/2ch/alive=y`: readable enough to enumerate and
+    ///   impossible to capture from. A probe that accepts presence waves
+    ///   through starts that cannot succeed — the same trap `outputFormat` set
+    ///   one layer up. (#79)
+    /// - **Alive**, which is the cheap part and the only one anyone remembers.
+    private static func hasUsableInput(_ devices: [InputDevice]) -> Bool {
+        let aggregate = fourCC(UInt32(kAudioDeviceTransportTypeAggregate))
+        return devices.contains {
+            $0.isAlive && $0.sampleRate > 0 && $0.channels > 0
+                && $0.transport != aggregate
         }
     }
 

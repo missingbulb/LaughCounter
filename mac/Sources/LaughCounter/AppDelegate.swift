@@ -83,6 +83,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let standbySettleDelay = 2.5
     /// A sleep at least this long is treated as standby for settling purposes.
     private let standbyThreshold = 300.0
+    /// How long an input device must have been continuously present in the HAL
+    /// before we will open it. Longer than `AudioDiagnostics`' 5s sample
+    /// interval, so it always spans at least one full sample and can never be
+    /// satisfied by the same observation that first revealed the device — which
+    /// is exactly what happened when the mic came back wedged. (#88)
+    private let deviceSettleDelay = 6.0
     /// How many fast doubling attempts before dropping to `maxBackoffDelay`.
     private let maxStartRetries = 5
     /// Ceiling for the retry backoff, and the steady interval after it.
@@ -228,6 +234,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // mic must stay released, not be re-acquired behind the stop's back.
         guard generation == restartGeneration else { return }
         do {
+            // Ask the HAL whether there is anything worth opening BEFORE
+            // building an engine to find out. Both callers land here — the
+            // retry ladder and the config-change handler — so this is the one
+            // chokepoint in front of the only expensive question in the app.
+            try requireSettledInputDevice()
             // Configure the analyzer BEFORE audio flows, so no early buffers are
             // dropped and analysis reliably starts (matches the original order).
             let format = try audio.prepareFormat()
@@ -295,6 +306,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Refuse to open the microphone unless CoreAudio is offering one worth
+    /// opening, and it has been on offer long enough to have finished arriving.
+    /// Throws into `finishListening`'s existing catch, so a refusal reuses the
+    /// whole failed-start path — logged, counted, retried — rather than needing
+    /// a second recovery mechanism beside it.
+    ///
+    /// This is the fix for the thing that made this app abnormal (#88). Building
+    /// an `AVAudioEngine` to ask "is there a mic?" is not a format read: the
+    /// engine materializes `inputNode`, which opens the default input device and
+    /// mints a hidden per-client aggregate device inside coreaudiod, and every
+    /// failed attempt tears that back down. One measured outage ran that cycle
+    /// ~210 times over 3h40m — a rate of device open/close no ordinary audio app
+    /// comes close to, against hardware that was not there to begin with. The
+    /// diagnostics timer answers the same question every five seconds with HAL
+    /// property reads that open nothing, so the ladder was paying that price for
+    /// information it already had.
+    ///
+    /// The settle requirement is the second half. The wedge episode opened the
+    /// device *in the same second it appeared* in the HAL (a config-change
+    /// notification arriving mid-enumeration, not the ladder), and a USB audio
+    /// device is still bringing its streaming interface up for a while after it
+    /// first becomes enumerable. Requiring it to have been continuously present
+    /// across at least one full diagnostics sample means we never do that again.
+    /// **Unproven as the cause** — the device reported a sane 48kHz/2ch when we
+    /// grabbed it — but it costs one retry interval and removes the one action
+    /// we take that could plausibly damage a device mid-enumeration.
+    private func requireSettledInputDevice() throws {
+        guard let present = diagnostics.usableInputFor else {
+            throw NSError(domain: "LaughCounter", code: 10, userInfo: [
+                NSLocalizedDescriptionKey:
+                    "no input hardware — CoreAudio is offering no input device "
+                    + "that could be opened",
+            ])
+        }
+        guard present >= deviceSettleDelay else {
+            throw NSError(domain: "LaughCounter", code: 11, userInfo: [
+                NSLocalizedDescriptionKey: String(
+                    format: "input device appeared %.0fs ago — letting it finish "
+                        + "enumerating before opening it", present),
+            ])
+        }
+    }
+
     /// Back-off retry after a failed start, generation-guarded like every other
     /// deferred restart: an intentional stop, or any restart accepted meanwhile,
     /// moves the generation and this retry aborts rather than re-acquiring the mic
@@ -307,9 +361,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // while the displays sleep, which lasted 28 minutes in one observation —
         // no bounded ladder covers that, and the old five attempts (~62s) expired
         // with the cause still fully present, telling the user to reconnect a
-        // microphone that was fine. A start attempt is now a cheap format read
-        // that throws before touching the tap, and one a minute is far below any
-        // rate that could cycle a USB mic. (#76)
+        // microphone that was fine. (#76)
+        //
+        // This comment used to claim an attempt was "a cheap format read". It was
+        // not — `prepareFormat()` built an engine, opened the default input and
+        // churned a hidden aggregate device, ~210 times over one outage. It *is*
+        // one now, because `requireSettledInputDevice()` refuses on a free HAL
+        // read before any of that happens, so a check against absent hardware
+        // costs nothing and touches nothing. (#88)
         let delay = min(Double(1 << min(attempt, 6)), maxBackoffDelay)
         if attempt <= maxStartRetries {
             AppLog.shared.log("start failed — retrying in \(Int(delay))s "

@@ -248,15 +248,63 @@ sample tick over a 60s window of all-zero buffers now, and logged once per
 transition. 60s is safe against a quiet room by a wide margin — a real capsule
 always has a noise floor, and the window covers ~350 buffers.
 
-**The one thing this did not settle.** The device reappeared at 05:01:48 and we
-opened it *in the same second*: the config-change handler and `listening started`
-carry the same timestamp, after 3h40m of once-a-minute failed starts against
-`inputs=NONE`. Grabbing a USB audio device mid-enumeration is a plausible way to
-pin it non-capturing, and it is the only app-side action in the window — but the
-mic may equally have come back broken on its own. If it recurs, measure whether a
-settle delay between "device appeared" and "open it" changes the outcome. **Do not
-add the delay and call it fixed**: a fix that isn't the cause looks like it worked
-for exactly as long as the next episode takes to arrive.
+**"Only a replug clears it" is not "we didn't cause it."** Those are separate
+claims and this file conflated them for one round: the ladder above establishes
+that the state is *irreversible once triggered*, and says nothing about what
+triggers it. The trigger question is answered below.
+
+## Never build an `AVAudioEngine` to ask whether a microphone exists (#88)
+
+This is the thing that made LaughCounter abnormal, and no other app on the owner's
+Mac wedges the mic on sleep.
+
+`AudioHub.prepareFormat()` → `renewEngine()` → `makeEngine()`, and `makeEngine()`
+touches `engine.inputNode`. **That property access opens the default input device
+and mints a hidden per-client aggregate device inside coreaudiod**
+(`CADefaultDeviceAggregate-<pid>-<n>`); a failed start tears it back down. So a
+"retry" was never a format read — it was a device open plus an aggregate
+create/destroy. One measured outage ran that cycle **~210 times over 3h40m**,
+against hardware that was not there at all.
+
+Two independent things say that is the wrong shape:
+
+- **The information was already free.** `AudioDiagnostics` reads
+  `kAudioHardwarePropertyDevices` and the per-device properties every five
+  seconds, entirely with `AudioObjectGetPropertyData` property queries that open
+  nothing. The expensive question was never buying an answer we didn't have.
+- **The symptom shape is a known CoreAudio failure with this exact fingerprint.**
+  `AVAudioEngine`'s hidden aggregate going stale presents as *engine running,
+  buffers completing, no audio* — which is our no-signal state precisely, and it
+  is documented on the output side with "only switching the device and back fixes
+  it" (our replug). Ours had gone further than a stale aggregate, since `killall
+  coreaudiod` did not clear it — but the failure family is the same, and we were
+  churning the exact object at the centre of it.
+
+So `finishListening()` now calls `requireSettledInputDevice()` **before**
+`prepareFormat()`, and it throws into the existing failed-start catch — so a
+refusal reuses the whole logged/counted/retried path rather than growing a second
+recovery mechanism beside it. Two requirements:
+
+- **A device the HAL says is openable**, judged by `AudioDiagnostics.hasUsableInput`:
+  non-aggregate (counting our own aggregate would report a usable input *because*
+  we already opened one), alive, and with a **nonzero rate and sane channel
+  count** — mere presence is the `outputFormat` trap one layer down.
+- **Continuously present for `deviceSettleDelay` (6s)**, which is longer than the
+  5s sample interval, so the gate can never be satisfied by the same observation
+  that first revealed the device. The wedge episode opened the mic *in the same
+  second it appeared* — via the config-change handler, not the ladder, which is
+  why the gate belongs at `finishListening` where both paths meet.
+
+Effect on the measured outage: **~210 device opens → 0.** Nothing is opened until
+there is something to open.
+
+**What is proven and what is not.** Proven: the churn was real, was
+under-costed by its own comment, and is unlike any ordinary audio app. *Not*
+proven: that it caused the wedge. The mic reported a sane `48000Hz/2ch/alive=y`
+when we grabbed it, which is evidence against the mid-enumeration story
+specifically. Treat this as removing the only mechanism by which we could
+plausibly damage a device — not as a confirmed root-cause fix. **If it recurs,
+that is information, not a reason to assume the gate failed.**
 
 ## Diagnostics must not assume a toolchain on the owner's Mac
 
