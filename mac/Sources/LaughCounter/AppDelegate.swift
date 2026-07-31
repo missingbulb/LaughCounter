@@ -148,9 +148,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // No buffers is the correct state when paused or stopped, so the stall
         // detector needs to know what we believe we are doing.
         diagnostics.isListening = { [weak self] in self?.listening ?? false }
-        // The menu must stop claiming to listen while nothing is arriving — that
-        // false "listening" is what hid this failure for entire evenings.
-        diagnostics.onStallChanged = { [weak self] _, _ in
+        // The menu must stop claiming to listen the moment the capture path
+        // stops delivering audio — that false "listening" is what hid this
+        // failure for entire evenings, and then hid it again in its no-signal
+        // shape while the diagnostics were logging the truth at ERROR. (#88)
+        diagnostics.onHealthChanged = { [weak self] _ in
             guard let self = self else { return }
             self.refreshTitle()
             self.buildMenu()
@@ -519,27 +521,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// What the counter is actually doing, in one phrase, for the menu and the
     /// tooltip. `listening` alone is not enough to answer that: it only means
     /// `engine.start()` returned, so it stays true while the app holds a device
-    /// that has stopped delivering. The diagnostics' stall state is what
-    /// separates the two, and every user-facing status renders this one property
-    /// so they cannot disagree about it.
+    /// that has stopped delivering *and* while it holds one that delivers
+    /// nothing but zeros. The diagnostics' health is what separates the three,
+    /// and every user-facing status renders this one property so they cannot
+    /// disagree about it.
     private var statusText: String {
         guard listening else { return offReason ?? "not listening" }
-        return diagnostics.isStalled ? "no audio arriving — microphone may be stuck"
-                                     : "listening"
+        switch diagnostics.health {
+        case .ok:       return "listening"
+        case .stalled:  return "no audio arriving — microphone may be stuck"
+        // Names the remedy, because it is the only one that works and it is not
+        // one anybody guesses: the device looks perfectly healthy everywhere it
+        // is reported, including in System Settings.
+        case .noSignal: return "microphone is silent — unplug it and reconnect it"
+        }
     }
 
     private func refreshTitle() {
-        // A distinct icon for the stalled case: it is not "listening", and it is
-        // not "off" either — the app is holding a microphone that has gone quiet,
-        // which is the state that used to be indistinguishable from working.
-        let icon = listening ? (diagnostics.isStalled ? "🔇" : "😄") : "🎙️"
+        // A distinct icon per unhealthy state: neither is "listening", and
+        // neither is "off" either — the app is holding a microphone that isn't
+        // working, the state that used to be indistinguishable from working.
+        // ⚠️ rather than 🔇 for no-signal because that one needs the owner to
+        // get up and physically re-plug something; nothing else clears it.
+        var icon = "🎙️"
+        if listening {
+            switch diagnostics.health {
+            case .ok:       icon = "😄"
+            case .stalled:  icon = "🔇"
+            case .noSignal: icon = "⚠️"
+            }
+        }
         let me = store.todayCount(origin: "me")
         let tv = store.todayCount(origin: "tv")
         // Two counters: your laughs vs the TV's, today.
         statusItem.button?.title = "\(icon) \(me)  📺 \(tv)"
-        statusItem.button?.toolTip = listening && !diagnostics.isStalled
+        // "open menu to resume" is wrong advice for no-signal — resuming cannot
+        // fix a device that survives a full process exit, so don't offer it.
+        let hint = diagnostics.health == .noSignal
+            ? "(reconnect the microphone)" : "(open menu to resume)"
+        statusItem.button?.toolTip = listening && diagnostics.health == .ok
             ? "Today — you: \(me) · TV: \(tv)"
-            : "LaughCounter — \(statusText) (open menu to resume)"
+            : "LaughCounter — \(statusText) \(hint)"
         // refreshTitle() is called after every `listening` transition, so it's the
         // one chokepoint that keeps the power assertion in sync with the state.
         updateSleepAssertion()
@@ -570,10 +592,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let stateItem = NSMenuItem(title: "Status: \(statusText)",
                                    action: nil, keyEquivalent: "")
         stateItem.isEnabled = false
-        if diagnostics.isStalled {
+        switch diagnostics.health {
+        case .ok:
+            break
+        case .stalled:
             stateItem.toolTip = "The microphone is open but no audio has arrived for a "
                 + "while. Try “Restart listening”; if that doesn't help, the device may "
                 + "need to be unplugged and reconnected. Details are in the activity log."
+        case .noSignal:
+            // Deliberately does not suggest "Restart listening" first: measured
+            // on this failure, restarting the engine, quitting the app entirely
+            // and restarting coreaudiod all left the device streaming silence.
+            // Only re-plugging it worked, so that is what the tooltip says. (#88)
+            stateItem.toolTip = "The microphone is delivering audio at the normal rate, "
+                + "but every sample is silent — the device is connected and not actually "
+                + "capturing. Unplug it and plug it back in. Restarting listening or "
+                + "quitting LaughCounter will not clear this, and the device still looks "
+                + "healthy in System Settings. Details are in the activity log."
         }
         menu.addItem(stateItem)
 

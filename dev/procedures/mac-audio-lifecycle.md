@@ -185,6 +185,10 @@ state (menu claiming "listening", mic dead system-wide, process alive) has not
 recurred since the diagnostics shipped. Don't write the fix until an `AUDIO
 STALL` line with `running=y` says which theory is right.
 
+> **Superseded — read the next section.** The wedge did recur, and the evidence
+> arrived in a shape this paragraph did not anticipate: there was no `AUDIO
+> STALL` line at all. Don't wait for one.
+
 **A design constraint the data did settle**, for whatever cheap availability
 probe eventually replaces the build-an-engine-to-ask approach: a device can be
 present in the HAL, `alive=y`, and still useless. Mid-teardown the input listed
@@ -193,6 +197,66 @@ unreadable name, unknown transport and a **zero sample rate**. So the probe must
 require a nonzero rate (and sane channel count), not mere presence, or it will
 wave through starts that cannot succeed — the same trap as `outputFormat` above,
 one layer down.
+
+## The wedge recurred, and it lives *below* coreaudiod (#88)
+
+It came back on 0.4.1, and in a third shape — **no `AUDIO STALL`, ever**. Buffers
+were arriving at the full rate (3545 per 600s against a theoretical 3515) from a
+device reporting `alive=y/running=y/48000Hz/2ch`, and **every sample was exactly
+zero**, for half an hour, system-wide — System Settings → Sound → Input showed a
+dead meter too. Not the stall (buffers stopped), not the vanish (`inputs=NONE`):
+the mode `AudioDiagnostics` had anticipated in a comment and never seen — a
+device that is enumerated and streaming and *not capturing*.
+
+**The escalation ladder, tried in order, is the finding:**
+
+| Attempted | Cleared it |
+| --- | --- |
+| Quitting LaughCounter (full `applicationWillTerminate` teardown) | no |
+| `sudo killall coreaudiod` | no |
+| Physically unplugging and re-plugging the mic | **yes** |
+
+That settles what the release-the-mic invariant never could: **this wedge is not
+in our process, and not in coreaudiod's user-space state either.** It survives
+every client dying *and* the audio daemon being restarted from scratch; only a USB
+re-enumeration takes the device out of it. Two consequences outrank the rest of
+this file:
+
+- **No in-process recovery can work, so do not build one.** A restart ladder
+  against this state is pure churn — it cannot succeed, and cycling is the thing
+  we already believe is dangerous. The app's whole job here is to *notice fast,
+  say so honestly, and name the one remedy that works.*
+- **"Release the mic on every path" is necessary but not sufficient.** The
+  teardown ran correctly on Quit and the device stayed wedged. A clean exit
+  prevents the IOProc-abandonment cause; it does not prevent this one.
+
+**What shipped is reporting, not recovery.** `no signal` was already detected and
+logged at ERROR every ten minutes — and it drove **nothing**: `isStalled` tripped
+only on *absent* buffers, so the menu bar showed 😄 "listening" for the whole
+outage while the log said the opposite. That is exactly the sin #79 set out to
+kill, recurring one layer up, and it is why this round *again* had to be
+reconstructed from a log instead of noticed. So `AudioDiagnostics` publishes a
+three-state `health` (`ok` / `stalled` / `noSignal`), every user-facing surface
+renders it, and the no-signal text says **unplug it** rather than "try Restart
+listening" — because restarting is measured not to work. When a state has exactly
+one remedy, the UI must name that remedy, not the generic one.
+
+**Detection moved off the heartbeat.** The old check ran inside the 600s heartbeat
+block, so a dead stream was invisible for up to ten minutes and then repeated an
+identical ERROR every ten minutes for as long as it lasted. It is judged on the 5s
+sample tick over a 60s window of all-zero buffers now, and logged once per
+transition. 60s is safe against a quiet room by a wide margin — a real capsule
+always has a noise floor, and the window covers ~350 buffers.
+
+**The one thing this did not settle.** The device reappeared at 05:01:48 and we
+opened it *in the same second*: the config-change handler and `listening started`
+carry the same timestamp, after 3h40m of once-a-minute failed starts against
+`inputs=NONE`. Grabbing a USB audio device mid-enumeration is a plausible way to
+pin it non-capturing, and it is the only app-side action in the window — but the
+mic may equally have come back broken on its own. If it recurs, measure whether a
+settle delay between "device appeared" and "open it" changes the outcome. **Do not
+add the delay and call it fixed**: a fix that isn't the cause looks like it worked
+for exactly as long as the next episode takes to arrive.
 
 ## Diagnostics must not assume a toolchain on the owner's Mac
 
