@@ -332,20 +332,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// **Unproven as the cause** — the device reported a sane 48kHz/2ch when we
     /// grabbed it — but it costs one retry interval and removes the one action
     /// we take that could plausibly damage a device mid-enumeration.
+    ///
+    /// The gate shipped in 0.5.0 not applying to the wake path at all, because
+    /// the run it measures was carried straight through the sleep: the
+    /// diagnostics timer does not fire while the machine is asleep, so a mic
+    /// that powered down, re-enumerated and came back was still reported as
+    /// having been continuously present since before the sleep — and the resume
+    /// opened it with no settle whatsoever. The wedge recurred after a sleep on
+    /// 0.5.0 with the gate in place and doing nothing. `.unobserved` is the state
+    /// that fixes it; see `AudioDiagnostics.inputAvailability`.
     private func requireSettledInputDevice() throws {
-        guard let present = diagnostics.usableInputFor else {
+        switch diagnostics.inputAvailability {
+        case .absent:
             throw NSError(domain: "LaughCounter", code: 10, userInfo: [
                 NSLocalizedDescriptionKey:
-                    "no input hardware — CoreAudio is offering no input device "
-                    + "that could be opened",
+                    "no input hardware — CoreAudio is offering no default input "
+                    + "device that could be opened",
             ])
-        }
-        guard present >= deviceSettleDelay else {
-            throw NSError(domain: "LaughCounter", code: 11, userInfo: [
-                NSLocalizedDescriptionKey: String(
-                    format: "input device appeared %.0fs ago — letting it finish "
-                        + "enumerating before opening it", present),
+        case .unobserved:
+            // Distinct from "there is no device": there may well be one, and we
+            // decline to open it because we have not been watching it, not
+            // because it is missing. Saying "no input hardware" here would put a
+            // claim about the hardware in the log that nothing had measured —
+            // which is the sin that made every earlier round of this bug take a
+            // reconstruction to diagnose.
+            throw NSError(domain: "LaughCounter", code: 12, userInfo: [
+                NSLocalizedDescriptionKey:
+                    "the input device has not been watched since the machine "
+                    + "slept — checking it for a moment before opening it",
             ])
+        case .present(let seconds):
+            guard seconds >= deviceSettleDelay else {
+                throw NSError(domain: "LaughCounter", code: 11, userInfo: [
+                    NSLocalizedDescriptionKey: String(
+                        format: "input device appeared %.0fs ago — letting it finish "
+                            + "enumerating before opening it", seconds),
+                ])
+            }
         }
     }
 
@@ -463,6 +486,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // What the capture path looked like going *in*, so the log carries both
         // sides of the transition rather than only the transition itself.
         AppLog.shared.log("entering sleep — \(diagnostics.snapshotLine())")
+        // From here until the first post-wake sample we are not watching the
+        // input device — the sampling timer does not fire while the machine is
+        // asleep. Declaring that keeps the settle gate from carrying the
+        // pre-sleep run across the gap and concluding the mic is settled when it
+        // may have re-enumerated in between, which is what made the gate a no-op
+        // on the wake path in 0.5.0.
+        diagnostics.noteObservationInterrupted()
         // stopListening deliberately leaves `listeningIntent` alone: this is a
         // suspend, not "the counter was switched off", and the return path reads
         // that intent to decide whether to switch it back on.
