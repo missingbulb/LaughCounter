@@ -332,6 +332,64 @@ for a device found already present (`witnessedArrival == false`), and a real
 duration only for one seen to arrive — which is exactly the wedge case the gate
 exists for, and still gets its full settle window.
 
+### A continuity claim cannot span a gap in observation — and sleep is one (#107)
+
+The wedge recurred on 0.5.0, after a sleep, **with the settle gate in place and
+doing nothing**: menu bar on ⚠️ *no signal*, and System Settings → Sound → Input
+showing a dead meter, the same system-wide shape as #88.
+
+The gate was a no-op on the wake path, in both 0.5.0 and the 0.5.1 refinement
+above, for one reason: `usableInputSince` was carried straight *through* the
+sleep. `AudioDiagnostics`' sampling timer does not fire while the machine is
+asleep, so a mic that powered down, re-enumerated and came back was still
+reported as having been continuously present since before the sleep — in 0.5.0 as
+a long elapsed run, in 0.5.1 as `.greatestFiniteMagnitude` via
+`witnessedArrival == false`. Either way `requireSettledInputDevice()` passed
+instantly and the resume opened the device with **zero** settle: precisely the
+"opened it in the same second it appeared" hazard the gate was added to stop, on
+precisely the transition it was built for.
+
+The reusable shape, and the one to check against any future "it has been X for N
+seconds" state: **a duration is a claim about a span you observed, so it is only
+as good as the observation behind it.** The previous section established that
+"already present when we started watching" needs no settle window; the missing
+half is that the clause only holds *while you are still watching*. A blind spot
+inside the run invalidates the whole run, because what the run asserts —
+"nothing happened to this device" — is exactly what a blind spot cannot support.
+
+So `AudioDiagnostics` tracks observation as its own state:
+
+- **`inputAvailability` is a three-state enum, not a duration-or-nil.**
+  `.absent` ("no default input device worth opening") and `.unobserved` ("we have
+  not been watching") are different answers and only one of them is about the
+  hardware. Collapsing them would have put an unmeasured claim about the mic into
+  the log — the sin #79 and #88 were both about.
+- **`noteObservationInterrupted()` is called from `willSleep`**, so a sleep is
+  *declared* rather than inferred. Inferring it from elapsed time misses a sleep
+  shorter than the tolerance, and the USB bus is powered down for a short sleep
+  too. The elapsed-time backstop in `sample()` stays for interruptions nobody
+  announces — and it must measure with **`Date()`, not `systemUptime`**, the one
+  place in this file that inverts the usual rule: the span being measured is the
+  span the monotonic clock refuses to count.
+- **The run is keyed on the device's UID**, not on "is anything usable?". A mic
+  swapped for another between two samples is a new arrival that has settled for
+  zero seconds, and a set-level predicate cannot see that happen at all.
+- **`usableInput()` judges the *system default* input**, which is the device
+  `AVAudioEngine` actually opens — a healthy mic behind a broken default is not a
+  mic we can capture from. That also subsumes the old exclude-aggregates rule
+  (our hidden `CADefaultDeviceAggregate` is never the system default) and fixes
+  its collateral damage: a user's deliberately-built aggregate device is a fine
+  thing to capture from, and the old predicate refused it.
+
+**Still unproven, and still the whole question:** that opening a device
+mid-enumeration is what wedges it. This recurrence is *consistent* with the
+theory — the gate meant to prevent it was inert across sleep, which is when the
+wedge keeps happening — but consistency is not proof, and the same recurrence is
+equally consistent with the gate being irrelevant. What it does settle is
+narrower and worth keeping separate: **the mitigation shipped in 0.5.0 was never
+actually exercised on the wake path**, so 0.5.0 recurring says nothing about
+whether the mitigation works. The next recurrence is the first one that will.
+
 ## Diagnostics must not assume a toolchain on the owner's Mac
 
 The Mac running LaughCounter installs the DMG from CI and has **no Xcode command

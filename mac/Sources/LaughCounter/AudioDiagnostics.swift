@@ -51,6 +51,13 @@ final class AudioDiagnostics {
     /// Routine "everything is fine" line, so the log shows the counter alive
     /// across a long quiet evening rather than going silent and looking dead.
     private let heartbeatInterval: TimeInterval = 600
+    /// How far apart two samples may be before the span between them counts as
+    /// a gap in observation rather than ordinary jitter. Three sample intervals:
+    /// a `.common`-mode timer is not late by fifteen seconds for any benign
+    /// reason, and the gap this exists to catch (system sleep) is never that
+    /// short in practice — the explicit `noteObservationInterrupted()` covers
+    /// the ones that are.
+    private let observationGapTolerance: TimeInterval = 15
 
     // MARK: tap-side counters
     //
@@ -79,11 +86,25 @@ final class AudioDiagnostics {
     /// Start of the current unbroken run of "CoreAudio is offering an input
     /// device we could actually open" (`systemUptime`), nil if it is not.
     private var usableInputSince: TimeInterval?
+    /// UID of the device `usableInputSince` refers to. The run is per *device*,
+    /// not per "some device or other": a mic swapped for another between two
+    /// samples is a brand-new arrival that has settled for exactly zero seconds,
+    /// and a set-level "is anything usable?" answer cannot see that happen.
+    private var usableInputUID: String?
     /// Whether we actually *saw* the current input device arrive, as opposed to
     /// finding it already there when sampling began. Only a witnessed arrival
     /// can be mid-enumeration from our point of view, so only a witnessed
     /// arrival has a settle time worth waiting out.
     private var witnessedArrival = false
+    /// Wall-clock stamp of the last sample, or nil once observation is *known*
+    /// to have been interrupted (the machine slept). Deliberately `Date()` and
+    /// not `systemUptime`, which is the opposite of every other clock in this
+    /// file and for a reason that only applies here: this measures the span
+    /// during which we were **not** looking, and the largest such span is system
+    /// sleep — precisely the span `systemUptime` does not advance across. Using
+    /// the monotonic clock would make a two-hour sleep indistinguishable from no
+    /// gap at all.
+    private var lastObservation: Date?
     private var lastHeartbeat: TimeInterval = 0
     private var lastDevices: [InputDevice] = []
     private var activeFormat: AVAudioFormat?
@@ -121,8 +142,30 @@ final class AudioDiagnostics {
     /// What the capture path is currently believed to be doing. Main-thread only.
     private(set) var health: Health = .ok
 
+    /// What we can honestly say about the input device we would actually open.
+    ///
+    /// Three states rather than a duration-or-nil, because "there is no device"
+    /// and "we have not been watching" are different answers that need different
+    /// words: only one of them is about the hardware.
+    enum InputAvailability: Equatable {
+        /// CoreAudio is offering no default input device that could be opened.
+        /// Named `absent` rather than `none` so it can never be mistaken —
+        /// by a reader or by type inference in an optional context — for
+        /// `Optional.none`.
+        case absent
+        /// There is a gap in our observation — the machine slept, or sampling
+        /// stopped for long enough that we cannot vouch for what happened in
+        /// between. Says nothing about whether a device is there; says that any
+        /// "continuously present for N seconds" claim would be made up.
+        case unobserved
+        /// A device we could open has been continuously present, as *observed*,
+        /// for this long. `.greatestFiniteMagnitude` means it was already there
+        /// when we started watching, i.e. settled as far as anyone can tell.
+        case present(for: TimeInterval)
+    }
+
     /// How long CoreAudio has *continuously* been offering an input device we
-    /// could actually open, or nil if it is not offering one at all.
+    /// could actually open.
     ///
     /// This exists so nothing else has to build an `AVAudioEngine` to find out
     /// whether a microphone is there. Materializing `inputNode` opens the
@@ -140,16 +183,47 @@ final class AudioDiagnostics {
     /// is the other half of the same suspicion.
     ///
     /// A device that was **already present when we started watching** reports
-    /// `.greatestFiniteMagnitude`, i.e. "settled, as far as anyone can tell".
-    /// "It appeared N seconds ago" is a claim that can only be made about an
-    /// arrival we witnessed; a mic that was there before this process existed
-    /// has been there for however long the Mac has been up, and there is no
-    /// enumeration race to lose. Measuring from first *observation* instead made
-    /// every launch refuse for ~19s and look like the app hadn't started. (#100 follow-up)
-    var usableInputFor: TimeInterval? {
-        guard let since = usableInputSince else { return nil }
-        guard witnessedArrival else { return .greatestFiniteMagnitude }
-        return ProcessInfo.processInfo.systemUptime - since
+    /// `.greatestFiniteMagnitude`. "It appeared N seconds ago" is a claim that
+    /// can only be made about an arrival we witnessed; a mic that was there
+    /// before this process existed has been there for however long the Mac has
+    /// been up, and there is no enumeration race to lose. Measuring from first
+    /// *observation* instead made every launch refuse for ~19s and look like the
+    /// app hadn't started. (#100 follow-up)
+    ///
+    /// **"Already there when we started watching" is only true while we have not
+    /// stopped watching**, and system sleep stops us watching — the timer does
+    /// not fire, so the whole sleep is a blind spot in which the mic can power
+    /// down, re-enumerate and come back without a single sample recording it.
+    /// Reporting the pre-sleep run as if it continued made this gate a no-op on
+    /// exactly the transition it was built for: the wake path opened the device
+    /// with no settle at all, which is the "opened it in the same second it
+    /// appeared" hazard #88 added the gate to stop. `.unobserved` is what a gap
+    /// answers with, and the next sample re-establishes the run as a fresh
+    /// witnessed arrival.
+    var inputAvailability: InputAvailability {
+        guard isObserving else { return .unobserved }
+        guard let since = usableInputSince else { return .absent }
+        guard witnessedArrival else { return .present(for: .greatestFiniteMagnitude) }
+        return .present(for: ProcessInfo.processInfo.systemUptime - since)
+    }
+
+    /// Have we looked recently enough for the run above to mean anything?
+    private var isObserving: Bool {
+        guard let last = lastObservation else { return false }
+        return Date().timeIntervalSince(last) <= observationGapTolerance
+    }
+
+    /// Observation is about to stop for an unbounded span — say so, rather than
+    /// leaving it to be inferred from a late sample.
+    ///
+    /// Called from `willSleep`. The gap check in `sample()` is the backstop for
+    /// interruptions nobody announces, but a sleep shorter than
+    /// `observationGapTolerance` is still a span in which the USB bus was
+    /// powered down and the mic re-enumerated, and inferring it from elapsed
+    /// time would miss exactly those. A sleep is a blind spot whatever its
+    /// length, so it is declared rather than measured.
+    func noteObservationInterrupted() {
+        lastObservation = nil
     }
 
     // MARK: lifecycle
@@ -161,11 +235,14 @@ final class AudioDiagnostics {
         lastDevices = Self.inputDevices()
         // Seed the availability probe from this first look, because the timer
         // below does not fire until `sampleInterval` has elapsed — so without
-        // this, `usableInputFor` is nil for the app's first five seconds and the
-        // start path refuses on a microphone that is sitting right there. Not a
-        // witnessed arrival: whatever is present now predates us. (#100 follow-up)
-        if Self.hasUsableInput(lastDevices) {
+        // this, the probe reports "not observing" for the app's first five
+        // seconds and the start path refuses on a microphone that is sitting
+        // right there. Not a witnessed arrival: whatever is present now predates
+        // us. (#100 follow-up)
+        lastObservation = Date()
+        if let usable = Self.usableInput(lastDevices) {
             usableInputSince = ProcessInfo.processInfo.systemUptime
+            usableInputUID = usable.uid
             witnessedArrival = false
         }
         let timer = Timer(timeInterval: sampleInterval, repeats: true) { [weak self] _ in
@@ -271,16 +348,35 @@ final class AudioDiagnostics {
             lastDevices = devices
         }
 
+        // Continuity of *observation*, before continuity of the device: a span
+        // in which we took no samples is a span in which the input could have
+        // vanished and come back unseen, so nothing recorded before it can
+        // support a "continuously present since" claim. Dropping the run here
+        // makes the next few lines re-establish it as a witnessed arrival, which
+        // is what earns the device its full settle window.
+        let wasObserving = isObserving
+        lastObservation = Date()
+        if !wasObserving {
+            usableInputSince = nil
+            usableInputUID = nil
+            witnessedArrival = false
+        }
+
         // Track how long a genuinely openable input has been on offer, so the
         // start path can consult this instead of opening a device to find out.
-        if Self.hasUsableInput(devices) {
-            if usableInputSince == nil {
+        // Keyed on the device's UID, so swapping one mic for another between two
+        // samples restarts the clock instead of inheriting the run of the device
+        // that just left.
+        if let usable = Self.usableInput(devices) {
+            if usableInputSince == nil || usable.uid != usableInputUID {
                 // An arrival we watched happen — this one gets a settle window.
                 usableInputSince = now
+                usableInputUID = usable.uid
                 witnessedArrival = true
             }
         } else {
             usableInputSince = nil
+            usableInputUID = nil
             witnessedArrival = false
         }
 
@@ -514,25 +610,32 @@ final class AudioDiagnostics {
         }
     }
 
-    /// Is any of these a device we could actually open and capture from?
+    /// The device we would actually open, if it is in a state where opening it
+    /// could work.
     ///
-    /// Three requirements, and the last two are the ones that bite:
+    /// **The system default input, not "any usable device".** That is the one
+    /// `AVAudioEngine` opens, so it is the only one whose health predicts
+    /// anything: a perfectly good mic sitting behind a broken default input is
+    /// not a mic this app can capture from, and counting it waves a start
+    /// through to fail inside `prepareFormat()` instead of being refused here.
     ///
-    /// - **Not an aggregate.** `CADefaultDeviceAggregate-<pid>-<n>` is the
-    ///   hidden per-client device coreaudiod mints for *us* when we open the
-    ///   default input. Counting it would make the probe report a usable input
-    ///   because we already opened one — true and useless.
-    /// - **A sane format, not mere presence.** Mid-teardown an input lists as
-    ///   `"(unnamed)"/????/0Hz/2ch/alive=y`: readable enough to enumerate and
-    ///   impossible to capture from. A probe that accepts presence waves
-    ///   through starts that cannot succeed — the same trap `outputFormat` set
-    ///   one layer up. (#79)
-    /// - **Alive**, which is the cheap part and the only one anyone remembers.
-    private static func hasUsableInput(_ devices: [InputDevice]) -> Bool {
-        let aggregate = fourCC(UInt32(kAudioDeviceTransportTypeAggregate))
-        return devices.contains {
-            $0.isAlive && $0.sampleRate > 0 && $0.channels > 0
-                && $0.transport != aggregate
+    /// Keying on the default also subsumes the aggregate exclusion this used to
+    /// need. `CADefaultDeviceAggregate-<pid>-<n>` is the hidden per-client
+    /// device coreaudiod mints for *us* when we open the default input, and
+    /// counting it would have reported a usable input *because* we already had
+    /// one open — but it is never the system default, so it can no longer be
+    /// picked. Excluding aggregates by transport type is now wrong as well as
+    /// unnecessary: a user's deliberately-built aggregate device is a perfectly
+    /// good thing to capture from, and can be the default.
+    ///
+    /// **A sane format, not mere presence**, is the requirement that bites.
+    /// Mid-teardown an input lists as `"(unnamed)"/????/0Hz/2ch/alive=y`:
+    /// readable enough to enumerate and impossible to capture from. A probe that
+    /// accepts presence waves through starts that cannot succeed — the same trap
+    /// `outputFormat` set one layer up. (#79)
+    private static func usableInput(_ devices: [InputDevice]) -> InputDevice? {
+        devices.first {
+            $0.isDefault && $0.isAlive && $0.sampleRate > 0 && $0.channels > 0
         }
     }
 
