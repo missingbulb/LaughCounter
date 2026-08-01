@@ -49,7 +49,13 @@ retirement of the legacy central planner it replaces) lives in
   | `fleet`) declares whether the task reaches only its own repo or across the
   owner's repos: a `fleet` task dispatches to the `ready-for-agent-fleet` label so a
   distinct, broader-scoped executor runs it, keeping the fleet-wide session grant
-  off every ordinary project's `ready-for-agent` (self) executor.
+  off every ordinary project's `ready-for-agent` (self) executor. **Declaring
+  `fleet` routes the dispatch; it does not create the routine that runs it** — that
+  second, label-wired routine exists only in the canon repo, and its launcher prompt
+  must end in the word `fleet` (the executor defaults an unnamed scope to `self` and
+  then declines the dispatch as another scope's). Get either wrong and the task fails
+  *silently and forever*: the session stops without commenting, the scheduler re-arms
+  the issue hourly, and nothing ever runs it.
 
 - **Every run is bounded.** An agentic task (`agent_model !== none`) declares
   `agent_execution_timeout` — seconds bounding the agentic run

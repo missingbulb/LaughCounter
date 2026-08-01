@@ -62,6 +62,13 @@ run_step() {
 }
 
 hooklog orchestrator "start"
+# FIRST, and report-only: "can Claudinite run here?" — the mount, the stamp, the
+# pack manifests, the hook targets, the mounted skills, the cron, the migrations
+# registry. It runs ahead of the steps that depend on those things so its output
+# explains their failures rather than trailing them. Never `--strict` here: a
+# non-zero exit makes Claude Code DISCARD this hook's stdout, which would throw
+# away the very report it exists to deliver (and any halt directive with it).
+run_step selftest           node "$corpus/engine/selftest.mjs"
 run_step inject-preferences bash "$here/steps/inject-preferences.sh"
 run_step load-active-prose  node "$corpus/engine/pack_loader/inject-pack-prose.mjs"
 run_step mount-skills       node "$corpus/engine/pack_loader/mount-skills.mjs"
