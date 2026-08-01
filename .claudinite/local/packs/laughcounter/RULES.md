@@ -30,6 +30,20 @@ migration, or a consolidation can collapse the entry points a rule has to cover,
 so when a sweep meets prose a previous sweep left behind, re-derive the objection
 against today's sources instead of trusting the recorded verdict.
 
+**"Already covered by another check" is a claim to test, not to reason out — hand
+the sibling check a violating file before dropping a rule as a duplicate.** Three
+sweeps in a row left `on-device-privacy`'s "the app listens on no socket" as
+prose, each reasoning that an `NWListener` needs `import Network` and
+`no-network-client` already bans that. True of that one API, false of the
+capability: `socket(2)` comes free with `import Foundation` (Darwin is
+re-exported), `NSXPCListener`/`CFSocket*`/`NSSocketPort` are Foundation types, and
+an embedded HTTP server arrives as its own import — a file whose entire content
+was `let fd = socket(AF_INET, SOCK_STREAM, 0)` passed `check_the_world`
+untouched. A ban list only covers the routes whoever wrote it thought of, so the
+routes it misses are invisible to exactly the reasoning that drew it; running it
+against a file that breaks the rule costs a minute and is the only step that can
+disagree with you.
+
 **Write a check as a positive whitelist over an enumerated API surface, not as a
 list of the bad cases.** `single-storage-directory` flags any search-path lookup
 whose directory argument is not the literal `.applicationSupportDirectory`,
