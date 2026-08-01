@@ -19,9 +19,28 @@ improve core canon packs — while **Claudinite itself** also sweeps its core `p
 prose under those paths (each pack's `RULES.md`, and any `SKILL.md` beside them). Never edit a
 read-only mounted canon pack under `.claudinite/shared/`.
 
+## First gate — a working rule, not a product statement
+
+Before asking whether a rule is *testable*, ask whether it belongs to a pack at all: **does it govern
+how we work, or state what the product does?** A pack — canon or local — homes the conventions,
+gotchas and review discipline that recur across tasks whatever the feature happens to be. A rule
+asserting which entities exist, what a surface must render, or that a feature's parts are wired to
+each other is a **requirement**; its home is the project's executable spec and the suite that proves
+it (the full rule lives in
+[generate-project-instructions](../generate-project-instructions/SKILL.md)).
+
+This gate comes **first** because product statements sail through the check-the-world test below —
+"this module must export `X`" has an obvious static signature. Converting one splits a feature's
+definition across two systems and lands half of it in the one no test of the product ever reads.
+Load-bearingness is not the test: a real gap in product coverage is a *requirements* gap.
+
+A product statement already sitting in pack prose is mis-homed, and a sweep is not the place to
+re-home it. **Leave the prose and log it** as a mis-homed rule, the same way an un-checkable
+candidate is logged — never cement it as a check.
+
 ## What to look for — the check-the-world test
 
-For each rule, ask the one question from
+For each rule that cleared the gate, ask the one question from
 [engine/checks/DESIGN.md](../../../../engine/checks/DESIGN.md): **does it constrain a *static
 signature in the repo artifact* — something a post-hoc scan could observe?**
 
@@ -30,6 +49,11 @@ signature in the repo artifact* — something a post-hoc scan could observe?**
 - **No → leave it.** In-flight process (leaves no artifact — "see the test fail first"),
   judgment ("name by scope"), or knowledge whose failure is only visible at runtime (jsdom
   diverging from Chrome). These are why the rule is prose; don't force them.
+
+**A static signature is necessary, not sufficient.** Both shapes the working-discipline rules bar
+— a rule that pins today's code in place, and one derivable from the product's requirements —
+answer *yes* here, so screen every candidate against that bar before converting it. Leave either
+where it is; routing a requirement to the spec and its suite is its own change, not this sweep's.
 
 The check-the-world rule from DESIGN holds: if a rule is always-testable, it was never really
 part of the on-demand skill — it belongs in a pack as a check.

@@ -143,8 +143,12 @@ export function openMaintenanceBranch(pulls, prefix = MAINT_PREFIX) {
 // The escalation predicate (owner, 2026-07-23): agent iff a pending agentic note,
 // or a real change the deterministic converge left non-green. No change, or a
 // green change with no agentic note, stays agentless.
-export function shouldRequestAgent({ pendingCount, meaningfulChange, checksPass }) {
+export function shouldRequestAgent({ pendingCount, meaningfulChange, checksPass, selftestOk = true }) {
   if (pendingCount > 0) return true;
+  // A converged mount that cannot pass its own self-test is the judgment case
+  // whether or not the converge "changed" anything a diff can see: broken
+  // machinery reports no findings precisely because it is not running.
+  if (!selftestOk) return true;
   return Boolean(meaningfulChange) && !checksPass;
 }
 
@@ -239,6 +243,27 @@ function checkTheWorldPasses(root) {
   catch { return false; }
 }
 
+// REHEARSAL MODE (per-project-scheduling rehearsal, #593 phase 0). A run may be
+// pointed at a canon BRANCH instead of its default head, so a canon change can be
+// tried against a real repo before it merges. `CLAUDINITE_CANON_REF` selects the
+// ref; `CLAUDINITE_CANON_URL` a fork.
+//
+// The stamp is the whole reason this needs its own decision rather than an extra
+// clone argument. A branch head is NOT on trunk, and stamping it is precisely the
+// shape vendoring's #328 anti-rewind guard refuses to write over afterwards
+// (`ref-not-on-trunk`, which the sheepdog freshness sweep reads as WEDGED, not
+// late) — a rehearsal would leave the repo unable to baseline ever again. This
+// was not hypothetical: it happened by hand on 2026-07-30, to all thirteen
+// members at once, from a converge run out of an unmerged branch.
+//
+// So a rehearsal stamps NOTHING. It converges, it reports, and it leaves the
+// member's provenance exactly as it found it.
+export function canonSource(env = {}) {
+  const ref = String(env.CLAUDINITE_CANON_REF ?? '').trim();
+  const url = String(env.CLAUDINITE_CANON_URL ?? '').trim() || CANON_URL;
+  return { url, ref: ref || null, rehearsal: Boolean(ref) };
+}
+
 // Why the PR-open POST must be status-checked, as a pure predicate: null when
 // the PR was created, else the message to fail on.
 //
@@ -280,6 +305,16 @@ export function pullCreateError(status, json) {
 export function deliveryAction({ delivery, hasPrCi }) {
   if (delivery !== 'auto-merge') return 'none';
   return hasPrCi ? 'arm' : 'merge';
+}
+
+// Run the engine's self-test against the converged tree; true when the machinery
+// is intact. Same soft shape as checkTheWorldPasses — a missing selftest (an
+// older mount that predates it) is not a failure, it is nothing to run.
+function selfTestPasses(root) {
+  const st = join(root, '.claudinite/shared/engine/selftest.mjs');
+  if (!existsSync(st)) return true;
+  try { node([st, '--strict'], { CLAUDE_PROJECT_DIR: root }); return true; }
+  catch { return false; }
 }
 
 // Deliver the converge as one commit on the per-cycle maintenance branch, native
@@ -466,10 +501,17 @@ export async function main() {
   // 1. Fetch canon at head as a ROOTLESS tree (drop .git so apply-vendor-set's
   //    ancestry guards skip — a shallow clone can't answer them, and it is head
   //    by construction).
+  const source = canonSource(process.env);
   const tmp = mkdtempSync(join(tmpdir(), 'claudinite-canon-'));
-  git(['clone', '--depth', '1', CANON_URL, tmp]);
+  git(source.ref
+    ? ['clone', '--depth', '1', '--branch', source.ref, source.url, tmp]
+    : ['clone', '--depth', '1', source.url, tmp]);
   const headSha = git(['-C', tmp, 'rev-parse', 'HEAD']).trim();
   rmSync(join(tmp, '.git'), { recursive: true, force: true });
+  if (source.rehearsal) {
+    console.log(`baselining: REHEARSAL against ${source.url}@${source.ref} (${headSha.slice(0, 8)}) — `
+      + 'the stamp will be restored, and nothing is delivered');
+  }
 
   // 2-4. Deterministic converge: mount + stamp, then wiring, then mechanical notes.
   node([join(tmp, 'vendoring/apply-vendor-set.mjs'), '--target', root, '--ref', headSha]);
@@ -512,10 +554,41 @@ export async function main() {
   }
   const meaningfulChange = changed.length > 0;
 
+  // 6b. SELF-TEST the converged tree before judging its content. This asks "can
+  //     Claudinite still run here?" — mount, stamp, pack manifests, hook targets,
+  //     mounted skills, cron, migrations registry — and it is the gate that would
+  //     have caught #555 the night it landed: a required manifest field arrived
+  //     with no migration, every consumer pack stopped validating, and because a
+  //     pack that fails validation contributes NO rules, check_the_world went on
+  //     reporting green about a corpus it was no longer running. A content check
+  //     cannot see its own machinery break. This runs on the just-converged tree,
+  //     so it judges what the member is about to live with.
+  const selftestOk = selfTestPasses(root);
+  if (!selftestOk) console.log('baselining: the converged mount FAILED its self-test — requesting the agent');
+
   // 7. Escalation gate: run the conformance checks only when a change happened and
-  //    no agentic note already forces the agent.
+  //    no agentic note already forces the agent. A failed self-test forces it too:
+  //    broken machinery is exactly the judgment case, and merging it would spread
+  //    the breakage to a repo that was working an hour ago.
   const checksPass = (meaningfulChange && !pending.length) ? checkTheWorldPasses(root) : true;
-  const requestAgent = shouldRequestAgent({ pendingCount: pending.length, meaningfulChange, checksPass });
+  const requestAgent = shouldRequestAgent({ pendingCount: pending.length, meaningfulChange, checksPass, selftestOk });
+
+  // 7b. A REHEARSAL stops here. It has done the only thing it was for — converged
+  //     this real repo against a canon BRANCH and asked whether the result still
+  //     works — and now it must leave no trace: no commit, no branch, no PR, and
+  //     above all no stamp. Stamping a branch head would leave the member
+  //     `ref-not-on-trunk`, which the #328 anti-rewind guard then refuses to
+  //     converge over: a rehearsal that wedged the repo it was rehearsing on.
+  //     `git checkout -- .` restores the working tree wholesale, so the mount goes
+  //     back to the vendored snapshot the repo actually runs.
+  if (source.rehearsal) {
+    git(['-C', root, 'checkout', '--', '.']);
+    const verdict = selftestOk && checksPass ? 'PASS' : 'FAIL';
+    console.log(`baselining: rehearsal ${verdict} — selftest ${selftestOk ? 'ok' : 'FAILED'}, `
+      + `checks ${checksPass ? 'green' : 'RED'}, ${changed.length} file(s) would have changed. Working tree restored.`);
+    if (verdict === 'FAIL') process.exit(1);   // the canary's whole purpose: fail the canon PR
+    return;
+  }
 
   // 8. Deliver the converge (only when there's something to land).
   if (meaningfulChange || pending.length) {
