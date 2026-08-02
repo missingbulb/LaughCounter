@@ -28,6 +28,12 @@ after 60 days without repository activity.
 - **Catch up the most recent slot only.** A job that backfills every missed slot turns an outage
   into a storm on recovery; one catch-up evaluation per frequency is the shape that survives a
   multi-day gap.
+- **Spacing two jobs apart is not an ordering.** "B is an hour after A, so A has finished by
+  then" holds only while the fires land on time — and when a poll is dropped, the catch-up run
+  finds *both* due and does them together, which is precisely the run where B most needs A to
+  have gone first. If the order actually matters, assert it in the run: have the run do A and
+  defer B, or have B check for A's result and skip when it is missing. Spacing is a preference;
+  a check is a guarantee.
 - **Pick a minute off `:00`.** Anywhere in `:10–:50` dodges the stampede and stays clear of the
   hour boundary any slot math anchors on; across a fleet, hash the repo name into that band so
   members spread rather than collide.

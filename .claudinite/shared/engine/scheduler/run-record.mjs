@@ -39,8 +39,9 @@ export const TASK_RUN_OUTCOMES = Object.freeze([
   // Its preprocessing failed; the run converged the task to a needs-human issue.
   'failed',
   // Due and past its precondition, but no NEW agent run started: this slot was
-  // already dispatched (exactly-once), or an earlier dispatch is still open
-  // (at-most-one-open). Work that was wanted and did not happen this run.
+  // already dispatched (exactly-once), an earlier dispatch is still open
+  // (at-most-one-open), or another task claimed the run exclusively. Work that
+  // was wanted and did not happen this run.
   'deferred',
 ]);
 
@@ -53,6 +54,12 @@ export const emptyTaskRun = () => Object.fromEntries(TASK_RUN_OUTCOMES.map((o) =
 // is already on the record.
 export function taskRunOutcome(rec) {
   if (!rec.run) return 'skipped';
+  // Another task claimed the run exclusively (planRun). Its precondition DID ask
+  // for work, so this is not a skip — it is the deferred kind: wanted, not done.
+  // Stated ahead of the shape checks below because a deferred record carries none
+  // of the flags they read, and "no dispatch" would otherwise have to mean this by
+  // accident rather than on purpose.
+  if (rec.deferred) return 'deferred';
   if (rec.preprocessResult && !rec.preprocessResult.ok) return 'failed';
   if (rec.inline) return 'preprocess';
   // Agentful. With preprocessing, the agent stage is CONDITIONAL: a task that

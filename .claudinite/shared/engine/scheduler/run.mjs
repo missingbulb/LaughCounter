@@ -90,26 +90,43 @@ export function windowStart(dueTaskSlots, now) {
 // precondition converges to a skip with the error recorded — it never sinks the
 // rest of the run; the CLI escalates a thrown precondition to a workflow-failure
 // issue separately.
+//
+// `exclusive` is the verdict's optional CLAIM ON THE WHOLE RUN (see planRun): a
+// task saying "if I run, I run alone this cycle". Normalized to a boolean here,
+// like every other field, so a precondition that omits it is simply not claiming.
 export function runPrecondition(task, signals, packConfig) {
   try {
     const v = task.decl.precondition(signals, packConfig) ?? {};
     return {
       run: v.run === true,
+      exclusive: v.exclusive === true,
       reason: v.reason ?? '',
       context: Array.isArray(v.context) ? v.context : [],
     };
   } catch (e) {
-    return { run: false, reason: `precondition threw: ${e.message}`, context: [], error: e.message };
+    return { run: false, exclusive: false, reason: `precondition threw: ${e.message}`, context: [], error: e.message };
   }
 }
+
+// What a task deferred by another task's exclusive claim is told, in the run
+// summary and the run record. Generic on purpose — it names the claimant, never
+// what the claimant does, because the engine does not know.
+//
+// "Its next slot", not "the next run": due-ness is `slotTime ∈ (lastSuccess,
+// now]` and this run succeeds, so the watermark moves past the slot that was
+// deferred. A deferred daily task runs tomorrow, a weekly one next week. That is
+// the price of the claim and it is stated where a person reading the run sees it.
+export const deferredByClaim = (claimants) =>
+  `deferred — ${claimants.join(', ')} claimed this run exclusively; this slot is spent, the task runs again at its next slot`;
 
 // A human-readable job-summary line per evaluated task — the observability the
 // old plan.json gave (DESIGN §3.6).
 export function renderSummary(evaluations) {
   return evaluations.map((e) => {
-    const verb = !e.run ? 'skip' : e.inline ? 'run-inline' : e.dispatch?.action ?? 'run';
+    const verb = !e.run ? 'skip' : e.deferred ? 'defer' : e.inline ? 'run-inline' : e.dispatch?.action ?? 'run';
     const forced = e.forced ? ' (forced)' : '';
-    return `- ${e.pack}/${e.task} [${e.slotId}]${forced} ${verb} — ${e.reason || e.dispatch?.reason || ''}`.trimEnd();
+    const claim = e.exclusive ? ' (exclusive)' : '';
+    return `- ${e.pack}/${e.task} [${e.slotId}]${forced}${claim} ${verb} — ${e.deferred || e.reason || e.dispatch?.reason || ''}`.trimEnd();
   }).join('\n');
 }
 
@@ -129,6 +146,32 @@ export function renderSummary(evaluations) {
 // in each precondition is the whole point — every task, canon and local, present
 // and future, is covered by one decision nothing has to opt into, and a task
 // never learns that dormancy exists.
+//
+// THE EXCLUSIVE CLAIM (owner, 2026-08-01). A precondition may return `exclusive: true`
+// alongside `run: true`: "if I run this cycle, I run ALONE". Every other due task
+// whose precondition also said run is deferred — no preprocessing, no dispatch
+// issue, no inline work — and the run does that one task's work and nothing else.
+//
+// This exists because the hourly cron is not hourly (github-actions-scheduling:
+// GitHub drops and delays scheduled fires freely). The daily anchors stage the
+// nightly chain by an HOUR each — baselining at 02:00 converges the mount before
+// the 03:00 and 04:00 tasks read it — and that staging holds only while the fires
+// land roughly on time. A run that fires at 05:40 after three dropped fires finds
+// all four daily slots due at once and dispatches them together, so the task whose
+// whole job is to repair what the others run against runs BESIDE them instead of
+// before them. The claim restores the ordering the anchors were meant to express,
+// on exactly the runs where the anchors failed to.
+//
+// It is deliberately a task's decision and not the engine's: the engine learns
+// "this verdict claims the run", never which task claims or why — the same
+// separation `forcedTaskIds` keeps, and the reason nothing here mentions
+// baselining. A task that never returns `exclusive` cannot be affected as a
+// claimant, only as a deferree.
+//
+// A FORCED task is exempt from deferral (and cannot claim: FORCED_VERDICT carries
+// no `exclusive`). Forcing is an operator decision already made on a hand-started
+// run; a claim silently swallowing the task the operator asked for would make that
+// run do nothing it was started for.
 export async function planRun({
   tasks, schedule, now, lastSuccess, overrides = {}, config = {},
   collectSignals, packConfigFor = () => ({}), existingIssuesFor = async () => [],
@@ -140,15 +183,28 @@ export async function planRun({
   const dueList = computeDueTaskSlots(tasks, schedule, now, lastSuccess, forcedTaskIds(overrides));
   const signals = await collectSignals(signalsUnion(dueList));
 
+  // Pass 1 — every due task's verdict, and nothing else. Preconditions are pure
+  // and cheap, and a claim is only knowable once they have ALL spoken, so no
+  // issue search and no dispatch decision may happen before this pass completes.
+  //
+  // A FORCED task does not consult its precondition at all. "Forced" is a
+  // decision the operator already made, so asking the task whether it agrees is
+  // both redundant and a way for the answer to be no — and a task that could
+  // veto a force would need to know forcing exists, which is exactly the
+  // coupling this mechanism avoids. Nothing in a task declaration mentions
+  // forcing; the engine owns it end to end.
+  const verdicts = dueList.map(({ task, slotId, forced }) => ({
+    task, slotId, forced,
+    pre: forced ? FORCED_VERDICT : runPrecondition(task, signals, packConfigFor(task.pack)),
+  }));
+
+  // The claimants: running tasks that asked for the run to themselves. More than
+  // one is not a conflict to arbitrate — they all run and everything else defers,
+  // which is the only reading that needs no priority order between packs.
+  const claimants = verdicts.filter((v) => v.pre.run && v.pre.exclusive).map((v) => `${v.task.pack}/${v.task.id}`);
+
   const evaluations = [];
-  for (const { task, slotId, forced } of dueList) {
-    // A FORCED task does not consult its precondition at all. "Forced" is a
-    // decision the operator already made, so asking the task whether it agrees is
-    // both redundant and a way for the answer to be no — and a task that could
-    // veto a force would need to know forcing exists, which is exactly the
-    // coupling this mechanism avoids. Nothing in a task declaration mentions
-    // forcing; the engine owns it end to end.
-    const pre = forced ? FORCED_VERDICT : runPrecondition(task, signals, packConfigFor(task.pack));
+  for (const { task, slotId, forced, pre } of verdicts) {
     const rec = {
       pack: task.pack, task: task.id, slotId,
       model: task.decl.agent_model, outcome: task.decl.expected_outcome,
@@ -157,6 +213,17 @@ export async function planRun({
     if (forced) rec.forced = true;
     if (pre.error) rec.error = pre.error;
     if (pre.run) {
+      if (pre.exclusive) rec.exclusive = true;
+      // Deferred by someone else's claim: the record keeps `run: true` (its
+      // precondition DID say there was work) and carries no dispatch, no inline
+      // and no preprocessing flag, so every actor downstream — the CLI action
+      // loop, the run record, the summary — reads it as work that was wanted and
+      // did not happen, not as a skip.
+      if (claimants.length && !pre.exclusive && !forced) {
+        rec.deferred = deferredByClaim(claimants);
+        evaluations.push(rec);
+        continue;
+      }
       // A declared agent_preprocessing runs as a subprocess BEFORE any agent
       // (DESIGN §3) — flagged here (pure) for the summary; the CLI shell executes
       // it. An agentless task is preprocessing-only; an agentful one hands off to
@@ -443,6 +510,17 @@ async function main() {
     existingIssuesFor: (pack, task) => existingIssuesViaSearch(gh, repo, pack, task),
   });
 
+  // An exclusive claim makes this run do ONE task's work and defer the rest, so
+  // say so before the actions rather than leaving it to be inferred from the
+  // per-task summary lines. An unattended run that quietly drops work it was
+  // going to do is one whose history stops explaining itself.
+  const claimed = evaluations.filter((r) => r.exclusive);
+  const deferred = evaluations.filter((r) => r.deferred);
+  if (claimed.length) {
+    console.log(`- ${claimed.map((r) => `${r.pack}/${r.task}`).join(', ')} claimed this run exclusively`
+      + ` — ${deferred.length} other due task(s) deferred to their next slot`);
+  }
+
   // Guarantee the dispatch labels exist before we file any labeled issue — when a
   // task will dispatch OR will run preprocessing (which may converge to
   // needs-human). An idle run pays nothing.
@@ -479,7 +557,10 @@ async function main() {
   };
 
   for (const rec of evaluations) {
-    if (!rec.run) continue;
+    // `deferred` — another task claimed this run exclusively. The record says the
+    // precondition wanted work; this is the one place that decides none of it
+    // happens, so nothing below (preprocessing subprocess, dispatch issue) runs.
+    if (!rec.run || rec.deferred) continue;
     const taskObj = tasks.find((t) => t.pack === rec.pack && t.id === rec.task);
     const decl = taskObj.decl;
 

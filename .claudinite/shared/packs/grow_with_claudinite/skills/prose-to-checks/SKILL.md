@@ -1,23 +1,29 @@
 ---
 name: prose-to-checks
-description: Mine a repo's existing pack prose (RULES.md, SKILL.md) for always-testable rules that were never converted to checks, and convert the strongest ones. Use when auditing packs for convertible rules, or when the growth prose-to-checks sweep runs.
+description: Mine pack prose (RULES.md, SKILL.md) for always-testable rules that were never converted to checks, and convert the strongest ones. Use when auditing packs for convertible rules, when the weekly prose-to-checks sweep runs, or as the upgrade pass over prose a growth-extract run just wrote.
 ---
 
 # Convert existing prose to checks
 
-A completeness-critic over a repo's own packs. The growth *extract* stage converts each **new**
-lesson down the promotion ladder; this pass sweeps the **existing** prose backlog for rules that
-are always-testable but still live only as prose — and converts them, so the packs keep shedding
-context over time instead of only at the moment a rule is first learned. It runs as
-grow_with_claudinite's daily `prose-to-checks-sweep` task, and on demand.
+A completeness-critic over a repo's own packs: prose that is always-testable but was never converted
+becomes a check, so the packs keep shedding context over time instead of only at the moment a rule is
+first learned.
 
-## Scope — the pack paths you were given
+## Two callers, differing only in scope
 
-Work only the **pack paths configured for this repo** (the task passes them in its Context): a
-consuming repo's own **local packs** (`.claudinite/local/packs/`) by default — projects don't
-improve core canon packs — while **Claudinite itself** also sweeps its core `packs/`. Read the
-prose under those paths (each pack's `RULES.md`, and any `SKILL.md` beside them). Never edit a
-read-only mounted canon pack under `.claudinite/shared/`.
+- **The upgrade pass**, as the last step of a
+  [growth-extract](../../tasks/growth-extract/task.md) run: the scope is the prose **that run just
+  wrote**. Extraction already descends the promotion ladder per lesson, but a lesson written as prose
+  under time pressure is exactly where a convertible rule hides, so it gets asked once more before the
+  PR opens. Never widen from here into the standing backlog.
+- **The weekly [prose-to-checks-sweep](../../tasks/prose-to-checks-sweep/task.md)**: the scope is the
+  **standing backlog** — everything under the pack paths configured for this repo, which the task
+  passes in its Context. A consuming repo's own **local packs** (`.claudinite/local/packs/`) by
+  default — projects don't improve core canon packs — while **Claudinite itself** also sweeps its core
+  `packs/`. Read the prose under those paths (each pack's `RULES.md`, and any `SKILL.md` beside them).
+
+Plus on demand, when someone asks. Either way: never edit a read-only mounted canon pack under
+`.claudinite/shared/`. Everything below is identical for both callers.
 
 ## First gate — a working rule, not a product statement
 
@@ -62,6 +68,10 @@ part of the on-demand skill — it belongs in a pack as a check.
 
 Follow the extract stage's check-authoring discipline (the local promotion ladder in
 [extracting-lessons.md](../../extracting-lessons.md)). For each candidate:
+
+> **The upgrade-pass caller lands inside growth-extract's own PR**, which auto-merges after CI — so the
+> see-it-fail fixture is the only gate a converted check gets there. Convert only what you can prove;
+> anything shakier stays prose and waits for the weekly sweep's reviewed PR.
 
 1. **Author the check** in the owning pack (`<pack>/<rule>.mjs`, listed in its `pack.mjs`) — the
    failure message *is* the rule (what / why / fix / `doc:` pointer back to the prose).
@@ -113,5 +123,6 @@ Whether a check covers a rule is a judgment about meaning, so this test is appli
   trimmed prose. Don't "improve" unrelated rules while you're in there.
 - **Never delete a rule you didn't convert** — the deletion test is only ever asked of a rule a
   *landed* check now enforces.
-- Run the suite and the sweep green before opening the PR; open it for the owner's approval,
-  never a direct push to `main`.
+- Run the suite and the sweep green before the PR goes up, and never push to `main` directly. The
+  sweep opens its own PR for the owner's approval; the upgrade pass adds its conversion to the
+  growth-extract PR already being opened, and opens none of its own.

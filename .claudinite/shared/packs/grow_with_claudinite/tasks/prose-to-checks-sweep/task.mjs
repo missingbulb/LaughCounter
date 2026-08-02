@@ -13,22 +13,25 @@ const DEFAULT_PACK_PATHS = ['.claudinite/local/packs'];
 
 export default {
   id: 'prose-to-checks-sweep',
-  frequency: 'daily',                    // works the standing backlog a slice at a time
+  frequency: 'weekly',                   // works the STANDING backlog a slice at a time — see the cadence note below
   precondition_signals: [],              // the backlog is standing prose, not a windowed signal
   agent_model: 'opus',                   // judging convertibility and authoring checks + fixtures is heavy judgment
   expected_outcome: 'open-pr',           // converts prose to checks in an owner-approved PR (a check can break CI, so it's reviewed)
   agent_instructions: 'task.md',
   agent_execution_timeout: 2700,         // reading the packs + authoring a check with fixtures — generous bound
 
-  // Fires daily. The pack paths to sweep come from this pack entry's `pack_paths`
-  // config (default: the repo's own local packs); the canon overrides it to add its
-  // core `packs/`. The worker works whatever convertible prose remains under those
-  // paths and no-ops cheaply when the backlog is dry.
+  // WEEKLY, not daily. Freshly written prose no longer waits for this task at all:
+  // growth-extract runs the prose-to-checks skill over its OWN additions as the last
+  // step of every capture run, so a convertible rule is converted the night it is
+  // learned. What is left here is the standing backlog — prose that has already
+  // survived at least one upgrade pass — and that set changes on a weekly clock, not
+  // a daily one. Daily re-read the same dry corpus with an opus dispatch and an
+  // owner-gated PR nobody was waiting on.
   precondition(_signals, config) {
     const paths = Array.isArray(config?.pack_paths) && config.pack_paths.length ? config.pack_paths : DEFAULT_PACK_PATHS;
     return {
       run: true,
-      reason: `daily prose-to-checks backlog sweep over ${paths.join(', ')} (no-ops cheaply when dry)`,
+      reason: `weekly prose-to-checks backlog sweep over ${paths.join(', ')} (no-ops cheaply when dry)`,
       context: [`Pack paths to sweep (work ONLY these; never a read-only mounted canon pack under .claudinite/shared/): ${paths.join(', ')}.`],
     };
   },
