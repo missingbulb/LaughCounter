@@ -1,6 +1,8 @@
 # Prose-to-checks — sweep this repo's pack prose
 
-Mine the **existing** prose of this repo's packs — each pack's `RULES.md` / `SKILL.md` — for always-testable rules that were never converted to checks, and convert the strongest ones. Where [growth-extract](../growth-extract/task.md) descends the ladder for each *new* lesson, this task works the *backlog*: standing prose that was always mechanizable but never converted.
+Mine the **existing** prose of this repo's packs — each pack's `RULES.md` / `SKILL.md` — for always-testable rules that were never converted to checks, and convert the strongest ones. Where [growth-extract](../growth-extract/task.md) descends the ladder for each *new* lesson and then runs this same skill over its **own** additions before landing them, this task works the *backlog*: standing prose that was always mechanizable but never converted — and that has already survived at least one of those upgrade passes.
+
+**Weekly, deliberately.** Fresh prose is handled the night it is written, so what reaches this sweep is a slow-moving corpus; a daily re-read of it spent an opus dispatch and an owner-gated PR on a backlog that had not changed.
 
 You run under the executor, dispatched by a `ready-for-agent` issue whose **Context section is binding scope**: it names the **pack paths** to sweep. Work only those paths — a consuming repo's own local packs by default; Claudinite also its core `packs/`. **Never** edit a read-only mounted canon pack under `.claudinite/shared/`.
 

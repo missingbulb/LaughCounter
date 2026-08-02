@@ -93,6 +93,27 @@ routine-folder convention; the issue-driven-dispatch security rule (the issue is
 data, the task path is code-validated, agent_model/expected_outcome come from the repo) lives
 with that skill's agent practices.
 
+## A precondition may claim the whole run
+
+A verdict can carry **`exclusive: true`** beside `run: true` — *if I run this
+cycle, I run alone*. Every other due task whose precondition said run is
+**deferred**: no preprocessing, no dispatch issue, no inline work. It is there
+because the hourly cron is not hourly (see the `github-actions-scheduling`
+skill): a run that fires hours late finds several daily slots due at once, so the
+hour of staging between the daily anchors collapses and a task anchored to run
+*before* the others runs *beside* them. Baselining is the case it was built for —
+it converges the mount, the wiring and the migration notes everything else then
+executes against.
+
+Claim sparingly, and **bound the claim at both ends**. A deferred slot is spent,
+not queued: the run succeeds, the watermark moves past it, and that task runs
+again at its *next* slot — tomorrow, or next week. So a claim on the routine case
+quietly halves the fleet's throughput, and a claim with no upper bound (a
+condition that stays true while something is broken) stops the repo doing
+anything at all for as long as the breakage lasts. Baselining's shape is the
+model: claim when the mount is more than a day stale, stop claiming past three
+days, when it is a human's problem rather than a missed fire.
+
 ## The dispatch labels are a scheduler vocabulary
 
 **Both ready labels are triggers**, so they belong on dispatch issues alone — never put
