@@ -1,6 +1,7 @@
+import noCommittedArtifacts from './no-committed-artifacts.mjs';
+
 // LaughCounter's general local pack: the working lessons about this repo that
-// aren't about the on-device-privacy boundary (that one has its own pack). It
-// carries prose only for now.
+// aren't about the on-device-privacy boundary (that one has its own pack).
 //
 // A local pack: declared by hand as `local/laughcounter`, never fingerprinted
 // (detect/marker null).
@@ -14,5 +15,5 @@ export default {
   detect: null,
   marker: null,
   prose: 'RULES.md',
-  worldRules: [],
+  worldRules: [noCommittedArtifacts],
 };

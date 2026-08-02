@@ -16,7 +16,10 @@ shows up as an inflated file count in the diff a reviewer reads. Delete the
 artifacts from the worktree first (or `git clean` them), then drop their ignore
 lines — and read `git diff --cached --stat` after any bulk `git add -A`, not just
 `git status`, since staged additions are exactly what a clean `git status` stops
-telling you about.
+telling you about. The `no-committed-artifacts` check holds the artifact half
+mechanically (it sees untracked-but-no-longer-ignored files too, so it fires
+before the commit exists); the `git add -A` reading habit is broader than any
+artifact list and stays yours.
 
 **"Not statically checkable" is a verdict about the tree's shape at the time, not
 about the rule — re-ask it after the tree changes.** `on-device-privacy`'s
