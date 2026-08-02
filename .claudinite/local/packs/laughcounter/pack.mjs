@@ -9,7 +9,8 @@ export default {
   ruleRoutingGuidance: {
     belongs:
       "LaughCounter's general working lessons about this repo, its build, its macOS packaging, and how its own local-pack checks are authored",
-    excludes: 'the on-device privacy boundary — that is on-device-privacy',
+    excludes:
+      "the on-device privacy boundary (on-device-privacy) and the microphone's lifecycle (macos-audio-lifecycle)",
   },
   detect: null,
   marker: null,
