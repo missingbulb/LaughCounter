@@ -17,7 +17,7 @@ To post a **status update** on an issue (the lifecycle's "update the issue's sta
 
 While working a branch, commit frequently rather than landing one big commit at the end — small, ordered commits let the owner follow the work as it develops. Use commits to *layer* the work in the order you'd want it reviewed:
 
-- Write the failing test(s) first, commit them, **then** implement the feature — so the history shows the contract before the code that satisfies it (and you've seen the test fail before trusting it, per [the engineering-practices skill](../../../basics/skills/engineering-practices/SKILL.md)).
+- Write the failing test(s) first, commit them, **then** implement the feature — so the history shows the contract before the code that satisfies it (and you've seen the test fail before trusting it, per [the basics pack's RULES.md](../../../basics/RULES.md)).
 - Keep any documentation update as its own commit *after* the feature, not folded into it.
 
 There's no cost to a branch carrying many commits when the project uses a **squash** merge to `main` (one commit per PR): the squash collapses them into a single commit on `main`, so `main`'s one-commit-per-PR history is unaffected no matter how granularly the branch is committed.
@@ -74,6 +74,8 @@ A squash-merge creates a new commit on `main` that the branch's own commits are 
 ## A push or PR made with the Actions `GITHUB_TOKEN` does not start another workflow
 
 GitHub suppresses workflow runs triggered by the built-in `GITHUB_TOKEN` to prevent recursion, so a workflow's own `git push` or `gh pr create` won't fire another workflow (e.g. a `test` or cache-refresh workflow). The one exception is `workflow_dispatch` / `repository_dispatch` — which is why an automation pipeline that needs the downstream checks to run must dispatch them explicitly. A run dispatched against a branch executes on its head commit, so its checks still attach to the PR. The same suppression covers a Claude session's own app-scoped pushes: creating a PR through the API does fire its `pull_request` run, but a follow-up push to that PR gets **no** `synchronize` run — so don't wait for checks that will never start on the new head; gate by running the CI commands locally, and rely on the post-merge run (merging through the merge API does fire the `push` workflow on the default branch).
+
+**"Suppressed" is not always "absent", and the difference decides whether a PR can merge.** Where the repo requires approval for a workflow run, GitHub *creates* the `pull_request` run and parks it at conclusion `action_required` with **zero jobs**, waiting for a human "Approve and run" that unattended automation never gets. The run never executes and never reports, yet it still counts against the PR: `mergeable_state` stays `unstable` and auto-merge refuses to arm, even though the explicitly dispatched run on the same head sha passed. Nothing inside the workflow file can prevent it — `branches`/`branches-ignore` on `pull_request` filter the **base** branch (a bot branch's PR still targets the default branch), and the approval gate is applied to the whole run before any job-level `if` is evaluated. So treat a gated run as **no verdict rather than a failure**, and land the PR on the evidence of the run that actually ran.
 
 ## A workflow definition only takes effect once it's on the default branch
 

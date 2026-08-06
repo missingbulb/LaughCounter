@@ -77,14 +77,22 @@ export function agentRequestPath({ pack, task, slotId }) {
 export function clearAgentRequest(path) { try { rmSync(path, { force: true }); } catch { /* nothing to clear */ } }
 export function agentRequested(path) { return existsSync(path); }
 
-// …AND the artifacts that request refers to. A worker that opened a branch or a PR
-// writes them here as JSON `{ delivered: { branch, pr, merged } }`, and the scheduler
-// records them in the dispatch issue, which is where the agent reads them.
+// …AND the artifacts that request refers to, plus why it was made. A worker writes
+// JSON `{ delivered: { branch, pr, merged }, reason: { code, detail } }`, and the
+// scheduler records both in the dispatch issue, which is where the agent reads them.
 //
 // This is the one thing that crosses the code→agent boundary as data (§3's named
-// exception): identifiers for what this run created — a PR number, a branch ref — never
-// findings and never instructions. Everything else still travels through the repository.
-// A worker that created nothing writes no `delivered`, and the issue then names none.
+// exception): identifiers for what this run created — a PR number, a branch ref — and
+// the NAME of the condition that woke the agent. Never findings and never instructions:
+// `reason.detail` says which gate fired and how many of what, and the findings
+// themselves stay in the repo for the agent to re-run. Everything else still travels
+// through the repository.
+//
+// Both keys are optional and their ABSENCE is meaningful, which is also what keeps an
+// older vendored worker (one that predates a key) working: a worker that created
+// nothing writes no `delivered` and the issue names none; a worker that does not know
+// about `reason` writes none and the issue explains nothing, rather than asserting
+// something false about why the agent is there.
 export function readAgentRequest(path) {
   if (!existsSync(path)) return null;
   const raw = readFileSync(path, 'utf8').trim();

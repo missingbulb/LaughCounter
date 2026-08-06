@@ -159,20 +159,62 @@ export function withheldWorkflowPaths(changedPaths) {
   return (changedPaths ?? []).filter((p) => p.startsWith(UNPUSHABLE_PREFIX));
 }
 
-// The escalation predicate (owner, 2026-07-23): agent iff a pending agentic note,
+// The escalation decision (owner, 2026-07-23): agent iff a pending agentic note,
 // or a real change the deterministic converge left non-green. No change, or a
 // green change with no agentic note, stays agentless.
-export function shouldRequestAgent({ pendingCount, meaningfulChange, checksPass, selftestOk = true, withheldCount = 0 }) {
-  if (pendingCount > 0) return true;
+//
+// It returns the REASON, not a bit — `null` for an agentless night, otherwise
+// `{ code, detail }`. The worker knew which of four conditions fired and then threw
+// it away; the agent it woke re-derived all four from scratch, and on
+// EdFringeAllocator#82 re-derived them WRONG (it reported "preprocessing created
+// nothing" about a cycle that had merged its PR a second earlier) and closed a
+// six-minute run as a no-op. `code` is the stable identifier a consumer branches on;
+// `detail` is the sentence a human reads in the dispatch issue.
+//
+// It names the CONDITION and its counts, never the findings themselves — those stay
+// in the repo for the agent to re-run (DESIGN §3, the no-code→agent-data-channel rule;
+// the named exception is identity, not content).
+//
+// The branch ORDER is the escalation precedence, most-specific first: a night with a
+// pending note and a red check is a note night, because the note is what the agent
+// must apply and the red check may well be the note's own doing.
+export function escalation({
+  pendingCount, meaningfulChange, checksPass, selftestOk = true, withheldCount = 0,
+  checksCrashed = false, selftestCrashed = false,
+}) {
+  if (pendingCount > 0) {
+    return { code: 'agentic-notes', detail: `${pendingCount} pending agentic migration note(s) to apply` };
+  }
   // A withheld workflow file is work this stage COULD not do, not work it chose to
   // leave: without the agent, the file simply never lands, and the converge would
   // report itself clean while the repo stays un-updated.
-  if (withheldCount > 0) return true;
+  if (withheldCount > 0) {
+    return {
+      code: 'withheld-workflows',
+      detail: `${withheldCount} workflow file(s) the Action token cannot push — only the agent's credential can land them`,
+    };
+  }
   // A converged mount that cannot pass its own self-test is the judgment case
   // whether or not the converge "changed" anything a diff can see: broken
   // machinery reports no findings precisely because it is not running.
-  if (!selftestOk) return true;
-  return Boolean(meaningfulChange) && !checksPass;
+  if (!selftestOk) {
+    return selftestCrashed
+      ? { code: 'selftest-could-not-run', detail: 'the converged mount\'s self-test could not run at all — machinery, not content' }
+      : { code: 'selftest-failed', detail: 'the converged mount FAILED its self-test — the machinery that runs the rules is not intact' };
+  }
+  if (Boolean(meaningfulChange) && !checksPass) {
+    return checksCrashed
+      ? { code: 'checks-could-not-run', detail: 'check_the_world could not run on the converged tree — no verdict was produced' }
+      : { code: 'checks-not-green', detail: 'check_the_world reported findings on the converged tree that the deterministic pass could not fix' };
+  }
+  return null;
+}
+
+// The same decision as a bit, for the callers that only need the verdict. Derived
+// rather than reimplemented — two copies of a four-branch precedence is exactly the
+// drift the corpus forbids.
+export function shouldRequestAgent(signals) {
+  return escalation(signals) !== null;
 }
 
 // The scheduler hands the worker a path to signal the agent through; writing it
@@ -263,13 +305,39 @@ async function gh(token, path, { method = 'GET', body } = {}) {
   return { status: res.status, json };
 }
 
-// Run check_the_world against the converged repo; true when it exits clean (no
-// blocking findings). Any non-zero exit / throw means "not green" → judgment left.
-function checkTheWorldPasses(root) {
+// The outcome of running one gate script, from what `node()` threw (or didn't).
+// PURE, so the four shapes are testable without a repo on disk.
+//
+// `catch { return false }` was the whole of this before, and it collapsed four
+// different events into one indistinguishable bit: findings, a crash, a signal kill,
+// and a script that isn't there. `node()` already pipes stdout/stderr, so the
+// findings were in the thrown error's `.stdout` all along and the bare catch dropped
+// them — leaving the escalation they caused unexplainable after the fact
+// (EdFringeAllocator#82: a run that escalated on a check which passes everywhere it
+// can be re-run, with no record of what it saw).
+//
+// `crashed` is the distinction that matters most: a non-zero EXIT is a verdict about
+// the repo's content, while a null status — signal kill, spawn failure — means no
+// verdict was produced at all. Both still escalate to the agent (a gate that cannot
+// answer is not permission to proceed), but they are no longer the same sentence.
+export function gateOutcome(error) {
+  if (!error) return { ok: true, ran: true, crashed: false, status: 0, output: '' };
+  const status = Number.isInteger(error.status) ? error.status : null;
+  const output = `${error.stdout ?? ''}${error.stderr ?? ''}`.trim();
+  return { ok: false, ran: true, crashed: status === null, status, output };
+}
+
+// A gate that isn't vendored at all is nothing to run — not a failure. Distinct from
+// `crashed`, which is a gate that exists and could not answer.
+export const GATE_ABSENT = Object.freeze({ ok: true, ran: false, crashed: false, status: null, output: '' });
+
+// Run check_the_world against the converged repo. Green means it exited clean (no
+// blocking findings); anything else is judgment left, with the reason attached.
+function runCheckTheWorld(root) {
   const cw = join(root, '.claudinite/shared/engine/checks/check_the_world.mjs');
-  if (!existsSync(cw)) return true; // no vendored checks to gate on
-  try { node([cw], { CLAUDE_PROJECT_DIR: root }); return true; }
-  catch { return false; }
+  if (!existsSync(cw)) return GATE_ABSENT; // no vendored checks to gate on
+  try { node([cw], { CLAUDE_PROJECT_DIR: root }); return gateOutcome(null); }
+  catch (e) { return gateOutcome(e); }
 }
 
 // REHEARSAL MODE (per-project-scheduling rehearsal, #593 phase 0). A run may be
@@ -404,14 +472,55 @@ export function failureSummary(runs) {
   return 'no successful run on its head sha';
 }
 
-// Run the engine's self-test against the converged tree; true when the machinery
-// is intact. Same soft shape as checkTheWorldPasses — a missing selftest (an
-// older mount that predates it) is not a failure, it is nothing to run.
-function selfTestPasses(root) {
+// --- landing THIS cycle's PR when the arm could not (#649) --------------------
+// The disposal above is correct and a full day late. On a member whose
+// pull_request run is gated, EVERY cycle's arm fails, so every converge waits for
+// the next cycle to land it — a standing ~24h offset between canon and that
+// member's main, which reads as a mount that is permanently stale.
+//
+// The evidence that settles it does not take a day to arrive: the dispatched run
+// this cycle just started finishes in seconds. So we wait for it, once, and merge
+// on exactly the reasoning disposal uses. Same decision, made now.
+//
+// Bounded and cheap because it only runs where the arm ALREADY failed: a healthy
+// member arms and returns without waiting at all. The bound is well inside
+// `agent_preprocessing_timeout` (900s), and hitting it costs nothing — the PR is
+// simply left for the next cycle, exactly as before this existed.
+export const LAND_TIMEOUT_MS = 180_000;
+export const LAND_POLL_MS = 5_000;
+
+// What one poll of the head sha's runs says to do: `merge`, `poll` again, or
+// `give-up` and leave the PR standing.
+//
+// It NEVER closes. Disposal may close a PR because that PR is last cycle's and
+// this cycle is about to re-cut it; here the PR IS this cycle's delivery, and
+// closing it would throw away the converge that just ran. A red member therefore
+// leaves its PR open for the next cycle to dispose of properly — the behaviour
+// that existed before this, reached deliberately rather than by omission.
+export function landAttempt({ delivery, runs, elapsedMs = 0, timeoutMs = LAND_TIMEOUT_MS }) {
+  const disposition = pullDisposition({ delivery, runs });
+  if (disposition === 'merge') return 'merge';
+  if (disposition === 'wait') return elapsedMs >= timeoutMs ? 'give-up' : 'poll';
+  return 'give-up';
+}
+
+// Run the engine's self-test against the converged tree; green when the machinery
+// is intact. Same soft shape as runCheckTheWorld — a missing selftest (an older
+// mount that predates it) is not a failure, it is nothing to run.
+function runSelfTest(root) {
   const st = join(root, '.claudinite/shared/engine/selftest.mjs');
-  if (!existsSync(st)) return true;
-  try { node([st, '--strict'], { CLAUDE_PROJECT_DIR: root }); return true; }
-  catch { return false; }
+  if (!existsSync(st)) return GATE_ABSENT;
+  try { node([st, '--strict'], { CLAUDE_PROJECT_DIR: root }); return gateOutcome(null); }
+  catch (e) { return gateOutcome(e); }
+}
+
+// What a gate said, for the LOG — the full text, not a summary. This is the one
+// place the findings belong: the Action log is an observability surface nothing
+// reads programmatically, so it carries everything, while the dispatch issue
+// carries only the condition (preprocess.mjs, the §3 exception).
+function logGateOutput(label, outcome) {
+  const body = outcome.output ? `\n${outcome.output}` : ' (no output)';
+  console.log(`baselining: ${label} ${outcome.crashed ? 'COULD NOT RUN' : `exited ${outcome.status}`} —${body}`);
 }
 
 // Deliver the converge as one commit on a FRESH per-cycle maintenance branch,
@@ -507,17 +616,60 @@ async function deliver(root, repo, base, token, delivery, seed, withheld = []) {
     } else if (action === 'arm' && pr.node_id) {
       // Surfaced, not swallowed: a failed arm is why a maintenance PR sits open
       // forever, and the two usual causes are both fixable repo settings.
-      await enableAutoMerge(token, pr.node_id)
-        .catch((e) => console.log(`baselining: could not arm auto-merge on PR #${pr.number}: ${e.message}`
-          + ' — check Settings → General → "Allow auto-merge", and Settings → Actions → General for a'
-          + ' workflow-approval requirement parking this PR\'s pull_request run at action_required.'
-          + ' The next cycle lands it from the runs on this head sha, or closes and re-cuts it'
-          + ' (pullDisposition).'));
+      const armed = await enableAutoMerge(token, pr.node_id).then(() => true)
+        .catch((e) => {
+          console.log(`baselining: could not arm auto-merge on PR #${pr.number}: ${e.message}`
+            + ' — check Settings → General → "Allow auto-merge", and Settings → Actions → General for a'
+            + ' workflow-approval requirement parking this PR\'s pull_request run at action_required.'
+            + ' Waiting for this cycle\'s dispatched run and landing it here.');
+          return false;
+        });
+      // Only where the arm failed. A member that armed is GitHub's to land, and
+      // waiting on it here would add a poll to every healthy repo for nothing.
+      if (!armed && await landNow(token, repo, pr, delivery)) merged = true;
     }
   }
   // What this cycle delivered. The scheduler records it in the dispatch issue, which is
   // the agent's source for these artifacts.
   return { branch, pr: pr?.number ?? null, merged };
+}
+
+// The I/O half of same-cycle landing: poll this PR's head sha until its runs have
+// concluded, then merge on the same evidence disposal would use a day later.
+// Returns true iff it merged. Best-effort throughout — every failure path leaves
+// the PR exactly as the arm left it, which is what the next cycle expects.
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+async function landNow(token, repo, pr, delivery) {
+  const started = Date.now();
+  for (;;) {
+    const { status, json } = await gh(token, `/repos/${repo}/actions/runs?head_sha=${pr.head?.sha ?? ''}&per_page=100`);
+    if (status !== 200) {
+      console.log(`baselining: could not read this cycle's runs for PR #${pr.number} (HTTP ${status}) — leaving it for the next cycle`);
+      return false;
+    }
+    const runs = (json?.workflow_runs ?? []).map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion }));
+    const attempt = landAttempt({ delivery, runs, elapsedMs: Date.now() - started });
+
+    if (attempt === 'poll') { await sleep(LAND_POLL_MS); continue; }
+    if (attempt === 'give-up') {
+      console.log(`baselining: PR #${pr.number} not landable this cycle (${failureSummary(runs)})`
+        + ' — leaving it open for the next cycle to dispose of');
+      return false;
+    }
+
+    const res = await gh(token, `/repos/${repo}/pulls/${pr.number}/merge`, {
+      method: 'PUT', body: { merge_method: 'squash' },
+    });
+    if (res.status === 200) {
+      console.log(`baselining: merged PR #${pr.number} in-cycle — ${mergeReason(runs)}`);
+      await deleteBranch(token, repo, pr.head?.ref);
+      return true;
+    }
+    console.log(`baselining: could not merge PR #${pr.number} (${res.status}: ${res.json?.message ?? 'no message'})`
+      + ' — leaving it for the next cycle');
+    return false;
+  }
 }
 
 // The I/O half of the disposal: read the workflow runs for the open PR's head
@@ -766,17 +918,23 @@ export async function main() {
   //     reporting green about a corpus it was no longer running. A content check
   //     cannot see its own machinery break. This runs on the just-converged tree,
   //     so it judges what the member is about to live with.
-  const selftestOk = selfTestPasses(root);
-  if (!selftestOk) console.log('baselining: the converged mount FAILED its self-test — requesting the agent');
+  const selftest = runSelfTest(root);
+  if (!selftest.ok) {
+    console.log('baselining: the converged mount FAILED its self-test — requesting the agent');
+    logGateOutput('selftest --strict', selftest);
+  }
 
   // 7. Escalation gate: run the conformance checks only when a change happened and
   //    no agentic note already forces the agent. A failed self-test forces it too:
   //    broken machinery is exactly the judgment case, and merging it would spread
   //    the breakage to a repo that was working an hour ago.
-  const checksPass = (meaningfulChange && !pending.length) ? checkTheWorldPasses(root) : true;
-  const requestAgent = shouldRequestAgent({
-    pendingCount: pending.length, meaningfulChange, checksPass, selftestOk, withheldCount: withheld.length,
+  const checks = (meaningfulChange && !pending.length) ? runCheckTheWorld(root) : GATE_ABSENT;
+  if (!checks.ok) logGateOutput('check_the_world', checks);
+  const reason = escalation({
+    pendingCount: pending.length, meaningfulChange, checksPass: checks.ok, selftestOk: selftest.ok,
+    withheldCount: withheld.length, checksCrashed: checks.crashed, selftestCrashed: selftest.crashed,
   });
+  const requestAgent = reason !== null;
 
   // 7b. A REHEARSAL stops here. It has done the only thing it was for — converged
   //     this real repo against a canon BRANCH and asked whether the result still
@@ -788,9 +946,9 @@ export async function main() {
   //     back to the vendored snapshot the repo actually runs.
   if (source.rehearsal) {
     git(['-C', root, 'checkout', '--', '.']);
-    const verdict = selftestOk && checksPass ? 'PASS' : 'FAIL';
-    console.log(`baselining: rehearsal ${verdict} — selftest ${selftestOk ? 'ok' : 'FAILED'}, `
-      + `checks ${checksPass ? 'green' : 'RED'}, ${changed.length} file(s) would have changed. Working tree restored.`);
+    const verdict = selftest.ok && checks.ok ? 'PASS' : 'FAIL';
+    console.log(`baselining: rehearsal ${verdict} — selftest ${selftest.ok ? 'ok' : 'FAILED'}, `
+      + `checks ${checks.ok ? 'green' : 'RED'}, ${changed.length} file(s) would have changed. Working tree restored.`);
     if (verdict === 'FAIL') process.exit(1);   // the canary's whole purpose: fail the canon PR
     return;
   }
@@ -804,18 +962,15 @@ export async function main() {
     console.log('baselining: no change to deliver');
   }
 
-  // 9. Request the agent only when judgment is left (conditional handoff, §3) — and name
-  //    what this run created, which the scheduler records in the dispatch issue for the
-  //    agent to work on. `delivered` stays null when nothing was opened, and the issue
-  //    then names nothing.
+  // 9. Request the agent only when judgment is left (conditional handoff, §3) — naming
+  //    what this run created AND why the agent is being woken. `delivered` stays null
+  //    when nothing was opened, and the issue then names nothing; `reason` is non-null
+  //    exactly when the agent is requested at all.
   if (requestAgent && requestFile) {
-    writeFileSync(requestFile, `${JSON.stringify({ marker: AGENT_REQUEST_MARKER, delivered })}\n`);
+    writeFileSync(requestFile, `${JSON.stringify({ marker: AGENT_REQUEST_MARKER, delivered, reason })}\n`);
   }
-  const why = pending.length ? `${pending.length} agentic note(s)`
-    : withheld.length ? `${withheld.length} withheld workflow file(s)`
-      : 'conformance not green';
   console.log(requestAgent
-    ? `baselining: requested agent stage (${why})`
+    ? `baselining: requested agent stage (${reason.code}: ${reason.detail})`
     : 'baselining: agentless night — deterministic converge delivered, no agent needed');
 }
 

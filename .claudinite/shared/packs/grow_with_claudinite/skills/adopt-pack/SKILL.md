@@ -40,6 +40,19 @@ against the checkout — the same whole-set convergence the on-demand refresh us
 [bootstrap.md](../../../../bootstrap.md) Parts 1 and 4). It rebuilds `shared/` from the new vendor
 set and advances the stamp; sessions never fetch.
 
+Then **refresh the README pack-badge row**, from the mount you just rebuilt:
+
+```
+node .claudinite/shared/engine/scheduler/converge-wiring.mjs <owner/repo> --badges
+```
+
+Declaring a pack is what makes that row wrong, and adoption is the only moment anything derives it —
+the nightly deliberately leaves a repo's README alone, so a row not refreshed here stays stale until
+someone notices by eye. The converge rewrites the row in place between its
+`<!-- claudinite:packs -->` markers, keeping whatever the repo wrote after the closing one, and is a
+no-op when the row is already right. A repo that has deleted its row keeps it deleted only if you
+skip this — dropping the row is a real choice, so don't re-seed one the repo removed on purpose.
+
 ## 4. Scaffold what the pack now demands
 
 A newly active pack may require structure the repo doesn't have yet — deliberately, so the
