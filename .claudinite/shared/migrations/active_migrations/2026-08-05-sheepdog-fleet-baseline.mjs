@@ -9,14 +9,10 @@
 // HOW IT LANDS, since a workflow file is the one thing the nightly cannot push itself:
 // the mechanical apply writes it into the working tree as usual, preprocessing WITHHOLDS
 // it from the commit (the Action's GITHUB_TOKEN may not write `.github/workflows/`, and
-// the refusal would reject the whole ref), and baselining's AGENT stage lands it on the
-// same maintenance branch over MCP — a credential that does hold the `workflows`
-// permission. That is `withheldWorkflowPaths` in the baselining worker plus §2b of its
-// task.md; this record declares WHAT to vendor and stays out of how (#649).
-//
-// This record was written, reverted, and rewritten in one day: the first version predated
-// that mechanism and wedged missingbulb/Sheepdog's every converge on the rejected push.
-// Nothing about the record was wrong — the delivery path underneath it did not exist yet.
+// the refusal would reject the whole ref), and baselining's AGENT stage lands it over MCP
+// — a credential that does hold the `workflows` permission. That is
+// `withheldWorkflowPaths` in the baselining worker plus §2b of its task.md; this record
+// declares WHAT to vendor and stays out of how.
 //
 // STANDING, NOT TRANSITIONAL — hence `retire: 'manual'`, the same shape (and the same
 // reason) as `static-site-vendoring`. There is no old shape to move off: this workflow
@@ -39,10 +35,15 @@ export default {
   landed: '2026-08-05',
   summary: 'sheepdog fleet-baseline workflow kept byte-current in the enforcer repo own .github/',
 
-  // A `packs` entry is either the bare id or `{ id, ... }` — both forms are legal in a
-  // declaration, so both are matched. An unreadable or unparsable declaration means "not
-  // an enforcer as far as this record can tell": skip, never guess a repo into hosting a
-  // fleet-wide lever.
+  // The gate is ONE question — does this repo declare the sheepdog pack. A `packs` entry
+  // is either the bare id or `{ id, ... }`, both legal in a declaration, so both are
+  // matched. An unreadable or unparsable declaration means "not an enforcer as far as this
+  // record can tell": skip, never guess a repo into hosting a fleet-wide lever.
+  //
+  // Whether the member can deliver a workflow file is not asked here — that belongs to the
+  // machinery, not to each record that ships one: `applyMaterializations` skips a
+  // `.github/workflows/` dest unless the running caller announced (WITHHOLD_CAPABLE_ENV)
+  // that it can withhold the path from its push.
   appliesTo: async (read) => {
     const text = await read(DECLARATION);
     if (!text) return false;

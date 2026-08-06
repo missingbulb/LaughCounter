@@ -77,7 +77,14 @@ goes through your GitHub tools.
 
 3. **Dispatch a subagent at the model step 1 printed.** It reads the task file (`task.md`) and
    follows it exactly. The issue's **Context** section is **binding scope** — never re-decide
-   or widen it: if the precondition ruled something out, it stays out. **Give the subagent its
+   or widen it: if the precondition ruled something out, it stays out.
+
+   **The issue also names every artifact this run's preprocessing created** — a `### Delivered
+   by preprocessing` section listing a PR number and branch ref. Pass it to the subagent as
+   given; those are the artifacts it works on, and if the section is absent there are none.
+
+   What the subagent itself creates is recorded the same way: when it opens a PR or a branch,
+   it **comments the number on this dispatch issue**, so a later run finds it by association. **Give the subagent its
    run bound**, from step 1's `executionTimeout` and never from the issue body: *"you have N
    minutes; if you exceed it, stop, comment what's done, and converge this issue to
    `needs-human` rather than pressing on."* Nothing enforces that bound but the subagent

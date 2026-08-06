@@ -76,7 +76,24 @@ export const isDispatchTitle = (title) => parseDispatchTitle(title) !== null;
 // only thing the executor reads to locate the worker; everything below is human
 // framing plus the precondition's binding Context. The Context block is emitted
 // only when the precondition produced lines (an empty scope has nothing to bind).
-export function dispatchBody({ taskPath, pack, task, slotId, context = [] }) {
+// The `### Delivered` section — what this run's preprocessing created, by identity. It is
+// the agent's only source for those artifacts.
+//
+// Absence is meaningful: no section means preprocessing created nothing, so never write a
+// placeholder here.
+export function deliveredLines(delivered) {
+  const { branch = null, pr = null, merged = false } = delivered ?? {};
+  if (!branch && !pr) return [];
+  return [
+    '### Delivered by preprocessing',
+    'The artifacts this run created — the ones to work on.',
+    '',
+    ...(pr ? [`- PR: #${pr}${merged ? ' (already merged — open your own PR for further work)' : ' (open)'}`] : []),
+    ...(branch ? [`- Branch: \`${branch}\``] : []),
+  ];
+}
+
+export function dispatchBody({ taskPath, pack, task, slotId, context = [], delivered = null }) {
   const lines = [taskPath, ''];
   if (context.length) {
     lines.push(
@@ -89,6 +106,8 @@ export function dispatchBody({ taskPath, pack, task, slotId, context = [] }) {
   } else {
     lines.push(`Execute the Claudinite task above (pack \`${pack}\`, task \`${task}\`, slot \`${slotId}\`).`);
   }
+  const del = deliveredLines(delivered);
+  if (del.length) lines.push('', ...del);
   return lines.join('\n') + '\n';
 }
 
