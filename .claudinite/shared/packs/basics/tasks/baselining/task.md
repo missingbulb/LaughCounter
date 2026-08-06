@@ -4,9 +4,9 @@ The deterministic self-refresh already ran. Before you were dispatched, this tas
 **preprocessing** (`worker.mjs`, a code subprocess) converged this repo's
 `.claudinite/shared/` mount to the current canon head, converged the wiring, applied
 the **mechanical** migration notes, and pushed the result as one commit on the
-per-cycle **maintenance PR**. You are here only because it left **residual work that
-needs judgment** — a pending *agentic* migration note, and/or a conformance finding
-the deterministic auto-fix could not resolve. **Do not re-run the mechanical
+per-cycle **maintenance PR**. You are here only because it left **residual work you alone can do** —
+a pending *agentic* migration note, a workflow file its token was not permitted to push
+(§2b), and/or a conformance finding the deterministic auto-fix could not resolve. **Do not re-run the mechanical
 converge** (it is done, in the repo); your job is the judgment remainder, on that
 same PR.
 
@@ -36,6 +36,27 @@ instructions }` note is yours to apply, **oldest first**. Follow each note's own
 adapting this repo's `.claudinite/local/packs/` content to a changed engine contract).
 A note that finds nothing to adapt in THIS repo is a no-op — that is normal and
 correct; never invent a change to justify the run.
+
+## 2b. Land the workflow files preprocessing could not push
+
+Preprocessing pushes with the Action's `GITHUB_TOKEN`, which GitHub never permits to
+create or update a file under `.github/workflows/` — and because the refusal rejects the
+whole ref, the converge **withholds** those paths from its commit rather than losing the
+entire push to them (#649). Your MCP writes go through a credential that *does* hold the
+`workflows` permission, so landing them is yours, and only yours: nothing else in the
+cycle can.
+
+You are not handed the list — preprocessing communicates only through the repository
+(agent-preprocessing DESIGN §3), and the branch is the whole handoff. Rediscover it the
+same way preprocessing produced it: in a checkout of **the maintenance branch**, run
+`node .claudinite/shared/migrations/apply.mjs` (the mechanical apply, idempotent) and
+compare `.github/workflows/` against what it wrote. The commit message on the branch's
+head also names each withheld path, as a cross-check — not as your source of truth.
+
+Commit whatever differs to the **same branch**, via the MCP tools. A cycle that withheld
+nothing leaves nothing to do here, which is the ordinary case: the files are byte-identical
+to their templates and the apply writes nothing at all. Never hand-edit these copies to
+match something else — the template is canon, and the next cycle re-materializes it.
 
 ## 3. Resolve what the deterministic pass left non-green
 

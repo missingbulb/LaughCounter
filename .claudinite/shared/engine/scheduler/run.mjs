@@ -573,6 +573,12 @@ async function main() {
       // spuriously escalate this one.
       const requestPath = agentRequestPath(rec);
       clearAgentRequest(requestPath);
+      // The child's own output is echoed live inside a collapsible Actions group, so
+      // the run log says what the worker did instead of only whether it exited zero.
+      // Grouped because several tasks can preprocess in one run and their output would
+      // otherwise interleave into one unattributable wall; live because a worker killed
+      // at its timeout takes any buffered output with it.
+      console.log(`::group::preprocessing ${rec.pack}/${rec.task} [${rec.slotId}]`);
       const result = await runPreprocessing(decl.agent_preprocessing, {
         taskDir: taskObj.taskDir,
         env: {
@@ -587,11 +593,15 @@ async function main() {
         },
         timeoutSeconds: decl.agent_preprocessing_timeout,
       });
+      console.log('::endgroup::');
       rec.preprocessResult = { ok: result.ok, timedOut: result.timedOut, code: result.code };
       if (!result.ok) {
         const why = preprocessingFailure(result);
         console.log(`! preprocessing ${rec.pack}/${rec.task} [${rec.slotId}]: ${why}`);
         const extra = result.stderr?.trim() ? [`stderr tail: ${result.stderr.trim().split('\n').slice(-3).join(' / ')}`] : [];
+        // Repeat the tail OUTSIDE the group: Actions renders a group collapsed, so a
+        // failure whose only evidence sits inside one still reads as unexplained.
+        for (const line of extra) console.log(`  ${line}`);
         await fileNeedsHuman(rec, why, extra);
         clearAgentRequest(requestPath);
         continue; // never hand off to an agent after a failed preprocessing

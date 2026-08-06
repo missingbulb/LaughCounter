@@ -10,6 +10,15 @@
 // root and slot context are handed in via CLAUDINITE_* env so the worker can act
 // on the whole repo. Nothing the subprocess prints is threaded into the agent —
 // preprocessing communicates only through the repository (DESIGN §3).
+//
+// THE LOG IS NOT THAT CHANNEL. The child's output is ECHOED to the scheduler's own
+// stdout/stderr as it arrives, so the Action log carries what the worker actually
+// did. That is an observability decision, not a data channel: no agent reads the
+// log, and §3's "communicate only through the repository" is untouched. It is echoed
+// LIVE rather than dumped at exit for the case that needs it most — a worker SIGKILLed
+// at its timeout, whose buffered output would otherwise die with it. Before this,
+// a failed worker surfaced as a bare `preprocessing exited 1` plus a three-line
+// stderr tail in an issue, and diagnosing one meant reproducing it by hand.
 
 import { spawn } from 'node:child_process';
 import { existsSync, rmSync } from 'node:fs';
@@ -20,19 +29,28 @@ import { tmpdir } from 'node:os';
 // rejects) with { ok, timedOut, code, signal, stdout, stderr }: `ok` is a clean
 // zero exit that did not time out. `taskDir` is the cwd; `env` is the full
 // environment the child inherits (the caller injects GITHUB_TOKEN + CLAUDINITE_*).
-export function runPreprocessing(command, { taskDir, env, timeoutSeconds }) {
+// `echo` (default on) mirrors the child's output to this process as it arrives —
+// injected rather than hardcoded so a test can capture it instead of polluting the
+// test runner's own output.
+export function runPreprocessing(command, {
+  taskDir, env, timeoutSeconds,
+  echo = (chunk, stream) => (stream === 'stderr' ? process.stderr : process.stdout).write(chunk),
+}) {
   return new Promise((resolve) => {
     const child = spawn(command, { cwd: taskDir, env, shell: true });
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    // Echo is best-effort: a worker's output must never be the thing that fails the
+    // run, so a broken sink is swallowed rather than propagated.
+    const mirror = (chunk, stream) => { try { echo?.(String(chunk), stream); } catch { /* the run matters, the echo does not */ } };
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill('SIGKILL'); // the hard kill — no grace period past the declared bound
     }, timeoutSeconds * 1000);
 
-    child.stdout?.on('data', (d) => { stdout += d; });
-    child.stderr?.on('data', (d) => { stderr += d; });
+    child.stdout?.on('data', (d) => { stdout += d; mirror(d, 'stdout'); });
+    child.stderr?.on('data', (d) => { stderr += d; mirror(d, 'stderr'); });
     // A spawn error (command not found, etc.) is a failure, not a throw.
     child.on('error', (e) => {
       clearTimeout(timer);
