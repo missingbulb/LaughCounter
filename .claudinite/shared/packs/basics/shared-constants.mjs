@@ -51,7 +51,7 @@ const rule = {
   id: 'shared-constants',
   severity: 'blocking',
   description: 'A value copied across files that can\'t share an import must appear the declared number of times in each (and, in regex mode, be identical everywhere)',
-  doc: 'skills/engineering-practices/SKILL.md',
+  doc: 'packs/basics/RULES.md',
   why: 'a value duplicated across files that can\'t share an import drifts silently when a rename or bump lands in some but not all',
 
   run(ctx) {

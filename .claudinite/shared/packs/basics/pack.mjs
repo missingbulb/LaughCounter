@@ -81,7 +81,6 @@ export default {
     'authoring-agent-docs',
     'bug-investigation',
     'bump-version',
-    'engineering-practices',
     'file-placement',
     'repo-text-sweeps',
     'writing-tests',

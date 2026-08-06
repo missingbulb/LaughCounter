@@ -93,7 +93,27 @@ export function deliveredLines(delivered) {
   ];
 }
 
-export function dispatchBody({ taskPath, pack, task, slotId, context = [], delivered = null }) {
+// The `### Why the agent is here` section — which of preprocessing's escalation
+// conditions fired. The worker knows it exactly; without this the agent re-derives it
+// from the repo, and a re-derivation that disagrees with the truth is how a run ends up
+// reporting "preprocessing created nothing" about a cycle that just merged a PR
+// (EdFringeAllocator#82).
+//
+// The condition and its counts, never the findings — those stay in the repo (DESIGN §3).
+// Absence is meaningful here too: a worker too old to name a reason says nothing, and
+// the agent falls back to its task file's own sweep.
+export function escalationLines(reason) {
+  const { code = null, detail = null } = reason ?? {};
+  if (!code && !detail) return [];
+  return [
+    '### Why the agent is here',
+    'The condition preprocessing escalated on. Start here; the findings themselves are in the repo, not this issue.',
+    '',
+    `- ${detail || code}${detail && code ? ` (\`${code}\`)` : ''}`,
+  ];
+}
+
+export function dispatchBody({ taskPath, pack, task, slotId, context = [], delivered = null, reason = null }) {
   const lines = [taskPath, ''];
   if (context.length) {
     lines.push(
@@ -106,6 +126,10 @@ export function dispatchBody({ taskPath, pack, task, slotId, context = [], deliv
   } else {
     lines.push(`Execute the Claudinite task above (pack \`${pack}\`, task \`${task}\`, slot \`${slotId}\`).`);
   }
+  // Why first, then what: the reason is what decides which of the task file's sections
+  // the agent actually needs, and the artifacts are what it does that work on.
+  const why = escalationLines(reason);
+  if (why.length) lines.push('', ...why);
   const del = deliveredLines(delivered);
   if (del.length) lines.push('', ...del);
   return lines.join('\n') + '\n';
@@ -146,16 +170,35 @@ function slotPeriodMs(slotId) {
   return SLOT_PERIOD_MS[String(slotId ?? '')[0]] ?? null;
 }
 
+// GitHub hands labels back as objects on the issues/search APIs and as bare
+// strings in some fixtures; accept either.
+const labelNames = (issue) =>
+  (issue?.labels ?? []).map((l) => (typeof l === 'string' ? l : l?.name)).filter(Boolean);
+
 // Open dispatch issues older than `factor` of their own period (DESIGN §4: ~2
 // periods) — the scheduler's backstop when no executor session drains them. The
 // shell adds the escalation comment + `needs-human` to each. `issue.created_at`
 // is the ISO string GitHub returns; a title that doesn't parse (or an unknown
 // slot kind) is never stale here.
+//
+// ESCALATION IS ONCE. Escalating only adds a label and leaves the issue OPEN, so
+// an issue that already carries `needs-human` still matches every later run —
+// and the shell re-posts the identical comment on each. Skipping the already
+// escalated is what makes "converge to a single visible state" true rather than
+// a state the scheduler keeps re-announcing every hour, forever.
+//
+// A CLAIMED issue is not this sweep's to judge either. `agent-running` means a
+// session engaged; whether that claim is dead is `staleClaimedDispatchIssues`'s
+// question, and it says so in its own words. Without this the two overlap on an
+// old claimed issue, the shell's stale-first ordering wins, and the issue is
+// told "no executor session ran it" about a session that demonstrably ran.
 export function staleDispatchIssues(openIssues = [], now, { factor = 2 } = {}) {
   const nowMs = new Date(now).getTime();
   return openIssues.filter((issue) => {
     const parsed = parseDispatchTitle(issue.title);
     if (!parsed) return false;
+    const names = labelNames(issue);
+    if (names.includes(NEEDS_HUMAN_LABEL) || names.includes(AGENT_RUNNING_LABEL)) return false;
     const period = slotPeriodMs(parsed.slotId);
     if (period === null) return false;
     return nowMs - new Date(issue.created_at).getTime() > factor * period;
@@ -187,11 +230,6 @@ export function staleEscalationComment(issue) {
 // belongs here, where it is a decision in code that runs once per scheduler run.
 
 const READY_LABELS = new Set([READY_LABEL, READY_FLEET_LABEL]);
-
-// GitHub hands labels back as objects on the issues/search APIs and as bare
-// strings in some fixtures; accept either.
-const labelNames = (issue) =>
-  (issue?.labels ?? []).map((l) => (typeof l === 'string' ? l : l?.name)).filter(Boolean);
 
 // The ready label an issue currently carries, or null. Re-arming reapplies THIS
 // one, so a fleet dispatch is never re-armed as a self dispatch (which would hand

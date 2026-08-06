@@ -536,6 +536,9 @@ async function main() {
       context: rec.context,
       // What preprocessing made, by identity — the agent's only source for it.
       delivered: rec.delivered,
+      // …and which of its escalation conditions woke the agent, so the agent does not
+      // have to re-derive that from the repo (and get it wrong).
+      reason: rec.escalationReason,
     });
     // The scope-resolved ready label (self vs fleet) from planDispatch — the
     // executor routine wired to it runs the task.
@@ -616,9 +619,13 @@ async function main() {
       // agent (conditional escalation, §3): a task that absorbs its work into
       // preprocessing stays quiet on the nights nothing needs judgment.
       const requested = agentRequested(requestPath);
-      // Read the payload BEFORE clearing: the artifacts this run created, which the
-      // dispatch issue records so the agent never has to search for them by name.
-      rec.delivered = requested ? readAgentRequest(requestPath)?.delivered ?? null : null;
+      // Read the payload BEFORE clearing: the artifacts this run created and the
+      // condition that woke the agent, which the dispatch issue records so the agent
+      // never has to search for them by name or re-derive why it is there. Both are
+      // null for a worker that named neither — absence is reported as absence.
+      const payload = requested ? readAgentRequest(requestPath) : null;
+      rec.delivered = payload?.delivered ?? null;
+      rec.escalationReason = payload?.reason ?? null;
       clearAgentRequest(requestPath);
       rec.agentRequested = requested;
       console.log(`preprocessing ${rec.pack}/${rec.task} [${rec.slotId}]: ok${rec.inline ? '' : requested ? ' (agent requested)' : ' (no agent needed)'}`);

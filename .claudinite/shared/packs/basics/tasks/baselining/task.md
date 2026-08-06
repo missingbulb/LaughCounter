@@ -17,6 +17,31 @@ migration notes are in your own vendored mount
 (`.claudinite/shared/migrations/active_migrations/`), and the maintenance branch is
 already open. The dispatch issue's **Context** is binding scope — do not widen it.
 
+## 0. Read why you are here
+
+**The dispatch issue names the condition preprocessing escalated on**, under `### Why the
+agent is here`. Preprocessing knew it exactly; that section is it, and it is where your
+run starts:
+
+| `code` | The section that owns it |
+|---|---|
+| `agentic-notes` | §2 — a flagged note is pending |
+| `withheld-workflows` | §2b — a workflow file its token could not push |
+| `selftest-failed` / `selftest-could-not-run` | §3 — the machinery, not the content |
+| `checks-not-green` / `checks-could-not-run` | §3 — a conformance finding |
+
+The named condition is the one guaranteed to hold work, so do that section **first and
+in full**. The others are not skippable — escalation reports only the *first* condition
+that fired, and a notes night can carry a withheld workflow file too — but they are
+verifications rather than a fresh hunt, and each is allowed to come up empty.
+
+Two things the section does **not** carry, by design: the findings themselves (re-run
+the check — §3 says how) and any instruction (this file is the instruction).
+
+**No `### Why` section at all** — an older vendored worker ran, or one that did not name
+a reason. Nothing about the run is asserted, so sweep §2, §2b and §3 in order as if it
+were absent. Never read absence as "no reason to be here".
+
 ## 1. Continue on the open maintenance PR
 
 **The dispatch issue names what preprocessing created**, under `### Delivered by
@@ -80,7 +105,8 @@ re-materializes it.
 
 ## 3. Resolve what the deterministic pass left non-green
 
-If you were dispatched because conformance was not green (no agentic note pending),
+If §0 named `checks-not-green` or `checks-could-not-run` (or you have no `### Why`
+section and no agentic note is pending),
 run this repo's checks (`node .claudinite/shared/engine/checks/check_the_world.mjs`)
 and resolve the blocking findings that need judgment: apply a failing check's own
 `fix` remedy, **never more**. A finding that needs a real decision (not a mechanical
@@ -90,9 +116,11 @@ deterministically by preprocessing; you only touch what a check still flags.
 `convergeWiring`'s set is exactly four surfaces — the scheduler workflow
 `.github/workflows/claudinite-scheduler.yml` (with its hashed cron and the tasks'
 declared secrets), the settings hooks, removal of the retired `CLAUDE.md` corpus
-import, and the README's pack-badge row (with the `badges.readme` knob it
-materializes into `.claudinite-checks.json`, which a repo sets to `"off"` to be left
-alone). Pack-adoption **interview status** is not preprocessing's: unanswered questions
+import, and removal of the retired `badges` setting from `.claudinite-checks.json`.
+**The README is not one of them**: the pack-badge row is seeded once at adoption
+(`converge-wiring --badges`, which baselining never passes) and is the repo's own
+text from then on — so a baselining run producing a README diff is a bug, not
+upkeep. Pack-adoption **interview status** is not preprocessing's: unanswered questions
 surface as a mild SessionStart note (never a finding), and a stale stored answer as
 adopt-claudinite's advisory hygiene check — so interview drift reaches you here, as a
 check finding like any other.
@@ -108,6 +136,18 @@ id, that record's `legacyPresent` probe can never reach zero and its `retire: 'a
 never fires. Where the rewrite should live (preprocessing, a real migration op, or
 nowhere — the engine accepts every form) is an open decision; do not improvise it during
 a nightly run.
+
+**A failed SELF-TEST is a different animal from a check finding**, and it is what §0's
+`selftest-failed` / `selftest-could-not-run` name. `node
+.claudinite/shared/engine/selftest.mjs --strict` asks "can Claudinite run here at all?" —
+mount, stamp, pack manifests, hook targets, mounted skills, cron, migrations registry —
+and a repo that fails it is one whose rules have stopped running, which is precisely why
+`check_the_world` may be green at the same time (a rule that never runs reports nothing).
+Fix what the failing probe's `fix` names and re-run it to green before you trust anything
+§3 says about content. If the probe points at the converge itself rather than at this
+repo's own files, that is a canon bug: file it as an issue and say so on the dispatch
+issue rather than patching the mount by hand — the next cycle re-vendors over any such
+edit.
 
 **One thing preprocessing cannot repair — the executor routine.** The label-wired
 CCR routine that fires on `ready-for-agent` (model `sonnet`, launcher prompt

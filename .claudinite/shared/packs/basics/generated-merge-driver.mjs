@@ -1,6 +1,6 @@
 import { finding } from '../../engine/checks/helpers/findings.mjs';
 
-// Converted from engineering-practices: a GENERATED file gets a `merge=ours`
+// The check behind the engineering-practices rule: a GENERATED file gets a `merge=ours`
 // .gitattributes entry so a conflicting merge resolves automatically instead of
 // being hand-edited (which desyncs it from its source). Directional → advisory.
 function globToRe(glob) {
@@ -13,7 +13,7 @@ const rule = {
   id: 'generated-merge-driver',
   severity: 'advisory',
   description: 'A GENERATED file needs a .gitattributes merge=ours entry',
-  doc: 'skills/engineering-practices/SKILL.md',
+  doc: 'packs/basics/RULES.md',
   why: 'without merge=ours a conflicting merge on a generated file gets hand-resolved and desyncs from its source',
 
   run(ctx) {
