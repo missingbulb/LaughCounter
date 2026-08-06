@@ -21,7 +21,7 @@
 // stderr tail in an issue, and diagnosing one meant reproducing it by hand.
 
 import { spawn } from 'node:child_process';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -76,6 +76,22 @@ export function agentRequestPath({ pack, task, slotId }) {
 }
 export function clearAgentRequest(path) { try { rmSync(path, { force: true }); } catch { /* nothing to clear */ } }
 export function agentRequested(path) { return existsSync(path); }
+
+// …AND the artifacts that request refers to. A worker that opened a branch or a PR
+// writes them here as JSON `{ delivered: { branch, pr, merged } }`, and the scheduler
+// records them in the dispatch issue, which is where the agent reads them.
+//
+// This is the one thing that crosses the code→agent boundary as data (§3's named
+// exception): identifiers for what this run created — a PR number, a branch ref — never
+// findings and never instructions. Everything else still travels through the repository.
+// A worker that created nothing writes no `delivered`, and the issue then names none.
+export function readAgentRequest(path) {
+  if (!existsSync(path)) return null;
+  const raw = readFileSync(path, 'utf8').trim();
+  if (!raw) return {};
+  // A bare marker line (no payload) requests the agent and names no artifacts.
+  try { return JSON.parse(raw); } catch { return {}; }
+}
 
 // A one-line reason for the job summary / an issue comment when preprocessing
 // fails — distinguishing a timeout kill from a non-zero exit.

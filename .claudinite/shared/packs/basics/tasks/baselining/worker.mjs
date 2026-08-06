@@ -143,23 +143,17 @@ export function openMaintenanceBranch(pulls, prefix = MAINT_PREFIX) {
 }
 
 // The paths this stage is STRUCTURALLY UNABLE to deliver. deliver() pushes with the
-// Action's GITHUB_TOKEN, and GitHub refuses to let that token create or update
-// anything under `.github/workflows/` — there is no `permissions:` key that grants it,
-// so this is a wall, not a misconfiguration. Worse, the refusal is remote-side and
-// rejects the WHOLE ref: before this, one workflow file the converge wanted to write
-// failed the entire push, and with it the mount convergence, the wiring and every other
-// note — every cycle, forever, since the converge is idempotent and re-attempted it
-// identically each run (#649, and the live wedge on missingbulb/Sheepdog).
+// Action's GITHUB_TOKEN, and GitHub refuses to let that token create or update anything
+// under `.github/workflows/` — there is no `permissions:` key that grants it. The refusal
+// is remote-side and rejects the WHOLE ref, so a workflow file left in the commit fails
+// the entire push, taking the mount convergence, the wiring and every other note with it.
 //
-// So the converge withholds exactly these paths from its commit and hands them to the
-// AGENT stage, whose writes go through the session's MCP GitHub tools — a different
-// credential, one that does hold the `workflows` permission. Nothing is passed to the
-// agent directly: the branch is the whole handoff, and the agent rediscovers the work by
-// re-running the same mechanical apply in its own checkout (DESIGN §3, no code→agent
-// data channel).
+// So the converge withholds exactly these paths and hands them to the AGENT stage, whose
+// writes go through the session's MCP GitHub tools — a credential that does hold the
+// `workflows` permission. The agent re-runs the same mechanical apply in its own checkout
+// to produce them.
 //
-// This is not only about pack-owned workflows. `convergeWiring` writes the scheduler
-// workflow itself, so a change to that stub was latently the same wedge on every member.
+// It covers `convergeWiring`'s scheduler workflow as much as any pack-owned one.
 export const UNPUSHABLE_PREFIX = '.github/workflows/';
 export function withheldWorkflowPaths(changedPaths) {
   return (changedPaths ?? []).filter((p) => p.startsWith(UNPUSHABLE_PREFIX));
@@ -434,6 +428,7 @@ async function deliver(root, repo, base, token, delivery, seed, withheld = []) {
   const { json: pulls } = await gh(token, `/repos/${repo}/pulls?state=open&per_page=100`);
   const openPr = openMaintenancePull(Array.isArray(pulls) ? pulls : []);
   let pr = null;
+  let merged = false;
 
   if (openPr?.number) {
     // `wait` is the one case that keeps the PR: its checks are still running and
@@ -507,7 +502,7 @@ async function deliver(root, repo, base, token, delivery, seed, withheld = []) {
       const res = await gh(token, `/repos/${repo}/pulls/${pr.number}/merge`, {
         method: 'PUT', body: { merge_method: 'squash' },
       });
-      if (res.status === 200) console.log(`baselining: merged PR #${pr.number} directly — this repo has no pull_request CI to gate on`);
+      if (res.status === 200) { merged = true; console.log(`baselining: merged PR #${pr.number} directly — this repo has no pull_request CI to gate on`); }
       else console.log(`baselining: could not merge PR #${pr.number} (${res.status}: ${res.json?.message ?? 'no message'})`);
     } else if (action === 'arm' && pr.node_id) {
       // Surfaced, not swallowed: a failed arm is why a maintenance PR sits open
@@ -520,7 +515,9 @@ async function deliver(root, repo, base, token, delivery, seed, withheld = []) {
           + ' (pullDisposition).'));
     }
   }
-  return branch;
+  // What this cycle delivered. The scheduler records it in the dispatch issue, which is
+  // the agent's source for these artifacts.
+  return { branch, pr: pr?.number ?? null, merged };
 }
 
 // The I/O half of the disposal: read the workflow runs for the open PR's head
@@ -663,6 +660,9 @@ export async function main() {
   const base = process.env.CLAUDINITE_DEFAULT_BRANCH || 'main';
   const token = process.env.GITHUB_TOKEN;
   const requestFile = process.env.CLAUDINITE_REQUEST_AGENT;
+  // Set by deliver() to `{ branch, pr, merged }`; stays null when this cycle opened
+  // nothing, which is what the dispatch issue then says.
+  let delivered = null;
   if (!repo) { console.error('baselining: no repo (CLAUDINITE_REPO/GITHUB_REPOSITORY)'); process.exit(1); }
   if (!token) { console.error('baselining: no GITHUB_TOKEN in env'); process.exit(1); }
 
@@ -705,7 +705,14 @@ export async function main() {
   // 2-4. Deterministic converge: mount + stamp, then wiring, then mechanical notes.
   node([join(tmp, 'vendoring/apply-vendor-set.mjs'), '--target', root, '--ref', headSha]);
   const wiringOut = node([join(tmp, 'engine/scheduler/converge-wiring.mjs'), repo], { CLAUDINITE_REPO_ROOT: root });
-  node([join(tmp, 'migrations/apply.mjs')], { CLAUDE_PROJECT_DIR: root });
+  // The handshake (migrations/registry.mjs, WITHHOLD_CAPABLE_ENV): THIS worker withholds
+  // workflow paths from its commit and hands them to the agent, so a record may safely
+  // materialize one. An older vendored worker does not set it and the materialization is
+  // skipped instead of wedging its push. Set here, by the code that does the withholding,
+  // because the question is what the RUNNING process can do — and the disk cannot answer
+  // it: apply-vendor-set above has already overwritten this very file with the new
+  // version while this old-or-new code is the thing actually executing.
+  node([join(tmp, 'migrations/apply.mjs')], { CLAUDE_PROJECT_DIR: root, CLAUDINITE_CAN_WITHHOLD_WORKFLOWS: '1' });
 
   // Ask about any declared secret the repo hasn't configured — but only once the
   // wiring is settled. On the cycle that FIRST stamps a name into the workflow the
@@ -791,14 +798,19 @@ export async function main() {
   // 8. Deliver the converge (only when there's something to land).
   if (meaningfulChange || pending.length) {
     const seed = Math.random().toString(36).slice(2, 8);
-    const branch = await deliver(root, repo, base, token, delivery, seed, withheld);
-    console.log(`baselining: delivered converge on ${branch} (${delivery})`);
+    delivered = await deliver(root, repo, base, token, delivery, seed, withheld);
+    console.log(`baselining: delivered converge on ${delivered.branch}${delivered.pr ? ` (PR #${delivered.pr}${delivered.merged ? ', merged' : ''})` : ''} (${delivery})`);
   } else {
     console.log('baselining: no change to deliver');
   }
 
-  // 9. Request the agent only when judgment is left (conditional handoff, §3).
-  if (requestAgent && requestFile) writeFileSync(requestFile, `${AGENT_REQUEST_MARKER}\n`);
+  // 9. Request the agent only when judgment is left (conditional handoff, §3) — and name
+  //    what this run created, which the scheduler records in the dispatch issue for the
+  //    agent to work on. `delivered` stays null when nothing was opened, and the issue
+  //    then names nothing.
+  if (requestAgent && requestFile) {
+    writeFileSync(requestFile, `${JSON.stringify({ marker: AGENT_REQUEST_MARKER, delivered })}\n`);
+  }
   const why = pending.length ? `${pending.length} agentic note(s)`
     : withheld.length ? `${withheld.length} withheld workflow file(s)`
       : 'conformance not green';

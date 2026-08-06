@@ -19,11 +19,17 @@ already open. The dispatch issue's **Context** is binding scope — do not widen
 
 ## 1. Continue on the open maintenance PR
 
-Preprocessing pushed to a per-cycle branch named `claudinite/maintenance-<date>-<seed>`.
-**Find the family's open PR by that head-branch prefix** (`claudinite/maintenance`),
-and make every change below on **its head branch** — never the default branch, never
-a new branch. There is exactly one; if none is open, preprocessing delivered nothing
-this cycle and there is nothing for you to continue — comment that and close.
+**The dispatch issue names what preprocessing created**, under `### Delivered by
+preprocessing` — a PR number and a branch ref. That section is your source for them.
+
+- **A PR marked `(open)`** — make every change below on its head branch. Never the
+  default branch, never a new branch.
+- **A PR marked `(already merged)`** — normal on a repo with no `pull_request` CI, where
+  preprocessing merges in the same run. Its content has landed; further work goes on a
+  fresh PR of your own (§2b says where).
+- **No `### Delivered` section** — preprocessing created nothing this cycle. §2 and §3
+  may still have work; only when §2, §2b and §3 all come up empty is this run a no-op to
+  comment and close.
 
 ## 2. Apply the pending flagged-agentic migration note(s)
 
@@ -42,21 +48,35 @@ correct; never invent a change to justify the run.
 Preprocessing pushes with the Action's `GITHUB_TOKEN`, which GitHub never permits to
 create or update a file under `.github/workflows/` — and because the refusal rejects the
 whole ref, the converge **withholds** those paths from its commit rather than losing the
-entire push to them (#649). Your MCP writes go through a credential that *does* hold the
+entire push to them. Your MCP writes go through a credential that *does* hold the
 `workflows` permission, so landing them is yours, and only yours: nothing else in the
 cycle can.
 
-You are not handed the list — preprocessing communicates only through the repository
-(agent-preprocessing DESIGN §3), and the branch is the whole handoff. Rediscover it the
-same way preprocessing produced it: in a checkout of **the maintenance branch**, run
-`node .claudinite/shared/migrations/apply.mjs` (the mechanical apply, idempotent) and
-compare `.github/workflows/` against what it wrote. The commit message on the branch's
-head also names each withheld path, as a cross-check — not as your source of truth.
+Rediscover the list the same way preprocessing produced it — this part is deterministic,
+not a search: in a checkout of the branch §1 named (or the default branch when its PR
+already merged), run `node .claudinite/shared/migrations/apply.mjs` (the mechanical
+apply, idempotent) and compare `.github/workflows/` against what it wrote. The head
+commit's message also names each withheld path, as a cross-check.
 
-Commit whatever differs to the **same branch**, via the MCP tools. A cycle that withheld
-nothing leaves nothing to do here, which is the ordinary case: the files are byte-identical
-to their templates and the apply writes nothing at all. Never hand-edit these copies to
-match something else — the template is canon, and the next cycle re-materializes it.
+Commit whatever differs, via the MCP tools, and **where it goes depends on what §1's
+`### Delivered` section said**:
+
+- **The PR is `(open)`** — commit to its head branch, so the cycle stays one reviewable
+  change.
+- **The PR is `(already merged)`, or no section at all** — open your own PR against the
+  default branch carrying only these files, and deliver it per this repo's
+  `maintenance.delivery` exactly as §4 describes. This is within the task's `merged-pr`
+  ceiling. **Comment its number on this dispatch issue**, so the next run finds it by
+  association rather than by guessing at its name.
+
+Either way the file must land this cycle. It is not deferrable: preprocessing withholds it
+on *every* run, so leaving it produces a repo that reports a clean converge forever while
+the file never arrives.
+
+A cycle that withheld nothing leaves nothing to do here, which is the ordinary case: the
+files are byte-identical to their templates and the apply writes nothing at all. Never
+hand-edit these copies to match something else — the template is canon, and the next cycle
+re-materializes it.
 
 ## 3. Resolve what the deterministic pass left non-green
 

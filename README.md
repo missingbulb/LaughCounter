@@ -1,7 +1,7 @@
 # 😂 LaughCounter
 
 <!-- claudinite:packs -->
-![basics](../../../../../tmp/claudinite-canon-HAwbjl/packs/basics/badge.svg "basics") ![barriers](../../../../../tmp/claudinite-canon-HAwbjl/packs/barriers/badge.svg "barriers") ![git-github](../../../../../tmp/claudinite-canon-HAwbjl/packs/git-github/badge.svg "git-github") ![grow_with_claudinite](../../../../../tmp/claudinite-canon-HAwbjl/packs/grow_with_claudinite/badge.svg "grow_with_claudinite") ![tidy-repo](../../../../../tmp/claudinite-canon-HAwbjl/packs/tidy-repo/badge.svg "tidy-repo") ![github-actions](../../../../../tmp/claudinite-canon-HAwbjl/packs/github-actions/badge.svg "github-actions")<!-- /claudinite:packs -->
+![basics](../../../../../tmp/claudinite-canon-87qliz/packs/basics/badge.svg "basics") ![barriers](../../../../../tmp/claudinite-canon-87qliz/packs/barriers/badge.svg "barriers") ![git-github](../../../../../tmp/claudinite-canon-87qliz/packs/git-github/badge.svg "git-github") ![grow_with_claudinite](../../../../../tmp/claudinite-canon-87qliz/packs/grow_with_claudinite/badge.svg "grow_with_claudinite") ![tidy-repo](../../../../../tmp/claudinite-canon-87qliz/packs/tidy-repo/badge.svg "tidy-repo") ![github-actions](../../../../../tmp/claudinite-canon-87qliz/packs/github-actions/badge.svg "github-actions")<!-- /claudinite:packs -->
 
 **A thing that listens and counts the laughs.** LaughCounter runs quietly on the
 always-on Mac mini in your living room, listens through a USB/webcam mic, detects
