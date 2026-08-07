@@ -286,8 +286,16 @@ export function ciDispatchPlan(files) {
 
 const git = (args, opts = {}) =>
   execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
-const node = (args, extraEnv = {}) =>
-  execFileSync(process.execPath, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...extraEnv } });
+// `opts` exists for ONE reason: `cwd`. This worker's own cwd is the task dir INSIDE the
+// mount (prework.mjs spawns it there), and step 2 deletes that whole tree before
+// re-copying it — so from the vendor step onward this process is running in an unlinked
+// directory, and every child it spawns inherits it. A child that calls `process.cwd()`
+// dies with `ENOENT … uv_cwd` (#689). Children are therefore pointed at the repo root,
+// which is the directory they were always meant to be working in.
+const node = (args, extraEnv = {}, opts = {}) =>
+  execFileSync(process.execPath, args, {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...extraEnv }, ...opts,
+  });
 
 async function gh(token, path, { method = 'GET', body } = {}) {
   const res = await fetch(`${API}${path}`, {
@@ -336,7 +344,7 @@ export const GATE_ABSENT = Object.freeze({ ok: true, ran: false, crashed: false,
 function runCheckTheWorld(root) {
   const cw = join(root, '.claudinite/shared/engine/checks/check_the_world.mjs');
   if (!existsSync(cw)) return GATE_ABSENT; // no vendored checks to gate on
-  try { node([cw], { CLAUDE_PROJECT_DIR: root }); return gateOutcome(null); }
+  try { node([cw], { CLAUDE_PROJECT_DIR: root }, { cwd: root }); return gateOutcome(null); }
   catch (e) { return gateOutcome(e); }
 }
 
@@ -399,9 +407,41 @@ export function pullCreateError(status, json) {
 // `dispatch` (startable) plus `missing` (PR-triggered but not dispatchable). Both
 // empty means no workflow anywhere runs on a pull_request, so no check will ever
 // appear. That is a fact about the tree, not a race against checks registering.
-export function deliveryAction({ delivery, hasPrCi }) {
+//
+// `gate` is what the BASE BRANCH requires (classifyMergeGate) — the thing
+// GitHub's auto-merge actually queues behind. CI existing was the wrong
+// predicate (#677): on an unprotected base the PR is mergeable the whole time
+// its checks run, so `enablePullRequestAutoMerge` is rejected "clean status"
+// every cycle no matter how green — arming there is doomed, and the delivery
+// goes straight to verify-then-land instead. `unknown` arms: a gate we could
+// not see is never merged past.
+export function deliveryAction({ delivery, hasPrCi, gate = 'unknown' }) {
   if (delivery !== 'auto-merge') return 'none';
-  return hasPrCi ? 'arm' : 'merge';
+  if (!hasPrCi) return 'merge';
+  return gate === 'absent' ? 'land' : 'arm';
+}
+
+// What the base branch requires before a merge, from the two reads the Action's
+// GITHUB_TOKEN can make: the branch's `protected` flag and the ruleset rules
+// that apply to it (deliberately NOT /branches/{base}/protection, which wants
+// admin). Rule types that queue a PR gate it; rules about pushes and deletions
+// do not. An unreadable answer is UNKNOWN, never absent — unknown assumes a
+// gate, so the caller arms rather than merging past a gate it cannot see.
+const GATING_RULE_TYPES = ['pull_request', 'required_status_checks', 'merge_queue', 'required_deployments'];
+export function classifyMergeGate({ branchStatus, branchJson, rulesStatus, rulesJson }) {
+  if (branchStatus !== 200 || typeof branchJson?.protected !== 'boolean') return 'unknown';
+  if (branchJson.protected) return 'present';
+  if (rulesStatus !== 200 || !Array.isArray(rulesJson)) return 'unknown';
+  return rulesJson.some((r) => GATING_RULE_TYPES.includes(r?.type)) ? 'present' : 'absent';
+}
+
+async function readMergeGate(token, repo, base) {
+  const branch = await gh(token, `/repos/${repo}/branches/${encodeURIComponent(base)}`);
+  const rules = await gh(token, `/repos/${repo}/rules/branches/${encodeURIComponent(base)}`);
+  return classifyMergeGate({
+    branchStatus: branch.status, branchJson: branch.json,
+    rulesStatus: rules.status, rulesJson: rules.json,
+  });
 }
 
 // --- Landing a PR the arm could not land (#455/#205/#95) ---------------------
@@ -457,11 +497,13 @@ export function pullDisposition({ delivery, runs }) {
 // to name which shape this was, or the repo misconfiguration behind it stays
 // invisible — and it is a REPO setting, so only a human can retire it.
 export function mergeReason(runs) {
+  // The no-remedy shape names no setting (#677): on a base that requires
+  // nothing, landing here IS the design, and sending an owner to fix something
+  // already correct is worse than saying nothing.
   return (runs ?? []).some((r) => r?.conclusion === 'action_required')
     ? 'its pull_request run is parked at action_required (never ran) while the dispatched run passed'
     + ' — check Settings → Actions → General → workflow-approval requirements'
-    : 'CI concluded green but the auto-merge arm never landed it'
-    + ' — check Settings → General → "Allow auto-merge"';
+    : 'its dispatched checks concluded green and nothing on the base branch queues an auto-merge';
 }
 
 // Why a PR was closed rather than merged — the same visibility argument, for the
@@ -497,7 +539,13 @@ export const LAND_POLL_MS = 5_000;
 // closing it would throw away the converge that just ran. A red member therefore
 // leaves its PR open for the next cycle to dispose of properly — the behaviour
 // that existed before this, reached deliberately rather than by omission.
-export function landAttempt({ delivery, runs, elapsedMs = 0, timeoutMs = LAND_TIMEOUT_MS }) {
+// `expected` is how many verification runs THIS worker dispatched on the head
+// seconds ago. Fewer visible runs than that is the API still registering them —
+// a POLL, never a verdict. Without it, the first read 0.3s after the dispatch
+// found an empty list and judged "nothing will ever verify this", stranding
+// seven members' green PRs in one forced fleet pass (2026-08-07).
+export function landAttempt({ delivery, runs, expected = 0, elapsedMs = 0, timeoutMs = LAND_TIMEOUT_MS }) {
+  if ((runs ?? []).length < expected) return elapsedMs >= timeoutMs ? 'give-up' : 'poll';
   const disposition = pullDisposition({ delivery, runs });
   if (disposition === 'merge') return 'merge';
   if (disposition === 'wait') return elapsedMs >= timeoutMs ? 'give-up' : 'poll';
@@ -510,7 +558,7 @@ export function landAttempt({ delivery, runs, elapsedMs = 0, timeoutMs = LAND_TI
 function runSelfTest(root) {
   const st = join(root, '.claudinite/shared/engine/selftest.mjs');
   if (!existsSync(st)) return GATE_ABSENT;
-  try { node([st, '--strict'], { CLAUDE_PROJECT_DIR: root }); return gateOutcome(null); }
+  try { node([st, '--strict'], { CLAUDE_PROJECT_DIR: root }, { cwd: root }); return gateOutcome(null); }
   catch (e) { return gateOutcome(e); }
 }
 
@@ -606,15 +654,28 @@ async function deliver(root, repo, base, token, delivery, seed, withheld = []) {
   const ci = await dispatchCiRuns(token, repo, branch)
     .catch((e) => { console.log(`baselining: CI dispatch on ${branch} failed: ${e.message}`); return null; });
   const hasPrCi = ci ? ci.dispatch.length + ci.missing.length > 0 : true; // unknown → assume CI, never merge blind
+  // How many verification runs THIS cycle just started on the head — what the
+  // landing poll waits to see registered before it judges anything (landAttempt).
+  const expected = ci?.dispatch.length ?? 0;
 
   if (pr?.number) {
-    const action = deliveryAction({ delivery, hasPrCi });
+    const gate = pr ? await readMergeGate(token, repo, base).catch(() => 'unknown') : 'unknown';
+    const action = deliveryAction({ delivery, hasPrCi, gate });
     if (action === 'merge') {
       const res = await gh(token, `/repos/${repo}/pulls/${pr.number}/merge`, {
         method: 'PUT', body: { merge_method: 'squash' },
       });
       if (res.status === 200) { merged = true; console.log(`baselining: merged PR #${pr.number} directly — this repo has no pull_request CI to gate on`); }
       else console.log(`baselining: could not merge PR #${pr.number} (${res.status}: ${res.json?.message ?? 'no message'})`);
+    } else if (action === 'land') {
+      // The base requires nothing, so auto-merge has no queue to wait behind and
+      // the arm mutation would be rejected "clean status" — every cycle, no
+      // setting to fix (#677). Skip the doomed arm; wait for this cycle's own
+      // dispatched evidence and land on it, the same reasoning disposal uses a
+      // day later. Delivery must land every cycle, not heal next cycle.
+      console.log(`baselining: ${base} requires nothing to merge — skipping the doomed auto-merge arm;`
+        + ` waiting for this cycle's ${expected} dispatched run(s) and landing PR #${pr.number} here`);
+      if (await landNow(token, repo, pr, delivery, expected)) merged = true;
     } else if (action === 'arm' && pr.node_id) {
       // Surfaced, not swallowed: a failed arm is why a maintenance PR sits open
       // forever, and the two usual causes are both fixable repo settings.
@@ -628,7 +689,7 @@ async function deliver(root, repo, base, token, delivery, seed, withheld = []) {
         });
       // Only where the arm failed. A member that armed is GitHub's to land, and
       // waiting on it here would add a poll to every healthy repo for nothing.
-      if (!armed && await landNow(token, repo, pr, delivery)) merged = true;
+      if (!armed && await landNow(token, repo, pr, delivery, expected)) merged = true;
     }
   }
   // What this cycle delivered. The scheduler records it in the dispatch issue, which is
@@ -642,7 +703,7 @@ async function deliver(root, repo, base, token, delivery, seed, withheld = []) {
 // the PR exactly as the arm left it, which is what the next cycle expects.
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
-async function landNow(token, repo, pr, delivery) {
+async function landNow(token, repo, pr, delivery, expected = 0) {
   const started = Date.now();
   for (;;) {
     const { status, json } = await gh(token, `/repos/${repo}/actions/runs?head_sha=${pr.head?.sha ?? ''}&per_page=100`);
@@ -651,7 +712,7 @@ async function landNow(token, repo, pr, delivery) {
       return false;
     }
     const runs = (json?.workflow_runs ?? []).map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion }));
-    const attempt = landAttempt({ delivery, runs, elapsedMs: Date.now() - started });
+    const attempt = landAttempt({ delivery, runs, expected, elapsedMs: Date.now() - started });
 
     if (attempt === 'poll') { await sleep(LAND_POLL_MS); continue; }
     if (attempt === 'give-up') {
