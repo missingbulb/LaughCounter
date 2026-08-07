@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 // Generic scanning helpers for checks. The caller owns which files matter and
 // which tokens are forbidden or required — these helpers only do the walking,
 // so a check that must assert a word's presence or absence over a file set
-// stays a few lines long.
+// stays a few lines long. Nothing here carries content knowledge of its own.
 
 // Every line in `files` where `re` matches: [{ file, line, text }], 1-indexed,
 // ready to anchor findings. Pass a non-global regex.
