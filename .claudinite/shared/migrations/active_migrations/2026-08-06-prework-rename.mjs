@@ -20,6 +20,6 @@ export default {
   summary: 'task contract fields renamed: agent_preprocessing → prework, agent_preprocessing_timeout → prework_timeout (legacy names still accepted, normalized at load)',
   agentic: {
     model: 'haiku',
-    instructions: 'If a local pack task (.claudinite/local/packs/<pack>/tasks/<task>/task.mjs) declares `agent_preprocessing` or `agent_preprocessing_timeout`, rename the keys to `prework` and `prework_timeout` (values unchanged), and update any comments or sibling docs that name the old fields. A member with no such declarations needs nothing.',
+    instructions: 'If a local pack task (.claudinite/local/packs/<pack>/tasks/<task>/task.mjs) declares `agent_preprocessing` or `agent_preprocessing_timeout`, rename the keys to `prework` and `prework_timeout` (values unchanged) — IN LOCKSTEP with every sibling script and test that reads the old keys off the declaration: grep the task folder and the repo tests for `agent_preprocessing` first, and rename every read in the same commit (a worker reading `decl.agent_preprocessing_timeout` after a task.mjs-only rename gets undefined, and an undefined budget fails silently, not loudly). Then update comments and sibling docs. A member with no such declarations needs nothing.',
   },
 };

@@ -41,7 +41,7 @@ export const readyLabelForScope = (scope) => (scope === 'fleet' ? READY_FLEET_LA
 // gha/label-create-before-add principle, enforced in code here.
 export const SCHEDULER_LABELS = [
   { name: READY_LABEL, color: '0e8a16', description: 'Claudinite scheduler: dispatch issue ready for the (self-scoped) executor to run' },
-  { name: READY_FLEET_LABEL, color: '1d76db', description: 'Claudinite scheduler: dispatch issue ready for the FLEET-scoped executor (a task that reaches other repos)' },
+  { name: READY_FLEET_LABEL, color: '1d76db', description: 'Claudinite scheduler: dispatch ready for the FLEET-scoped executor (a task reaching other repos)' },
   { name: AGENT_RUNNING_LABEL, color: 'fbca04', description: 'Claudinite scheduler: the executor has claimed this issue and is running it' },
   { name: NEEDS_HUMAN_LABEL, color: 'd93f0b', description: 'Claudinite scheduler: an anomaly that converged here for human triage' },
   { name: WORKFLOW_FAILURE_LABEL, color: 'b60205', description: 'Claudinite scheduler: a scheduler run or task failed' },
