@@ -4,7 +4,7 @@
 
 ## What it does
 
-Daily: fetch this repo's orphan `conversation-logs` branch, count each capture file still inside the retention window, read the scheduler's own task-run records from its Actions logs since the last fold, and regenerate `.claudinite/local/usage.GENERATED.json` on an auto-merging PR. A byte-identical recompute opens nothing, and a repo with no logs branch yet still folds its task rows.
+Daily: fetch this repo's orphan `conversation-logs` branch, count each capture file still inside the retention window, read the scheduler's own task-run records from its Actions logs since the last fold, and regenerate `.claudinite/local/usage.GENERATED.json` on a PR that lands itself where this repo's delivery settings allow (the shared landing helper, `engine/scheduler/land-pr.mjs`, owns those nuances — a `review` repo's PR waits for the owner). A byte-identical recompute opens nothing, and a repo with no logs branch yet still folds its task rows.
 
 What it counts, per bucket:
 

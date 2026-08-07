@@ -3,8 +3,9 @@
 // it runs the extract-from-activity skill over the window's commits/PRs/issues
 // and the extract-from-conversations skill over the captured conversation logs,
 // then runs prose-to-checks over what it just wrote to see whether any of it
-// upgrades to a check — and lands the whole run through a single PR that
-// auto-merges once the repo's checks pass. Worker: task.md.
+// upgrades to a check — and lands the whole run through a single PR delivered
+// per the repo's delivery settings (task.md → the shared deliver-pr.md
+// procedure). Worker: task.md.
 //
 // The two halves were separate tasks (growth-extract + conversation-extract)
 // firing in the same daily slot, each opening its own PR against the same local
@@ -19,8 +20,8 @@ export default {
   id: 'growth-extract',
   frequency: 'daily-1h',           // the 03:00 slot — lessons captured from an already-converged mount (DESIGN §2)
   precondition_signals: ['commits', 'prs', 'issues', 'conversationLogs'],
-  agent_model: 'opus',                   // generalizing/curating lessons is the heaviest judgment, and auto-merge means no human reviews the PR
-  expected_outcome: 'merged-pr',            // additive edits to the repo's own local packs; arms auto-merge after CI
+  agent_model: 'opus',                   // generalizing/curating lessons is the heaviest judgment, and the default delivery lands the PR with no human review
+  expected_outcome: 'merged-pr',            // additive edits to the repo's own local packs; delivered to land per the repo's delivery settings
   agent_instructions: 'task.md',
   agent_execution_timeout: 2700,            // two source passes plus the prose-to-checks upgrade — generous bound, extreme protection
 

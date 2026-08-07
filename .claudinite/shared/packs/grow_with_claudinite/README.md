@@ -33,7 +33,8 @@ scheduler (`engine/scheduler/discover.mjs`) wherever the pack is declared:
 3. [prose-to-checks](skills/prose-to-checks/SKILL.md) over the prose **that run just wrote**, to see
    whether any of it upgrades to a check before the PR opens.
 
-Everything lands in **one** auto-merging PR. The two extraction halves used to be two tasks firing in
+Everything lands in **one** PR, delivered to land where the repo's delivery settings allow
+(`engine/scheduler/deliver-pr.md`). The two extraction halves used to be two tasks firing in
 the same nightly slot against the same local packs; they share the lesson bar, the promotion ladder
 and the dedup surface ([extracting-lessons.md](extracting-lessons.md)), so the split bought nothing
 and cost a second opus dispatch, a second PR, and two runs deduping against a corpus the other was

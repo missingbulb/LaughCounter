@@ -4,8 +4,9 @@ The growth lifecycle's capture stage, over **both** lesson sources in one run: t
 (commits, merged PRs, issue discussion) and the conversation logs captured from working sessions. Each
 durable, reusable lesson is folded into the repo's own **local packs** (`.claudinite/local/packs/` — the
 normalized capture surface) at the repo's own level, without straining to generalize it. The run lands its
-edits through a PR that **auto-merges once the repo's checks pass** (no human review — daily capture never
-piles up as review requests); finding nothing to add on a given run is a perfectly good outcome.
+edits through a single PR **delivered to land** (on the default delivery settings it merges once the repo's
+checks pass, with no human review — daily capture never piles up as review requests); finding nothing to add
+on a given run is a perfectly good outcome.
 
 You run under the executor, dispatched by a `ready-for-agent` issue whose **Context section is binding
 scope**: it names which halves are live, the substantive commit shas and the PRs/issues touched in the
@@ -13,8 +14,9 @@ window, and whether the retention prune is due. That is the work; do not widen i
 
 > This is the **unattended daily** capture. It writes only the repo's *own* local packs, so — **unlike** an
 > owner-requested, in-session retrospective (which delivers a PR for a human to review) — it opens a PR and
-> **arms auto-merge**: GitHub lands it once the repo's checks pass. The shared canon stays human-gated —
-> lifting anything up into it is the central promote task's job (canon-side), and that PR waits for the owner.
+> **delivers it to land** (the shared procedure under *Output* below; on the default settings GitHub lands it
+> once the repo's checks pass). The shared canon stays human-gated — lifting anything up into it is the
+> central promote task's job (canon-side), and that PR waits for the owner.
 
 ## Conventions used in this doc
 
@@ -22,7 +24,7 @@ window, and whether the retention prune is due. That is the work; do not widen i
 - **Access split — local git for repo content, MCP for the issue/PR API.** The repo's own content is plain
   **local git** in the checkout: the commits, the `conversation-logs` branch and its files
   (`git fetch`/`show`/`rm`/`push`), and staging the lesson edits onto a branch. Reading issue/PR activity,
-  opening the PR and arming its auto-merge, posting the exchange summaries and the tracking-issue log go
+  opening the PR and delivering it, posting the exchange summaries and the tracking-issue log go
   through the session's **GitHub MCP tools** (`mcp__github__*`). The unattended run has no shell GitHub
   access — the shell reaches only a git-over-HTTPS proxy scoped to one repo, with no REST credential — so
   never reach for `gh`/`curl` or a cross-repo clone.
@@ -65,15 +67,19 @@ re-derive any of it here.
 If an edit touches something a test reads (a doc constant, a code path), run the repo's offline test suite
 and keep it green before opening the PR.
 
-## Output: one PR that auto-merges after CI
+## Output: one PR, delivered to land
 
 If the run found at least one genuinely new lesson, it lands **all** of it — both halves, plus any check the
-upgrade pass produced — through a **single auto-merging PR**: one commit for the whole run on a
-per-run-unique branch, not one per lesson and not one per half. Open the PR (title
-`Claudinite growth: extract lessons`, its commit referencing the tracking issue so the `task-lifecycle` gate
-passes) and **arm auto-merge**: GitHub squash-merges it once the repo's checks pass — no human review, so
-daily lesson-capture never floods review requests, while every change still gets a PR trail and a CI gate.
-Where the repo has no CI, GitHub lands it as soon as it's mergeable. This writes only the repo's *own* local
+upgrade pass produced — through a **single PR**: one commit for the whole run on a per-run-unique branch, not
+one per lesson and not one per half. Open the PR (title `Claudinite growth: extract lessons`, its commit
+referencing the tracking issue so the `task-lifecycle` gate passes), then **deliver it by the shared
+procedure — [deliver-pr.md](../../../../engine/scheduler/deliver-pr.md)**. That procedure — never this file —
+owns every landing nuance: it reads this repo's `maintenance.delivery` (a `review` repo's PR waits for the
+owner — still a delivered outcome), arms auto-merge where the repo allows it, and licenses the hand merge
+when the arm is rejected `clean status` (a base branch that requires nothing — GitHub never auto-merges
+there). Do not assume this run's PR merges unreviewed: that is the repo's setting, not this task's. On the
+default settings it squash-merges once the repo's checks pass, so daily lesson-capture never floods review
+requests while every change still gets a PR trail and a CI gate. This writes only the repo's *own* local
 packs (not the shared canon). A run that finds nothing and opens nothing is fine — and common.
 
 A new check must ship green — see it fail on a violating fixture, pass on a clean one — so CI stays green and
@@ -97,7 +103,7 @@ the halves were two tasks keeps it as history — never post to it, never reopen
 
 Deciding whether a lesson is genuinely new and durable — and deduping it against what's already documented —
 is a **judgment call**, not mechanical extraction. A downgraded model adds noise or restates what's there,
-and **auto-merge means no human reviews the PR before it lands** — CI gates correctness, not whether a
+and **on the default delivery no human reviews the PR before it lands** — CI gates correctness, not whether a
 "lesson" earns its keep — so the capable-model requirement matters all the more. This task declares
 `agent_model: opus`; the executor dispatches its subagent there.
 
@@ -115,4 +121,4 @@ and **auto-merge means no human reviews the PR before it lands** — CI gates co
 - **Never delete a log younger than retention, and never delete anything while `retention_days` is unset** —
   deletion is the ack that both passes happened.
 - **Don't add noise** — a duplicate or hallucinated "lesson" is worse than adding nothing, the more so when
-  its PR auto-merges with no human review to catch it.
+  its PR usually lands with no human review to catch it.

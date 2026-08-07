@@ -15,7 +15,8 @@ import dedupIntegrity from './dedup-integrity.mjs';
 // EXTRACTION IS ONE TASK OVER TWO SOURCES. growth-extract (tasks/growth-extract/)
 // runs the extract-from-activity skill over the window's commits/PRs/issues and the
 // extract-from-conversations skill over the captured logs, then the prose-to-checks
-// skill over the prose it just wrote, and lands all of it in one auto-merging PR.
+// skill over the prose it just wrote, and lands all of it in one PR delivered
+// per the repo's delivery settings.
 // The halves were two tasks firing in the same nightly slot against the same local
 // packs; they shared the bar, the ladder and the dedup surface, so the split bought
 // nothing and cost a second opus dispatch, a second PR, and two runs deduping

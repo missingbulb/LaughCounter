@@ -25,7 +25,7 @@ export default {
   frequency: 'daily',                    // day rows are the unit; a day closes once
   precondition_signals: ['conversationLogs'],
   agent_model: 'none',                   // pure code — no agent (task-prework DESIGN §4)
-  expected_outcome: 'merged-pr',         // the regenerated GENERATED aggregate rides an auto-merging PR
+  expected_outcome: 'merged-pr',         // the regenerated GENERATED aggregate rides a PR landed per the repo's delivery settings
   prework: 'node worker.mjs',
   // One tree read plus one blob read per capture file in the ~10-day window, all
   // local git, then one PR. A busy repo captures a few files a day, so this is

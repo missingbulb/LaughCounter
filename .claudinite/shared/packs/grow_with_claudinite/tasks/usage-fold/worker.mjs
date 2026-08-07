@@ -15,8 +15,10 @@
 //      the only one that sees a task that never opened a session at all;
 //   4. fold: day rows recomputed from scratch, task rows appended once, week rows
 //      advanced past the `foldedThrough` watermark (skill-usage-metrics DESIGN §5);
-//   5. deliver the regenerated `.claudinite/local/usage.GENERATED.json` on an
-//      auto-merging PR — and open NOTHING when the recompute is byte-identical.
+//   5. deliver the regenerated `.claudinite/local/usage.GENERATED.json` on a PR
+//      that lands itself where this repo's delivery settings allow (the shared
+//      landing helper owns those nuances — engine/scheduler/land-pr.mjs) — and
+//      open NOTHING when the recompute is byte-identical.
 //
 // The aggregate lives under `.claudinite/local/` because that is the repo-owned area
 // the vendoring refresh never touches; the mount root itself is read-only canon.
@@ -147,7 +149,7 @@ export async function main() {
   }
 
   const pr = await deliverGenerated({
-    root, repo, base, token, stamp: today, branchPrefix: PR_BRANCH_PREFIX,
+    root, repo, base, token, stamp: today, branchPrefix: PR_BRANCH_PREFIX, log,
     files: { [USAGE_PATH]: text, ...(attributes !== null ? { '.gitattributes': attributes } : {}) },
     message: 'Claudinite: fold skill-usage metrics',
     title: 'Claudinite: skill-usage fold',
@@ -163,7 +165,8 @@ export async function main() {
     ].join('\n'),
   });
   log(`${files.length} capture file(s) and ${taskRuns.records.length} task-run record(s) folded — `
-    + `${pr.reused ? 'updated' : 'opened'} PR ${pr.number !== null ? `#${pr.number}` : `on ${pr.branch}`}`);
+    + `${pr.reused ? 'updated' : 'opened'} PR ${pr.number !== null ? `#${pr.number}` : `on ${pr.branch}`}`
+    + `${pr.merged ? ' (landed)' : pr.delivery === 'review' ? ' (left for review)' : ''}`);
 }
 
 // Run only when invoked directly (the scheduler's `node worker.mjs`), never on import.
