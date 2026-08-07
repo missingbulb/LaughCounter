@@ -12,7 +12,7 @@ same PR.
 
 You run under the executor, GitHub writes go through the session's **MCP tools**
 (`mcp__github__*`), and — unlike before — the Claudinite canon is **not** in your
-session (agent-preprocessing DESIGN §7/E5). Everything you need is in THIS repo: the
+session (task-prework DESIGN §7/E5). Everything you need is in THIS repo: the
 migration notes are in your own vendored mount
 (`.claudinite/shared/migrations/active_migrations/`), and the maintenance branch is
 already open. The dispatch issue's **Context** is binding scope — do not widen it.
@@ -45,7 +45,7 @@ were absent. Never read absence as "no reason to be here".
 ## 1. Continue on the open maintenance PR
 
 **The dispatch issue names what preprocessing created**, under `### Delivered by
-preprocessing` — a PR number and a branch ref. That section is your source for them.
+prework` — a PR number and a branch ref. That section is your source for them.
 
 - **A PR marked `(open)`** — make every change below on its head branch. Never the
   default branch, never a new branch.
@@ -152,7 +152,7 @@ edit.
 **One thing preprocessing cannot repair — the executor routine.** The label-wired
 CCR routine that fires on `ready-for-agent` (model `sonnet`, launcher prompt
 `Execute the Claudinite executor: .claudinite/shared/engine/scheduler/executor.md`,
-sources = **this repo alone**, agent-preprocessing DESIGN §7/E5) is not a GitHub
+sources = **this repo alone**, task-prework DESIGN §7/E5) is not a GitHub
 artifact the Action can see. While you're here, verify it still exists — if it is
 gone, re-create it via the trigger API, or (when that API can't wire a label event)
 file the enclosed-config owner issue exactly as bootstrap Part 6 does. A repo whose

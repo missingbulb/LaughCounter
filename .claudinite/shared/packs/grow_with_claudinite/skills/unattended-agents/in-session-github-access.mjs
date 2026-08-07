@@ -24,7 +24,7 @@ import { finding } from '../../../../engine/checks/helpers/findings.mjs';
 // legitimately, so it is never scanned.
 //
 // A scheduled task's `tasks/<name>/` tree is deliberately NOT in scope: a task's
-// `agent_preprocessing` worker.mjs runs as an Action-side subprocess with an
+// `prework` worker.mjs runs as an Action-side subprocess with an
 // injected GITHUB_TOKEN, the one sanctioned non-MCP surface
 // (per-project-scheduling DESIGN §10), so a REST client there is correct, not a
 // smell. The former `run_daily/` arm retired with the central planner (#394): no

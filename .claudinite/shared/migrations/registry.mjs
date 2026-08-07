@@ -138,11 +138,11 @@ export async function applyRewrites(migration, { read, write }) {
   return done;
 }
 
-// A migration record MAY carry a machine-readable AGENTIC note (agent-preprocessing
+// A migration record MAY carry a machine-readable AGENTIC note (task-prework
 // DESIGN §7, the primitive absorbed from #405): member-side adaptation that no
 // script can do — adapting consumer-authored `local/packs/` content to a changed
 // engine contract. Shape: `agentic: { model, instructions }`, model a non-`none`
-// family. baselining's preprocessing reads this to decide whether a pending note
+// family. baselining's prework reads this to decide whether a pending note
 // needs the agent STAGE (and must therefore hold the stamp) rather than converging
 // in code. Returns the validated note, or null when the record carries none;
 // throws on a malformed note so a typo fails loudly instead of silently skipping

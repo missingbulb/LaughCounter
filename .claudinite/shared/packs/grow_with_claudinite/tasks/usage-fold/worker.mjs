@@ -1,5 +1,5 @@
 // The usage-fold preprocessing entry point — the script the scheduler runs as
-// `node worker.mjs` (cwd = this task dir, bounded by agent_preprocessing_timeout).
+// `node worker.mjs` (cwd = this task dir, bounded by prework_timeout).
 // The whole task: no agent, no dispatch issue.
 //
 // It holds NO counting logic. The counting and folding are `fold-usage.mjs`, its

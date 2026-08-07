@@ -1,7 +1,7 @@
-// baselining worker — the DETERMINISTIC self-refresh, as agent_preprocessing
-// (agent-preprocessing DESIGN §7, E4). This is `agent_model: 'sonnet'` with
-// `agent_preprocessing: 'node worker.mjs'`, so the scheduler runs THIS FILE as a
-// subprocess (cwd = this task dir) bounded by `agent_preprocessing_timeout`,
+// baselining worker — the DETERMINISTIC self-refresh, as prework
+// (task-prework DESIGN §7, E4). This is `agent_model: 'sonnet'` with
+// `prework: 'node worker.mjs'`, so the scheduler runs THIS FILE as a
+// subprocess (cwd = this task dir) bounded by `prework_timeout`,
 // BEFORE any agent. It absorbs everything about the nightly refresh that is
 // dependency-free code — so most nights are AGENTLESS and quiet, and an agent is
 // requested only when real judgment is left (owner decision, 2026-07-23):
@@ -484,7 +484,7 @@ export function failureSummary(runs) {
 //
 // Bounded and cheap because it only runs where the arm ALREADY failed: a healthy
 // member arms and returns without waiting at all. The bound is well inside
-// `agent_preprocessing_timeout` (900s), and hitting it costs nothing — the PR is
+// `prework_timeout` (900s), and hitting it costs nothing — the PR is
 // simply left for the next cycle, exactly as before this existed.
 export const LAND_TIMEOUT_MS = 180_000;
 export const LAND_POLL_MS = 5_000;
@@ -547,7 +547,9 @@ async function deliver(root, repo, base, token, delivery, seed, withheld = []) {
       .catch((e) => { console.log(`baselining: disposing of PR #${openPr.number} failed: ${e.message}`); return openPr; });
     if (kept) {
       console.log(`baselining: PR #${openPr.number} still stands — leaving this cycle's converge undelivered`);
-      return kept.head?.ref ?? null;
+      // Same shape as the delivery path below — the caller reads `.branch`/`.pr`
+      // unconditionally, and the bare-ref return this used to make crashed it.
+      return { branch: kept.head?.ref ?? null, pr: kept.number ?? openPr.number, merged: false };
     }
   }
 

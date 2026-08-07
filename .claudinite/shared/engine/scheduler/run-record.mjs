@@ -13,7 +13,7 @@
 // repo bans.
 //
 // WHY NOT THE HUMAN SUMMARY LINE (`renderSummary`). That line is written BEFORE the
-// actions run and reports what was PLANNED — an agentful task whose preprocessing
+// actions run and reports what was PLANNED — an agentful task whose prework
 // then requested no agent still reads as its dispatch decision there. These records
 // are derived AFTER the loop, from the same record the loop mutated, so they report
 // what actually happened. The human summary stays what it is: prose for a person
@@ -31,12 +31,12 @@
 export const TASK_RUN_OUTCOMES = Object.freeze([
   // A dispatch issue was filed: an executor session runs this task with an agent.
   'agent',
-  // The task ran with NO agent — an `agent_model: none` task (preprocessing is the
-  // whole task), or an agentful one whose preprocessing requested no agent stage.
-  'preprocess',
+  // The task ran with NO agent — an `agent_model: none` task (prework is the
+  // whole task), or an agentful one whose prework requested no agent phase.
+  'prework',
   // Due, but its precondition said there was nothing to do.
   'skipped',
-  // Its preprocessing failed; the run converged the task to a needs-human issue.
+  // Its prework failed; the run converged the task to a needs-human issue.
   'failed',
   // Due and past its precondition, but no NEW agent run started: this slot was
   // already dispatched (exactly-once), an earlier dispatch is still open
@@ -60,12 +60,12 @@ export function taskRunOutcome(rec) {
   // of the flags they read, and "no dispatch" would otherwise have to mean this by
   // accident rather than on purpose.
   if (rec.deferred) return 'deferred';
-  if (rec.preprocessResult && !rec.preprocessResult.ok) return 'failed';
-  if (rec.inline) return 'preprocess';
-  // Agentful. With preprocessing, the agent stage is CONDITIONAL: a task that
-  // absorbed its work into the deterministic pass stays quiet, and that is a run of
-  // the task, not a skip of it.
-  if (rec.preprocessing && !rec.agentRequested) return 'preprocess';
+  if (rec.preworkResult && !rec.preworkResult.ok) return 'failed';
+  if (rec.inline) return 'prework';
+  // Agentic. With prework, the agentic phase is CONDITIONAL: a task that
+  // absorbed its work into the deterministic phase stays quiet, and that is a run
+  // of the task, not a skip of it.
+  if (rec.prework && !rec.agentRequested) return 'prework';
   return rec.dispatch?.action === 'create' ? 'agent' : 'deferred';
 }
 
@@ -90,10 +90,13 @@ const LINE_RE = new RegExp(
 // One line → `{ pack, task, slotId, outcome }`, or null for anything that is not a
 // record of this version. Deliberately strict: an unknown outcome word is NOT a
 // record, because counting it would mint a counter key nothing ever reads.
+// `preprocess` is the pre-rename word for the prework outcome (2026-08-06);
+// runs logged before the rename still parse, normalized to the canonical word.
 export function parseTaskRun(line) {
   const m = LINE_RE.exec(line);
   if (!m) return null;
-  const [, pack, task, slotId, outcome] = m;
+  const [, pack, task, slotId, word] = m;
+  const outcome = word === 'preprocess' ? 'prework' : word;
   if (!TASK_RUN_OUTCOMES.includes(outcome)) return null;
   return { pack, task, slotId, outcome };
 }
@@ -104,6 +107,54 @@ export function parseTaskRuns(text) {
   const out = [];
   for (const line of String(text ?? '').split('\n')) {
     const rec = parseTaskRun(line);
+    if (rec) out.push(rec);
+  }
+  return out;
+}
+
+// --- executor-side execution records ------------------------------------------
+// The scheduler records what it DID with a due task (above); these record what an
+// EXECUTOR SESSION did with the dispatch it ran. Printed by executor-side code
+// (resolve-dispatch on a terminal verdict, record-exec.mjs at convergence), they
+// land in the session transcript, ride to the conversation-logs branch with the
+// executor's capture step, and the usage fold counts them deterministically —
+// the "task statuses out of the conversation logs" half of the census (owner,
+// 2026-08-06). Same single-home rule: renderer and parser sit here together.
+
+export const TASK_EXEC_STATUSES = Object.freeze([
+  // The dispatch ran to completion within its ceiling; the issue was closed.
+  'success',
+  // The run failed (task failure or ceiling violation); converged to needs-human.
+  'failed',
+  // The dispatch named a task the repo no longer carries (file gone, pack
+  // undeclared) — the executor closed the issue as obsolete. Not a failure.
+  'task-gone',
+  // The dispatch was malformed (bad path shape, unparseable declaration) and was
+  // converged to needs-human without running.
+  'invalid',
+]);
+
+export const TASK_EXEC_TAG = 'claudinite-task-exec';
+
+export const renderTaskExec = ({ pack, task, slotId, status }) =>
+  `${TASK_EXEC_TAG} ${VERSION} ${pack}/${task} [${slotId ?? 'unknown'}] ${status}`;
+
+const EXEC_LINE_RE = new RegExp(
+  String.raw`(?:^|\s)${TASK_EXEC_TAG} ${VERSION} (\S+)/(\S+) \[(\S+)\] ([a-z-]+)\s*$`,
+);
+
+export function parseTaskExec(line) {
+  const m = EXEC_LINE_RE.exec(line);
+  if (!m) return null;
+  const [, pack, task, slotId, status] = m;
+  if (!TASK_EXEC_STATUSES.includes(status)) return null;
+  return { pack, task, slotId, status };
+}
+
+export function parseTaskExecs(text) {
+  const out = [];
+  for (const line of String(text ?? '').split('\n')) {
+    const rec = parseTaskExec(line);
     if (rec) out.push(rec);
   }
   return out;

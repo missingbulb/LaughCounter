@@ -14,15 +14,13 @@ import { pathToFileURL } from 'node:url';
 import { dueSlots, mostRecentSlot } from './slots.mjs';
 import {
   planDispatch, dispatchTitle, dispatchBody, DISPATCH_PREFIX, READY_LABEL, NEEDS_HUMAN_LABEL,
-  SCHEDULER_LABELS, readyLabelForScope, staleDispatchIssues, staleEscalationComment,
-  rearmDispatchIssues, readyLabelOn, staleClaimedDispatchIssues, staleClaimComment,
-  AGENT_RUNNING_LABEL,
+  SCHEDULER_LABELS, readyLabelForScope,
 } from './dispatch.mjs';
 import { isAgentless } from './model-map.mjs';
 import { isDormant } from '../checks/helpers/repo-context.mjs';
 import { renderTaskRuns } from './run-record.mjs';
 import { localSignalContext } from './signals/local.mjs';
-import { runPreprocessing, preprocessingFailure, agentRequestPath, clearAgentRequest, agentRequested, readAgentRequest } from './preprocess.mjs';
+import { runPrework, preworkFailure, agentRequestPath, clearAgentRequest, agentRequested, readAgentRequest } from './prework.mjs';
 
 // The due tasks, each paired with the slot it runs under. Union the discovered
 // tasks' frequencies, ask slots which are due (run-ledger math), then map due
@@ -149,7 +147,7 @@ export function renderSummary(evaluations) {
 //
 // THE EXCLUSIVE CLAIM (owner, 2026-08-01). A precondition may return `exclusive: true`
 // alongside `run: true`: "if I run this cycle, I run ALONE". Every other due task
-// whose precondition also said run is deferred — no preprocessing, no dispatch
+// whose precondition also said run is deferred — no prework, no dispatch
 // issue, no inline work — and the run does that one task's work and nothing else.
 //
 // This exists because the hourly cron is not hourly (github-actions-scheduling:
@@ -173,7 +171,7 @@ export function renderSummary(evaluations) {
 // run; a claim silently swallowing the task the operator asked for would make that
 // run do nothing it was started for.
 export async function planRun({
-  tasks, schedule, now, lastSuccess, overrides = {}, config = {},
+  tasks, schedule, now, lastSuccess, overrides = {}, config = {}, runId = null,
   collectSignals, packConfigFor = () => ({}), existingIssuesFor = async () => [],
 }) {
   if (isDormant(config)) return { evaluations: [], dormant: true };
@@ -204,7 +202,15 @@ export async function planRun({
   const claimants = verdicts.filter((v) => v.pre.run && v.pre.exclusive).map((v) => `${v.task.pack}/${v.task.id}`);
 
   const evaluations = [];
-  for (const { task, slotId, forced, pre } of verdicts) {
+  for (const { task, slotId: dueSlot, forced, pre } of verdicts) {
+    // A FORCED dispatch carries a per-run marker in its slot id. The exactly-once
+    // guard keys on the (task, slot) title, and a forced run's whole point is to
+    // re-run a slot the schedule already ran — without the marker, planDispatch's
+    // state=all title match silently skipped exactly the dispatch the operator
+    // asked for. The marker keeps every title unique and every record attributable
+    // to the hand-started run that caused it. At-most-one-open still applies: a
+    // forced run never stacks a second dispatch on one that is still open.
+    const slotId = forced && runId !== null ? `${dueSlot}~f${runId}` : dueSlot;
     const rec = {
       pack: task.pack, task: task.id, slotId,
       model: task.decl.agent_model, outcome: task.decl.expected_outcome,
@@ -216,7 +222,7 @@ export async function planRun({
       if (pre.exclusive) rec.exclusive = true;
       // Deferred by someone else's claim: the record keeps `run: true` (its
       // precondition DID say there was work) and carries no dispatch, no inline
-      // and no preprocessing flag, so every actor downstream — the CLI action
+      // and no prework flag, so every actor downstream — the CLI action
       // loop, the run record, the summary — reads it as work that was wanted and
       // did not happen, not as a skip.
       if (claimants.length && !pre.exclusive && !forced) {
@@ -224,14 +230,14 @@ export async function planRun({
         evaluations.push(rec);
         continue;
       }
-      // A declared agent_preprocessing runs as a subprocess BEFORE any agent
+      // Declared prework runs as a subprocess BEFORE the agentic phase
       // (DESIGN §3) — flagged here (pure) for the summary; the CLI shell executes
-      // it. An agentless task is preprocessing-only; an agentful one hands off to
-      // the agent after preprocessing succeeds.
-      if (task.decl.agent_preprocessing) rec.preprocessing = true;
+      // it. An agentless task is prework-only; an agentful one hands off to
+      // the agentic phase after prework succeeds.
+      if (task.decl.prework) rec.prework = true;
       if (isAgentless(task.decl.agent_model)) {
         // agent_model: none — no agent and no dispatch issue on success. A task with
-        // no preprocessing runs the legacy inline worker; with preprocessing it is
+        // no prework runs the legacy inline worker; with prework it is
         // the subprocess above.
         rec.inline = true;
       } else {
@@ -313,81 +319,14 @@ async function existingIssuesViaSearch(gh, repo, pack, task) {
     .map((i) => ({ number: i.number, title: i.title, state: i.state }));
 }
 
-// Every OPEN dispatch issue in the repo, with the labels / age / comment count the
-// maintenance pass reads. Separate from existingIssuesViaSearch, which is per task
-// family and state=all for the filing guards; this one is repo-wide and open-only.
-export async function openDispatchIssuesViaSearch(gh, repo) {
-  const q = encodeURIComponent(`repo:${repo} is:issue is:open in:title "${DISPATCH_PREFIX}"`);
-  const { status, json } = await gh(`/search/issues?q=${q}&per_page=100`);
-  if (status !== 200 || !Array.isArray(json?.items)) return [];
-  return json.items.map((i) => ({
-    number: i.number, title: i.title, labels: i.labels ?? [],
-    created_at: i.created_at, updated_at: i.updated_at, comments: i.comments ?? 0,
-  }));
-}
-
-// The per-run maintenance pass over open dispatch issues (DESIGN §4 lifecycle,
-// §5 recovery). Three backstops, in this order:
-//   1. STALE — open past ~2 of its own scheduling periods → escalation comment,
-//      drop the ready label (so it stops being armed), add `needs-human`.
-//   2. DEAD CLAIM — `agent-running` with no activity for ~3h → the session that
-//      claimed it died; comment, drop `agent-running`, add `needs-human`.
-//   3. RE-ARM — armed but untouched past the grace window → the trigger event was
-//      lost, so remove and re-add its ready label to emit a fresh one.
-// Stale wins over re-arm: rearmDispatchIssues already excludes the stale set, so an
-// issue converging to triage is never re-armed back into circulation.
-//
-// This is the ONLY recovery path for a missed label event or a dead session. The
-// executor no longer sweeps other issues — one session runs exactly the one issue
-// that triggered it — so recovery had to become a decision in code here, running
-// once per scheduler run, rather than agent judgment replicated across every
-// concurrently-triggered session.
-export async function maintainDispatchIssues(gh, repo, now, { labelsEnsured = false } = {}) {
-  const open = await openDispatchIssuesViaSearch(gh, repo);
-  const none = { stale: [], deadClaims: [], rearmed: [] };
-  if (!open.length) return none;
-
-  const stale = staleDispatchIssues(open, now);
-  const staleNumbers = new Set(stale.map((i) => i.number));
-  const deadClaims = staleClaimedDispatchIssues(open, now).filter((i) => !staleNumbers.has(i.number));
-  const rearm = rearmDispatchIssues(open, now);
-  if (!stale.length && !deadClaims.length && !rearm.length) return none;
-
-  // Applying a label 422s when it does not exist, so guarantee them first — an
-  // idle run never gets here, so this costs nothing on the common path.
-  if (!labelsEnsured) await ensureLabels(gh, repo, SCHEDULER_LABELS);
-
-  const escalate = async (issue, body, dropLabel) => {
-    await gh(`/repos/${repo}/issues/${issue.number}/comments`, { method: 'POST', body: { body } });
-    if (dropLabel) await gh(`/repos/${repo}/issues/${issue.number}/labels/${encodeURIComponent(dropLabel)}`, { method: 'DELETE' });
-    await gh(`/repos/${repo}/issues/${issue.number}/labels`, { method: 'POST', body: { labels: [NEEDS_HUMAN_LABEL] } });
-  };
-
-  for (const issue of stale) {
-    await escalate(issue, staleEscalationComment(issue), readyLabelOn(issue));
-    console.log(`- escalated stale dispatch #${issue.number} to ${NEEDS_HUMAN_LABEL}`);
-  }
-
-  for (const issue of deadClaims) {
-    await escalate(issue, staleClaimComment(issue), AGENT_RUNNING_LABEL);
-    console.log(`- reclaimed dead ${AGENT_RUNNING_LABEL} claim on #${issue.number} → ${NEEDS_HUMAN_LABEL}`);
-  }
-
-  for (const issue of rearm) {
-    const ready = readyLabelOn(issue);
-    const del = await gh(`/repos/${repo}/issues/${issue.number}/labels/${encodeURIComponent(ready)}`, { method: 'DELETE' });
-    if (del.status >= 300) { console.log(`! could not un-label #${issue.number} to re-arm it: ${del.status}`); continue; }
-    const add = await gh(`/repos/${repo}/issues/${issue.number}/labels`, { method: 'POST', body: { labels: [ready] } });
-    if (add.status >= 300) console.log(`! re-arm of #${issue.number} dropped its ${ready} label: ${add.status}`);
-    else console.log(`- re-armed #${issue.number} (${ready}) — its trigger event never landed`);
-  }
-
-  return {
-    stale: stale.map((i) => i.number),
-    deadClaims: deadClaims.map((i) => i.number),
-    rearmed: rearm.map((i) => i.number),
-  };
-}
+// DISPATCH-ISSUE MAINTENANCE DOES NOT LIVE HERE (owner, 2026-08-06). The
+// scheduler CREATES task issues and nothing else about their afterlife: the
+// stale-escalation, dead-claim and re-arm recovery that used to run as a pass at
+// the end of every scheduler run is a third, separate JANITOR responsibility —
+// an ordinary daily task on this same machinery (the engine does not know which
+// pack carries it, same as every task). Scheduler creates, executor executes its
+// one issue, janitor cleans up and assesses health. The pure rules stay in
+// dispatch.mjs; the janitor's worker is the only I/O shell over them.
 
 // Ensure the dispatch labels exist before any is applied — GitHub 422s when you
 // apply an unknown label (it never creates one on demand), so the scheduler, as the
@@ -505,6 +444,9 @@ async function main() {
 
   const { evaluations } = await planRun({
     tasks, schedule, now, lastSuccess, overrides, config,
+    // The per-run marker a FORCED dispatch's slot id carries (see planRun) —
+    // the Actions run id, unique per hand-started run by the platform.
+    runId: process.env.GITHUB_RUN_ID ?? null,
     collectSignals: (names) => collectSignals(gh, ctx, names),
     packConfigFor,
     existingIssuesFor: (pack, task) => existingIssuesViaSearch(gh, repo, pack, task),
@@ -522,9 +464,9 @@ async function main() {
   }
 
   // Guarantee the dispatch labels exist before we file any labeled issue — when a
-  // task will dispatch OR will run preprocessing (which may converge to
+  // task will dispatch OR will run prework (which may converge to
   // needs-human). An idle run pays nothing.
-  const labelsEnsured = evaluations.some((r) => r.run && (r.preprocessing || (!r.inline && r.dispatch?.action === 'create')));
+  const labelsEnsured = evaluations.some((r) => r.run && (r.prework || (!r.inline && r.dispatch?.action === 'create')));
   if (labelsEnsured) await ensureLabels(gh, repo, SCHEDULER_LABELS);
 
   // File the labeled hand-off issue the executor runs (READY_LABEL): first line is
@@ -534,7 +476,7 @@ async function main() {
     const body = dispatchBody({
       taskPath: taskObj.taskPath, pack: rec.pack, task: rec.task, slotId: rec.slotId,
       context: rec.context,
-      // What preprocessing made, by identity — the agent's only source for it.
+      // What prework made, by identity — the agent's only source for it.
       delivered: rec.delivered,
       // …and which of its escalation conditions woke the agent, so the agent does not
       // have to re-derive that from the repo (and get it wrong).
@@ -547,7 +489,7 @@ async function main() {
     if (res.status >= 300) console.log(`! failed to file dispatch issue for ${rec.pack}/${rec.task}: ${res.status}`);
   };
 
-  // Converge a failed preprocessing run to a single open needs-human issue for the
+  // Converge a failed prework run to a single open needs-human issue for the
   // family — at-most-one-open, so a repeatedly-failing task never spams issues.
   const fileNeedsHuman = async (rec, why, extra) => {
     const existing = await existingIssuesViaSearch(gh, repo, rec.pack, rec.task);
@@ -557,7 +499,7 @@ async function main() {
     }
     const title = dispatchTitle({ pack: rec.pack, task: rec.task, slotId: rec.slotId });
     const body = [
-      `Preprocessing for \`${rec.pack}/${rec.task}\` (slot \`${rec.slotId}\`) failed and needs human triage.`,
+      `Prework for \`${rec.pack}/${rec.task}\` (slot \`${rec.slotId}\`) failed and needs human triage.`,
       '', `- ${why}`, ...extra.map((e) => `- ${e}`),
     ].join('\n') + '\n';
     const res = await gh(`/repos/${repo}/issues`, { method: 'POST', body: { title, body, labels: [NEEDS_HUMAN_LABEL] } });
@@ -567,15 +509,15 @@ async function main() {
   for (const rec of evaluations) {
     // `deferred` — another task claimed this run exclusively. The record says the
     // precondition wanted work; this is the one place that decides none of it
-    // happens, so nothing below (preprocessing subprocess, dispatch issue) runs.
+    // happens, so nothing below (prework subprocess, dispatch issue) runs.
     if (!rec.run || rec.deferred) continue;
     const taskObj = tasks.find((t) => t.pack === rec.pack && t.id === rec.task);
     const decl = taskObj.decl;
 
-    // Stage 1 — preprocessing (DESIGN §3): run the declared command as a subprocess
-    // bounded by its timeout, before any agent. Its cwd is the task dir; the repo
-    // root + slot context ride in via CLAUDINITE_* env.
-    if (rec.preprocessing) {
+    // Phase 1 — prework (DESIGN §3): run the declared command as a subprocess
+    // bounded by its timeout, before the agentic phase. Its cwd is the task dir;
+    // the repo root + slot context ride in via CLAUDINITE_* env.
+    if (rec.prework) {
       // A per-run signal path the worker writes to REQUEST the agent stage
       // (conditional handoff, §3). Clear any stale one first so a prior run can't
       // spuriously escalate this one.
@@ -583,11 +525,11 @@ async function main() {
       clearAgentRequest(requestPath);
       // The child's own output is echoed live inside a collapsible Actions group, so
       // the run log says what the worker did instead of only whether it exited zero.
-      // Grouped because several tasks can preprocess in one run and their output would
+      // Grouped because several tasks can run prework in one run and their output would
       // otherwise interleave into one unattributable wall; live because a worker killed
       // at its timeout takes any buffered output with it.
-      console.log(`::group::preprocessing ${rec.pack}/${rec.task} [${rec.slotId}]`);
-      const result = await runPreprocessing(decl.agent_preprocessing, {
+      console.log(`::group::prework ${rec.pack}/${rec.task} [${rec.slotId}]`);
+      const result = await runPrework(decl.prework, {
         taskDir: taskObj.taskDir,
         env: {
           ...process.env,
@@ -599,25 +541,25 @@ async function main() {
           CLAUDINITE_TASK: rec.task,
           CLAUDINITE_REQUEST_AGENT: requestPath,
         },
-        timeoutSeconds: decl.agent_preprocessing_timeout,
+        timeoutSeconds: decl.prework_timeout,
       });
       console.log('::endgroup::');
-      rec.preprocessResult = { ok: result.ok, timedOut: result.timedOut, code: result.code };
+      rec.preworkResult = { ok: result.ok, timedOut: result.timedOut, code: result.code };
       if (!result.ok) {
-        const why = preprocessingFailure(result);
-        console.log(`! preprocessing ${rec.pack}/${rec.task} [${rec.slotId}]: ${why}`);
+        const why = preworkFailure(result);
+        console.log(`! prework ${rec.pack}/${rec.task} [${rec.slotId}]: ${why}`);
         const extra = result.stderr?.trim() ? [`stderr tail: ${result.stderr.trim().split('\n').slice(-3).join(' / ')}`] : [];
         // Repeat the tail OUTSIDE the group: Actions renders a group collapsed, so a
         // failure whose only evidence sits inside one still reads as unexplained.
         for (const line of extra) console.log(`  ${line}`);
         await fileNeedsHuman(rec, why, extra);
         clearAgentRequest(requestPath);
-        continue; // never hand off to an agent after a failed preprocessing
+        continue; // never hand off to the agentic phase after failed prework
       }
       // Success. An agentless task is done (no issue on success, as the old inline
       // was quiet). An agentful one hands off ONLY when the worker requested the
       // agent (conditional escalation, §3): a task that absorbs its work into
-      // preprocessing stays quiet on the nights nothing needs judgment.
+      // prework stays quiet on the nights nothing needs judgment.
       const requested = agentRequested(requestPath);
       // Read the payload BEFORE clearing: the artifacts this run created and the
       // condition that woke the agent, which the dispatch issue records so the agent
@@ -628,35 +570,30 @@ async function main() {
       rec.escalationReason = payload?.reason ?? null;
       clearAgentRequest(requestPath);
       rec.agentRequested = requested;
-      console.log(`preprocessing ${rec.pack}/${rec.task} [${rec.slotId}]: ok${rec.inline ? '' : requested ? ' (agent requested)' : ' (no agent needed)'}`);
+      console.log(`prework ${rec.pack}/${rec.task} [${rec.slotId}]: ok${rec.inline ? '' : requested ? ' (agent requested)' : ' (no agent needed)'}`);
       if (rec.inline) continue;
       if (requested && rec.dispatch?.action === 'create') await fileHandoff(rec, taskObj);
       continue;
     }
 
-    // No preprocessing. An agentless task with no preprocessing does nothing — the
-    // contract now forbids it (agent_model:none REQUIRES agent_preprocessing, so
+    // No prework. An agentless task with no prework does nothing — the
+    // contract now forbids it (agent_model:none REQUIRES prework, so
     // the in-process inline worker path is retired, DESIGN §4). Defensive no-op
     // should one slip past validation.
     if (rec.inline) {
-      console.log(`- ${rec.pack}/${rec.task}: agentless with no preprocessing — nothing to run (contract-forbidden)`);
+      console.log(`- ${rec.pack}/${rec.task}: agentless with no prework — nothing to run (contract-forbidden)`);
       continue;
     }
-    // Agent task with no preprocessing → today's immediate labeled dispatch.
+    // Agentic task with no prework → today's immediate labeled dispatch.
     if (rec.dispatch?.action === 'create') await fileHandoff(rec, taskObj);
   }
-
-  // Maintenance over the open dispatch issues, AFTER this run's filings: the
-  // issues just filed are seconds old, so the grace window keeps them out of the
-  // re-arm set and only the previous cycles' leftovers are considered.
-  await maintainDispatchIssues(gh, repo, now, { labelsEnsured });
 
   console.log('## Claudinite scheduler\n');
   console.log(renderSummary(evaluations) || '- no tasks due');
 
   // The machine-readable half of the same story (run-record.mjs): one line per due
   // task saying what this run DID with it — dispatched an agent, ran it as
-  // preprocessing only, skipped it on its precondition, failed it, or deferred it.
+  // ran prework only, skipped it on its precondition, failed it, or deferred it.
   // Printed AFTER the action loop, so each line reports what happened rather than
   // what was planned, and read back by the usage fold to count task invocations.
   // Nothing else in the scheduler depends on it: this is a record, not a signal.

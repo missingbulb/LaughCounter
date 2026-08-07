@@ -49,9 +49,9 @@ const rule = {
     if (!/engine\/scheduler\/run\.mjs/.test(text)) {
       flag('does not run the vendored engine entry', 'the job must run node .claudinite/shared/engine/scheduler/run.mjs — all logic lives in the vendored engine, not the workflow');
     }
-    // Baselining runs as this workflow's `agent_preprocessing` and its `deliver()`
+    // Baselining runs as this workflow's `prework` and its `deliver()`
     // pushes the per-cycle maintenance branch and opens/auto-merges its PR via the
-    // Action GITHUB_TOKEN (agent-preprocessing §7/E4). An explicit `permissions:`
+    // Action GITHUB_TOKEN (task-prework §7/E4). An explicit `permissions:`
     // block caps the token, so the scheduler MUST grant these writes or the
     // self-refresh 403s — an easy-to-miss regression the read-only original had.
     if (!/^\s*contents:\s*write\b/m.test(text)) {
