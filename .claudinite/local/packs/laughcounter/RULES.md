@@ -53,3 +53,45 @@ yet is caught the day it lands, and a non-literal argument (`urls(for: dir, in:)
 becomes a finding too — indirection is precisely what would otherwise defeat the
 check, so refusing to reason about it is a feature. Only invert this where the
 allowed set is genuinely open-ended.
+
+**Ship a version the running app can state, and bump it whenever a build has to be
+told apart from the last one.** Diagnosing the `installTap` crash (#61) stalled on
+"which binary is installed?", and the answer had to be reconstructed by grepping a
+crash report's symbol names for whether `finishListening` took a `generation:`
+argument. Two causes, both durable. The menu header said only "LaughCounter"; and
+several genuinely different builds all reported `0.2.1`, because the release
+workflow keys its Release on `v<version>` read from `mac/Resources/Info.plist` — so
+a merge that leaves `CFBundleShortVersionString` alone **refreshes the same
+Release**, and the DMG behind the `latest/download` link changes identity without
+changing its name. So the menu renders `LaughCounter v<version> (<build>)` from
+`Bundle.main` rather than a constant in the source — `Info.plist` is already where
+the version lives and where the release tag comes from, and a second copy could
+disagree with the DMG it shipped in — and the **build number** is what separates
+two builds that share a version string, so show it and raise it too. (#74/#75)
+
+**A scheduled job that *skips* its work still exits 0 — read what a green run says
+it did.** This repo's Claudinite scheduler ran green every night while silently
+skipping baselining, logging "no vendored mount (no stamp)" about a repo whose
+`.claudinite-checks.json` carried one: the vendored `loadConfig` validated
+`claudinite` as a legal settings key and then dropped it from the object it
+returned, so the stamp read `undefined` and the run took the branch meant for a
+pre-adoption repo. Nothing was red and nothing was missing — the only evidence was
+one skip line in a log nobody opens on a green run. Two things follow. A *skip* is
+a finding to read, not a pass: a job whose success and whose no-op look identical
+from outside is telling you nothing. And when the bug lives inside the mechanism
+that updates itself, the ordinary route is unreachable — baselining is what
+refreshes the vendored mount, and the bug was *in* the mount — so the fix has to be
+pushed in out of band rather than waited for. (#56)
+
+**When a conformance check flags text, ask what a reader could act on before
+reaching for an `accept`.** `claudinite-isolation` fired on `CLAUDE.md`'s
+orientation header for spelling the vendored mount path. Nothing in that header
+told a reader to go open the directory, so the path was pure decoration that
+coupled a consumer file to a canon-internal layout — exactly the crossing the rule
+exists to prevent, bought for nothing. Rewording to "vendored into this repo and
+injected at session start" kept both facts a reader needs and lost only the
+coupling. An `accept` entry is for a crossing that *must* exist; every one in this
+repo's `.claudinite-checks.json` names a real constraint (a framework-fixed method
+name, a deliberate broad-except, an optional-dependency availability probe). So
+before adding one, delete the part the check is pointing at and see whether
+anything actionable went with it — often nothing does. (#34)

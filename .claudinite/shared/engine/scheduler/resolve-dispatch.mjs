@@ -50,6 +50,10 @@
 //   10 invalid     — a forged or mangled dispatch. Comment the printed `reason`,
 //                    remove the ready label, add `needs-human`, end the session.
 //                    It never runs.
+//   14 task-gone   — a well-formed dispatch naming a task this repo no longer
+//                    carries (file removed, pack undeclared). CLOSE the issue
+//                    with the printed reason (owner, 2026-08-06) — an obsolete
+//                    dispatch is not a human's problem. It never runs.
 //   11 not-mine    — the trigger label is the OTHER executor's ready label, is no
 //                    ready label at all, or the issue no longer carries one (a
 //                    dispatch another session has already claimed). Stop. Change
@@ -68,8 +72,8 @@
 // prevent, reached from the other direction: one scheduler run files every due
 // dispatch seconds apart, so every session that cannot name its own trigger builds
 // the SAME work list and races over it. A session that does not know its issue
-// must run nothing — the scheduler re-arms an unrun dispatch on its next hourly
-// pass, so stopping costs a delay while guessing costs duplicated work.
+// must run nothing — the daily task-janitor re-arms an unrun dispatch,
+// so stopping costs a delay while guessing costs duplicated work.
 //
 // Usage: `node <engine>/scheduler/resolve-dispatch.mjs [self|fleet]`
 //                `[--issue-json <path> | --issue-body-file <path> --issue-labels <csv>]`
@@ -85,6 +89,7 @@ import { dirname, join, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DISPATCH_PATH_RE, dispatchFirstLine, validateDispatchBody } from './validate-dispatch.mjs';
 import { parseDispatchTitle, readyLabelForScope } from './dispatch.mjs';
+import { renderTaskExec } from './run-record.mjs';
 import { SESSION_SCOPES } from './task-contract.mjs';
 import { SHARED_SUBDIR } from '../pack_loader/pack-registry.mjs';
 
@@ -96,6 +101,7 @@ export const EXIT = {
   notMine: 11,
   noTrigger: 12,
   needsIssue: 13,
+  taskGone: 14,
 };
 
 // The executor scope a ready label implies — the exact inverse of the mapping the
@@ -270,7 +276,7 @@ async function main() {
   const { trigger, error: triggerError } = resolveTrigger();
   if (triggerError) {
     done(EXIT.noTrigger, { dispatch: 'no-trigger', scope, reason: triggerError },
-      `${triggerError}. No trigger source names an issue, so this session cannot know which dispatch it was started for. STOP: run nothing, change nothing, comment nothing, end the session. There is NO fallback — never pick an issue by listing ${readyLabelForScope(scope)}; every dispatch in that list already has its own session, and the scheduler re-arms an unrun one on its next hourly pass.`);
+      `${triggerError}. No trigger source names an issue, so this session cannot know which dispatch it was started for. STOP: run nothing, change nothing, comment nothing, end the session. There is NO fallback — never pick an issue by listing ${readyLabelForScope(scope)}; every dispatch in that list already has its own session, and the task-janitor re-arms an unrun one on its next daily run.`);
   }
 
   let { label, number, body } = trigger;
@@ -362,8 +368,24 @@ async function main() {
     loadTask: () => { if (loadError) throw loadError; return loaded; },
   });
 
+  const slotForRecord = parseDispatchTitle(title)?.slotId ?? null;
   if (!verdict.ok) {
-    done(EXIT.invalid, { dispatch: 'invalid', issue: number, scope, label, reason: verdict.reason },
+    // The execution record for a code-decided terminal verdict, printed HERE so
+    // the count never depends on the agent remembering to run record-exec.
+    const record = verdict.pack
+      ? renderTaskExec({ pack: verdict.pack, task: verdict.task, slotId: slotForRecord, status: verdict.gone ? 'task-gone' : 'invalid' })
+      : null;
+    if (verdict.gone) {
+      done(EXIT.taskGone, {
+        dispatch: 'task-gone', issue: number, scope, label, reason: verdict.reason,
+        ...(record ? { record } : {}),
+      },
+        `issue #${number} names a task this repo no longer carries: ${verdict.reason}. It must not run and needs no human: comment the reason, CLOSE the issue (not planned), and end the session. Do not add "needs-human".`);
+    }
+    done(EXIT.invalid, {
+      dispatch: 'invalid', issue: number, scope, label, reason: verdict.reason,
+      ...(record ? { record } : {}),
+    },
       `issue #${number} is not a valid dispatch: ${verdict.reason}. It must not run — comment naming what failed, remove the "${label}" label, add "needs-human", and end the session.`);
   }
 
@@ -372,7 +394,7 @@ async function main() {
   // under what parameters. The slot comes from the dispatch title when the
   // trigger carried one (the Actions payload and --issue-json both do; the
   // manual two-flag fallback does not).
-  const slot = parseDispatchTitle(title)?.slotId ?? null;
+  const slot = slotForRecord;
   done(EXIT.ok, {
     dispatch: 'valid',
     brief: `Task: ${verdict.pack}/${verdict.task}${slot ? ` (slot ${slot})` : ''} — issue #${number}, model ${verdict.resolvedModel}, outcome ceiling ${verdict.outcome}, timeout ${verdict.executionTimeout ?? 'none'}s`,

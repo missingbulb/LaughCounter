@@ -41,7 +41,7 @@ export const readyLabelForScope = (scope) => (scope === 'fleet' ? READY_FLEET_LA
 // gha/label-create-before-add principle, enforced in code here.
 export const SCHEDULER_LABELS = [
   { name: READY_LABEL, color: '0e8a16', description: 'Claudinite scheduler: dispatch issue ready for the (self-scoped) executor to run' },
-  { name: READY_FLEET_LABEL, color: '1d76db', description: 'Claudinite scheduler: dispatch issue ready for the FLEET-scoped executor (a task that reaches other repos)' },
+  { name: READY_FLEET_LABEL, color: '1d76db', description: 'Claudinite scheduler: dispatch ready for the FLEET-scoped executor (a task reaching other repos)' },
   { name: AGENT_RUNNING_LABEL, color: 'fbca04', description: 'Claudinite scheduler: the executor has claimed this issue and is running it' },
   { name: NEEDS_HUMAN_LABEL, color: 'd93f0b', description: 'Claudinite scheduler: an anomaly that converged here for human triage' },
   { name: WORKFLOW_FAILURE_LABEL, color: 'b60205', description: 'Claudinite scheduler: a scheduler run or task failed' },
@@ -76,7 +76,44 @@ export const isDispatchTitle = (title) => parseDispatchTitle(title) !== null;
 // only thing the executor reads to locate the worker; everything below is human
 // framing plus the precondition's binding Context. The Context block is emitted
 // only when the precondition produced lines (an empty scope has nothing to bind).
-export function dispatchBody({ taskPath, pack, task, slotId, context = [] }) {
+// The `### Delivered` section — what this run's prework created, by identity. It is
+// the agent's only source for those artifacts.
+//
+// Absence is meaningful: no section means prework created nothing, so never write a
+// placeholder here.
+export function deliveredLines(delivered) {
+  const { branch = null, pr = null, merged = false } = delivered ?? {};
+  if (!branch && !pr) return [];
+  return [
+    '### Delivered by prework',
+    'The artifacts this run created — the ones to work on.',
+    '',
+    ...(pr ? [`- PR: #${pr}${merged ? ' (already merged — open your own PR for further work)' : ' (open)'}`] : []),
+    ...(branch ? [`- Branch: \`${branch}\``] : []),
+  ];
+}
+
+// The `### Why the agent is here` section — which of prework's escalation
+// conditions fired. The worker knows it exactly; without this the agent re-derives it
+// from the repo, and a re-derivation that disagrees with the truth is how a run ends up
+// reporting "prework created nothing" about a cycle that just merged a PR
+// (EdFringeAllocator#82).
+//
+// The condition and its counts, never the findings — those stay in the repo (DESIGN §3).
+// Absence is meaningful here too: a worker too old to name a reason says nothing, and
+// the agent falls back to its task file's own sweep.
+export function escalationLines(reason) {
+  const { code = null, detail = null } = reason ?? {};
+  if (!code && !detail) return [];
+  return [
+    '### Why the agent is here',
+    'The condition prework escalated on. Start here; the findings themselves are in the repo, not this issue.',
+    '',
+    `- ${detail || code}${detail && code ? ` (\`${code}\`)` : ''}`,
+  ];
+}
+
+export function dispatchBody({ taskPath, pack, task, slotId, context = [], delivered = null, reason = null }) {
   const lines = [taskPath, ''];
   if (context.length) {
     lines.push(
@@ -89,6 +126,12 @@ export function dispatchBody({ taskPath, pack, task, slotId, context = [] }) {
   } else {
     lines.push(`Execute the Claudinite task above (pack \`${pack}\`, task \`${task}\`, slot \`${slotId}\`).`);
   }
+  // Why first, then what: the reason is what decides which of the task file's sections
+  // the agent actually needs, and the artifacts are what it does that work on.
+  const why = escalationLines(reason);
+  if (why.length) lines.push('', ...why);
+  const del = deliveredLines(delivered);
+  if (del.length) lines.push('', ...del);
   return lines.join('\n') + '\n';
 }
 
@@ -127,16 +170,35 @@ function slotPeriodMs(slotId) {
   return SLOT_PERIOD_MS[String(slotId ?? '')[0]] ?? null;
 }
 
+// GitHub hands labels back as objects on the issues/search APIs and as bare
+// strings in some fixtures; accept either.
+const labelNames = (issue) =>
+  (issue?.labels ?? []).map((l) => (typeof l === 'string' ? l : l?.name)).filter(Boolean);
+
 // Open dispatch issues older than `factor` of their own period (DESIGN §4: ~2
 // periods) — the scheduler's backstop when no executor session drains them. The
 // shell adds the escalation comment + `needs-human` to each. `issue.created_at`
 // is the ISO string GitHub returns; a title that doesn't parse (or an unknown
 // slot kind) is never stale here.
+//
+// ESCALATION IS ONCE. Escalating only adds a label and leaves the issue OPEN, so
+// an issue that already carries `needs-human` still matches every later run —
+// and the shell re-posts the identical comment on each. Skipping the already
+// escalated is what makes "converge to a single visible state" true rather than
+// a state the scheduler keeps re-announcing every hour, forever.
+//
+// A CLAIMED issue is not this sweep's to judge either. `agent-running` means a
+// session engaged; whether that claim is dead is `staleClaimedDispatchIssues`'s
+// question, and it says so in its own words. Without this the two overlap on an
+// old claimed issue, the shell's stale-first ordering wins, and the issue is
+// told "no executor session ran it" about a session that demonstrably ran.
 export function staleDispatchIssues(openIssues = [], now, { factor = 2 } = {}) {
   const nowMs = new Date(now).getTime();
   return openIssues.filter((issue) => {
     const parsed = parseDispatchTitle(issue.title);
     if (!parsed) return false;
+    const names = labelNames(issue);
+    if (names.includes(NEEDS_HUMAN_LABEL) || names.includes(AGENT_RUNNING_LABEL)) return false;
     const period = slotPeriodMs(parsed.slotId);
     if (period === null) return false;
     return nowMs - new Date(issue.created_at).getTime() > factor * period;
@@ -158,8 +220,9 @@ export function staleEscalationComment(issue) {
 // `labeled` only on a fresh add. So the scheduler re-arms it — remove the ready
 // label, add it back — which emits a new event.
 //
-// This is the recovery that used to live in the executor's drain sweep, moved into
-// deterministic code. The sweep had EVERY triggered session also process every
+// This is the recovery that used to live in the executor's drain sweep, then in
+// the scheduler's hourly pass, and now runs from the daily task-janitor task —
+// still deterministic code, still decided by the pure rules here. The sweep had EVERY triggered session also process every
 // OTHER armed issue, so one scheduler run filing N dispatches produced N sessions
 // each racing over the same N issues, and the claim swap could not stop it (every
 // session read the work list before any claim landed). That is the
@@ -168,11 +231,6 @@ export function staleEscalationComment(issue) {
 // belongs here, where it is a decision in code that runs once per scheduler run.
 
 const READY_LABELS = new Set([READY_LABEL, READY_FLEET_LABEL]);
-
-// GitHub hands labels back as objects on the issues/search APIs and as bare
-// strings in some fixtures; accept either.
-const labelNames = (issue) =>
-  (issue?.labels ?? []).map((l) => (typeof l === 'string' ? l : l?.name)).filter(Boolean);
 
 // The ready label an issue currently carries, or null. Re-arming reapplies THIS
 // one, so a fleet dispatch is never re-armed as a self dispatch (which would hand
@@ -192,12 +250,12 @@ export function readyLabelOn(issue) {
 //     session already on its way is never handed a rival.
 // A stale issue is never re-armed: it is on its way to `needs-human`, and re-arming
 // one would loop forever. That backstop is also what bounds this — an executor that
-// stays down is re-armed each run until ~2 periods, then converges to triage.
+// stays down is re-armed each janitor run until ~2 periods, then converges to triage.
 // Dispatch issues left claimed by a session that died mid-run: `agent-running`
 // with no activity for `idleMs` (~3h). Converging these used to be the executor's
 // own step 6, which meant every concurrently-triggered session swept them and
 // commented on the same issue — the duplicate-work bug in miniature. It is code
-// here for the same reason the re-arm is.
+// here (run by the janitor) for the same reason the re-arm is.
 //
 // Scoped to `[claudinite-task]` dispatch issues deliberately (the title parse is
 // what enforces it): a task may put `agent-running` on an issue IT owns — a

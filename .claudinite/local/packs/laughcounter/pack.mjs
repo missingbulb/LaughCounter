@@ -8,9 +8,9 @@ export default {
   id: 'laughcounter',
   ruleRoutingGuidance: {
     belongs:
-      "LaughCounter's general working lessons about this repo, its build, its macOS packaging, and how its own local-pack checks are authored",
+      "LaughCounter's general working lessons about this repo — its build, macOS packaging and versioning, check authoring, Claudinite maintenance findings",
     excludes:
-      "the on-device privacy boundary (on-device-privacy) and the microphone's lifecycle (macos-audio-lifecycle)",
+      "the on-device privacy boundary (on-device-privacy) and the microphone's lifecycle (macos-audio)",
   },
   detect: null,
   marker: null,

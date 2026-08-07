@@ -4,26 +4,57 @@ The deterministic self-refresh already ran. Before you were dispatched, this tas
 **preprocessing** (`worker.mjs`, a code subprocess) converged this repo's
 `.claudinite/shared/` mount to the current canon head, converged the wiring, applied
 the **mechanical** migration notes, and pushed the result as one commit on the
-per-cycle **maintenance PR**. You are here only because it left **residual work that
-needs judgment** — a pending *agentic* migration note, and/or a conformance finding
-the deterministic auto-fix could not resolve. **Do not re-run the mechanical
+per-cycle **maintenance PR**. You are here only because it left **residual work you alone can do** —
+a pending *agentic* migration note, a workflow file its token was not permitted to push
+(§2b), and/or a conformance finding the deterministic auto-fix could not resolve. **Do not re-run the mechanical
 converge** (it is done, in the repo); your job is the judgment remainder, on that
 same PR.
 
 You run under the executor, GitHub writes go through the session's **MCP tools**
 (`mcp__github__*`), and — unlike before — the Claudinite canon is **not** in your
-session (agent-preprocessing DESIGN §7/E5). Everything you need is in THIS repo: the
+session (task-prework DESIGN §7/E5). Everything you need is in THIS repo: the
 migration notes are in your own vendored mount
 (`.claudinite/shared/migrations/active_migrations/`), and the maintenance branch is
 already open. The dispatch issue's **Context** is binding scope — do not widen it.
 
+## 0. Read why you are here
+
+**The dispatch issue names the condition preprocessing escalated on**, under `### Why the
+agent is here`. Preprocessing knew it exactly; that section is it, and it is where your
+run starts:
+
+| `code` | The section that owns it |
+|---|---|
+| `agentic-notes` | §2 — a flagged note is pending |
+| `withheld-workflows` | §2b — a workflow file its token could not push |
+| `selftest-failed` / `selftest-could-not-run` | §3 — the machinery, not the content |
+| `checks-not-green` / `checks-could-not-run` | §3 — a conformance finding |
+
+The named condition is the one guaranteed to hold work, so do that section **first and
+in full**. The others are not skippable — escalation reports only the *first* condition
+that fired, and a notes night can carry a withheld workflow file too — but they are
+verifications rather than a fresh hunt, and each is allowed to come up empty.
+
+Two things the section does **not** carry, by design: the findings themselves (re-run
+the check — §3 says how) and any instruction (this file is the instruction).
+
+**No `### Why` section at all** — an older vendored worker ran, or one that did not name
+a reason. Nothing about the run is asserted, so sweep §2, §2b and §3 in order as if it
+were absent. Never read absence as "no reason to be here".
+
 ## 1. Continue on the open maintenance PR
 
-Preprocessing pushed to a per-cycle branch named `claudinite/maintenance-<date>-<seed>`.
-**Find the family's open PR by that head-branch prefix** (`claudinite/maintenance`),
-and make every change below on **its head branch** — never the default branch, never
-a new branch. There is exactly one; if none is open, preprocessing delivered nothing
-this cycle and there is nothing for you to continue — comment that and close.
+**The dispatch issue names what preprocessing created**, under `### Delivered by
+prework` — a PR number and a branch ref. That section is your source for them.
+
+- **A PR marked `(open)`** — make every change below on its head branch. Never the
+  default branch, never a new branch.
+- **A PR marked `(already merged)`** — normal on a repo with no `pull_request` CI, where
+  preprocessing merges in the same run. Its content has landed; further work goes on a
+  fresh PR of your own (§2b says where).
+- **No `### Delivered` section** — preprocessing created nothing this cycle. §2 and §3
+  may still have work; only when §2, §2b and §3 all come up empty is this run a no-op to
+  comment and close.
 
 ## 2. Apply the pending flagged-agentic migration note(s)
 
@@ -37,9 +68,45 @@ adapting this repo's `.claudinite/local/packs/` content to a changed engine cont
 A note that finds nothing to adapt in THIS repo is a no-op — that is normal and
 correct; never invent a change to justify the run.
 
+## 2b. Land the workflow files preprocessing could not push
+
+Preprocessing pushes with the Action's `GITHUB_TOKEN`, which GitHub never permits to
+create or update a file under `.github/workflows/` — and because the refusal rejects the
+whole ref, the converge **withholds** those paths from its commit rather than losing the
+entire push to them. Your MCP writes go through a credential that *does* hold the
+`workflows` permission, so landing them is yours, and only yours: nothing else in the
+cycle can.
+
+Rediscover the list the same way preprocessing produced it — this part is deterministic,
+not a search: in a checkout of the branch §1 named (or the default branch when its PR
+already merged), run `node .claudinite/shared/migrations/apply.mjs` (the mechanical
+apply, idempotent) and compare `.github/workflows/` against what it wrote. The head
+commit's message also names each withheld path, as a cross-check.
+
+Commit whatever differs, via the MCP tools, and **where it goes depends on what §1's
+`### Delivered` section said**:
+
+- **The PR is `(open)`** — commit to its head branch, so the cycle stays one reviewable
+  change.
+- **The PR is `(already merged)`, or no section at all** — open your own PR against the
+  default branch carrying only these files, and deliver it per this repo's
+  `maintenance.delivery` exactly as §4 describes. This is within the task's `merged-pr`
+  ceiling. **Comment its number on this dispatch issue**, so the next run finds it by
+  association rather than by guessing at its name.
+
+Either way the file must land this cycle. It is not deferrable: preprocessing withholds it
+on *every* run, so leaving it produces a repo that reports a clean converge forever while
+the file never arrives.
+
+A cycle that withheld nothing leaves nothing to do here, which is the ordinary case: the
+files are byte-identical to their templates and the apply writes nothing at all. Never
+hand-edit these copies to match something else — the template is canon, and the next cycle
+re-materializes it.
+
 ## 3. Resolve what the deterministic pass left non-green
 
-If you were dispatched because conformance was not green (no agentic note pending),
+If §0 named `checks-not-green` or `checks-could-not-run` (or you have no `### Why`
+section and no agentic note is pending),
 run this repo's checks (`node .claudinite/shared/engine/checks/check_the_world.mjs`)
 and resolve the blocking findings that need judgment: apply a failing check's own
 `fix` remedy, **never more**. A finding that needs a real decision (not a mechanical
@@ -49,9 +116,11 @@ deterministically by preprocessing; you only touch what a check still flags.
 `convergeWiring`'s set is exactly four surfaces — the scheduler workflow
 `.github/workflows/claudinite-scheduler.yml` (with its hashed cron and the tasks'
 declared secrets), the settings hooks, removal of the retired `CLAUDE.md` corpus
-import, and the README's pack-badge row (with the `badges.readme` knob it
-materializes into `.claudinite-checks.json`, which a repo sets to `"off"` to be left
-alone). Pack-adoption **interview status** is not preprocessing's: unanswered questions
+import, and removal of the retired `badges` setting from `.claudinite-checks.json`.
+**The README is not one of them**: the pack-badge row is seeded once at adoption
+(`converge-wiring --badges`, which baselining never passes) and is the repo's own
+text from then on — so a baselining run producing a README diff is a bug, not
+upkeep. Pack-adoption **interview status** is not preprocessing's: unanswered questions
 surface as a mild SessionStart note (never a finding), and a stale stored answer as
 adopt-claudinite's advisory hygiene check — so interview drift reaches you here, as a
 check finding like any other.
@@ -68,10 +137,22 @@ never fires. Where the rewrite should live (preprocessing, a real migration op, 
 nowhere — the engine accepts every form) is an open decision; do not improvise it during
 a nightly run.
 
+**A failed SELF-TEST is a different animal from a check finding**, and it is what §0's
+`selftest-failed` / `selftest-could-not-run` name. `node
+.claudinite/shared/engine/selftest.mjs --strict` asks "can Claudinite run here at all?" —
+mount, stamp, pack manifests, hook targets, mounted skills, cron, migrations registry —
+and a repo that fails it is one whose rules have stopped running, which is precisely why
+`check_the_world` may be green at the same time (a rule that never runs reports nothing).
+Fix what the failing probe's `fix` names and re-run it to green before you trust anything
+§3 says about content. If the probe points at the converge itself rather than at this
+repo's own files, that is a canon bug: file it as an issue and say so on the dispatch
+issue rather than patching the mount by hand — the next cycle re-vendors over any such
+edit.
+
 **One thing preprocessing cannot repair — the executor routine.** The label-wired
 CCR routine that fires on `ready-for-agent` (model `sonnet`, launcher prompt
 `Execute the Claudinite executor: .claudinite/shared/engine/scheduler/executor.md`,
-sources = **this repo alone**, agent-preprocessing DESIGN §7/E5) is not a GitHub
+sources = **this repo alone**, task-prework DESIGN §7/E5) is not a GitHub
 artifact the Action can see. While you're here, verify it still exists — if it is
 gone, re-create it via the trigger API, or (when that API can't wire a label event)
 file the enclosed-config owner issue exactly as bootstrap Part 6 does. A repo whose

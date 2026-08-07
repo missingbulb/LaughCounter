@@ -10,10 +10,32 @@ import { MODEL_FAMILIES } from './model-map.mjs';
 // A declared timeout is always a whole number of seconds, > 0.
 const isPositiveInt = (n) => Number.isInteger(n) && n > 0;
 
-// A preprocessing command must stay inside its own task directory — no absolute
+// A prework command must stay inside its own task directory — no absolute
 // path and no `..` traversal in the command string — the same containment the
-// worker-file rule gives agent_instructions (agent-preprocessing DESIGN §2).
+// worker-file rule gives agent_instructions (task-prework DESIGN §2).
 const escapesTaskDir = (cmd) => /(^|\s)\//.test(cmd) || cmd.includes('..');
+
+// The 2026-08-06 phase-language rename (owner): task execution is two similar,
+// consecutive phases — deterministic PREWORK, then AGENTIC WORK — and the field
+// names say so instead of framing the code phase as preparation for the agent.
+// Legacy names stay accepted here (consumer local packs rename on their own
+// clock, driven by a migration note), canonical names win when both are present.
+const LEGACY_FIELDS = { agent_preprocessing: 'prework', agent_preprocessing_timeout: 'prework_timeout' };
+
+// Return the declaration with canonical field names. Non-objects pass through
+// untouched so validateTaskDeclaration still reports them. Loaders (discover,
+// resolve-dispatch) normalize once; everything downstream sees only `prework`.
+export function normalizeTaskDeclaration(decl) {
+  if (decl === null || typeof decl !== 'object' || Array.isArray(decl)) return decl;
+  const out = { ...decl };
+  for (const [legacy, canonical] of Object.entries(LEGACY_FIELDS)) {
+    if (out[legacy] !== undefined) {
+      if (out[canonical] === undefined) out[canonical] = out[legacy];
+      delete out[legacy];
+    }
+  }
+  return out;
+}
 
 // The write ceiling a task declares (DESIGN §1, §4). A declared MAXIMUM, not a
 // promise: `none` may never open a PR, `open-pr` may open but never merge,
@@ -44,7 +66,8 @@ export const SIGNAL_NAMES = [
 // Validate one task declaration. Returns an array of `{ what, fix }` problems —
 // empty means the declaration is well-formed. Pure: no I/O, no imports of the
 // task itself; the caller supplies the already-loaded default export.
-export function validateTaskDeclaration(decl) {
+export function validateTaskDeclaration(raw) {
+  const decl = normalizeTaskDeclaration(raw);
   if (decl === null || typeof decl !== 'object' || Array.isArray(decl)) {
     return [{ what: 'task.mjs does not default-export a declaration object', fix: 'export default { id, frequency, precondition_signals, agent_model, expected_outcome, agent_instructions, precondition }' }];
   }
@@ -83,18 +106,18 @@ export function validateTaskDeclaration(decl) {
     bad(`"session_scope" ${JSON.stringify(decl.session_scope)} is not a legal session scope`, `omit it (defaults to "self") or set one of: ${SESSION_SCOPES.join(', ')}`);
   }
 
-  // Preprocessing (agent-preprocessing DESIGN §2) — OPTIONAL. A command the
-  // scheduler runs as a subprocess before the agent. When present it must be a
-  // non-empty, task-local command AND carry a positive-integer
-  // agent_preprocessing_timeout — the hard kill that bounds the subprocess.
-  if (decl.agent_preprocessing !== undefined) {
-    if (typeof decl.agent_preprocessing !== 'string' || decl.agent_preprocessing.trim() === '') {
-      bad('"agent_preprocessing" is present but not a non-empty string', 'set it to a command whose executable is a script beside task.mjs, e.g. "node prepare.mjs"');
-    } else if (escapesTaskDir(decl.agent_preprocessing)) {
-      bad('"agent_preprocessing" reaches outside the task directory (absolute path or "..")', 'reference a sibling script only, e.g. "node prepare.mjs"');
+  // Prework (task-prework DESIGN §2) — OPTIONAL. The deterministic first phase
+  // of task execution, a command the scheduler runs as a subprocess. When present
+  // it must be a non-empty, task-local command AND carry a positive-integer
+  // prework_timeout — the hard kill that bounds the subprocess.
+  if (decl.prework !== undefined) {
+    if (typeof decl.prework !== 'string' || decl.prework.trim() === '') {
+      bad('"prework" is present but not a non-empty string', 'set it to a command whose executable is a script beside task.mjs, e.g. "node prepare.mjs"');
+    } else if (escapesTaskDir(decl.prework)) {
+      bad('"prework" reaches outside the task directory (absolute path or "..")', 'reference a sibling script only, e.g. "node prepare.mjs"');
     }
-    if (!isPositiveInt(decl.agent_preprocessing_timeout)) {
-      bad('"agent_preprocessing" is set but "agent_preprocessing_timeout" is not a positive integer', 'add "agent_preprocessing_timeout": the seconds after which the subprocess is killed and the task fails');
+    if (!isPositiveInt(decl.prework_timeout)) {
+      bad('"prework" is set but "prework_timeout" is not a positive integer', 'add "prework_timeout": the seconds after which the subprocess is killed and the task fails');
     }
   }
 
@@ -109,7 +132,7 @@ export function validateTaskDeclaration(decl) {
     bad('"required_secrets" is not an array of secret names', 'list the repo Actions secret names this task needs, e.g. ["SOME_API_KEY"]');
   }
 
-  // Execution bound (agent-preprocessing DESIGN §2, §6) — an agentic task MUST
+  // Execution bound (task-prework DESIGN §2, §6) — an agentic task MUST
   // declare a positive-integer agent_execution_timeout. There is always a bound
   // on an agentic run; enforcement is best-effort (the executor surfaces the
   // value to the subagent). A `none` task runs no agent, so it needs none.
@@ -118,10 +141,10 @@ export function validateTaskDeclaration(decl) {
   }
 
   // An agentless task (agent_model: none) runs no agent, so its ONLY work is
-  // preprocessing — a `none` task with no agent_preprocessing does nothing
-  // (DESIGN §4, retiring the in-process inline path). Require the command.
-  if (decl.agent_model === 'none' && decl.agent_preprocessing === undefined) {
-    bad('an agentless task (agent_model: "none") declares no "agent_preprocessing"', 'add "agent_preprocessing" (a none task does its work in that subprocess) — or give the task an agent_model');
+  // prework — a `none` task with no prework does nothing (DESIGN §4, retiring
+  // the in-process inline path). Require the command.
+  if (decl.agent_model === 'none' && decl.prework === undefined) {
+    bad('an agentless task (agent_model: "none") declares no "prework"', 'add "prework" (a none task does its work in that subprocess) — or give the task an agent_model');
   }
 
   return problems;

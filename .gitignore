@@ -9,3 +9,6 @@ dist/
 *.jsonl
 /.claudinite-hooks.log
 /.claudinite-hooks.log.tmp
+
+# Claude Code harness worktrees (isolated subagent checkouts)
+/.claude/worktrees/

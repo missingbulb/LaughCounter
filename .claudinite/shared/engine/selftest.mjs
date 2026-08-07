@@ -236,7 +236,7 @@ export async function runSelfTest(root) {
 // CLI. Default is REPORT-ONLY (exit 0) because the SessionStart orchestrator
 // discards a hook's stdout on a non-zero exit — failing loudly there would
 // destroy the very message it is trying to deliver. `--strict` exits 1 on
-// failure, for bootstrap and for baselining's preprocessing, where a broken
+// failure, for bootstrap and for baselining's prework, where a broken
 // mechanism must stop the run rather than be reported into a void.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const strict = process.argv.includes('--strict');

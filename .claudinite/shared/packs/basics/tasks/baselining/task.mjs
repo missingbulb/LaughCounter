@@ -1,10 +1,10 @@
 // basics task: baselining — the per-repo SELF-REFRESH (per-project-scheduling
-// DESIGN §6; agent-preprocessing DESIGN §7, E4). Every repo baselines ITSELF from
+// DESIGN §6; task-prework DESIGN §7, E4). Every repo baselines ITSELF from
 // its own scheduler: converge its `.claudinite/shared/` mount to the current canon
 // head, converge its wiring, apply the migration notes that landed since its
 // stamp, and advance the stamp — one commit on the per-cycle maintenance PR.
 //
-// Two stages now. The DETERMINISTIC converge is `agent_preprocessing` (worker.mjs,
+// Two stages now. The DETERMINISTIC converge is `prework` (worker.mjs,
 // run as a subprocess Action-side BEFORE any agent) — it fetches PUBLIC canon
 // directly (owner §10), so NO canon repo needs to be in the session. Most nights
 // are agentless and quiet; the AGENT stage (this file's `agent_model`) runs only
@@ -30,8 +30,8 @@ export default {
   expected_outcome: 'merged-pr',            // lands on the maintenance PR; arms auto-merge where member config allows
   agent_instructions: 'task.md',
 
-  agent_preprocessing: 'node worker.mjs',   // the deterministic converge — the scheduler runs it as a subprocess (DESIGN §3, §7)
-  agent_preprocessing_timeout: 900,         // clone + converge + wiring + notes + check_the_world; generous but a hard bound
+  prework: 'node worker.mjs',   // the deterministic converge — the scheduler runs it as a subprocess (DESIGN §3, §7)
+  prework_timeout: 900,         // clone + converge + wiring + notes + check_the_world; generous but a hard bound
   agent_execution_timeout: 1800,            // generous: a migration-note night can be substantial; the common night runs no agent at all
 
   // Fire ~daily so the deterministic worker runs and decides for itself whether an

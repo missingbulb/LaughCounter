@@ -24,7 +24,7 @@ const strField = (text, key) => {
 const rule = {
   id: 'task-declaration-shape',
   severity: 'blocking',
-  description: 'A tasks/<name>/task.mjs default-exports the full task contract (id, frequency, precondition_signals, agent_model, expected_outcome, agent_instructions, precondition) with legal enum values; an agentic task bounds its run with agent_execution_timeout, and any agent_preprocessing carries a timeout and stays task-local',
+  description: 'A tasks/<name>/task.mjs default-exports the full task contract (id, frequency, precondition_signals, agent_model, expected_outcome, agent_instructions, precondition) with legal enum values; an agentic task bounds its run with agent_execution_timeout, and any prework carries a timeout and stays task-local',
   doc: 'packs/basics/scheduled-tasks.md',
   why: 'the scheduler and executor read agent_model/expected_outcome/frequency from this file, not the dispatch issue — an illegal or missing value means a task never fires, fires wrong, or writes past its ceiling',
 
@@ -63,23 +63,35 @@ const rule = {
         flag('declares no "precondition" function', 'add a precondition(signals, config) that returns { run, reason, context? }');
       }
 
-      // The preprocessing/timeout guards (agent-preprocessing DESIGN §2). Numeric
-      // presence is a cheap `<key>: <digit>` regex, matching the runtime contract.
-      const hasNum = (key) => new RegExp(`\\b${key}:\\s*\\d`).test(text);
-      const hasPreprocessing = /\bagent_preprocessing:\s*['"]/.test(text);
+      // The prework/timeout guards (task-prework DESIGN §2). Numeric presence is
+      // a cheap `<key>: <digit>` regex, matching the runtime contract. The legacy
+      // field names (`agent_preprocessing[_timeout]`, pre-2026-08-06) still
+      // satisfy the contract — the loader normalizes them — but earn their own
+      // rename finding so the fleet converges on the canonical names.
+      const hasNum = (...keys) => keys.some((key) => new RegExp(`\\b${key}:\\s*\\d`).test(text));
+      const legacyPrework = /\bagent_preprocessing:\s*['"]/.test(text);
+      const hasPrework = /\bprework:\s*['"]/.test(text) || legacyPrework;
+      if (legacyPrework) {
+        // ADVISORY, deliberately, on a blocking rule: the legacy names still
+        // satisfy the runtime contract (normalized at load), and a member's
+        // vendor refresh must not turn its CI red over files nothing has renamed
+        // yet — the 2026-08-06 migration note drives the rename; this finding
+        // only keeps it visible until it lands.
+        out.push(finding(rule, { file, severity: 'advisory', what: 'declares prework under the legacy name "agent_preprocessing"', fix: 'rename "agent_preprocessing" → "prework" and "agent_preprocessing_timeout" → "prework_timeout" (the phases of task execution are prework, then agentic work)' }));
+      }
       if (model && MODEL_FAMILIES.includes(model) && model !== 'none' && !hasNum('agent_execution_timeout')) {
         flag('an agentic task (agent_model !== "none") declares no numeric "agent_execution_timeout"', 'add "agent_execution_timeout": seconds bounding the agentic run');
       }
-      if (model === 'none' && !hasPreprocessing) {
-        flag('an agentless task (agent_model: "none") declares no "agent_preprocessing"', 'add "agent_preprocessing" (a none task does its work in that subprocess) — or give the task an agent_model');
+      if (model === 'none' && !hasPrework) {
+        flag('an agentless task (agent_model: "none") declares no "prework"', 'add "prework" (a none task does its work in that subprocess) — or give the task an agent_model');
       }
-      if (hasPreprocessing) {
-        const prep = strField(text, 'agent_preprocessing');
+      if (hasPrework) {
+        const prep = strField(text, 'prework') ?? strField(text, 'agent_preprocessing');
         if (prep && (/(^|\s)\//.test(prep) || prep.includes('..'))) {
-          flag('"agent_preprocessing" reaches outside the task directory (absolute path or "..")', 'reference a sibling script only, e.g. "node prepare.mjs"');
+          flag('"prework" reaches outside the task directory (absolute path or "..")', 'reference a sibling script only, e.g. "node prepare.mjs"');
         }
-        if (!hasNum('agent_preprocessing_timeout')) {
-          flag('"agent_preprocessing" is set but declares no numeric "agent_preprocessing_timeout"', 'add "agent_preprocessing_timeout": seconds after which the subprocess is killed');
+        if (!hasNum('prework_timeout', 'agent_preprocessing_timeout')) {
+          flag('"prework" is set but declares no numeric "prework_timeout"', 'add "prework_timeout": seconds after which the subprocess is killed');
         }
       }
     }

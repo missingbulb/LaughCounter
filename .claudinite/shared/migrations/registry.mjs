@@ -80,7 +80,26 @@ export async function applyFileAliases(migration, { exists, move }) {
 // repo — the source and destination roots differ in a consumer, so they are
 // distinct injected readers. Gated by the migration's `appliesTo` so it only
 // touches repos that ship the pipeline (never the canon repo itself).
-export async function applyMaterializations(migration, { readTemplate, read, write }) {
+// A materialization whose dest is a WORKFLOW FILE can only be written by a caller that
+// can get it delivered. The nightly converge pushes with the Action's GITHUB_TOKEN, which
+// GitHub never lets write under `.github/workflows/`, and the refusal rejects the whole
+// ref — so writing one into a tree that is about to be pushed by such a caller does not
+// deliver a workflow, it fails the entire converge and everything else riding it.
+//
+// The capable caller announces itself with this variable. The baselining worker sets it
+// when it can WITHHOLD those paths from its commit and hand them to the agent stage;
+// anything else — an older vendored worker, a hand-run `node migrations/apply.mjs`, CI —
+// leaves it unset and the workflow materialization is skipped with a note.
+//
+// An ENV HANDSHAKE rather than a probe of the repo on disk, because what matters is what
+// the RUNNING process can do and the disk cannot answer that: the vendor step earlier in
+// the same cycle replaces the on-disk worker with the new one while the old code is still
+// executing.
+export const WITHHOLD_CAPABLE_ENV = 'CLAUDINITE_CAN_WITHHOLD_WORKFLOWS';
+const WORKFLOW_DEST = '.github/workflows/';
+export const callerCanDeliverWorkflows = (env = process.env) => env[WITHHOLD_CAPABLE_ENV] === '1';
+
+export async function applyMaterializations(migration, { readTemplate, read, write, env = process.env }) {
   if (!migration.materialize?.length) return [];
   if (migration.appliesTo && !(await migration.appliesTo(read))) return [];
   const done = [];
@@ -88,6 +107,12 @@ export async function applyMaterializations(migration, { readTemplate, read, wri
     const content = await readTemplate(template);
     if (content == null) continue; // template missing (partial mount) — skip, never clobber with nothing
     if ((await read(dest)) === content) continue; // already vendored, unchanged
+    if (dest.startsWith(WORKFLOW_DEST) && !callerCanDeliverWorkflows(env)) {
+      // Reported rather than silent — a silent skip reads as "already current". A caller
+      // that can withhold writes it on a later cycle.
+      done.push(`SKIPPED ${dest} (workflow file; this caller cannot deliver one)`);
+      continue;
+    }
     await write(dest, content);
     done.push(`${dest} <- ${template}`);
   }
@@ -113,11 +138,11 @@ export async function applyRewrites(migration, { read, write }) {
   return done;
 }
 
-// A migration record MAY carry a machine-readable AGENTIC note (agent-preprocessing
+// A migration record MAY carry a machine-readable AGENTIC note (task-prework
 // DESIGN §7, the primitive absorbed from #405): member-side adaptation that no
 // script can do — adapting consumer-authored `local/packs/` content to a changed
 // engine contract. Shape: `agentic: { model, instructions }`, model a non-`none`
-// family. baselining's preprocessing reads this to decide whether a pending note
+// family. baselining's prework reads this to decide whether a pending note
 // needs the agent STAGE (and must therefore hold the stamp) rather than converging
 // in code. Returns the validated note, or null when the record carries none;
 // throws on a malformed note so a typo fails loudly instead of silently skipping
