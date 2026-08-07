@@ -1,4 +1,4 @@
-# macos-audio-lifecycle
+# macos-audio
 
 Holding a macOS microphone without damaging it. LaughCounter keeps an
 `AVAudioEngine` input tap open for hours, and has repeatedly left a USB webcam mic
@@ -13,7 +13,7 @@ canon pack homes, and that the repo's other local packs deliberately don't own:
 `local/on-device-privacy` owns the privacy boundary, `local/laughcounter` the
 repo's general build/packaging and check-authoring lessons.
 
-Local pack, declared by hand as `local/macos-audio-lifecycle` (no fingerprint).
+Local pack, declared by hand as `local/macos-audio` (no fingerprint).
 
 | Rule | How enforced |
 | --- | --- |
@@ -34,6 +34,6 @@ The narrative — which release, which measurement, which theory survived — st
 carries the invariants and points at it.
 
 Fixtures: `pack.test.mjs` —
-`node --test .claudinite/local/packs/macos-audio-lifecycle/pack.test.mjs`. Each
+`node --test .claudinite/local/packs/macos-audio/pack.test.mjs`. Each
 check has a violating fixture it fires on and the repo's real files it stays quiet
 on. They sit in the pack, not alongside the app sources (`claudinite-isolation`).

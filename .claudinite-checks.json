@@ -11,7 +11,7 @@
     "tidy-repo",
     "github-actions",
     "local/on-device-privacy",
-    "local/macos-audio-lifecycle",
+    "local/macos-audio",
     "local/laughcounter"
   ],
   "accept": [],

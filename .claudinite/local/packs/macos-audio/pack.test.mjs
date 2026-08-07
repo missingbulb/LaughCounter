@@ -1,7 +1,7 @@
-// Red-first fixtures for the macos-audio-lifecycle checks: each rule must fire on
+// Red-first fixtures for the macos-audio checks: each rule must fire on
 // a violating file and stay quiet on the repo's real, clean ones. Run directly:
 //
-//   node --test .claudinite/local/packs/macos-audio-lifecycle/pack.test.mjs
+//   node --test .claudinite/local/packs/macos-audio/pack.test.mjs
 //
 // They live here rather than in tests/ (`claudinite-isolation`). The fake ctx is
 // the slice of the engine's context a check actually uses — `files` and `read` —

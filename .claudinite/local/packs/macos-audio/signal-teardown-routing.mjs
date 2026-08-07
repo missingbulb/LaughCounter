@@ -29,10 +29,10 @@ const REQUIRED_SIGNALS = ['SIGTERM', 'SIGINT', 'SIGHUP'];
 const inScope = (f) => f.startsWith('mac/Sources/') && f.endsWith('.swift');
 
 const rule = {
-  id: 'macos-audio-lifecycle/signal-teardown-routing',
+  id: 'macos-audio/signal-teardown-routing',
   severity: 'blocking',
   description: 'Catchable termination signals reach applicationWillTerminate, and SIG_IGN precedes resume() (mac/Sources/)',
-  doc: '.claudinite/local/packs/macos-audio-lifecycle/RULES.md',
+  doc: '.claudinite/local/packs/macos-audio/RULES.md',
   why: 'a signal that kills the process outright skips the tap teardown and abandons the IOProc on the microphone — the wedge condition the whole lifecycle is built around',
 
   run(ctx) {

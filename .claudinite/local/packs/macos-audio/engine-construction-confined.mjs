@@ -29,10 +29,10 @@ const CONSTRUCTION = /\bAVAudioEngine\s*\(/g;
 const inScope = (f) => f.startsWith('mac/Sources/') && f.endsWith('.swift');
 
 const rule = {
-  id: 'macos-audio-lifecycle/engine-construction-confined',
+  id: 'macos-audio/engine-construction-confined',
   severity: 'blocking',
   description: 'Only AudioHub builds an AVAudioEngine — nothing else opens the mic to ask a question (mac/Sources/)',
-  doc: '.claudinite/local/packs/macos-audio-lifecycle/RULES.md',
+  doc: '.claudinite/local/packs/macos-audio/RULES.md',
   why: 'constructing an engine opens the default input and churns a hidden coreaudiod aggregate device — the one mechanism by which this app could plausibly wedge a mic',
 
   run(ctx) {

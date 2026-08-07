@@ -12,10 +12,10 @@ import noSuddenTermination from './no-sudden-termination.mjs';
 // the project CLAUDE.md); this pack carries the invariants and enforces the
 // three that a scan can decide.
 //
-// A local pack: declared by hand as `local/macos-audio-lifecycle`, never
+// A local pack: declared by hand as `local/macos-audio`, never
 // fingerprinted (detect/marker null).
 export default {
-  id: 'macos-audio-lifecycle',
+  id: 'macos-audio',
   ruleRoutingGuidance: {
     belongs:
       'holding a macOS microphone safely — AVAudioEngine and CoreAudio device lifecycle, sleep/wake and exit teardown, audio-arrival diagnostics',

@@ -17,10 +17,10 @@ const KEY = 'NSSupportsSuddenTermination';
 const inScope = (f) => f.startsWith('mac/Resources/') && f.endsWith('.plist');
 
 const rule = {
-  id: 'macos-audio-lifecycle/no-sudden-termination',
+  id: 'macos-audio/no-sudden-termination',
   severity: 'blocking',
   description: 'The app never opts into sudden termination — applicationWillTerminate must run (mac/Resources/*.plist)',
-  doc: '.claudinite/local/packs/macos-audio-lifecycle/RULES.md',
+  doc: '.claudinite/local/packs/macos-audio/RULES.md',
   why: 'sudden termination lets logout SIGKILL the app past every teardown path, abandoning the input tap\'s IOProc on the device — the state that wedges a USB mic until it is re-plugged',
 
   run(ctx) {
