@@ -14,5 +14,8 @@ the canon home repo's own pack is named for it.
 | Re-ask "not statically checkable" after the tree changes | `RULES.md` prose |
 | Test "already covered by another check" before believing it | `RULES.md` prose |
 | Author a check as a positive whitelist, not a ban list | `RULES.md` prose |
+| Ship a stateable version + build number, and bump it per distinguishable build | `RULES.md` prose |
+| A green scheduled run that skipped its work is not a pass | `RULES.md` prose |
+| Delete the flagged coupling before reaching for an `accept` | `RULES.md` prose |
 
 Prose-only so far.

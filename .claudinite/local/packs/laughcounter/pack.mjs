@@ -8,7 +8,7 @@ export default {
   id: 'laughcounter',
   ruleRoutingGuidance: {
     belongs:
-      "LaughCounter's general working lessons about this repo, its build, its macOS packaging, and how its own local-pack checks are authored",
+      "LaughCounter's general working lessons about this repo — its build, macOS packaging and versioning, check authoring, Claudinite maintenance findings",
     excludes: 'the on-device privacy boundary — that is on-device-privacy',
   },
   detect: null,
