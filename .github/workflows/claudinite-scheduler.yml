@@ -37,7 +37,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write        # read the repo + vendored engine; baselining's deliver() pushes the maintenance branch (agent-preprocessing §7/E4)
+  contents: write        # read the repo + vendored engine; baselining's deliver() pushes the maintenance branch (task-prework §7/E4)
   issues: write          # file / label / close dispatch issues
   pull-requests: write   # baselining's deliver() opens the per-cycle maintenance PR and arms auto-merge
   actions: write         # read the run ledger (last successful run) for due-slot math, AND
