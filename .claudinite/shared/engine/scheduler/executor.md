@@ -99,7 +99,8 @@ goes through your GitHub tools.
    manufacture work. Determine what the run did to pull requests and check it against that
    ceiling with `verify-outcome.mjs` — a `none` task that opened a PR, or an `open-pr` task
    that merged one, **fails the run**. Then:
-   - Success within ceiling → comment the result and **close** the issue.
+   - Success within ceiling → comment the result, remove `agent-running`, and **close** the
+     issue.
    - Failure (task failed, or ceiling violated) → comment naming what failed, remove
      `agent-running`, add `needs-human`. Do not close.
 

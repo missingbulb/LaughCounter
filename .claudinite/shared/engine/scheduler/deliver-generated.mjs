@@ -1,13 +1,14 @@
-// Deliver GENERATED files on an auto-merging pull request — the write half of an
-// agentless task whose whole output is a regenerated file.
+// Deliver GENERATED files on a pull request that lands itself — the write half of
+// an agentless task whose whole output is a regenerated file.
 //
 // It exists because two tasks need exactly this and must not each grow their own
 // copy: the per-repo skill-usage fold and the sheepdog's fleet aggregate both
 // recompute a `*.GENERATED.json` from scratch and want it landed without a human in
 // the loop. (baselining's own `deliver` is deliberately NOT folded in here: it
-// commits a whole working tree, honours the member's `maintenance.delivery`
-// preference, and reuses a dated family branch — a different job that happens to end
-// in a PR too.)
+// commits a whole working tree and re-cuts a dated family branch each cycle — a
+// different job that happens to end in a PR too. What the two DO share — every
+// nuance of actually landing the PR under the member's `maintenance.delivery` and
+// the repo's own shape — lives in land-pr.mjs, and both call it.)
 //
 // Two properties everything here is shaped around:
 //
@@ -21,7 +22,8 @@
 //   THE BASE IS THE ONLY AUTHORITY. Both the prior state a generator reads and the
 //   tree it builds on come from the remote base branch, never from local HEAD. A
 //   previous run's PR still sitting open is simply rebuilt from the base, so a
-//   stateless generator stays idempotent no matter how many runs stack up.
+//   stateless generator stays idempotent no matter how many runs stack up. The
+//   member's delivery preference is read from the base too, for the same reason.
 //
 // Idempotence is the caller's to keep: pass files whose content is a pure function of
 // the inputs, and compare against `readAtBase` before calling — an identical
@@ -31,6 +33,7 @@ import { execFileSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { deliveryFromChecks, pullCreateError, landDelivery } from './land-pr.mjs';
 
 const API = 'https://api.github.com';
 
@@ -60,22 +63,6 @@ async function gh(token, path, { method = 'GET', body } = {}) {
   let json = null;
   try { json = await res.json(); } catch { /* empty body */ }
   return { status: res.status, json };
-}
-
-// Auto-merge is a GraphQL-only mutation. Best effort by design, and re-asserted on
-// every run: a repo that had auto-merge disabled when the PR was opened would
-// otherwise leave that PR open forever with nothing that could ever arm it.
-async function enableAutoMerge(token, pullRequestId) {
-  const res = await fetch(`${API}/graphql`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      query: 'mutation($id:ID!){enablePullRequestAutoMerge(input:{pullRequestId:$id,mergeMethod:SQUASH}){pullRequest{id}}}',
-      variables: { id: pullRequestId },
-    }),
-  });
-  const json = await res.json().catch(() => null);
-  if (json?.errors?.length) throw new Error(json.errors[0].message);
 }
 
 export const remoteUrl = (repo, token) => `https://x-access-token:${token}@github.com/${repo}.git`;
@@ -114,28 +101,55 @@ export function pushGenerated(root, { remote, baseSha, branch, files, message })
   } finally { rmSync(index, { force: true }); }
 }
 
-// Deliver `files` on an auto-merging PR. An open PR whose head branch carries
-// `branchPrefix` is REUSED — a daily regenerate that runs before yesterday's PR
-// merged updates that PR rather than stacking a second one — otherwise a
-// `<branchPrefix>/<stamp>` branch is minted and a PR opened on it.
+// Deliver `files` on a PR that lands itself where the member allows it. An open PR
+// whose head branch carries `branchPrefix` is REUSED — a daily regenerate that runs
+// before yesterday's PR merged updates that PR rather than stacking a second one —
+// otherwise a `<branchPrefix>/<stamp>` branch is minted and a PR opened on it.
 //
-// Returns { branch, number, reused }.
-export async function deliverGenerated({ root, repo, base, token, branchPrefix, stamp, files, title, body, message }) {
+// How the PR lands is land-pr.mjs's business, not the calling task's: the member's
+// `maintenance.delivery` (read from the BASE tip — a `review` member's PR is opened
+// and left for the owner; an unrecognized value fails the run rather than guessing),
+// then the repo's own shape (no PR CI → direct merge; ungated base → verify-then-
+// land; a gate → arm auto-merge, landing poll as fallback). A PR this run could not
+// land stays open — the next run rebuilds it from the base, so nothing is lost.
+//
+// Returns { branch, number, reused, delivery, merged }.
+export async function deliverGenerated({ root, repo, base, token, branchPrefix, stamp, files, title, body, message, log = console.log }) {
   const { json: pulls } = await gh(token, `/repos/${repo}/pulls?state=open&per_page=100`);
   let pr = (Array.isArray(pulls) ? pulls : []).find((p) => p.head?.ref?.startsWith(`${branchPrefix}/`));
   const reused = Boolean(pr);
   const branch = reused ? pr.head.ref : `${branchPrefix}/${stamp}`;
   const remote = remoteUrl(repo, token);
 
-  pushGenerated(root, { remote, baseSha: baseTip(root, remote, base), branch, files, message });
+  const baseSha = baseTip(root, remote, base);
+  // The member's delivery preference gates everything after the push. Same stance
+  // as baselining: an absent key resolves to the default (materializing it is the
+  // converge's job, not a generated-file PR's), an unrecognized value fails loudly
+  // — substituting a default would deliver the opposite of a stated intent.
+  const { delivery } = deliveryFromChecks(readAt(root, baseSha, '.claudinite-checks.json'));
+  if (!delivery) throw new Error('this repo\'s maintenance.delivery is neither auto-merge nor review — fix .claudinite-checks.json');
+
+  const commit = pushGenerated(root, { remote, baseSha, branch, files, message });
 
   if (!reused) {
     const created = await gh(token, `/repos/${repo}/pulls`, { method: 'POST', body: { head: branch, base, title, body } });
-    if (created.status !== 201) {
-      throw new Error(`opening the pull request for ${branch} returned ${created.status}`);
-    }
+    const failure = pullCreateError(created.status, created.json);
+    if (failure) throw new Error(`opening the pull request for ${branch}: ${failure}`);
     pr = created.json;
   }
-  if (pr?.node_id) await enableAutoMerge(token, pr.node_id).catch(() => {});
-  return { branch, number: pr?.number ?? null, reused };
+
+  let merged = false;
+  if (pr?.number) {
+    // Runs for review members too: landDelivery still starts the PR's checks
+    // (#565 — the GITHUB_TOKEN push emitted no pull_request run, and the owner
+    // reviews against a green), then does nothing further for `review`.
+    // The head sha must be THIS run's commit: a reused PR's listing still carries
+    // the previous push, and polling a stale sha waits on runs that never come.
+    const landed = await landDelivery({
+      token, repo, base, delivery, log,
+      pr: { ...pr, head: { ...pr.head, ref: branch, sha: commit } },
+    });
+    merged = landed.merged;
+  }
+  return { branch, number: pr?.number ?? null, reused, delivery, merged };
 }

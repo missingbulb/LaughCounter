@@ -80,7 +80,7 @@ narrower case) stays.
   [the git-github-advanced skill](../../../git-github/skills/git-github-advanced/SKILL.md)) — one PR for the
   whole run's prunes, not one per item — never a direct push. This is an unattended task, on a capable model, and a **wrongful prune
   deletes a real local lesson**, so — unlike [growth-extract](../growth-extract/task.md), whose additive edits
-  ride a PR that auto-merges after CI — this task keeps a **human** approval gate (its declared outcome ceiling
+  ride a PR delivered to land after CI — this task keeps a **human** approval gate (its declared outcome ceiling
   is `open-pr`: it may open a PR but never merge it). **Put the issue reference in the commit message** —
   `Refs #<n>` for this task's tracking issue (below), in the commit itself, not only the PR body. The repo's
   `basics` `task-lifecycle` check gates a PR on its commits referencing an issue, so a prune commit that cites
