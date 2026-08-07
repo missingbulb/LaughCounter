@@ -1,4 +1,4 @@
-// Fresh-path wiring convergence (agent-preprocessing DESIGN §7, the primitive
+// Fresh-path wiring convergence (task-prework DESIGN §7, the primitive
 // absorbed from #405). The deterministic half of baselining's self-refresh that
 // has nothing to do with the vendored mount's CONTENT: the repo-specific wiring a
 // scheduled Claudinite consumer must carry, converged idempotently in code so the

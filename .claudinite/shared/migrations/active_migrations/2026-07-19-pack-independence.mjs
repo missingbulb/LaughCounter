@@ -25,7 +25,7 @@ export default {
   id: 'pack-independence',
   landed: '2026-07-19',
   summary: 'packs compose by declaration + contributed config, never code imports; local packs that imported the shared barrier engine convert to `contributes` on their manifest',
-  // The AGENTIC note above, now machine-readable (agent-preprocessing DESIGN §7):
+  // The AGENTIC note above, now machine-readable (task-prework DESIGN §7):
   // baselining's deterministic preprocessing detects this and escalates to the
   // agent stage instead of advancing the stamp past it. There are no mechanical
   // member-side ops, so this is the record's whole member-side work.

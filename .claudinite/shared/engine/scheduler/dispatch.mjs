@@ -76,16 +76,16 @@ export const isDispatchTitle = (title) => parseDispatchTitle(title) !== null;
 // only thing the executor reads to locate the worker; everything below is human
 // framing plus the precondition's binding Context. The Context block is emitted
 // only when the precondition produced lines (an empty scope has nothing to bind).
-// The `### Delivered` section — what this run's preprocessing created, by identity. It is
+// The `### Delivered` section — what this run's prework created, by identity. It is
 // the agent's only source for those artifacts.
 //
-// Absence is meaningful: no section means preprocessing created nothing, so never write a
+// Absence is meaningful: no section means prework created nothing, so never write a
 // placeholder here.
 export function deliveredLines(delivered) {
   const { branch = null, pr = null, merged = false } = delivered ?? {};
   if (!branch && !pr) return [];
   return [
-    '### Delivered by preprocessing',
+    '### Delivered by prework',
     'The artifacts this run created — the ones to work on.',
     '',
     ...(pr ? [`- PR: #${pr}${merged ? ' (already merged — open your own PR for further work)' : ' (open)'}`] : []),
@@ -93,10 +93,10 @@ export function deliveredLines(delivered) {
   ];
 }
 
-// The `### Why the agent is here` section — which of preprocessing's escalation
+// The `### Why the agent is here` section — which of prework's escalation
 // conditions fired. The worker knows it exactly; without this the agent re-derives it
 // from the repo, and a re-derivation that disagrees with the truth is how a run ends up
-// reporting "preprocessing created nothing" about a cycle that just merged a PR
+// reporting "prework created nothing" about a cycle that just merged a PR
 // (EdFringeAllocator#82).
 //
 // The condition and its counts, never the findings — those stay in the repo (DESIGN §3).
@@ -107,7 +107,7 @@ export function escalationLines(reason) {
   if (!code && !detail) return [];
   return [
     '### Why the agent is here',
-    'The condition preprocessing escalated on. Start here; the findings themselves are in the repo, not this issue.',
+    'The condition prework escalated on. Start here; the findings themselves are in the repo, not this issue.',
     '',
     `- ${detail || code}${detail && code ? ` (\`${code}\`)` : ''}`,
   ];
@@ -220,8 +220,9 @@ export function staleEscalationComment(issue) {
 // `labeled` only on a fresh add. So the scheduler re-arms it — remove the ready
 // label, add it back — which emits a new event.
 //
-// This is the recovery that used to live in the executor's drain sweep, moved into
-// deterministic code. The sweep had EVERY triggered session also process every
+// This is the recovery that used to live in the executor's drain sweep, then in
+// the scheduler's hourly pass, and now runs from the daily task-janitor task —
+// still deterministic code, still decided by the pure rules here. The sweep had EVERY triggered session also process every
 // OTHER armed issue, so one scheduler run filing N dispatches produced N sessions
 // each racing over the same N issues, and the claim swap could not stop it (every
 // session read the work list before any claim landed). That is the
@@ -249,12 +250,12 @@ export function readyLabelOn(issue) {
 //     session already on its way is never handed a rival.
 // A stale issue is never re-armed: it is on its way to `needs-human`, and re-arming
 // one would loop forever. That backstop is also what bounds this — an executor that
-// stays down is re-armed each run until ~2 periods, then converges to triage.
+// stays down is re-armed each janitor run until ~2 periods, then converges to triage.
 // Dispatch issues left claimed by a session that died mid-run: `agent-running`
 // with no activity for `idleMs` (~3h). Converging these used to be the executor's
 // own step 6, which meant every concurrently-triggered session swept them and
 // commented on the same issue — the duplicate-work bug in miniature. It is code
-// here for the same reason the re-arm is.
+// here (run by the janitor) for the same reason the re-arm is.
 //
 // Scoped to `[claudinite-task]` dispatch issues deliberately (the title parse is
 // what enforces it): a task may put `agent-running` on an issue IT owns — a

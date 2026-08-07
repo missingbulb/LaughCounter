@@ -24,7 +24,7 @@
 // has exactly one home too: the scheduler that prints those records, so the counter
 // keys here cannot drift from the words the runs actually emit.
 import { loadPacks, isActive, bundledSkillSources } from '../../../../engine/pack_loader/pack-registry.mjs';
-import { TASK_RUN_OUTCOMES, emptyTaskRun } from '../../../../engine/scheduler/run-record.mjs';
+import { TASK_RUN_OUTCOMES, TASK_EXEC_STATUSES, emptyTaskRun, parseTaskExecs } from '../../../../engine/scheduler/run-record.mjs';
 
 // --- entry classification -----------------------------------------------------
 // Every shape below was verified against real captured transcripts on a
@@ -370,6 +370,44 @@ export function countChecks(entries) {
 //
 // Stated overlap: a typed `/merge-to-main` counts in BOTH userCommands and
 // skillLoads. One event, two axes, both true.
+// Every string value anywhere in one entry, newline-joined — the haystack the
+// executor's exec records are fished out of. They are printed by executor-side
+// CODE (resolve-dispatch, record-exec) into Bash tool results, but the model may
+// also quote one back, and the harness records both — so the caller dedupes on
+// the full record tuple rather than trusting any one entry shape.
+function entryText(value, out = []) {
+  if (typeof value === 'string') out.push(value);
+  else if (Array.isArray(value)) for (const v of value) entryText(v, out);
+  else if (value && typeof value === 'object') for (const v of Object.values(value)) entryText(v, out);
+  return out;
+}
+
+// An empty per-task execution row — every status present, zeros included, same
+// fixed-shape discipline as the scheduler's task-run rows.
+export const emptyTaskExec = () => Object.fromEntries(TASK_EXEC_STATUSES.map((s) => [s, 0]));
+
+// The executor-side task statuses one capture file attests: `claudinite-task-exec`
+// records (run-record.mjs — the owned contract, never scraped prose), DEDUPED on
+// the full (pack, task, slot, status) tuple within the file. One session runs one
+// dispatch, so a record echoed by the model, or repeated across a command's
+// stdout and the harness's copy of it, collapses to the one execution it names;
+// a retry of the same slot is a different session, hence a different capture
+// file, and still counts.
+export function countTaskExecs(entries) {
+  const seen = new Set();
+  const taskExec = {};
+  for (const entry of entries) {
+    for (const rec of parseTaskExecs(entryText(entry).join('\n'))) {
+      const key = `${rec.pack}/${rec.task}|${rec.slotId}|${rec.status}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const row = (taskExec[`${rec.pack}/${rec.task}`] ??= emptyTaskExec());
+      row[rec.status] += 1;
+    }
+  }
+  return taskExec;
+}
+
 export function countEntries(entries, mounted = new Set()) {
   const skillLoads = {};
   let userMessages = 0;
@@ -385,7 +423,7 @@ export function countEntries(entries, mounted = new Set()) {
       if (mounted.has(command)) load(command);
     }
   }
-  return { userMessages, userCommands, skillLoads, ...countChecks(entries) };
+  return { userMessages, userCommands, skillLoads, taskExec: countTaskExecs(entries), ...countChecks(entries) };
 }
 
 // --- day buckets ---------------------------------------------------------------
@@ -393,7 +431,7 @@ export function countEntries(entries, mounted = new Set()) {
 // An empty day row — the shape every counter folds through.
 const emptyDay = () => ({
   captures: 0, merges: 0, sessions: 0, userMessages: 0, userCommands: 0, skillLoads: {},
-  checks: {}, checkFindings: {}, tasks: {},
+  checks: {}, checkFindings: {}, tasks: {}, taskExec: {},
 });
 
 function addLoads(into, from) {
@@ -428,6 +466,7 @@ export function foldDays(files) {
     addLoads(day.skillLoads, file.counts.skillLoads);
     addCounters(day.checks, file.counts.checks);
     addCounters(day.checkFindings, file.counts.checkFindings);
+    addCounters(day.taskExec, file.counts.taskExec);
     (sessionsByDay[file.date] ??= new Set()).add(file.sessionId);
   }
   // Distinct sessions, not capture count: one session can capture more than once
@@ -538,6 +577,8 @@ export function addDayToWeek(week, day) {
   // folded before they were counted has no `tasks` key, and grows one from the day
   // it closes forward instead of wedging the watermark behind it.
   addCounters((w.tasks ??= {}), day.tasks);
+  // …and for the executor-side execution statuses (the conversation-log census).
+  addCounters((w.taskExec ??= {}), day.taskExec);
   return w;
 }
 
@@ -558,6 +599,7 @@ function sortRow(row) {
     checks: sortKeys(row.checks ?? {}),
     checkFindings: sortKeys(row.checkFindings ?? {}),
     tasks: sortKeys(row.tasks ?? {}),
+    taskExec: sortKeys(row.taskExec ?? {}),
   };
 }
 

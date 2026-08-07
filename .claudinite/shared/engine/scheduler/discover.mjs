@@ -17,7 +17,7 @@ import { readdirSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadPacks, isActive } from '../pack_loader/pack-registry.mjs';
-import { validateTaskDeclaration } from './task-contract.mjs';
+import { normalizeTaskDeclaration, validateTaskDeclaration } from './task-contract.mjs';
 
 // Discover every task the repo's active packs contribute. Returns
 // `{ tasks, errors }` where each task is
@@ -47,7 +47,9 @@ export async function discoverTasks(root, config) {
       if (!existsSync(mjs)) continue;
       let decl;
       try {
-        decl = (await import(pathToFileURL(mjs).href)).default;
+        // Canonical field names from here on (legacy prework names accepted at
+        // the door, never re-checked downstream).
+        decl = normalizeTaskDeclaration((await import(pathToFileURL(mjs).href)).default);
       } catch (e) {
         errors.push({ pack: pack.id, task: name, what: `${relative(root, mjs)} failed to import: ${e.message}`, fix: 'fix or remove the task' });
         continue;

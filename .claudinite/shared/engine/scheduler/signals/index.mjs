@@ -128,7 +128,14 @@ const COLLECTORS = {
       .map((p) => ({ number: p.number, title: p.title, mergedAt: p.merged_at }));
 
     return {
-      open: open.map((p) => ({ number: p.number, title: p.title, updatedAt: p.updated_at })),
+      // `labels` rides along so a precondition can rule on an open PR's family
+      // (e.g. wiki-growth declining while its own labeled PR sits unreviewed) —
+      // the run/no-run decision belongs in the precondition, and it can only
+      // live there if the signal carries the fact it turns on.
+      open: open.map((p) => ({
+        number: p.number, title: p.title, updatedAt: p.updated_at,
+        labels: (p.labels ?? []).map((l) => (typeof l === 'string' ? l : l?.name)).filter(Boolean),
+      })),
       touched: open.filter((p) => new Date(p.updated_at) >= since).map((p) => p.number),
       merged,
     };

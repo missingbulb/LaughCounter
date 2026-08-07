@@ -12,6 +12,7 @@ import catalogCompleteness from './catalog-completeness.mjs';
 import claudiniteIsolation from './claudinite-isolation.mjs';
 import schedulerWorkflowShape from './scheduler-workflow-shape.mjs';
 import taskDeclarationShape from './task-declaration-shape.mjs';
+import taskPhaseDiscipline from './task-phase-discipline.mjs';
 import conformanceWorkflow from './conformance-workflow.mjs';
 
 // The baseline pack: working discipline, the task lifecycle, and the core
@@ -54,6 +55,10 @@ export default {
     // the workflow / a tasks/<name>/task.mjs of its own.
     schedulerWorkflowShape,
     taskDeclarationShape,
+    // The precondition-is-the-only-gate discipline (owner, 2026-08-06): an
+    // advisory hunt for tasks that "escape" — skip their work in the prework or
+    // agentic phase after the precondition already said run.
+    taskPhaseDiscipline,
     // And the CI half of the same discipline: a member whose world sweep cannot
     // run on a pull request has no gate, and its maintenance PR never lands.
     conformanceWorkflow,
