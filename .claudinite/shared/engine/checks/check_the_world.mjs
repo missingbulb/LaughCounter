@@ -29,7 +29,14 @@ const configError = (what, fix) => ({
 const args = process.argv.slice(2);
 const has = (flag) => args.includes(flag);
 const value = (flag) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : null);
-const root = value('--root') || process.cwd();
+// The repo to sweep. `--root` first, then CLAUDE_PROJECT_DIR, and only then the cwd.
+// The env var is not a convenience: the callers that run this from inside a converge
+// (baselining's worker) have a cwd that no longer exists — the vendor step deletes
+// `.claudinite/shared/`, which is where prework's cwd lives — and `process.cwd()` then
+// throws `ENOENT … uv_cwd` before a single check runs, which reads from the outside as
+// "this mount has no checks" (#689). engine/selftest.mjs has always resolved its root
+// this way; this closes the disagreement for every caller, not just that one.
+const root = value('--root') || process.env.CLAUDE_PROJECT_DIR || process.cwd();
 
 if (has('--list')) {
   const { packs } = await discoverPacks({ localRoot: root });
