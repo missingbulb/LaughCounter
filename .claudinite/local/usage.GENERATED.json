@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "foldedThrough": "2026-08-06",
-  "runsFoldedThrough": "2026-08-07T03:39:07Z",
+  "foldedThrough": "2026-08-07",
+  "runsFoldedThrough": "2026-08-08T03:57:32Z",
   "days": {
     "2026-07-28": {
       "captures": 1,
@@ -44,7 +44,8 @@
           "advisory": 0
         }
       },
-      "tasks": {}
+      "tasks": {},
+      "taskExec": {}
     },
     "2026-07-29": {
       "captures": 6,
@@ -86,7 +87,8 @@
           "advisory": 0
         }
       },
-      "tasks": {}
+      "tasks": {},
+      "taskExec": {}
     },
     "2026-07-30": {
       "captures": 3,
@@ -128,7 +130,8 @@
           "advisory": 0
         }
       },
-      "tasks": {}
+      "tasks": {},
+      "taskExec": {}
     },
     "2026-07-31": {
       "captures": 6,
@@ -168,7 +171,8 @@
           "advisory": 0
         }
       },
-      "tasks": {}
+      "tasks": {},
+      "taskExec": {}
     },
     "2026-08-01": {
       "captures": 8,
@@ -205,7 +209,8 @@
           "advisory": 0
         }
       },
-      "tasks": {}
+      "tasks": {},
+      "taskExec": {}
     },
     "2026-08-02": {
       "captures": 9,
@@ -251,7 +256,8 @@
           "advisory": 0
         }
       },
-      "tasks": {}
+      "tasks": {},
+      "taskExec": {}
     },
     "2026-08-03": {
       "captures": 2,
@@ -262,7 +268,8 @@
       "skillLoads": {},
       "checks": {},
       "checkFindings": {},
-      "tasks": {}
+      "tasks": {},
+      "taskExec": {}
     },
     "2026-08-05": {
       "captures": 1,
@@ -297,7 +304,8 @@
           "advisory": 0
         }
       },
-      "tasks": {}
+      "tasks": {},
+      "taskExec": {}
     },
     "2026-08-06": {
       "captures": 1,
@@ -361,18 +369,19 @@
           "failed": 0,
           "deferred": 0
         }
-      }
+      },
+      "taskExec": {}
     },
     "2026-08-07": {
-      "captures": 1,
-      "merges": 1,
-      "sessions": 1,
+      "captures": 2,
+      "merges": 2,
+      "sessions": 2,
       "userMessages": 0,
       "userCommands": 0,
       "skillLoads": {},
       "checks": {
         "world": {
-          "runs": 4,
+          "runs": 5,
           "failures": 0,
           "errors": 0,
           "blocking": 0,
@@ -384,11 +393,11 @@
       "checkFindings": {},
       "tasks": {
         "basics/baselining": {
-          "agent": 1,
+          "agent": 2,
           "preprocess": 0,
           "skipped": 0,
           "failed": 0,
-          "deferred": 0
+          "deferred": 4
         },
         "grow_with_claudinite/growth-extract": {
           "agent": 0,
@@ -396,6 +405,86 @@
           "skipped": 1,
           "failed": 0,
           "deferred": 0
+        },
+        "grow_with_claudinite/usage-fold": {
+          "agent": 0,
+          "prework": 1,
+          "skipped": 0,
+          "failed": 0,
+          "deferred": 0
+        },
+        "tidy-repo/tidy-issues": {
+          "agent": 0,
+          "prework": 0,
+          "skipped": 1,
+          "failed": 0,
+          "deferred": 0
+        }
+      },
+      "taskExec": {
+        "basics/baselining": {
+          "success": 0,
+          "failed": 1,
+          "task-gone": 0,
+          "invalid": 0
+        }
+      }
+    },
+    "2026-08-08": {
+      "captures": 1,
+      "merges": 1,
+      "sessions": 1,
+      "userMessages": 0,
+      "userCommands": 0,
+      "skillLoads": {},
+      "checks": {
+        "work": {
+          "runs": 1,
+          "failures": 1,
+          "errors": 0,
+          "blocking": 1,
+          "advisory": 0,
+          "ciRuns": 0,
+          "ciFailures": 0
+        },
+        "world": {
+          "runs": 1,
+          "failures": 0,
+          "errors": 0,
+          "blocking": 0,
+          "advisory": 0,
+          "ciRuns": 0,
+          "ciFailures": 0
+        }
+      },
+      "checkFindings": {
+        "comment-classification": {
+          "blocking": 1,
+          "advisory": 0
+        }
+      },
+      "tasks": {
+        "basics/baselining": {
+          "agent": 0,
+          "prework": 0,
+          "skipped": 0,
+          "failed": 0,
+          "deferred": 1
+        },
+        "grow_with_claudinite/growth-extract": {
+          "agent": 1,
+          "prework": 0,
+          "skipped": 0,
+          "failed": 0,
+          "deferred": 0
+        }
+      },
+      "taskExec": {
+        "grow_with_claudinite/growth-extract": {
+          "success": 1,
+          "failed": 0,
+          "task-gone": 0,
+          "invalid": 0
         }
       }
     }
@@ -454,13 +543,14 @@
           "advisory": 0
         }
       },
-      "tasks": {}
+      "tasks": {},
+      "taskExec": {}
     },
     "2026-W32": {
-      "days": 3,
-      "captures": 4,
-      "merges": 3,
-      "sessionDays": 3,
+      "days": 4,
+      "captures": 6,
+      "merges": 5,
+      "sessionDays": 5,
       "userMessages": 0,
       "userCommands": 0,
       "skillLoads": {},
@@ -475,7 +565,7 @@
           "ciFailures": 0
         },
         "world": {
-          "runs": 5,
+          "runs": 10,
           "failures": 0,
           "errors": 0,
           "blocking": 0,
@@ -492,16 +582,16 @@
       },
       "tasks": {
         "basics/baselining": {
-          "agent": 1,
+          "agent": 3,
           "preprocess": 0,
           "skipped": 0,
           "failed": 0,
-          "deferred": 2
+          "deferred": 6
         },
         "grow_with_claudinite/growth-extract": {
           "agent": 0,
           "preprocess": 0,
-          "skipped": 1,
+          "skipped": 2,
           "failed": 0,
           "deferred": 0
         },
@@ -510,14 +600,24 @@
           "preprocess": 0,
           "skipped": 0,
           "failed": 0,
-          "deferred": 1
+          "deferred": 1,
+          "prework": 1
         },
         "tidy-repo/tidy-issues": {
           "agent": 0,
           "preprocess": 0,
-          "skipped": 1,
+          "skipped": 2,
           "failed": 0,
-          "deferred": 0
+          "deferred": 0,
+          "prework": 0
+        }
+      },
+      "taskExec": {
+        "basics/baselining": {
+          "success": 0,
+          "failed": 1,
+          "task-gone": 0,
+          "invalid": 0
         }
       }
     }
