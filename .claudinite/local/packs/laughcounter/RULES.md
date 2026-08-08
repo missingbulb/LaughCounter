@@ -83,6 +83,27 @@ that updates itself, the ordinary route is unreachable — baselining is what
 refreshes the vendored mount, and the bug was *in* the mount — so the fix has to be
 pushed in out of band rather than waited for. (#56)
 
+**Nothing in this repo runs on `pull_request`, so most PRs carry no checks at all
+— and arming auto-merge on one is rejected every time.** `build-macos-dmg.yml`
+and `release-macos-dmg.yml` trigger on `push` scoped to `mac/**` (plus their own
+file), and `claudinite-scheduler.yml` only on `schedule`/`workflow_dispatch`; no
+workflow here declares a `pull_request` trigger. A PR touching only
+`.claudinite/`, `docs/` or `dev/` therefore starts nothing, is mergeable the
+second it opens, and GitHub answers the auto-merge arm with *"already in clean
+status — auto-merge only applies when checks are pending."* That is the repo's
+shape, not a fault, and the canon's delivery procedure already licenses the
+squash merge yourself in exactly that case — take it rather than escalating: PR
+#138 sat unmerged for a day because a run read its task file's blanket "never
+hand-merge" as covering the rejection too. Two corollaries. The maintenance PRs
+the Action opens land **within seconds** of being armed, so by the time the agent
+stage starts there is usually no open `claudinite/maintenance-*` PR left to
+continue on and the condition that escalated no longer reproduces — three cycles
+running (#127/#128, #129/#130, #133/#134) spent their budget hunting the PR API
+for a branch that had already merged, when the first move is to fetch `main` and
+re-run the check against it. And "CI will catch it" is simply false outside
+`mac/**`: nothing runs, so whatever a change needed proving, prove it locally
+before it lands. (#137/#138)
+
 **When a conformance check flags text, ask what a reader could act on before
 reaching for an `accept`.** `claudinite-isolation` fired on `CLAUDE.md`'s
 orientation header for spelling the vendored mount path. Nothing in that header
