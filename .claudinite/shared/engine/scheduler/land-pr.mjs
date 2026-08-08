@@ -165,6 +165,12 @@ export function ciDispatchPlan(files) {
 // a silent no-checks PR is exactly the failure mode this exists to close. Needs
 // the scheduler workflow's `actions: write` (a read-only token 403s the POST
 // silently — the store-release lesson).
+// Returns { dispatch, missing, started }: `dispatch`/`missing` are the PLAN
+// (what the tree says should run), `started` the dispatches GitHub actually
+// accepted (204). The landing poll must wait only on `started` — a POST that
+// 403'd (the scheduler workflow missing `actions: write`, the canon's own copy
+// on 2026-08-08) starts nothing, and counting the plan had the poll waiting for
+// a run that could never come.
 export async function dispatchCiRuns({ token, repo, branch, log = console.log }) {
   const ref = encodeURIComponent(branch);
   const { json: dir } = await gh(token, `/repos/${repo}/contents/.github/workflows?ref=${ref}`);
@@ -182,14 +188,18 @@ export async function dispatchCiRuns({ token, repo, branch, log = console.log })
   if (!dispatch.length && !missing.length) {
     log('no pull_request-triggered workflow — the delivered PR has no checks to wait for');
   }
+  const started = [];
   for (const name of dispatch) {
     const res = await gh(token, `/repos/${repo}/actions/workflows/${name}/dispatches`, {
       method: 'POST', body: { ref: branch },
     });
-    if (res.status === 204) log(`dispatched ${name} on ${branch} — the delivered PR gets its checks`);
-    else log(`could not dispatch ${name} on ${branch} (${res.status})`);
+    if (res.status === 204) { started.push(name); log(`dispatched ${name} on ${branch} — the delivered PR gets its checks`); }
+    else {
+      log(`could not dispatch ${name} on ${branch} (${res.status})`
+        + (res.status === 403 ? ' — the scheduler workflow needs `actions: write` (a read token 403s this POST silently)' : ''));
+    }
   }
-  return { dispatch, missing };
+  return { dispatch, missing, started };
 }
 
 // --- opening the PR ------------------------------------------------------------
@@ -437,9 +447,12 @@ export async function landDelivery({ token, repo, base, pr, delivery, log = cons
   const ci = await dispatchCiRuns({ token, repo, branch: pr.head?.ref, log })
     .catch((e) => { log(`CI dispatch on ${pr.head?.ref} failed: ${e.message}`); return null; });
   const hasPrCi = ci ? ci.dispatch.length + ci.missing.length > 0 : true; // unknown → assume CI, never merge blind
-  // How many verification runs this delivery just started on the head — what the
-  // landing poll waits to see registered before it judges anything (landAttempt).
-  const expected = ci?.dispatch.length ?? 0;
+  // How many verification runs this delivery ACTUALLY started on the head — what
+  // the landing poll waits to see registered before it judges anything
+  // (landAttempt). `started`, never the plan: a rejected dispatch POST starts
+  // nothing, and waiting on the plan wedges the poll against a run that can
+  // never come.
+  const expected = ci?.started?.length ?? 0;
 
   const gate = await readMergeGate(token, repo, base).catch(() => 'unknown');
   const action = deliveryAction({ delivery, hasPrCi, gate });

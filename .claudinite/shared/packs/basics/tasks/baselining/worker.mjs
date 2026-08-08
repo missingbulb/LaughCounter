@@ -21,8 +21,10 @@
 //   3. run the cloned converge-wiring.mjs (scheduler workflow + hashed cron + the
 //      tasks' declared required_secrets, settings hooks, retired-import removal),
 //      and ask the owner for any declared secret the repo hasn't configured;
-//   4. apply the MECHANICAL migration notes (aliases/materialize/rewrite) via the
-//      cloned migrations/apply.mjs — idempotent;
+//   4. apply the MECHANICAL migration notes (aliases/materialize/rewrite/declarePacks)
+//      via the cloned migrations/apply.mjs — idempotent — and re-converge the mount
+//      when that changed the DECLARATION, since a newly declared pack's content was
+//      not in the set the vendor pass computed a moment earlier;
 //   5. detect pending AGENTIC notes (registry.mjs `agenticMigrations`, gated on
 //      the prior stamp day, same-day inclusive #330) and, if any, HOLD the stamp
 //      at the day before the earliest one so the agent still sees the note (the
@@ -524,7 +526,18 @@ export async function main() {
   // because the question is what the RUNNING process can do — and the disk cannot answer
   // it: apply-vendor-set above has already overwritten this very file with the new
   // version while this old-or-new code is the thing actually executing.
+  const declarationBefore = readFileSync(checksPath, 'utf8');
   node([join(tmp, 'migrations/apply.mjs')], { CLAUDE_PROJECT_DIR: root, CLAUDINITE_CAN_WITHHOLD_WORKFLOWS: '1' });
+  // A note may have DECLARED a pack (the seed shape). The mount above was computed
+  // from the declaration as it stood a moment ago, so the new pack's content is not
+  // in it — and a declared pack whose code is absent is a BLOCKING config error until
+  // something re-converges. Re-run the vendor pass when, and only when, the
+  // declaration actually changed: it is whole-set convergence over a local tree, so
+  // the cost is small and the result identical when nothing moved.
+  if (readFileSync(checksPath, 'utf8') !== declarationBefore) {
+    console.log('baselining: a migration note changed the declaration — re-converging the mount');
+    node([join(tmp, 'vendoring/apply-vendor-set.mjs'), '--target', root, '--ref', headSha]);
+  }
 
   // Ask about any declared secret the repo hasn't configured — but only once the
   // wiring is settled. On the cycle that FIRST stamps a name into the workflow the

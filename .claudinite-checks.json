@@ -12,7 +12,13 @@
     "github-actions",
     "local/on-device-privacy",
     "local/macos-audio",
-    "local/laughcounter"
+    "local/laughcounter",
+    {
+      "id": "claude-code-web-users-support",
+      "config": {
+        "repo": "missingbulb/Sheepdog"
+      }
+    }
   ],
   "accept": [],
   "maintenance": {
@@ -24,7 +30,7 @@
     "monthlyDay": 1
   },
   "claudinite": {
-    "updated": "2026-08-08T02:35:30.466Z",
-    "ref": "7bf58aa03f3ea4684aa6777cb7c837293f08cd46"
+    "updated": "2026-08-08T18:17:06.332Z",
+    "ref": "26cbe2e650c194930b5cf535bc9fd77a88822741"
   }
 }

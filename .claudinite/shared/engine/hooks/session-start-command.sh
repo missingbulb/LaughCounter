@@ -12,8 +12,8 @@
 # checkout itself.
 #
 # Each step's stdout is forwarded to this hook's stdout, which SessionStart adds
-# to the session context (prose, preferences, halt-and-ask directives). Progress
-# — a timestamp and what it is doing — is written to .claudinite-hooks.log and to
+# to the session context (pack prose, a pack's own session-start step, halt-and-ask
+# directives). Progress — a timestamp and what it is doing — is written to .claudinite-hooks.log and to
 # stderr, so a triggering failure (no lines at all) reads differently from an
 # execution failure (a step logged `start` but not `done`).
 #
@@ -23,10 +23,9 @@
 # the injected directives, never the exit code.
 set -uo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"  # <corpus>/engine/hooks
-# This script lives in <corpus>/engine/hooks/. The preferences step lives
-# beside it (per-user content is never vendored, so its step is hook machinery —
-# see ../vendoring/DESIGN.md); the remaining step scripts live in the engine's
-# loader dir (<corpus>/engine/pack_loader).
+# This script lives in <corpus>/engine/hooks/; every step script it runs lives in
+# the engine's loader dir (<corpus>/engine/pack_loader), except the self-test at
+# the engine root.
 corpus="$(dirname "$(dirname "$here")")"
 
 # --- durable hook log (format mirrored in engine/checks/helpers/hook-log.mjs —
@@ -69,8 +68,12 @@ hooklog orchestrator "start"
 # non-zero exit makes Claude Code DISCARD this hook's stdout, which would throw
 # away the very report it exists to deliver (and any halt directive with it).
 run_step selftest           node "$corpus/engine/selftest.mjs"
-run_step inject-preferences bash "$here/steps/inject-preferences.sh"
 run_step load-active-prose  node "$corpus/engine/pack_loader/inject-pack-prose.mjs"
+# What a pack can only know at session time, after the prose it is fixed beside:
+# each active pack's own session-start.mjs, run and forwarded into context. Core
+# never learns what one does — the SessionEnd runner's terms, at the other end of
+# the session.
+run_step pack-session-start node "$corpus/engine/pack_loader/run-pack-session-start.mjs"
 run_step mount-skills       node "$corpus/engine/pack_loader/mount-skills.mjs"
 run_step env-check          node "$corpus/engine/pack_loader/env-requirements.mjs" check
 # The interview machinery is the adoption skill's, bundled in the
