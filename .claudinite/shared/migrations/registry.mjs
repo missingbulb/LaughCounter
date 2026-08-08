@@ -138,6 +138,63 @@ export async function applyRewrites(migration, { read, write }) {
   return done;
 }
 
+// The declaration a pack-seeding op writes into. Fixed, not a parameter: this op
+// declares PACKS, and a repo's declaration lives in exactly one file. A `file` knob
+// would quietly make it a general JSON editor, which is a much larger thing to own.
+export const DECLARATION = '.claudinite-checks.json';
+
+// Write side — "every member should now declare this pack": for each declared
+// `{ id, config }`, add that pack to the member's `packs` when it is absent, and
+// fill in a `config` the entry does not already carry. The op the other three could
+// not express — `materialize` writes a whole template (it would clobber a per-repo
+// declaration) and `rewrite` replaces literal text (declarations share no literal
+// across repos) — and the shape a fleet-wide capability change actually has: a pack
+// every member should run, whose parameters the canon knows and the member cannot
+// derive.
+//
+// SEEDING, NEVER OVERRIDING. A pack the repo already declares keeps its entry, and a
+// config it already carries is left exactly as it is: both are that repo's decisions,
+// and a migration that reasserted them would fight the project every night. That
+// makes the op idempotent by construction — a no-op once the entry is there.
+//
+// ORDER MATTERS AROUND IT. Declaring a pack whose code is not in the member's mount
+// is a blocking `config` error there, so the caller must re-converge the mount after
+// applying (baselining does; see its worker). This module only writes the file.
+//
+// It round-trips the file through JSON rather than editing settings as text, so the
+// result is canonical 2-space settings with a trailing newline (what `--init` writes,
+// and what every fleet declaration already is). Malformed JSON is left alone: the
+// world runner reports it as the settings error it is, and a migration is not the
+// place to guess at a repair. Same `appliesTo` gate as the other write ops.
+export async function applyPackDeclarations(migration, { read, write }) {
+  if (!migration.declarePacks?.length) return [];
+  if (migration.appliesTo && !(await migration.appliesTo(read))) return [];
+  const raw = await read(DECLARATION);
+  if (raw == null) return [];                       // not a member — nothing to declare into
+  let config;
+  try { config = JSON.parse(raw); } catch { return []; }
+  if (config === null || typeof config !== 'object' || Array.isArray(config)) return [];
+  const packs = Array.isArray(config.packs) ? [...config.packs] : [];
+  const idOf = (e) => (typeof e === 'string' ? e : e?.id);
+  const done = [];
+  for (const { id, config: packConfig } of migration.declarePacks) {
+    const at = packs.findIndex((e) => idOf(e) === id);
+    if (at === -1) {
+      packs.push(packConfig ? { id, config: packConfig } : id);
+      done.push(`${DECLARATION}: declared ${id}`);
+      continue;
+    }
+    // Declared already: the only thing still owed is a config it never got.
+    if (!packConfig) continue;
+    const prior = typeof packs[at] === 'string' ? { id } : packs[at];
+    if (prior.config) continue;                     // the repo's own parameters — untouched
+    packs[at] = { ...prior, id, config: packConfig };
+    done.push(`${DECLARATION}: configured ${id}`);
+  }
+  if (done.length) await write(DECLARATION, `${JSON.stringify({ ...config, packs }, null, 2)}\n`);
+  return done;
+}
+
 // A migration record MAY carry a machine-readable AGENTIC note (task-prework
 // DESIGN §7, the primitive absorbed from #405): member-side adaptation that no
 // script can do — adapting consumer-authored `local/packs/` content to a changed
