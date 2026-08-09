@@ -12,6 +12,7 @@
     "github-actions",
     "local/on-device-privacy",
     "local/macos-audio",
+    "local/laugh-detection",
     "local/laughcounter",
     {
       "id": "claude-code-web-users-support",
