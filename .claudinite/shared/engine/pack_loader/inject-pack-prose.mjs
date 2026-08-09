@@ -5,7 +5,7 @@
 // stdout becomes session context. Fails soft (emits nothing) on any error.
 // Registered per-repo — see bootstrap.md.
 import { readFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 try {
@@ -19,7 +19,7 @@ try {
     if (Array.isArray(raw.packs)) declared = raw.packs;
   }
 
-  const { loadPacks, isActive } = await import(join(loaderDir, 'pack-registry.mjs'));
+  const { loadPacks, isActive, PACK_DIRECTORY_FILE } = await import(join(loaderDir, 'pack-registry.mjs'));
   // Include the project's own local packs (.claudinite/local_packs/) alongside
   // the canon: their prose loads the same way, so a project's rules ride the pack
   // system rather than an explicit @import.
@@ -50,8 +50,18 @@ try {
   // declares it. Rows are short by contract (the manifest spec caps each side at
   // 20 words — pack-schema.mjs), so the whole table stays a cheap session cost.
   const routed = packs.filter((p) => p.ruleRoutingGuidance?.belongs && p.ruleRoutingGuidance?.excludes);
+  // The full pack directory: the vendored catalog of EVERY canon pack, not just
+  // the ones this repo holds — pointed at (never inlined; it is read on demand)
+  // so a session weighing "what could this repo adopt?" finds the answer. The
+  // loader's grandparent is the canon root on both mounts (.claudinite/shared/
+  // in a consumer, the repo root at home); an older mount without the file gets
+  // no pointer rather than a dangling path.
+  const directoryPath = join(dirname(dirname(loaderDir)), PACK_DIRECTORY_FILE);
+  const directoryPointer = existsSync(directoryPath)
+    ? `\n\nThe packs listed are the ones this repo holds; the full directory of every pack it could adopt from Claudinite is \`${relative(projectRoot, directoryPath)}\` — read it when weighing what to adopt.`
+    : '';
   const routingTable = routed.length
-    ? `# Claudinite — where content goes (pack routing)\n\nEach pack states what it owns and what it does not. When a rule, doc, skill or check could live in more than one, this table decides it — and "no pack fits" means a new pack or the project's own \`local_packs/\`, never the baseline by default.\n\n| Pack | Belongs | Does not belong |\n|---|---|---|\n${routed
+    ? `# Claudinite — where content goes (pack routing)\n\nEach pack states what it owns and what it does not. When a rule, doc, skill or check could live in more than one, this table decides it — and "no pack fits" means a new pack or the project's own \`local_packs/\`, never the baseline by default.${directoryPointer}\n\n| Pack | Belongs | Does not belong |\n|---|---|---|\n${routed
         .map((p) => `| \`${p.id}\`${p.local ? ' (local)' : ''} | ${p.ruleRoutingGuidance.belongs} | ${p.ruleRoutingGuidance.excludes} |`)
         .join('\n')}\n`
     : '';

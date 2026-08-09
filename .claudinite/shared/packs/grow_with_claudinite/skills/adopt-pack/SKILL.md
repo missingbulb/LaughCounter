@@ -10,6 +10,11 @@ work is: declare, answer what the pack asks, materialize its content, satisfy wh
 
 ## 1. Declare
 
+The full directory of adoptable packs — every canon pack with what it covers, how it activates,
+and what it requires — is vendored in the mount at `.claudinite/shared/packs/directory.GENERATED.md`
+(canon-side: `packs/directory.GENERATED.md`); read it when choosing, or when the owner asks what
+could be added.
+
 Add each chosen pack's id to `packs` in `.claudinite-checks.json`. A pack that only makes sense
 alongside another names it in `requires`; `resolveDeclaredPacks` pulls that closure in when the
 declaration is written, so you declare what you *chose* and its dependencies follow (e.g.

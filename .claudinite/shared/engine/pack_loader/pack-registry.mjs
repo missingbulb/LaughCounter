@@ -26,6 +26,14 @@ export const legacyLocalPacksDir = (root) => join(resolve(root), LEGACY_LOCAL_PA
 // — which is why nothing consumer-owned (local_packs/ above) lives inside it.
 export const SHARED_SUBDIR = join('.claudinite', 'shared');
 
+// The full pack directory — the generated catalog of every canon pack a repo
+// can adopt, rendered from the manifests by its drift test and vendored into
+// every mount regardless of declaration (a consumer holds only its declared
+// packs, so without this file a member session has no view of what else it
+// could add). One definition of the path: the vendor-set computation includes
+// it, the prose injector points sessions at it.
+export const PACK_DIRECTORY_FILE = 'packs/directory.GENERATED.md';
+
 // Load a directory of `<name>/pack.mjs` manifests, isolating each import so one
 // broken manifest can't sink the rest (a consumer-authored local pack.mjs must
 // never disable every other pack's prose/checks/skills). Each loaded pack is
