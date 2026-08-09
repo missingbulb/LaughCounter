@@ -91,12 +91,11 @@ workflow here declares a `pull_request` trigger. A PR touching only
 `.claudinite/`, `docs/` or `dev/` therefore starts nothing, is mergeable the
 second it opens, and GitHub answers the auto-merge arm with *"already in clean
 status — auto-merge only applies when checks are pending."* That is the repo's
-shape, not a fault, and the canon's delivery procedure already licenses the
-squash merge yourself in exactly that case — take it rather than escalating: PR
-#138 sat unmerged for a day because a run read its task file's blanket "never
-hand-merge" as covering the rejection too. Two corollaries. The maintenance PRs
-the Action opens land **within seconds** of being armed, so by the time the agent
-stage starts there is usually no open `claudinite/maintenance-*` PR left to
+shape, not a fault. PR #138 sat unmerged for a day because a run read its task
+file's blanket "never hand-merge" as covering the rejection too. Two
+corollaries. The maintenance PRs the Action opens land **within seconds** of
+being armed, so by the time the agent stage starts there is usually no open
+`claudinite/maintenance-*` PR left to
 continue on and the condition that escalated no longer reproduces — three cycles
 running (#127/#128, #129/#130, #133/#134) spent their budget hunting the PR API
 for a branch that had already merged, when the first move is to fetch `main` and

@@ -32,6 +32,5 @@ absolute rather than carve-out-shaped. Adding *any* egress — a model fetch, a
 crash reporter, a sync feature — is a product decision that gets written here and
 in the README *Privacy* section before a line of it is written in Swift.
 
-**The disclosure must stay true.** `NSMicrophoneUsageDescription` and
-`NSSpeechRecognitionUsageDescription` tell the user audio is analysed on-device
-and not recorded.
+`NSMicrophoneUsageDescription` and `NSSpeechRecognitionUsageDescription` tell
+the user audio is analysed on-device and not recorded.
