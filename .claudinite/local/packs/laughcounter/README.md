@@ -16,6 +16,9 @@ the canon home repo's own pack is named for it.
 | Author a check as a positive whitelist, not a ban list | `RULES.md` prose |
 | Ship a stateable version + build number, and bump it per distinguishable build | `RULES.md` prose |
 | A green scheduled run that skipped its work is not a pass | `RULES.md` prose |
+| Nothing runs on `pull_request` — the auto-merge arm is always rejected | `RULES.md` prose |
+| The licensed hand-merge always trips a `[Merge Without Review]` warning | `RULES.md` prose |
+| No comment-edit tool exists — resolve a value before posting it | `RULES.md` prose |
 | Delete the flagged coupling before reaching for an `accept` | `RULES.md` prose |
 
 Prose-only so far.
