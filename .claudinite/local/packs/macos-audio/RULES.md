@@ -5,10 +5,12 @@ answers back: a USB webcam mic can be left **wedged** — dead system-wide, no
 input meter anywhere, until it is physically re-plugged. Every rule here exists
 because that happened, repeatedly, on the owner's Mac.
 
-The checks in this pack hold the three mechanical parts (only `AudioHub` builds
-an engine; termination signals reach `applicationWillTerminate`; the app never
-opts into sudden termination). What follows is the judgment half — the rules a
-scan cannot decide. The **case history** — which release, which measurement,
+The checks in this pack hold the mechanical parts (only `AudioHub` builds an
+engine, and only `AudioHub` touches `engine.inputNode`; termination signals reach
+`applicationWillTerminate`; the app never opts into sudden termination; a
+`command -v swift` probe sits behind an `xcode-select -p` gate). What follows is
+the judgment half — the rules a scan cannot decide, including the judgment inside
+the two rules whose mechanical halves those last checks took. The **case history** — which release, which measurement,
 which theory survived — lives in
 [`dev/procedures/mac-audio-lifecycle.md`](../../../../dev/procedures/mac-audio-lifecycle.md)
 and stays there; don't copy it here, read it before touching engine start/stop,
