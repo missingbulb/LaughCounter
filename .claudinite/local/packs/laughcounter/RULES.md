@@ -133,6 +133,38 @@ edit tool, and left the issue permanently carrying both the wrong timestamp and 
 true — and the same holds for every PR number, sha and label a comment asserts:
 resolve it, then post. (#143)
 
+**A text-matching check fires on the comment that documents the very idiom it
+bans — strip comments before matching, in both directions, and prove it against
+the real tree.** The first draft of `macos-audio/swift-toolchain-gate` (a check
+that a `command -v swift` probe must sit behind an `xcode-select -p` gate)
+flagged `mac/scripts/diagnose-mic.sh:175` — a `#` comment that exists purely to
+warn the next reader that `command -v swift` is not a usable test. This is not
+bad luck, it is the arithmetic of this repo's own placement rule: a trap gets
+written down as a comment beside the call it applies to, so the closer a gotcha
+comment sits to the code, the more certainly a grep for that gotcha lands on the
+warning instead of the offence. Strip comments before matching — and strip them
+in the *other* direction too, since a commented-out gate is not a gate and must
+not count as one. What caught it was the fixture asserting the check is silent
+on the repo's **real** sources; a synthetic clean fixture would have passed and
+the false positive would have shipped, so every new check gets a real-tree case
+alongside its red-first one. (#152/#159)
+
+**Every scheduled session here takes two hits the executor doc doesn't mention —
+expect both and spend nothing re-deriving them.** All six of 2026-08-09's
+scheduled sessions hit both, and each paid a few tool calls working out what had
+happened. First, the Stop hook's **blocking `comment-classification` finding**:
+the scheduler's own dispatch prompt (*"Execute the Claudinite executor: …"*) is
+an owner comment as far as that check is concerned, so a session that never
+declares a class has its first Stop blocked every single time. Emit `Comment
+class: other` in the first substantive reply — a scheduler dispatch is a command
+phrase, which is exactly what `other` covers — and the Stop passes. Second, a
+**second `<github-trigger-context>` for the same issue arrives mid-run**: it is
+the webhook echo of your own `ready-for-agent` → `agent-running` swap, since a
+label change is itself a labeling event. It is not a new dispatch and not a
+competing claim — `resolve-dispatch.mjs` answers `exit 11 / not-mine` precisely
+because *you* are the claimant — so change nothing, comment nothing, do not
+re-dispatch, and do not read it as a lease you lost. (#149/#150/#151/#152/#154/#155)
+
 **When a conformance check flags text, ask what a reader could act on before
 reaching for an `accept`.** `claudinite-isolation` fired on `CLAUDE.md`'s
 orientation header for spelling the vendored mount path. Nothing in that header

@@ -19,6 +19,8 @@ the canon home repo's own pack is named for it.
 | Nothing runs on `pull_request` — the auto-merge arm is always rejected | `RULES.md` prose |
 | The licensed hand-merge always trips a `[Merge Without Review]` warning | `RULES.md` prose |
 | No comment-edit tool exists — resolve a value before posting it | `RULES.md` prose |
+| A text-matching check hits the comment documenting the idiom it bans | `RULES.md` prose |
+| Every scheduled session trips `comment-classification` and a webhook echo | `RULES.md` prose |
 | Delete the flagged coupling before reaching for an `accept` | `RULES.md` prose |
 
 Prose-only so far.
