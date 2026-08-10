@@ -60,7 +60,7 @@ async function gh(token, path, { method = 'GET', body } = {}) {
 // --- the member's delivery preference ----------------------------------------
 
 // The member's delivery preference, normalized. `push`/`auto` → auto-merge and
-// `pr` → review are the permanent legacy aliases (same tolerance as fleet-apply);
+// `pr` → review are the permanent legacy aliases (the maintenance-lane tolerance);
 // anything else is invalid (null) and fails the run rather than guessing.
 export function normalizeDelivery(raw) {
   const v = String(raw ?? '').trim();

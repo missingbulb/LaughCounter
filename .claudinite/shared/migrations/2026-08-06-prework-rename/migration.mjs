@@ -10,10 +10,8 @@
 // engine keeps accepting the legacy names (normalized at load, so nothing
 // breaks on any clock), and the basics `task-declaration-shape` check flags
 // them with the exact rename as the fix — that finding is the durable driver,
-// this record only carries the guidance through the fleet's next cycles.
-//
-// retire: 'auto' — enforcement lives in the check; a member with no local-pack
-// tasks (or none using prework) needs nothing.
+// this record only carries the guidance through the fleet's next cycles. A
+// member with no local-pack tasks (or none using prework) needs nothing.
 export default {
   id: 'prework-rename',
   landed: '2026-08-06',

@@ -1,6 +1,6 @@
 // The `fleet` signal reader (per-project-scheduling DESIGN §3.3) — the members
 // aggregate the CANON repo's fleet-scoped tasks (growth-promote,
-// growth-discover-packs, migrations-retire) decide from. A consumer cannot
+// growth-discover-packs) decide from. A consumer cannot
 // declare `fleet`; only the canon repo's scheduler builds it, over the fleet PAT
 // (`FLEET_GITHUB_TOKEN` — the census's existing credential, the one token that
 // can enumerate every repo the owner owns; the Action's default GITHUB_TOKEN sees

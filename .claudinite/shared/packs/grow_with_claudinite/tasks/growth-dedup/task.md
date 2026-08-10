@@ -2,8 +2,8 @@
 
 The growth lifecycle's pruning stage: reconcile this repo's **local packs** against the shared **canon** it
 consumes (Claudinite, vendored read-only), pruning local items — a pack's prose line, or a whole local check —
-the canon now covers. It opens a PR against the repo's default branch for the owner to approve. Often there's
-nothing to prune, and that's fine. You run under the executor, dispatched by a `ready-for-agent` issue, whose
+the canon now covers. It lands the run's prunes through a single PR against the repo's default branch,
+**delivered to land** per the repo's own delivery settings. Often there's nothing to prune, and that's fine. You run under the executor, dispatched by a `ready-for-agent` issue, whose
 **Context** is **binding scope — not a hint** (the executor will not let you re-decide or widen it).
 
 > This task only prunes local packs against the canon; lifting local items up into the canon is the central
@@ -78,10 +78,14 @@ narrower case) stays.
   covering check's rule id).** When unsure, leave it; a wrongful prune deletes a real local lesson.
 - **Open a single PR against `main`** from a per-run-unique branch (see
   [the git-github-advanced skill](../../../git-github/skills/git-github-advanced/SKILL.md)) — one PR for the
-  whole run's prunes, not one per item — never a direct push. This is an unattended task, on a capable model, and a **wrongful prune
-  deletes a real local lesson**, so — unlike [growth-extract](../growth-extract/task.md), whose additive edits
-  ride a PR delivered to land after CI — this task keeps a **human** approval gate (its declared outcome ceiling
-  is `open-pr`: it may open a PR but never merge it). **Put the issue reference in the commit message** —
+  whole run's prunes, not one per item — never a direct push. Then **deliver it by the shared procedure —
+  [deliver-pr.md](../../../../engine/scheduler/deliver-pr.md)**. That procedure — never this file — owns every
+  landing nuance: it reads this repo's `maintenance.delivery` (a `review` repo's PR waits for the owner — still
+  a delivered outcome) and arms auto-merge where the repo allows it. Do not assume this run's PR merges
+  unreviewed — that is the repo's setting, not this task's (the declared ceiling is `merged-pr`: it *may*
+  land). What holds the prune bar on the default settings is the quote-the-canon-line discipline above, the
+  `dedup-prune-integrity` check, and CI — never a reviewer's second look, which a wrongful prune is easy to
+  wave through anyway. **Put the issue reference in the commit message** —
   `Refs #<n>` for this task's tracking issue (below), in the commit itself, not only the PR body. The repo's
   `basics` `task-lifecycle` check gates a PR on its commits referencing an issue, so a prune commit that cites
   none reds the repo's CI and blocks the merge.
@@ -102,13 +106,15 @@ the canon line that now covers it. A run that prunes nothing logs nothing.
 
 Proving the mounted canon genuinely covers a local item before pruning it — and telling "the canon now owns
 this" from "the canon states this too generally, keep the local cut" — is a **judgment call**. A downgraded
-model prunes a real lesson; the review PR is a backstop, but a wrongful prune is easy to wave through in
-review, so don't lean on it. This task declares `agent_model: opus`; the executor dispatches its subagent there.
+model prunes a real lesson, and on the default delivery settings the PR carrying it lands once CI passes —
+there is no reviewer downstream to catch what the run got wrong. This task declares `agent_model: opus`; the executor dispatches its subagent there.
 
 ## What this task must never do
 
 - **Never edit the read-only canon** — it only prunes the repo's *local packs* against it.
-- **Never merge its own PR** — the human approval gate is the whole point (`outcome: open-pr`).
+- **Never land a prune outside a PR** — every prune rides the run's single PR, delivered by
+  [deliver-pr.md](../../../../engine/scheduler/deliver-pr.md); a direct push to `main` is never in scope, and
+  neither is merging past a red check or a repo whose delivery setting says `review`.
 - **Never prune a local item without quoting the mounted-canon line (or covering check rule id) that covers
   it** — when unsure, leave it.
 - **Never widen the dispatch's Context.** If it named the changed canon packs, a prune citing coverage from

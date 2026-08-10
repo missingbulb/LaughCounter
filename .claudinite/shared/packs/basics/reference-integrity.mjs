@@ -1,9 +1,9 @@
 import { finding } from '../../engine/checks/helpers/findings.mjs';
 
-// A deleted path an active migration record (migrations/) still names isn't
-// stale — it's the declared legacy shape the record keeps until it retires.
+// A deleted path a migration record (migrations/<date>-<slug>/) still names
+// isn't stale — it's the declared legacy shape the record documents.
 // Matched on basename: a legacy alias usually carries a consumer-side prefix.
-const MIGRATION_SPEC = /^migrations\/active_migrations\/.*\.mjs$/;
+const MIGRATION_SPEC = /^migrations\/[^/]+\/migration\.mjs$/;
 const migrationGoverns = (work) => (gone) => {
   const base = gone.split('/').pop();
   return work.files.some((f) =>

@@ -77,9 +77,9 @@ function vendoredSet(root, files) {
 // JSON, caught at load so it can't silently change nothing. `packConfig` is the
 // legacy home of per-pack parameters — still honored while the fleet migrates to
 // pack-entry `config` (the baselining folds it in), no longer documented. The
-// `pack-entry-config` baseline migration (migrations/active_migrations/) tracks
-// the fleet's convergence; when it retires, drop the key here (and the overlay
-// below) so a straggler gets the unknown-setting error.
+// `pack-entry-config` baseline migration (migrations/) documents the fold; when
+// the fleet is off the old shape, drop the key here (and the overlay below) so
+// a straggler gets the unknown-setting error.
 // `claudinite` is the vendored-mount stamp — { updated: "<ISO datetime>", ref: "<sha>" },
 // written by the nightly update pass, selecting which migration notes still apply
 // (vendoring/DESIGN.md owns the model); the checks engine itself only tolerates it.

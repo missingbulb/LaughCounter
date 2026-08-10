@@ -10,10 +10,11 @@
 //
 // It carries the STORE as a literal, which is the one thing a canon record may do
 // that shared code may not: a migration record is a dated one-off whose purpose is
-// to move a specific fleet off a specific old shape, and it retires. Nothing
-// standing is left naming `missingbulb/Sheepdog` — the durable path is the pack's
-// adoption question (new repos) and the sheepdog pack's fleet-preferences sweep,
-// which reads the store from the enforcer repo's own config and so serves any fleet.
+// to move a specific fleet off a specific old shape, and it stops shipping once it
+// ages out of the vendoring window. Nothing standing is left naming
+// `missingbulb/Sheepdog` — the durable path is the pack's adoption question (new
+// repos) and the sheepdog pack's fleet-preferences sweep, which reads the store
+// from the enforcer repo's own config and so serves any fleet.
 //
 // SEED, NEVER OVERRIDE (the `declarePacks` op's contract): a repo that already
 // declares the pack keeps its entry, and one that already names a store keeps that
@@ -28,7 +29,6 @@
 // all. A repo with no declaration is not a member and is not this record's business;
 // a member that declares the pack and deliberately configured it otherwise has
 // converged as far as this record is concerned.
-// retire: 'auto' — self-retires once the fleet has converged and stayed quiet a cycle.
 export default {
   id: 'claude-code-web-users-support',
   landed: '2026-08-07',
@@ -45,5 +45,4 @@ export default {
       return false; // unparsable settings are the world runner's finding, not this record's
     }
   },
-  retire: 'auto',
 };
