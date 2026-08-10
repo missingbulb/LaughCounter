@@ -1,7 +1,8 @@
 // grow_with_claudinite task: growth-dedup — the growth lifecycle's PRUNING stage
 // (per-project-scheduling DESIGN §6). Prunes local-pack items the canon now
-// covers, keeping items the canon states too generally; opens a PR against the
-// default branch for the owner to approve. Worker: task.md.
+// covers, keeping items the canon states too generally; lands the prunes through
+// one PR against the default branch, delivered per the repo's delivery settings.
+// Worker: task.md.
 //
 // The old fleet's `relevantCanonChanged` becomes the `sharedMount` signal — a
 // declared pack's vendored files moving is the local echo of "the canon this repo
@@ -10,7 +11,7 @@
 //
 // The cadence is WEEKLY, not daily (#582). A member's mount moves most nights —
 // baselining converges it daily — so a daily slot fired this opus dispatch, and the
-// owner-gated PR behind it, nearly every night. Pruning is not latency-sensitive: a
+// PR behind it, nearly every night. Pruning is not latency-sensitive: a
 // local item the canon has already absorbed stays harmlessly correct until it goes,
 // so the daily slot bought noise rather than freshness. Nothing is missed by the
 // move — both signals below are WINDOW-scoped, and the collection window is the
@@ -24,7 +25,7 @@ export default {
   frequency: 'weekly',             // the weekly anchor — prunes against the mounted canon that morning's 02:00 baselining converged (DESIGN §2)
   precondition_signals: ['localPacks', 'sharedMount', 'commits'],
   agent_model: 'opus',                   // proving the canon genuinely covers a local item — and telling coverage from "stated too generally" — is a judgment call
-  expected_outcome: 'open-pr',              // a wrongful prune deletes a real local lesson, so this keeps a HUMAN approval gate (never auto-merge)
+  expected_outcome: 'merged-pr',            // one PR per run, delivered to land per the repo's delivery settings (a `review` member degrades it to open-pr)
   agent_instructions: 'task.md',
   agent_execution_timeout: 1800,            // proving canon coverage per local item — generous bound, extreme protection
 

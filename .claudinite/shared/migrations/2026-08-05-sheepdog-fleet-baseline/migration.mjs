@@ -14,12 +14,13 @@
 // `withheldWorkflowPaths` in the baselining worker plus §2b of its task.md; this record
 // declares WHAT to vendor and stays out of how.
 //
-// STANDING, NOT TRANSITIONAL — hence `retire: 'manual'`, the same shape (and the same
-// reason) as `static-site-vendoring`. There is no old shape to move off: this workflow
-// never existed anywhere else, so `legacyPresent` is false everywhere by construction and
-// the retire pass would otherwise stage the record's deletion after one quiet cycle and
-// silently end the sync. If a general "keep a pack's vendored set current" mechanism is
-// ever built, this record is one of the two it replaces.
+// STANDING, NOT TRANSITIONAL — the same shape (and the same reason) as
+// `static-site-vendoring`. There is no old shape to move off: this workflow never
+// existed anywhere else, so `legacyPresent` is false everywhere by construction — the
+// record exists to keep the copy current, forever, applied from the fresh canon clone
+// each member's baselining fetches (where every record loads regardless of age). If a
+// general "keep a pack's vendored set current" mechanism is ever built, this record is
+// one of the two it replaces.
 //
 // THE GATE is the repo's own declaration of the sheepdog pack — not the presence of the
 // workflow it materializes. That is deliberate and different from the two other
@@ -60,5 +61,4 @@ export default {
   // Nothing to leave behind: this record exists to keep one copy current, not to move a
   // repo off an older shape.
   legacyPresent: async () => false,
-  retire: 'manual',
 };
