@@ -54,7 +54,15 @@ export function makeGh({ token = process.env.GITHUB_TOKEN, api = API, fetchImpl 
 export const SCHEDULER_WORKFLOW_FILE = 'claudinite-scheduler.yml';
 
 export async function lastSuccessTime(gh, repo, workflowFile = SCHEDULER_WORKFLOW_FILE) {
-  const { status, json } = await gh(`/repos/${repo}/actions/workflows/${workflowFile}/runs?status=success&per_page=1`);
+  // SCHEDULE events only. The watermark's meaning is "the last time every due slot
+  // was evaluated", and since forced runs evaluate ONLY their forced tasks (#749),
+  // a hand-started run can no longer stand as that claim. Counting one would
+  // swallow any slot that fell between the last cron run and the button press —
+  // evaluated by nobody, yet behind the watermark. The cost runs the other way and
+  // is safe: a plain manual run's work is re-evaluated by the next cron, where the
+  // (task, slot) exactly-once dispatch guard and the workers' own idempotence make
+  // the repeat a no-op.
+  const { status, json } = await gh(`/repos/${repo}/actions/workflows/${workflowFile}/runs?status=success&event=schedule&per_page=1`);
   if (status !== 200) throw new Error(`run ledger unreadable: GET workflow runs returned ${status}`);
   const run = json?.workflow_runs?.[0];
   if (!run) return null;

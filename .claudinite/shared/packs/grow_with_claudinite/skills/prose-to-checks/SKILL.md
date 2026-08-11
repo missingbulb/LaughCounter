@@ -38,7 +38,11 @@ it (the full rule lives in
 This gate comes **first** because product statements sail through the check-the-world test below —
 "this module must export `X`" has an obvious static signature. Converting one splits a feature's
 definition across two systems and lands half of it in the one no test of the product ever reads.
-Load-bearingness is not the test: a real gap in product coverage is a *requirements* gap.
+Load-bearingness is not the test: a real gap in product coverage is a *requirements* gap. Neither is build
+quality — a product statement converts into a genuinely well-made check, clean parse and see-it-fail proof and
+all, and is still the wrong kind. The discriminator, applied **before** you write anything: *if the product
+changed its mind tomorrow, would this rule be wrong?* Wrong → it's a requirement, and a red check would report
+a product decision as a process violation. Still true whatever the product decides → it's a working rule.
 
 A product statement already sitting in pack prose is mis-homed, and a sweep is not the place to
 re-home it. **Leave the prose and log it** as a mis-homed rule, the same way an un-checkable
@@ -55,6 +59,24 @@ signature in the repo artifact* — something a post-hoc scan could observe?**
 - **No → leave it.** In-flight process (leaves no artifact — "see the test fail first"),
   judgment ("name by scope"), or knowledge whose failure is only visible at runtime (jsdom
   diverging from Chrome). These are why the rule is prose; don't force them.
+
+**"Already covered by another check" is a claim to test, not to reason out** — hand the sibling check a file
+that violates the rule before dropping the candidate as a duplicate. A ban list only covers the routes whoever
+wrote it thought of, so the routes it misses are invisible to exactly the reasoning that drew it: three sweeps
+running dropped an "the app opens no socket" rule because a neighbouring check banned the obvious networking
+import, while the base library re-exported a raw socket call that sailed straight through.
+
+**"Not statically checkable" is a verdict about the tree's shape when it was taken, not about the rule —
+re-derive it against today's sources.** A removal, a migration or a consolidation can collapse the entry points
+a rule had to cover, and the objection dies with them: a "one deletable storage directory" rule needed
+data-flow tracing while many entry points wrote paths, and needed none once one root remained. So when a sweep
+meets prose an earlier sweep left behind, re-ask the question rather than trusting the recorded answer. (This
+covers the *technical* verdict only — an owner's rejection of a conversion is settled.)
+
+**Read the conversion tracker's prior comments before authoring, not after.** Independent re-derivation is
+exactly how duplicate work happens: a fresh reading of the same prose will happily re-nominate a rule, build it
+out in full, and only then discover it was built and rejected before. The tracker is a precondition of the
+work, not a place to log it — and record each rejection with its reason so the next run can act on it.
 
 **A static signature is necessary, not sufficient.** Both shapes the working-discipline rules bar
 — a rule that pins today's code in place, and one derivable from the product's requirements —
@@ -78,8 +100,16 @@ Follow the extract stage's check-authoring discipline (the local promotion ladde
 2. **Write the fixture first and see it fail** — a violating fixture must find, a clean one must
    not (the test lives beside the pack's other tests). A conversion with no proving fixture
    doesn't ship.
-3. **Ship at real severity, fail-fast** — blocking for a defect, advisory only when the rule is
-   directional by kind.
+3. **Ship at real severity, fail-fast** — blocking for a defect, advisory when the rule is
+   directional by kind, or when the condition is blocking-grade but **irreversible by the time it is
+   observable** (an append-only transcript, a published artifact). A blocking finding no edit can
+   retract never converges — it spends every remaining Stop cycle on something nothing can fix.
+   Advisory there is *diagnostic*: it names the cause the moment it appears.
+   - **Prefer a positive allowlist over an enumerated list of the bad cases.** Match the one allowed
+     shape and flag everything else, rather than banning the violations you can name. An allowlist
+     catches a variant that doesn't exist yet the day it lands, and turns an indirection (a value
+     passed through a variable instead of written literally) into a finding too — refusing to reason
+     about indirection is the feature. Invert only where the allowed set is genuinely open-ended.
 4. **Delete the prose the check now covers** — whole, never trimmed. The deletion test below is
    how you decide which paragraphs those are.
 
@@ -88,6 +118,13 @@ its text.** Grep finds the pattern anywhere; parsing finds it in the one spot th
 which kills the false alarm. (Example: `Authorization` is only wrong inside a CloudFront policy's
 *own* header list, not elsewhere in the template.) Parse only as much as you need, and hold the
 check to the same fixture bar.
+
+**When a rule mandates a *form*, the check asserts that form — never the intent behind it.** Where
+the prose says *write it exactly like this*, the check's whole job is deciding whether the artifact
+is that form; inferring what the author meant is unbounded in the wrong direction and leaves the
+likeliest reproduction uncaught, since a hand-picked marker list always misses the phrasing nobody
+enumerated. Expect a form check to fire on something that breaks the form while causing no harm —
+that's the rule as written doing its job, not a reason to re-add intent-guessing.
 
 When even a scoped parser can't make detection confident, **leave the prose and log the
 candidate** to a tagged conversion-backlog issue rather than shipping a shaky check.

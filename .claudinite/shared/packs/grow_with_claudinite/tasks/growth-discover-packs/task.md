@@ -30,13 +30,12 @@ For **each** item report: **name**; **axis**; **evidence** (the file(s), and wha
 
 ### 2. Find the gap — what is pack-worthy but unhomed
 
-Now hold the manifest against two things: the **available canon packs** (`.claudinite/shared/packs/`) and the repo's **existing local packs**. A candidate for a new **local** pack is a technology or domain that:
+Now hold the manifest against two things: the **available canon packs** (`.claudinite/shared/packs/`) and the repo's **existing local packs**. The manifest feeds two separate decisions:
 
-- the repo genuinely uses (not `vestigial`), and carries real, reusable working knowledge for — a build/config gotcha, a domain rule, a project-specific procedure that recurs; **and**
-- **no canon pack already homes** — a technology is **homed**, so drop it, when any pack owns it, **a stub pack included** (if the canon covers it, the repo should just *declare that canon pack*, not re-create it locally — note that as the action instead); **and**
-- the repo's **existing local packs don't already capture** (if a local pack owns that territory, a new rule belongs in it — that's [growth-extract](../growth-extract/task.md)'s job, not a new pack).
+- **What to declare.** A technology any canon pack already homes — **a stub pack included** — is **homed**: the action is *declare that canon pack*, never re-create it locally; note it.
+- **Whether a new local pack is warranted.** A new **local** pack segments by the repo's **project structure only**: a segment of the repo's own tree (a top-level `client/` or `server/`, a self-contained sub-project) whose work the repo genuinely does (not `vestigial`) and carries real, reusable working knowledge for — a build/config gotcha, a recurring project-specific procedure — that **no canon pack homes** and **no existing local pack captures** (if a local pack owns that territory, a new rule belongs in it — that's [growth-extract](../growth-extract/task.md)'s job, not a new pack).
 
-What remains is project-specific knowledge that deserves its own local pack: a domain the project works in, or a technology the canon doesn't home, with enough captured knowledge to justify a pack rather than a loose rule.
+**Never mint a local pack around a technology, a domain, or a methodology** — however real the knowledge. A tech- or methodology-shaped lesson the canon doesn't home lands as rules/checks/skills in the local pack whose *segment* owns the work (the repo's general pack when it has no segments); deciding that such a facet earns a pack of its own is Claudinite's call, made canon-side by the promote stage over what the local packs captured.
 
 ### 3. Author the local pack — distilled from the repo's real usage
 
@@ -48,12 +47,13 @@ Land the new pack (and its declaration) through a single PR on a per-run-unique 
 
 ## Tracking
 
-The standing log is the issue titled exactly **`Claudinite tracker: Discover Local Packs`** in this repo. Find it **by that exact title, never a fuzzy match or a hard-coded number**; create it already closed if missing. **Never open, close, or reopen it** — its state carries no meaning, only the log does. Log each run as a **dated comment**: the pack authored (technology/domain + the rungs its rules landed on), or "nothing new worth a local pack this run", and any "should declare canon pack X instead" note. For a candidate you found nothing groundable for, name it and why.
+The standing log is the issue titled exactly **`Claudinite tracker: Discover Local Packs`** in this repo. Find it **by that exact title, never a fuzzy match or a hard-coded number**; create it already closed if missing. **Never open, close, or reopen it** — its state carries no meaning, only the log does. Log each run as a **dated comment**: the pack authored (the repo segment it covers + the rungs its rules landed on), or "nothing new worth a local pack this run", and any "should declare canon pack X instead" note. For a candidate you found nothing groundable for, name it and why.
 
 ## What this task must never do
 
 - **Never touch the shared canon or another repo** — it writes only this repo's own `.claudinite/local/packs/`.
 - **Never re-create locally what a canon pack already homes** — declare the canon pack instead, and note it.
+- **Never mint a technology, domain, or methodology pack** — new local packs segment by project structure only; whether such a facet earns a pack is Claudinite's canon-side call (the promote stage).
 - **Never author from imagination or pad, and never open an empty stub** — every rule traces to the project's real usage; a pack may be small, it may not be invented.
 - **Never add a rule to a territory an existing local pack already owns** — that is growth-extract's job; this task is for *new* packs.
 - **Never conflate steps 1 and 2** — the manifest step catalogues and never consults the pack shelf; the gap step is where the shelf and the pack decision come in.

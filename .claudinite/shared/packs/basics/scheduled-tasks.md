@@ -50,7 +50,7 @@ retirement of the legacy central planner it replaces) lives in
 
 - **Every task declaration carries the full contract.** A `tasks/<name>/task.mjs`
   default-exports `id` (matching its directory), `frequency` (`hourly | daily-2h
-  | daily-1h | daily | daily+1h | weekly | monthly`), `precondition_signals` (the collector
+  | daily-1h | daily | daily+1h | weekly | monthly | manual`), `precondition_signals` (the collector
   vocabulary), `agent_model` (`opus | sonnet | haiku | none`), `expected_outcome` (`none |
   open-pr | merged-pr`), and a `precondition`. An agentic task (`agent_model !==
   none`) also carries `agent_instructions`, the worker file the agent reads; a

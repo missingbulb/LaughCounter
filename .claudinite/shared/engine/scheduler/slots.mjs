@@ -30,10 +30,17 @@
 // module never reads the clock itself — `now` is always injected — so the whole
 // due-ness decision is deterministic and testable.
 
-// The seven legal frequency tokens (DESIGN §1). `task-declaration-shape` is what
+// The legal frequency tokens (DESIGN §1). `task-declaration-shape` is what
 // rejects anything outside this set at author time; here an unknown token is
 // simply never due (defensive — the scheduler must not throw on a stray value).
-export const FREQUENCIES = ['hourly', 'daily-2h', 'daily-1h', 'daily', 'daily+1h', 'weekly', 'monthly'];
+//
+// `manual` is the one non-cadence: a manual task is NEVER due on any schedule and
+// runs only when a hand-started run forces it (`FORCE_TASKS`, run.mjs). It exists
+// for operator levers — work that answers no recurring question but wants a task's
+// whole apparatus (declaration, contract validation, prework, the dispatch issue)
+// when a human pulls it. dueSlots skips it unconditionally; mostRecentSlot still
+// resolves it, because a forced run needs a slot to run under.
+export const FREQUENCIES = ['hourly', 'daily-2h', 'daily-1h', 'daily', 'daily+1h', 'weekly', 'monthly', 'manual'];
 
 // What a FIRST run (an empty ledger — fresh adoption) evaluates. Deliberately
 // not every frequency: the first run is an adoption smoke test, and the wiring
@@ -86,6 +93,15 @@ export function mostRecentSlot(frequency, schedule, now) {
   const s = normalizeSchedule(schedule);
   now = new Date(now);
   const nowMs = now.getTime();
+
+  if (frequency === 'manual') {
+    // A manual task has no scheduled instant — its "slot" exists only so a FORCED
+    // run has something to run under. The id is the anchor date alone; uniqueness
+    // across same-day forces comes from the `~f<runId>` marker planRun appends to
+    // every forced slot id, not from here.
+    const time = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    return { time, id: `x${ymd(time)}` };
+  }
 
   if (frequency === 'hourly') {
     // The top of the current hour — the poll never backfills a past hour.
@@ -151,6 +167,7 @@ export function dueSlots(frequencies, schedule, now, lastSuccess) {
   const out = [];
   for (const frequency of frequencies) {
     if (!FREQUENCIES.includes(frequency)) continue;
+    if (frequency === 'manual') continue; // never due on any cadence — forced runs only (run.mjs)
     const slot = mostRecentSlot(frequency, s, now);
     const t = slot.time.getTime();
     // `t <= nowMs` holds by construction; kept explicit as the stated contract.

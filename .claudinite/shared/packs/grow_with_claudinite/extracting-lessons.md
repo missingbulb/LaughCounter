@@ -44,8 +44,12 @@ prefer the strongest mechanism it allows:
 3. **Terse prose** in the pack's `RULES.md` — only what neither of the above can carry.
 
 Write **more checks and less prose**: a check relieves every session's context completely, where prose only
-relocates it. When no pack's scope fits and the lesson warrants segregation, a new local pack is a
-self-contained directory drop.
+relocates it. When no pack's scope fits, the lesson lands in the repo's general local pack. A **new** local
+pack is justified only by the repo's own **project structure** — a segment of the repo's tree whose work is
+its own territory (a `client` pack for work under `client/`), so a repo's local packs mirror its layout.
+**Never mint a local pack around a technology or a methodology**, however real the knowledge: capture those
+lessons in the structural pack that owns the work, and let the canon-side promote stage — Claudinite's call,
+never a member's — decide whether a technology or methodology facet earns a pack of its own.
 
 **A gotcha tied to one call site is not a pack rule at all.** A trap from misusing a specific API, class, or
 library goes as a **comment right at the usage site** — next to the call itself, where the next editor of
@@ -53,6 +57,14 @@ that line sees it — never collected into a centralized gotchas list. Co-locate
 comment when the trap spans the whole file and you'd only hit it *while editing that file*. Reserve a
 central gotchas doc for what no single usage site owns: a trap you could hit *without* reading the relevant
 file (a mistake of omission), or a cross-cutting invariant.
+
+**Two kinds never become a pack rule, however strong the evidence** — filter on what the lesson is *about*
+before picking a mechanism. (1) **The owner's own preferences** — which word authorizes a merge, tone, how a
+summary is shaped. They belong to the person, are injected per session from their own preference file, and
+change without any repo hearing about it; a pack copy goes stale silently and then contradicts the live one.
+(2) **The agent framework's own loading mechanics** — which packs are declared, why a skill didn't mount, why
+an injection missed. That's engine plumbing, not project knowledge: a real defect there is filed upstream, and
+writing it down as a project rule preserves the bug instead of fixing it.
 
 ## "No new lessons" is a valid — and common — result
 

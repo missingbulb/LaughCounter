@@ -1,3 +1,9 @@
+// SUPERSEDED 2026-08-11 (#749, migrations/2026-08-11-fleet-baseline-task): the lever is
+// now a `manual`-frequency sheepdog TASK, the stub this record materializes is deleted
+// from canon, and this record is a permanent no-op by construction — a missing template
+// is a skip (applyMaterializations), and the successor record removes the copies this
+// one installed. Kept, like every record, as the durable history of the shape.
+//
 // The sheepdog pack's fleet-baseline WORKFLOW lives in the pack
 // (packs/sheepdog/stubs/workflows/fleet-baseline.yml) and RUNS from the enforcer repo's
 // own .github/ — GitHub reads workflows only from a repo's own .github/, never from the

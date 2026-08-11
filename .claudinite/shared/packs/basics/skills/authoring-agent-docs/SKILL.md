@@ -76,6 +76,14 @@ published guidance; bracketed numbers cite the sources listed at the end.
 - Prune regularly. If the agent already behaves correctly without a rule, delete it or
   convert it to a hook. Check the file into version control so the team contributes and it
   compounds in value. [2]
+- When a practice is withdrawn, rewrite the docs that taught it into the **current** rule in the
+  present tense — never leave a passage narrating what used to be done and why it stopped. A reader
+  who never knew the practice doesn't need to be taught it in order to be told the rule, and
+  describing a withdrawn technique is how it keeps getting rediscovered; the history belongs to the
+  commit that removed it. This bans narrating a *superseded* way of working, not evidence — measured
+  costs that argue a live rule is worth its space stay. And retiring a practice is not the moment to
+  install a guard against it: a check earns its place from a mistake that repeats, not from the
+  deletion that prompted it.
 
 ## Sources
 
