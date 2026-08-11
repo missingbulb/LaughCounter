@@ -13,7 +13,9 @@ work is: declare, answer what the pack asks, materialize its content, satisfy wh
 The full directory of adoptable packs — every canon pack with what it covers, how it activates,
 and what it requires — is vendored in the mount at `.claudinite/shared/packs/directory.GENERATED.md`
 (canon-side: `packs/directory.GENERATED.md`); read it when choosing, or when the owner asks what
-could be added.
+could be added. **Match the owner's plain-words name to a pack id yourself** before asking them to
+disambiguate — pack ids rarely read like how people describe them, so read the candidate's entry
+there and confirm the fit.
 
 Add each chosen pack's id to `packs` in `.claudinite-checks.json`. A pack that only makes sense
 alongside another names it in `requires`; `resolveDeclaredPacks` pulls that closure in when the

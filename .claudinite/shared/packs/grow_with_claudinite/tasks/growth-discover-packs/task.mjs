@@ -2,8 +2,9 @@
 // (per-project-scheduling redesign). Each repo periodically reflects on its OWN
 // stack and captured knowledge: knowing the canon packs already available to it, if
 // it notices project-specific knowledge worth organizing into a new LOCAL pack — a
-// technology or domain it uses that no canon pack homes and its existing local packs
-// don't yet capture — it authors that local pack. A per-repo, local operation: it
+// segment of the repo's own tree whose work no canon pack homes and its existing local
+// packs don't yet capture; never a technology or methodology pack, which is the
+// canon-side promote stage's call — it authors that local pack. A per-repo, local operation: it
 // writes only the repo's OWN `.claudinite/local/packs/` (the shared canon stays
 // human-gated — lifting a local pack up is the central promote task's job).
 //

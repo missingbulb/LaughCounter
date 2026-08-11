@@ -32,8 +32,16 @@ on:
         required: false
         default: ''
 
+# Scheduled (and plain manual) runs serialize in one group so a slow run and its
+# successor never overlap. A run carrying OVERRIDES gets a group of its own, keyed
+# by run id: a forced run does exactly one named task, and the fleet fan-out case
+# (an enforcer firing FORCE_TASKS at many members at once) must neither queue
+# behind the hourly cron nor be silently dropped by it — GitHub keeps at most ONE
+# pending run per group and cancels older pending ones, so a shared group can eat
+# a forced dispatch without a trace. The (task, slot) exactly-once dispatch guard
+# and the workers' idempotence are what make the rare overlap with a cron run safe.
 concurrency:
-  group: claudinite-scheduler
+  group: claudinite-scheduler${{ inputs.overrides != '' && inputs.overrides != null && format('-forced-{0}', github.run_id) || '' }}
   cancel-in-progress: false
 
 permissions:

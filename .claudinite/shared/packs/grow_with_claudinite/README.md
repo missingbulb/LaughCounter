@@ -19,6 +19,7 @@ scheduler (`engine/scheduler/discover.mjs`) wherever the pack is declared:
 | `growth-dedup` ([tasks/growth-dedup/task.md](tasks/growth-dedup/task.md)) | weekly, when the canon or the project's local packs moved in the week | the repo's own local packs, via a PR that auto-merges after CI |
 | `growth-discover-packs` ([tasks/growth-discover-packs/task.md](tasks/growth-discover-packs/task.md)) | weekly | a new **local** pack in the repo's own `.claudinite/local/packs/`, via a reviewed PR |
 | `prose-to-checks-sweep` ([tasks/prose-to-checks-sweep/task.md](tasks/prose-to-checks-sweep/task.md)) | weekly (no-ops cheaply on a quiet corpus) | a PR converting always-testable pack prose into checks |
+| `adopt-requested-packs` ([tasks/adopt-requested-packs/task.md](tasks/adopt-requested-packs/task.md)) | `manual` — fired by a fleet enforcer that placed an `add-packs` work-list issue here ([#749](https://github.com/missingbulb/Claudinite/issues/749)) | the requested/confirmed packs declared, vendored and scaffolded, via one reviewed PR |
 
 (Plus [usage-fold](tasks/usage-fold/task.md), the agentless daily fold described below.)
 

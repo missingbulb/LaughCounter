@@ -25,22 +25,35 @@ import { runPrework, preworkFailure, agentRequestPath, clearAgentRequest, agentR
 // The due tasks, each paired with the slot it runs under. Union the discovered
 // tasks' frequencies, ask slots which are due (run-ledger math), then map due
 // frequencies back to their tasks. A task whose frequency isn't due drops out.
+//
+// A run carrying FORCE_TASKS evaluates ONLY the forced tasks (#749). The operator
+// pressed a button that names specific work; running whatever else happened to be
+// due at that minute alongside it would make the button's effect depend on WHEN it
+// was pressed — and a fleet fan-out that fires twenty members' schedulers must mean
+// exactly one task in each, not one task plus each member's coincident backlog.
+// The skipped due work is not lost: the forced run is excluded from the run ledger's
+// success watermark question only in the sense that any due slot it did not run
+// stays due, and the next scheduled run picks it up (dueSlots' most-recent-slot
+// math never needed this run to happen).
 export function computeDueTaskSlots(tasks, schedule, now, lastSuccess, forced = []) {
+  if (forced.length) {
+    // Each forced task runs under its most-recent slot even though that slot has
+    // already been run (or, for a `manual` task, never fires on its own at all).
+    // This gate is the reason forcing has to live here: the due list is computed
+    // BEFORE any precondition, so a task whose slot has passed is never looked at
+    // again — and a mid-day forced run is the only kind that matters (#515).
+    // `planRun` then skips its precondition outright.
+    return tasks.filter((t) => forced.includes(t.id)).map((task) => {
+      const s = mostRecentSlot(task.decl.frequency, schedule, now);
+      return { task, slotId: s.id, slotTime: s.time, forced: true };
+    });
+  }
   const frequencies = [...new Set(tasks.map((t) => t.decl.frequency))];
   const due = new Map(dueSlots(frequencies, schedule, now, lastSuccess).map((d) => [d.frequency, d]));
   const out = [];
   for (const task of tasks) {
     const slot = due.get(task.decl.frequency);
-    if (slot) { out.push({ task, slotId: slot.slotId, slotTime: slot.slotTime }); continue; }
-    // A FORCED task runs under its most-recent slot even though that slot has
-    // already been run. This gate is the reason forcing has to live here at all:
-    // the due list is computed BEFORE any precondition, so a task whose slot has
-    // passed is never looked at again — and a mid-day forced run is the only kind
-    // that matters (#515). `planRun` then skips its precondition outright.
-    if (forced.includes(task.id)) {
-      const s = mostRecentSlot(task.decl.frequency, schedule, now);
-      out.push({ task, slotId: s.id, slotTime: s.time, forced: true });
-    }
+    if (slot) out.push({ task, slotId: slot.slotId, slotTime: slot.slotTime });
   }
   return out;
 }
