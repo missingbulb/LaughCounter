@@ -42,16 +42,15 @@ export function normalizeTaskDeclaration(decl) {
 // `merged-pr` may arm auto-merge. "No change" is always legal.
 export const OUTCOMES = ['none', 'open-pr', 'merged-pr'];
 
-// The executor-session repo scope a task needs (per-project-scheduling split):
-//   'self'  — the task touches only its own repo; a project-only executor session
-//             is all it needs. This is the default, and almost every task's scope.
-//   'fleet' — the task reaches across the owner's other repos (e.g. growth-promote
-//             reads every member's local packs), so its dispatch goes to a
-//             SEPARATE, broader-scoped executor. Isolating this to the few tasks
-//             that truly need it keeps the fleet-wide session grant off every
-//             ordinary project's executor. The scheduler routes a fleet task's
-//             dispatch to the `ready-for-agent-fleet` label so a distinct executor
-//             routine (with the owner's repos in its sources) runs it.
+
+// The executor-session dispatch vocabulary — DEPRECATED as a declared field, kept
+// as routing. 'self' dispatches ride `ready-for-agent`; 'fleet' rides
+// `ready-for-agent-fleet`, the label whose executor session holds the owner's repos.
+// A task no longer declares this: a repo's executor carries the access it was
+// provisioned with (the sheepdog enforcer's already spans the fleet), so the split
+// protects nothing there. The one standing use is the canon home's curation tasks
+// (growth-promote, growth-discover-packs), whose fleet executor is a separate,
+// broader-scoped routine in that one repo.
 export const SESSION_SCOPES = ['self', 'fleet'];
 
 // The signal-collector vocabulary (DESIGN §3.3). A task collects only the union
@@ -99,11 +98,18 @@ export function validateTaskDeclaration(raw) {
     bad('"precondition" is not a function', 'export a precondition(signals, config) that returns { run, reason, context? }');
   }
 
-  // session_scope — OPTIONAL, defaults to 'self'. Only a task that reaches other
-  // repos declares 'fleet' (routed to the fleet executor). A bad value would
-  // silently mis-route the dispatch, so it is validated when present.
+  /**
+   * session_scope — OPTIONAL; still honoured while it lingers (the canon's
+   * curation tasks are the one standing use — each pacifies the warning with a
+   * comment at its declaration site). It stays VALIDATED rather than ignored: a
+   * deprecated field that silently accepts a typo mis-routes the dispatch to an
+   * executor that declines it, and the task then never runs while the scheduler
+   * re-arms it hourly.
+   * @deprecated An executor's reach is how its repo is provisioned, never
+   *   something a task asks for — drop the field; dispatches ride ready-for-agent.
+   */
   if (decl.session_scope !== undefined && !SESSION_SCOPES.includes(decl.session_scope)) {
-    bad(`"session_scope" ${JSON.stringify(decl.session_scope)} is not a legal session scope`, `omit it (defaults to "self") or set one of: ${SESSION_SCOPES.join(', ')}`);
+    bad(`"session_scope" ${JSON.stringify(decl.session_scope)} is not a legal session scope`, `drop it (dispatches ride ready-for-agent by default) — or, while it lingers, set one of: ${SESSION_SCOPES.join(', ')}`);
   }
 
   // Prework (task-prework DESIGN §2) — OPTIONAL. The deterministic first phase
