@@ -1,6 +1,8 @@
 import engineConstructionConfined from './engine-construction-confined.mjs';
+import inputNodeConfined from './input-node-confined.mjs';
 import signalTeardownRouting from './signal-teardown-routing.mjs';
 import noSuddenTermination from './no-sudden-termination.mjs';
+import swiftToolchainGate from './swift-toolchain-gate.mjs';
 
 // The macOS microphone lifecycle, as a pack: AVAudioEngine, CoreAudio device
 // state, and the sleep/wake and exit paths around them. LaughCounter holds a
@@ -9,8 +11,8 @@ import noSuddenTermination from './no-sudden-termination.mjs';
 // hard-won rules, none of which the canon shelf homes.
 //
 // The case history stays in `dev/procedures/mac-audio-lifecycle.md` (routed from
-// the project CLAUDE.md); this pack carries the invariants and enforces the
-// three that a scan can decide.
+// the project CLAUDE.md); this pack carries the invariants and enforces the ones
+// a scan can decide.
 //
 // A local pack: declared by hand as `local/macos-audio`, never
 // fingerprinted (detect/marker null).
@@ -25,5 +27,11 @@ export default {
   detect: null,
   marker: null,
   prose: 'RULES.md',
-  worldRules: [engineConstructionConfined, signalTeardownRouting, noSuddenTermination],
+  worldRules: [
+    engineConstructionConfined,
+    inputNodeConfined,
+    signalTeardownRouting,
+    noSuddenTermination,
+    swiftToolchainGate,
+  ],
 };
