@@ -60,6 +60,14 @@ run_step() {
   [ "$rc" -ne 0 ] && warns="${warns:+$warns; }$label exited $rc"
 }
 
+# The facet channel: a scratch file the pack session-start steps append one short
+# phrase each to, and the summary step folds into the line it emits. Created here
+# because the orchestrator is what both ends have in common; a session where mktemp
+# fails simply has no channel, and every step still runs.
+CLAUDINITE_SESSION_FACETS="$(mktemp 2>/dev/null || true)"; export CLAUDINITE_SESSION_FACETS
+cleanup() { [ -n "${CLAUDINITE_SESSION_FACETS:-}" ] && rm -f "$CLAUDINITE_SESSION_FACETS" 2>/dev/null || true; }
+trap cleanup EXIT
+
 hooklog orchestrator "start"
 # FIRST, and report-only: "can Claudinite run here?" — the mount, the stamp, the
 # pack manifests, the hook targets, the mounted skills, the cron, the migrations
@@ -81,6 +89,15 @@ run_step env-check          node "$corpus/engine/pack_loader/env-requirements.mj
 # there is no interview.
 interview="$corpus/packs/grow_with_claudinite/skills/adopt-claudinite/interview.mjs"
 [ -f "$interview" ] && run_step interview-check node "$interview" check
+# LAST, and about the session rather than the machinery: the one line stating what
+# loaded — the packs, their checks, the token weight of their prose, the skills, and
+# whatever the steps above said on the facet channel. It runs after them so it
+# describes the session that exists rather than the one about to.
+# Guarded on the file, like the interview: a mount converging mid-flight can hold
+# this orchestrator before it holds the step, and a missing step is a summary the
+# session goes without, not a warning about the session's own machinery.
+summary_step="$corpus/engine/pack_loader/session-summary.mjs"
+[ -f "$summary_step" ] && run_step session-summary node "$summary_step"
 hooklog orchestrator "done"
 
 # One terse, visible confirmation into the session context that the harness ran

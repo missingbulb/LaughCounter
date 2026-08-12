@@ -47,6 +47,31 @@ export const SCHEDULER_LABELS = [
   { name: WORKFLOW_FAILURE_LABEL, color: 'b60205', description: 'Claudinite scheduler: a scheduler run or task failed' },
 ];
 
+// The escalation code as a LABEL, so "which condition woke the agent" is countable
+// rather than only readable. The body already names the code, but a body is prose:
+// counting it across a fleet means fetching and parsing every dispatch issue, while a
+// label is a search facet (`label:escalation:checks-not-green`) any repo-set query can
+// aggregate — which is what sizing the versioned-updates pack-apply stage needs (#768,
+// docs/versioned-updates/DESIGN.md §7).
+//
+// DERIVED from the code the worker fired, never a list of codes kept here: the codes
+// live in the prework worker that raises them (a pack), the engine may not import a
+// pack, and a hand-maintained copy of an enum on the other side of that barrier is
+// exactly the drift the corpus forbids. So the label is minted per code, and the
+// scheduler ensures it right before applying it — the same create-before-add
+// discipline SCHEDULER_LABELS documents. A code that is not a plain kebab-case token
+// gets no label (GitHub would take almost anything as a name, and a label built from
+// a malformed code is a category nobody can query); the body still carries it.
+export const ESCALATION_LABEL_PREFIX = 'escalation:';
+export function escalationLabel(code) {
+  if (typeof code !== 'string' || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(code)) return null;
+  return {
+    name: `${ESCALATION_LABEL_PREFIX}${code}`,
+    color: '5319e7',
+    description: `Claudinite scheduler: prework escalated on "${code}"`,
+  };
+}
+
 // Title: `[claudinite-task] <pack>/<task> <slot-id>` (DESIGN §4). The prefix is
 // what keeps these issues invisible to the scheduler's own signals (self-trigger
 // exclusion) and searchable as a family.

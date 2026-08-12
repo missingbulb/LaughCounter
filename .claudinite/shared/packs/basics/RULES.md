@@ -1,85 +1,290 @@
 # Working discipline
 
-The working discipline that isn't itself a GitHub operation — general habits for how to approach a change, independent of any one project.
+The working discipline that isn't itself a GitHub operation — general habits for how to approach a
+change, independent of any one project.
 
-Start every requested change from the *problem*, not the solution — in any repository, not just this one. Before implementing, reach an explicit shared understanding with the owner of the problem the change is meant to solve **and** agreement that the requested change is the best way to solve it; a different fix, or no change at all, may serve the underlying problem better.
+- **Starting any requested change** — begin from the *problem*, not the solution, in any
+  repository and not just this one. Reach an explicit shared understanding with the owner of the
+  problem the change is meant to solve **and** agreement that the requested change is the best way
+  to solve it; a different fix, or none, may serve better.
 
-Open your reply to an owner comment with an explicit classification line — `Comment class: correction | feature | process-change | other` (`other` covers questions, approvals, and command phrases; a mixed comment names each part). **An automation dispatch prompt is a comment too** — classify it, class `other`, in your *first* substantive reply rather than at the end of the run. The class decides where the change lands and what must exist before any fix. Put the class **alone on that line**: the line is scanned for *every* class token on it, so restating the menu to rule options out ("not a correction, feature request, or process-change") declares all of them, arming the gates those classes carry. Any explanation goes on the next line. This cannot be taken back — the transcript is append-only, and a clean re-declaration further down does not override the first.
+- **Replying to an owner comment** — open with an explicit classification line,
+  `Comment class: correction | feature | process-change | other`, where `other` covers questions,
+  approvals and command phrases and a mixed comment names each part.
 
-1. **A correction** — you misunderstood something. Repair the shared understanding, then rework what the misread already touched; the artifact changes as much as the correction demands, but a correction never adds a new requirement or rule.
-2. **A feature** — agree on the requirement, record it in the project's requirements document (its executable spec, where it keeps one), write the test that proves it and watch it fail, then implement until it passes.
-3. **A process change** — the owner is changing *how* work is done. The change lands as durable rules in the project's local scope — its own local packs (in Claudinite itself, its packs) — routed through the mechanism promotion ladder (platform setting → hook → check → skill → prose); promoting a rule into the shared canon is the growth lifecycle's separate call, not the interactive session's. Put on the ladder only a rule that constrains *how work is done* and outlives any one feature; a checkable signature doesn't earn a rule its place. Reject two shapes outright: a check that asserts particular code exists or still reads a particular way (it pins a point in time — it dies with the code it pins and constrains no later change), and a rule derivable from the product's requirements (that is a requirement — take it to mode 2: the requirements document and the test that proves it). Author the assurance first — the check the future world must satisfy — execute it and watch it fail, and only then make the fixes that turn it green. When the ladder lands the rule at prose (an in-flight judgment rule no check can carry), the equivalent step is showing the corpus doesn't already cover the rule before writing it.
+- **Replying to an automation dispatch prompt** — it is a comment too: classify it, class `other`,
+  in your *first* substantive reply rather than at the end of the run.
 
-The two build modes share one spine: state the expectation in its durable home first, watch it fail against the current world, then change the world to satisfy it — a fix made before its assurance exists can never show it addressed what the owner actually asked for.
+- **Writing that classification line** — put the class **alone on it** and any explanation on the
+  next line; the line is scanned for *every* class token on it, so restating the menu declares all
+  of them.
 
-Before building a mechanism for a behavior, verify against a real run that it isn't already provided. For release, deploy, versioning or CI plumbing, look for the shared pack that owns it first — copying a mechanic from a sibling repo is the tell that it belongs centrally. If no pack owns it, report the gap rather than authoring a third copy that gets deleted later along with its reviewed workflow.
+- **Wanting to change a class you already declared** — it cannot be taken back, and a clean
+  re-declaration further down does not override the first.
 
-**Minimize every task's shelf-life — the time from starting it until everyone can forget about it.** An open task is a standing tax: whoever returns to it pays a full reload of the context that was free while the work was hot. So finish a change by **watching it work now** — never park it on "check tomorrow", which is almost always the wrong choice in any context. A change to scheduled or unattended machinery does not wait for its next natural run — force one now (the scheduler's `FORCE_TASKS` lever, a `workflow_dispatch`, the fleet-wide force sweep) and watch it to a terminal state; those levers exist precisely so verification can happen while the change is still in someone's head. The same yardstick governs **migration planning**: prefer the design that converges in one forced pass over the one that trickles across nightly cycles, accept legacy input at the door so nothing has to wait for stragglers, and drive the stragglers with a standing mechanism rather than a phase someone must remember to close. When verifying now is genuinely impossible (an external release window, an upstream fix in flight), the follow-up must be a mechanism that comes to you — a scheduled task, a watched PR, an issue something converges — never a human's memory.
+- **Acting on a correction** — you misunderstood something. Repair the shared understanding, then
+  rework what the misread already touched; the artifact changes as much as the correction demands,
+  but a correction never adds a new requirement or rule.
 
-When feedback flags a misunderstanding, check whether the artifact is already correct before expanding it — if it is, say so and push back rather than editing; a misread doesn't imply the text is wrong. And size writing to its idea: "open one issue" takes a sentence, not three paragraphs.
+- **Acting on a feature** — agree on the requirement, record it in the project's requirements
+  document (its executable spec, where it keeps one), write the test that proves it and watch it
+  fail, then implement until it passes.
 
-When correcting or auditing an artifact against an authoritative source, derive the corrected version from the *source* before reading the existing draft, then diff against the old draft to surface what was actually wrong — reading the draft first anchors you to its framing and quietly carries its errors into your "fix."
+- **Acting on a process change** — the owner is changing *how* work is done. Land it as durable
+  rules in the project's local scope, its own local packs (in Claudinite itself, its packs), routed
+  through the mechanism promotion ladder (platform setting → hook → check → skill → prose).
+  Promoting a rule into the shared canon is the growth lifecycle's separate call, not the
+  interactive session's.
 
-Three harness-tool contracts, before you spend a call rediscovering them:
+- **Choosing what goes on that ladder** — only a rule that constrains *how work is done* and
+  outlives any one feature; a checkable signature doesn't earn a rule its place.
 
-- **A `ToolSearch` that finds nothing is evidence about your query, not about the environment.** Deferred tools are matched on keywords that aren't their own vocabulary, so a capability can sit in the session while the search denies it. Search the fully-qualified name (`select:mcp__<server>__<tool>`, copied off the deferred-tools listing — the bare short name returns "no matching tools", which reads exactly like absence) and try the tool before telling the owner a step is theirs.
-- **`Edit` requires the file to have been read *with the read tool*** — `cat`/`grep`/`sed` don't count, however much is already on screen. The moment shell output tells you which file you're about to change, read that exact path; a narrow offset window satisfies it.
-- **A summarizing fetch tool is not a source.** Asked for exact text it returns a description, and ordinary publisher pages routinely `403`. When the bytes matter, `curl` into the scratchpad and read from disk. On a `403` don't retry and don't try a sibling URL — attribute the search snippet to the publisher instead of asserting it, and mark it for re-verification.
+- **Vetting a rule before it goes on the ladder** — reject two shapes outright: a check that
+  asserts particular code exists or still reads a particular way (it pins a point in time), and a
+  rule derivable from the product's requirements (that is a requirement — take it to the feature
+  path, the requirements document and the test that proves it).
 
-Fix build/test/CI warnings rather than tolerating them, with a small, targeted fix that addresses the *cause* in the same change — a clean run makes a genuinely new warning or error stand out.
+- **Landing a rule anywhere on the ladder** — author the assurance first, the check the future
+  world must satisfy, execute it and watch it fail, and only then make the fixes that turn it green.
 
-Suppressing a warning — muting it with a flag (e.g. `--disable-warning`), `eslint-disable`, swallowing it, etc. — is **not** a small fix and never the quick path: reach for it only as a deliberate, reviewed decision once the real fix has been weighed and rejected. A suppression you do keep must **carry its reason at the site**: on the suppression line, or in the comment immediately above it, saying why the fix was rejected — that inline reason *is* the review record, so no second justification is recorded elsewhere. When the finding is on *text* rather than code, try deleting the flagged phrase before waiving it — decoration often buys the coupling the rule exists to prevent for nothing, and a waiver is for a crossing that genuinely must exist.
+- **Landing a rule at the prose rung** (an in-flight judgment rule no check can carry) — the
+  equivalent step is showing the corpus doesn't already cover the rule before writing it.
 
-A blocked host is a **policy boundary, not an obstacle to route around**. When a sandbox or proxy denies a fetch, don't reach for an open-network runner — an ad-hoc CI workflow, a push-triggered "probe" — to make the request from somewhere the policy doesn't apply. Answer from committed reference material or ask the owner, and say plainly that anything unverifiable is unverified.
+- **Starting work on either build path** — they share one spine: state the expectation in its
+  durable home first, watch it fail against the current world, then change the world to satisfy it.
 
-Before working around a finding from a vendored check, confirm the vendored copy is current — it reflects its last refresh, not upstream's head, so the fix may already exist upstream and simply not be pulled in yet.
+- **Building a mechanism for a behavior** — verify against a real run that it isn't already
+  provided.
 
-When a warning can't be fixed with a small cause-addressing change now without hindering current work (e.g. it's waiting on an upstream release, or the real fix is a larger refactor), open a dedicated issue for it unless one is already open, then move on — resolving it (real fix, or a consciously-chosen suppression) happens in that issue's own change.
+- **Building release, deploy, versioning or CI plumbing** — look for the shared pack that owns it
+  first; copying a mechanic from a sibling repo is the tell that it belongs centrally. If no pack
+  owns it, report the gap rather than author a third copy.
 
-An approval — to merge, to ship, to proceed — applies only *backward*, to the work already in front of the owner when it's given, never to anything requested or done *after* it. A later follow-up, even a fix to the just-approved change, needs its own explicit approval; a chosen answer to a multiple-choice prompt isn't authorization just because an option's wording mentioned the action.
+- **Taking on a task** — minimize its shelf-life, the time from starting it until everyone can
+  forget about it.
+
+- **Finishing a change** — watch it work **now**; never park it on "check tomorrow".
+
+- **Changing scheduled or unattended machinery** — force a run now (the scheduler's `FORCE_TASKS`
+  lever, a `workflow_dispatch`, the fleet-wide force sweep) and watch it to a terminal state rather
+  than wait for its next natural run.
+
+- **Planning a migration** — prefer the design that converges in one forced pass to the one that
+  trickles across nightly cycles, accept legacy input at the door so nothing has to wait for
+  stragglers, and drive the stragglers with a standing mechanism rather than a phase someone must
+  remember to close.
+
+- **When verifying now is genuinely impossible** (an external release window, an upstream fix in
+  flight) — make the follow-up a mechanism that comes to you: a scheduled task, a watched PR, an
+  issue something converges. Never a human's memory.
+
+- **Receiving feedback that flags a misunderstanding** — check whether the artifact is already
+  correct before expanding it; if it is, say so and push back rather than edit.
+
+- **Writing anything** — size it to its idea: "open one issue" takes a sentence, not three
+  paragraphs.
+
+- **Correcting or auditing an artifact against an authoritative source** — derive the corrected
+  version from the *source* before reading the existing draft, then diff against the old draft to
+  surface what was actually wrong.
+
+## Harness-tool contracts
+
+Three contracts worth knowing before you spend a call rediscovering them.
+
+- **Searching for a tool with `ToolSearch`** — a search that finds nothing is evidence about your
+  query, not about the environment. Search the fully-qualified name (`select:mcp__<server>__<tool>`,
+  copied off the deferred-tools listing) and try the tool before telling the owner a step is theirs;
+  the bare short name returns "no matching tools", which reads exactly like absence.
+
+- **Calling `Edit`** — the file must have been read *with the read tool*; `cat`/`grep`/`sed` don't
+  count. The moment shell output tells you which file you're about to change, read that exact path;
+  a narrow offset window satisfies it.
+
+- **Needing exact text from the web** — a summarizing fetch tool is not a source; when the bytes
+  matter, `curl` into the scratchpad and read from disk. On a `403` don't retry and don't try a
+  sibling URL — attribute the search snippet to the publisher instead of asserting it, and mark it
+  for re-verification.
+
+- **Seeing a build, test or CI warning** — fix it rather than tolerate it, with a small, targeted
+  fix that addresses the *cause* in the same change.
+
+- **Suppressing a warning** — muting it with a flag (e.g. `--disable-warning`), `eslint-disable`,
+  swallowing it — is **not** a small fix and never the quick path. Reach for it only as a
+  deliberate, reviewed decision once the real fix has been weighed and rejected.
+
+- **Keeping a suppression** — **carry its reason at the site**, on the suppression line or in the
+  comment immediately above it, saying why the fix was rejected; that inline reason *is* the review
+  record, so record no second justification elsewhere.
+
+- **Waiving a finding on *text* rather than code** — try deleting the flagged phrase first; a
+  waiver is for a crossing that genuinely must exist.
+
+- **Hitting a sandbox or proxy that denies a fetch** — treat it as a **policy boundary, not an
+  obstacle to route around**: don't reach for an open-network runner, an ad-hoc CI workflow or a
+  push-triggered "probe", to make the request from somewhere the policy doesn't apply. Answer from
+  committed reference material or ask the owner, and say plainly that anything unverifiable is
+  unverified.
+
+- **Working around a finding from a vendored check** — confirm the vendored copy is current first;
+  the fix may already exist upstream and simply not be pulled in.
+
+- **Deferring a warning you can't fix now with a small cause-addressing change** (it waits on an
+  upstream release, or the real fix is a larger refactor) — open a dedicated issue unless one is
+  already open, then move on. Resolving it, by real fix or a consciously-chosen suppression, happens
+  in that issue's own change.
+
+- **Acting on an approval to merge, ship or proceed** — it applies only *backward*, to the work
+  already in front of the owner when it's given, never to anything requested or done *after* it. A
+  later follow-up, even a fix to the just-approved change, needs its own explicit approval.
+
+- **Treating a multiple-choice answer as authorization** — it isn't, even when an option's wording
+  mentioned the action.
 
 # The task lifecycle
 
-The issue → branch → PR lifecycle every new task follows, independent of any one project. The rest of the git/GitHub procedures live in the `git-github-advanced` skill.
+The issue → branch → PR lifecycle every new task follows, independent of any one project. The
+rest of the git/GitHub procedures live in the `git-github-advanced` skill.
 
 For every new task:
 
 1. Create a GitHub issue describing the task before starting work.
-2. Develop on a branch; reference that issue number in commit messages (e.g. `Refs #123`, `Fixes #123`, or `Closes #123`).
+2. Develop on a branch; reference that issue number in commit messages (e.g. `Refs #123`,
+   `Fixes #123`, or `Closes #123`).
 3. Update the issue's status (comments / close) as work progresses and when it's done.
 
-A step only a human can perform — flipping a repository or console setting, granting a permission, adding a secret — gets **its own issue**, never a note in the PR body: the note merges and disappears with the PR while the setting stays unflipped. Give it a checkbox per step, what breaks while each is off, and its closing condition. The exception is a step whose home is an artifact the human is already editing. Before handing a step over at all, confirm you genuinely can't do it yourself.
+- **Handing over a step only a human can perform** (flipping a repository or console setting,
+  granting a permission, adding a secret) — give it **its own issue**, never a note in the PR
+  body. The exception is a step whose home is an artifact the human is already editing.
+
+- **Writing that hand-over issue** — give it a checkbox per step, what breaks while each is off,
+  and its closing condition.
+
+- **Before handing a step over at all** — confirm you genuinely can't do it yourself.
 
 # Engineering practices
 
-General software-engineering practices, independent of any one project — portable, shared rules; project-specific rules (architecture, test mechanics) live in the consuming repo's own docs. The portable git/GitHub-operational practices — branch/commit history, merging, automated-job branches — live in [the git-github-advanced skill](../git-github/skills/git-github-advanced/SKILL.md); the mechanics of searching and rewriting text across files — grep/sed sweeps, renames, broken references — live in [the repo-text-sweeps skill](skills/repo-text-sweeps/SKILL.md); the practices for writing trustworthy tests — see-it-fail, snapshot/golden discipline, CI-only and heavy-browser tests, coverage gating — live in [the writing-tests skill](skills/writing-tests/SKILL.md); and how to investigate a bug and pin down its root cause — version-gap triage, re-deriving after a failed fix, probing for a real datapoint — lives in [the bug-investigation skill](skills/bug-investigation/SKILL.md).
+General software-engineering practices, independent of any one project — portable, shared rules;
+project-specific rules (architecture, test mechanics) live in the consuming repo's own docs. The
+portable git/GitHub-operational practices — branch/commit history, merging, automated-job branches
+— live in [the git-github-advanced skill](../git-github/skills/git-github-advanced/SKILL.md); the
+mechanics of searching and rewriting text across files — grep/sed sweeps, renames, broken
+references — live in [the repo-text-sweeps skill](skills/repo-text-sweeps/SKILL.md); the practices
+for writing trustworthy tests — see-it-fail, snapshot/golden discipline, CI-only and heavy-browser
+tests, coverage gating — live in [the writing-tests skill](skills/writing-tests/SKILL.md); and how
+to investigate a bug and pin down its root cause — version-gap triage, re-deriving after a failed
+fix, probing for a real datapoint — lives in
+[the bug-investigation skill](skills/bug-investigation/SKILL.md).
 
-- Name by scope/responsibility, not technology or mechanism.
-- Keep a single source of truth for derived or duplicated data — generate the rest from it instead of hand-editing, and have a test fail if it drifts. Split a fact across more than one place only when a technological constraint forbids a single home, and then have the drift-guard test state, in its own text, the two-or-more places it watches and why the split is forced — so an invisible coupling becomes a self-documenting, reviewed one, and the next reader knows the duplication is deliberate and where its other half lives. When the duplicate mirrors executable logic you can't generate from (e.g. a static list shadowing a set of predicate/matcher functions), drift-guard it by *executing the real logic* against the list in both directions — every entry accepted by some predicate, and every predicate satisfied by some entry — rather than parsing the logic out. When a value must be copied into files that can't share an import (a label spanning a YAML workflow guard and a JS module; a repo slug in prod code and its test), declare it as a `sharedConstants` entry in `.claudinite-checks.json` — its `value`, the expected per-file `counts`, and a `what` naming the places and why. Declared counts are matched against the *flat* literal (comments included), so keep a guarded value on one line wherever it appears — an occurrence wrapped across a line break is invisible to a `grep`/`sed` rename alike. For a value that must stay in sync but *changes over time* (a version string bumped each release), set `regex: true` and give a pattern instead of a literal — every match must then be identical across the declared files, so the guard never needs re-pinning on a bump.
-- Honor separation of concerns in what you write — code comments and Markdown instructions alike: when file A uses or references file B (a module A imports, or a doc/procedure set A points to), A may state *what* it needs from B or *that* it delegates to B, but never restate *how* B does its job or re-spell the procedures B owns. B's mechanism lives in one place — with B. Copying it into A leaks B's internals across the boundary and springs the same drift trap as any duplicated source of truth: change B and A's paraphrase silently goes stale, with nothing to catch it. Point to B instead of paraphrasing it.
-- One commit per concern: two changes that could each stand alone — separately revertible, cherry-pickable, bisectable — don't share a commit, and a message that numbers unrelated items is describing the split it should have been. More commits is not the goal: once a commit is in, later work is a *new* commit, never a rewrite of the one that landed.
-- Name any file a test autogenerates with `GENERATED` in its filename (e.g. `foo.GENERATED.md`, `foo.baseline.GENERATED.json`) so it's unmistakable at a glance. Don't hand-edit a GENERATED file, and never resolve its merge conflict by hand: take either side to clear the markers, re-run the generator against the merged inputs, and commit its output. Hand-editing desyncs it from its source — and when the other branch changed the generator's logic, only a re-run produces correct values. Automate the "take either side" step itself where you can: assign the file a `merge=ours` `.gitattributes` entry (plus a one-time `git config merge.ours.driver true` per clone) so a conflicting merge on it resolves automatically instead of needing the markers cleared by hand first; `git config rerere.enabled true` similarly replays a manual conflict resolution automatically the next time the same conflict recurs.
-- Verify how a platform or runtime actually behaves against authoritative docs or a real run — not against a comment or a prior commit's claim.
-- Prove a *behaviour-preserving* optimisation actually preserves behaviour before trusting it — "it should be equivalent" is not evidence. Fingerprint the full outputs (hash them) and exercise the old and new paths across *every* branch (fuzz the inputs that select each), accepting the change only on a bit-identical match. And it is legitimate to leave a hot path un-optimised when the correctness risk of rewriting it outweighs the speed-up — record that as a deliberate call, not an oversight.
-- Earn each dependency: prefer a built-in (or a few lines) for a narrow job, and drop one when the assumption that justified it lapses.
-- Before adding production code for a raised edge case (a review's "what about scenario X?"), check whether the system's existing composed rules already produce the right answer — behaviour that emerges from a composition of independent rules (a pure reducer, a set of matchers) is often already covered, sometimes on more than one independent count. When it is, add no production code: pin it with a regression test — and an accept criterion under the relevant requirement, where you track those — asserting the contrast case too, so the test would bite if the rule interaction ever changed.
-- A bespoke how-to earns its place only by what it adds over authoritative external docs — our own failure modes, gotchas, and the exact path we ran. Before writing one, check it against those docs and keep only the additive parts; a guide that re-explains upstream (often less well) is worse than a link to upstream plus a short gotchas list. And document/recommend only a path you've actually run, not the "standard" or seemingly-better one you haven't.
-- Resilience that swallows errors destroys observability — during development, before a solution is proven right, add debugging information first, and remove it later.
-- A capability applied **best-effort behind a silent fallback** (a probe-gated optimisation, an optional hardware/platform feature, a hint the runtime may ignore) must **record whether it actually engaged** — read the state back where the platform exposes it, and log which path ran. Without that, every later measurement of the feature is uninterpretable: a session where it quietly never engaged looks exactly like one where it did and didn't help, so the data says nothing about the feature and a bug report about it can't be diagnosed. The fallback keeps the run alive; the record is what keeps it *evaluable*.
-- Keep everything the software persists on a user's machine under **one** user-deletable location. "Delete that folder and it's gone" is a promise users act on — someone who deletes it believes the whole record went with it — so a new storage need extends that location rather than earning a second one, and anything the platform forces outside it (a registration the OS owns) is named explicitly as the exception.
-- A user-facing statement about what the software does with a user's data — a permission prompt's usage string, a privacy policy, a store-listing disclosure — is part of the behaviour's contract, not documentation of it. Change the behaviour and the statement changes **in the same commit**; a stale disclosure is worse than a blunt one. And read the direction the other way too: retaining something previously not retained, adding an outbound connection, or opening a listener is a change to the *promise*, not a new field — it earns an explicit decision, and the disclosure rewrite, before the code. Expect the claim to live in **more than one place** — the same absolute is typically restated in a page's `<meta>` description, a marketing lede, a README and a source-file header, and nothing fails when a change makes one of them untrue. Grep the whole surface for the standing absolutes a behaviour change touches ("no tracking", "no cookies", "no external assets") and reconcile every hit in that same commit.
-- When a session will drive an external runtime more than once (a headless browser, a device, a REPL, a deploy target), write **one** parameterised driver script into the scratchpad and re-point it — take the target, the selector, and the output path from argv — rather than authoring a fresh throwaway per invocation. A re-run costs seconds; re-authoring costs 15–20 s each and re-derives the same setup every time, which is where a surprising share of a long session's wall clock goes.
-- When automating a task that requires live AI conversation context (e.g., a reflection pass over a session), hook it to an existing human workflow event rather than background infrastructure — shell hooks lack conversation access and fire at per-turn granularity, not session-end. The cheapest trigger is often a change to an existing command's definition.
-- In a pipeline or CI workflow, treat expected, handled outcomes (known-bad inputs, anticipated stops) as clean exits with a comment — not failures. Reserve the failure signal for genuine breakage; a red run should always be a surprise.
-- A live fetch that works on your machine can fail from CI or a sandbox (403/400, a CAPTCHA wall) because the *datacenter IP* is blocked, not the User-Agent — browser-like headers won't change that. Route the fetch through a residential-proxy service (these usually render JS too, so a single-page app records real content) rather than tweaking headers; treat targets that stay blocked even through a proxy as un-cacheable.
-- `pkill -f "<pattern>"` matches the *invoking shell's own* command line too, so a pattern naming the process you want also names the shell that typed it — the shell dies, and everything chained after the `pkill` (`;`, `&&`) is silently dropped, with the run reporting only a bare non-zero exit. Never chain a `-f` pkill; and break the self-match by bracketing one character of the pattern (`pkill -f "[h]ttp.server 8099"`), which still matches the target but no longer matches the literal you just typed.
-- A cloud/root setup script may start in the repo's *parent* directory, not the checkout — a bare `npm ci` / build there finds no manifest and silently does nothing, surfacing much later as a confusing missing-deps error. Make the setup script `cd` into the checkout before running anything.
-- A `Cannot find module …` (or other missing-dependency) error on a *fresh* checkout almost always means the install hasn't run there yet, not a code bug — `node_modules` and other vendored dependency dirs start empty on a clone and on an ephemeral CI/sandbox checkout. Run the install and re-run before hunting for a code-level cause.
-- Collapse a property tracked in more than one place (a spec tag, a side manifest, a per-item field) into a single source of truth, preferring a *structural* classifier — one derived from where the item lives (its folder or path) — over a hand-set field: a structural classifier has no field to forget to update and can't desync from the item it classifies.
-- Avoid a default value; require it explicitly, or make it structural (derived from where the thing lives). A default moves the real value into a fallback (`x || DEFAULT`) plus a comment documenting it — two things that drift, neither visible at the call site — all to save a little typing. When automation maintains many instances of a config (a fleet of repos, generated project files), have the automation **materialize the explicit value into every file it maintains** instead of interpreting absence: the knob then sits visibly in the exact file where anyone would go to change it, and a missing key becomes drift the automation repairs rather than a case code must interpret (e.g. the fleet baselining writing `"maintenance": { "delivery": "auto" }` into each member's `.claudinite-checks.json`).
-- **"Unknown" is a state of its own — never encode it as a zero, an empty string, or a type's default, and never let a decoder collapse it into one.** A field that can legitimately be absent carries three states, not two (absent, zero, a real value), and every stage of a pipeline has to preserve the distinction: encode unknown as a missing key or an explicit null, keep the zero for a real zero, and treat the absent case as a normal, permanent shape of the data rather than a gap something downstream should close. A stage that folds three states into two loses what nothing downstream can recover, and it fails silently — every value it emits is plausible. Where two fields make overlapping claims about the same fact (a `free` flag beside a `price: 0`), keep each meaning what its own source said and let the consumer decide.
-- When a check that walks a file tree (an orphan/reachability scan, a doc audit, a lint) must ignore files you don't own — a synced submodule, a vendored dependency, generated output — derive its file set from `git ls-files` rather than a filesystem walk with a hardcoded path-to-skip. There's no exclude path to maintain, it can't desync when an artifact moves, and it stays correct when a new gitignored directory appears. Git already knows what you own; tracked vs. ignored is the exact distinction. The price of that precision: a *brand-new* file is untracked, so it sits outside the sweep until it is committed — the run's own "checked N files" line is **not** evidence your new file was among them. Commit (or `git add`) first, then re-run, before reading a green sweep as coverage of what you just wrote.
-- A check that scans source for a forbidden token (a banned API, an impure import, a DOM specific) must match *code, not prose* — strip comments before you match, or a comment that merely names the token (`// saved in chrome.storage`) fails the build over an English sentence, and the next author who documents the very rule you're enforcing trips it. Strip *string-aware*: a `//` inside `"https://…"` is not a comment, and blindly deleting to end-of-line corrupts real code (and can hide a genuine violation later on that line). The corpus's reusable helper is `stripComments` in [`engine/checks/helpers/code-scanning.mjs`](../../engine/checks/helpers/code-scanning.mjs); a project whose scan can't import it (e.g. a test that runs where the mount is absent) should inline the same string-aware pass and point a comment back at that canonical source.
-- A comment describes the code's *current state*, never the edit that produced it. Don't explain the change you just made, and don't explain an absence — a comment saying something was removed, renamed, or "no longer" done describes a version of the file the reader can't see and doesn't need; the diff and the commit message are where change history belongs, and they keep it accurate without maintenance. State the reason the code is the way it is now, or write nothing. The same applies to a comment that narrates a fix in the past tense ("switched to X because Y broke"): keep only the part still true of the code in front of you ("X, because Y can't handle Z"), and drop the rest.
-- Comments are not free: each one is a claim the next reader must verify against the code, and a claim that will drift. Add one only when it carries something the code cannot — more comments help only when each pays for itself, and a comment that restates the code costs attention while adding nothing.
-- A comment should carry the *why* or a cross-file relationship the code can't state itself — not a fact already reconstructable from same-file code plus a known convention (a restated fact drifts out of sync as the code changes, silently). When a comment must name another file, state its exact path in exactly one canonical place and have every other mention point at that reference or the concept, not re-spell the path — a path repeated across many comments turns every future move into comment-churn the code itself never needed.
+- **Naming a file, module, or symbol** — name it for its scope or responsibility, not the
+  technology or mechanism behind it.
+
+- **Referring to a value from more than one place** — prefer a shared constant or a reference over
+  copying it, and generate derived data rather than hand-maintaining it. If you can't, add a drift
+  guard: the generic `sharedConstants` check for a plain value, or one that runs the real logic
+  against the copy in both directions when the duplicate mirrors matcher or predicate logic. Keep
+  the guarded literal itself unbroken, since a value split across a line break is invisible to the
+  guard and to a `grep`/`sed` rename alike. Have the guard's own text name the places it watches and
+  why the split is forced, and don't also comment the duplication — the guard covers it.
+
+- **Writing file A so it depends on file B** — say what A needs from B, or that it delegates, and
+  don't re-spell how B does its job. If you're about to paraphrase B's procedure, point at B
+  instead. This holds for code comments and Markdown alike.
+
+- **Committing** — one concern per commit: if two changes could each stand alone, split them, and
+  a message that wants numbered items is the split talking. Once a commit has landed, revise with a
+  new commit, never a rewrite of that one.
+
+- **Working with a file a test or tool generates** — put `GENERATED` in its name, and don't
+  hand-edit it; change the generator. Never resolve its merge conflict by hand: clear the markers
+  with either side, re-run the generator against the merged inputs, and commit that output. Consider
+  automating the clear with a `merge=ours` `.gitattributes` entry, and `git rerere` for a conflict
+  that recurs.
+
+- **Writing code that depends on how a platform or runtime behaves** — verify that behaviour
+  against authoritative docs or a real run, not a comment or a prior commit's claim.
+
+- **Optimising** — if the change is meant to preserve behaviour, prove it: hash the full outputs
+  of both paths across every branch, fuzzing the inputs that select each, and accept only a
+  bit-identical match. If the correctness risk outweighs the speed-up, leave the path alone and
+  record that as a deliberate call.
+
+- **Needing a library for a narrow job** — prefer a built-in, or a few lines. When the assumption
+  that justified an existing dependency lapses, drop it.
+
+- **Answering an edge case a review raised** — first check whether the existing composed rules
+  already produce the right answer. If they do, add no production code: pin it with a regression
+  test that asserts the contrast case too, plus an accept criterion where you track those, and don't
+  re-state it in a comment.
+
+- **Documenting a procedure** — read the authoritative external docs first and write only what
+  they don't carry: our failure modes, gotchas, the exact path we ran. Don't document or recommend a
+  path you haven't run, however standard it looks.
+
+- **Writing code that can silently do nothing** — a swallowed error, a best-effort fallback, a
+  probe-gated optimisation, a hint the runtime may ignore — record which path actually ran,
+  reading the state back where the platform exposes it. During development, before the solution is
+  proven right, add that debugging information first and remove it later. Without the record, a run
+  where the capability never engaged is indistinguishable from one where it did and didn't help.
+
+- **Persisting anything on a user's machine** — put it under the one user-deletable location, and
+  extend that location rather than earn a second one. If the platform forces something outside it, a
+  registration the OS owns, name that explicitly as the exception.
+
+- **Changing what the software does with a user's data** — the permission string, privacy policy
+  and store listing are part of the contract, so change them in the same commit. Retaining something
+  new, opening a listener or adding an outbound connection changes the promise rather than adding a
+  field: decide it explicitly and rewrite the disclosure before the code. Expect the claim in more
+  than one place — grep the whole surface for the standing absolutes it touches ("no tracking",
+  "no cookies", "no external assets") and reconcile every hit.
+
+- **Driving an external runtime more than once in a session** — a headless browser, a device, a
+  REPL, a deploy target — write one parameterised driver into the scratchpad, taking the target,
+  the selector and the output path from argv, and re-point it rather than author a throwaway per
+  invocation.
+
+- **Automating something that needs live conversation context** — hook it to an existing human
+  workflow event rather than background infrastructure; shell hooks have no conversation access and
+  fire per turn, not at session end. Consider changing an existing command's definition — usually
+  the cheapest trigger.
+
+- **Writing the exit path of a pipeline or CI step** — an expected, handled outcome exits clean
+  with a comment. Reserve non-zero for genuine breakage.
+
+- **Killing a process by pattern** — `pkill -f` matches the invoking shell's own command line too,
+  so never chain it, and bracket one character of the pattern (`[h]ttp.server 8099`) to break the
+  self-match.
+
+- **Working in a fresh checkout or sandbox** — a setup script may start in the repo's parent
+  rather than the checkout, so `cd` in before running anything. A `Cannot find module` there is
+  usually an install that hasn't run yet, not a code bug: install and re-run before hunting for a
+  code-level cause.
+
+- **Deciding where a config value or a classification lives** — avoid a default; require the value
+  explicitly, or make it structural, derived from where the thing lives. Prefer a structural
+  classifier to a hand-set field, and collapse a property tracked in several places into one. When
+  automation maintains many copies of a config, have it materialize the explicit value into every
+  file it maintains instead of interpreting absence.
+
+- **Handling a value that can be unknown** — unknown is a state of its own: never encode it as a
+  zero, an empty string or a type's default, and don't let a decoder collapse it into one. Keep it a
+  missing key or an explicit null, keep the zero for a real zero, and preserve all three states at
+  every stage of a pipeline. Treat absence as a permanent shape of the data rather than a gap to
+  close, and where two fields claim the same fact, let each mean what its own source said and leave
+  the call to the consumer.
+
+- **Writing a check that scans the repo** — take the file set from `git ls-files` rather than a
+  filesystem walk with paths to skip, and remember a brand-new file is untracked until you add it,
+  so a green run isn't coverage of it. When scanning for a forbidden token, strip comments first so
+  it matches code, not prose — string-aware, since a `//` inside a URL is not a comment. Reuse
+  `stripComments` from
+  [`engine/checks/helpers/code-scanning.mjs`](../../engine/checks/helpers/code-scanning.mjs); if the
+  scan can't import it, inline the same pass and point a comment back at that source.
+
+- **Writing a comment** — carry the why, or a cross-file relationship the code can't state itself;
+  if the code plus a known convention already says it, write nothing. Describe the current state,
+  never the edit that produced it: don't explain the change you just made, and don't note what was
+  removed or renamed. If a comment narrates a past fix, keep only the part still true of the code in
+  front of you. When it must name a path, spell that path in one canonical place and point every
+  other mention there.
+

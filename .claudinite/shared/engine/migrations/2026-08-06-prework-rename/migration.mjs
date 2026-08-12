@@ -15,9 +15,21 @@
 export default {
   id: 'prework-rename',
   landed: '2026-08-06',
+  version: 1,
   summary: 'task contract fields renamed: agent_preprocessing → prework, agent_preprocessing_timeout → prework_timeout (legacy names still accepted, normalized at load)',
-  agentic: {
-    model: 'haiku',
-    instructions: 'If a local pack task (.claudinite/local/packs/<pack>/tasks/<task>/task.mjs) declares `agent_preprocessing` or `agent_preprocessing_timeout`, rename the keys to `prework` and `prework_timeout` (values unchanged) — IN LOCKSTEP with every sibling script and test that reads the old keys off the declaration: grep the task folder and the repo tests for `agent_preprocessing` first, and rename every read in the same commit (a worker reading `decl.agent_preprocessing_timeout` after a task.mjs-only rename gets undefined, and an undefined budget fails silently, not loudly). Then update comments and sibling docs. A member with no such declarations needs nothing.',
-  },
+  // The agentic note this record carried is RETIRED (#768 Phase 4), and the record's
+  // own reasoning is why: the note only ever "carried the guidance through the fleet's
+  // next cycles" — the DURABLE driver is the `task-declaration-shape` finding, which
+  // names the exact rename and does not age out. Nothing is lost by dropping it and
+  // one thing is gained: this was the last ENGINE record carrying a note, and an
+  // engine record with one stops the engine update flow dead for any repo whose gap
+  // contains it (DESIGN §5 admits no agentic stage there).
+  //
+  // The rollout had already dismantled the channel underneath it. Measured on the
+  // canary, 2026-08-12: the first update-flow cycle deleted this record from that
+  // member's mount — the version gate says a repo at engine 2 does not need a record
+  // whose change took effect at 1 — while `claudinite.updated`, the field that held
+  // the stamp for this note, is never written by the update flows at all. So on any
+  // flipped repo the note was already unreachable; keeping it only held the stamp of
+  // repos still on baselining, for work their own conformance check already reports.
 };

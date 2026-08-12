@@ -31,7 +31,17 @@
 // fails, hangs, or exits non-zero yields one note naming the pack, and the session
 // proceeds — exit 0, always, because a non-zero exit makes Claude Code discard the
 // orchestrator's whole stdout, including the steps that did work.
-import { existsSync, readFileSync } from 'node:fs';
+//
+// THE FACET CHANNEL. A step may also state one short phrase about what it loaded —
+// `CLAUDINITE-FACET: 7 personal preference rules` on a line of its own. Those lines
+// are lifted out of the step's contribution and appended to the file
+// CLAUDINITE_SESSION_FACETS names, where the summary step (session-summary.mjs)
+// folds them into the one line a session opens with. It rides the step, and not a
+// manifest field, because the facts worth stating are the ones a pack had to
+// COMPUTE at session time — a static count is already in the prose the reader has.
+// No channel configured, or a file that cannot be written: the facet is dropped and
+// the step's own contribution is unaffected.
+import { existsSync, readFileSync, appendFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -106,7 +116,21 @@ async function main() {
       continue;
     }
 
-    let text = (run.stdout || '').trim();
+    // Lift the facet lines out FIRST: they address the summary step, not the
+    // reader, and a step that said nothing else has still said something.
+    const facets = [];
+    const text0 = (run.stdout || '').split('\n')
+      .filter((line) => {
+        const m = /^CLAUDINITE-FACET:\s*(.+?)\s*$/.exec(line);
+        if (m) facets.push(m[1]);
+        return !m;
+      })
+      .join('\n');
+    if (facets.length && process.env.CLAUDINITE_SESSION_FACETS) {
+      try { appendFileSync(process.env.CLAUDINITE_SESSION_FACETS, `${facets.join('\n')}\n`); } catch { /* no channel, no facet */ }
+    }
+
+    let text = text0.trim();
     if (!text) continue; // nothing to say is a legitimate answer, and gets no marker
     if (overflowed || Buffer.byteLength(text, 'utf8') > MAX_BYTES) {
       text = `${Buffer.from(text, 'utf8').subarray(0, MAX_BYTES).toString('utf8')}\n\n[truncated at ${MAX_BYTES} bytes — the "${pack.id}" pack's ${STEP_FILE} produced more session context than a step may contribute]`;

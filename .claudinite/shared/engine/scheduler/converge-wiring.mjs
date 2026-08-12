@@ -231,9 +231,14 @@ export function convergeBadgeRow(root, entries) {
 //
 // `badges` defaults off, and that default is the point: the nightly takes this
 // call as it stands and only bootstrap opts the README row in.
-export async function convergeWiring(root, fullName, stubText, secretNames = [], { badges = false } = {}) {
+// `workflows: false` converges everything EXCEPT `.github/workflows/`. The engine
+// update flow passes it: the scheduler workflow's content is a function of the
+// task set, so pack changes are what rewrite it, and only the pack flow carries a
+// credential that can land a workflow file at all (DESIGN §2.4, §3.7). A flow that
+// wrote one it cannot deliver would fail its whole push, not just that file.
+export async function convergeWiring(root, fullName, stubText, secretNames = [], { badges = false, workflows = true } = {}) {
   const changed = [];
-  if (convergeSchedulerWorkflow(root, fullName, stubText, secretNames)) changed.push(SCHEDULER_WORKFLOW);
+  if (workflows && convergeSchedulerWorkflow(root, fullName, stubText, secretNames)) changed.push(SCHEDULER_WORKFLOW);
   const hooks = ensureHooks(root);
   for (const h of hooks.added) changed.push(`hook:${h}`);
   if (removeRetiredCorpusImport(root)) changed.push(`removed retired ${CLAUDE_MD} corpus import`);

@@ -136,11 +136,31 @@ Fleet-wide aggregation is deliberately **not** here — the canon knows mechanis
 the sheepdog pack's [`fleet-usage`](../sheepdog/tasks/fleet-usage/task.md) task, in the fleet-enforcer
 repo, which is the only place that knows who the members are.
 
+## Skills
+
+Each stage's **method** lives in a skill, so the task doc frames the unattended run and the same
+method is available to an owner asking in-session. Extract's three are listed above;
+[**growth-dedup**](skills/growth-dedup/SKILL.md) is the dedup stage's — what to prune, strip, or
+rephrase, the keep-test, and the shrink-only discipline. The pack also bundles
+[generate-project-instructions](skills/generate-project-instructions/SKILL.md),
+[unattended-agents](skills/unattended-agents/SKILL.md),
+[adopt-claudinite](skills/adopt-claudinite/SKILL.md) and
+[adopt-pack](skills/adopt-pack/SKILL.md).
+
 ## Rules
 
 | Rule | Kind | What |
 |---|---|---|
 | `growth-config` | hardcoded ([config-check.mjs](config-check.mjs)) | entry config shape valid |
+| `dedup-prune-integrity` | work-scope ([dedup-integrity.mjs](dedup-integrity.mjs)) | a dedup edit only removes portable text — never grows a local pack or re-imports a canon rule |
+| `growth-write-scope` | work-scope ([growth-write-scope.mjs](growth-write-scope.mjs)) | a capture run (extract, dedup) writes only the repo's own local packs |
+
+The capture runs' write surface is the local packs and nothing else — a run improves the repo's
+**packs**, never the canon it prunes against or the project's own code. `growth-write-scope` is
+the machine guarantee behind that, keyed on the pinned commit titles of exactly those two runs; the
+lifecycle's wider-surfaced runs have their own gates (promote writes the canon under `packs/` and
+`skills/`, certified by canon-curation's `promote-scope`; pack discovery also writes the repo-root
+declaration that activates the pack it authors).
 
 **Pack discovery** ([tasks/growth-discover-packs/task.md](tasks/growth-discover-packs/task.md)) is
 an ordinary weekly task on the repo's own scheduler. The repo runs the whole pipeline over

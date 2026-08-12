@@ -35,6 +35,8 @@ import storeFileNames from './store-file-names.mjs';
 
 export default {
   id: 'claude-code-web-users-support',
+  version: 1,
+  minEngineVersion: 1,
   ruleRoutingGuidance: {
     belongs: 'what a project offers people working from Claude Code on the web, where the session knows who they are',
     excludes: 'project conventions and process — those are the packs that own each subject',

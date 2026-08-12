@@ -31,6 +31,16 @@
   },
   "claudinite": {
     "updated": "2026-08-10T00:00:00.000Z",
-    "ref": "103620f670ff80ac11b130971c5082d339db9909"
+    "ref": "631a067f5a0413e154a0d4c1a66275f18b255af9",
+    "engineVersion": 2,
+    "packVersions": {
+      "basics": 1,
+      "barriers": 1,
+      "git-github": 1,
+      "grow_with_claudinite": 1,
+      "tidy-repo": 1,
+      "github-actions": 1,
+      "claude-code-web-users-support": 1
+    }
   }
 }

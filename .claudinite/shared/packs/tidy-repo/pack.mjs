@@ -15,6 +15,8 @@
 // there is no ordering barrier and a dimension with nothing to do stays silent.
 export default {
   id: 'tidy-repo',
+  version: 1,
+  minEngineVersion: 1,
   ruleRoutingGuidance: {
     belongs: 'housekeeping of open issues, pull requests and branches in one repo — triage verdicts, standing trackers, assess-vs-act policy',
     excludes: 'extracting lessons into packs — that is grow_with_claudinite; cross-repo fleet sweeps are sheepdog',

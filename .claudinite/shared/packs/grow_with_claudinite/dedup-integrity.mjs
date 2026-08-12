@@ -44,7 +44,7 @@ const rule = {
   id: 'dedup-prune-integrity',
   severity: 'blocking',
   scope: 'work',
-  doc: 'packs/grow_with_claudinite/tasks/growth-dedup/task.md',
+  doc: 'packs/grow_with_claudinite/skills/growth-dedup/SKILL.md',
   description: 'A dedup edit only removes portable text — it never grows a local pack or re-imports a canon rule into it',
   why: 'the growth-dedup routine has reworded partially-covered items instead of stripping them — restating the canon rule inside the local pack, the inverse of dedup — and every dedup edit must shrink the pack, not grow it',
 
