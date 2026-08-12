@@ -109,9 +109,11 @@ and **on the default delivery no human reviews the PR before it lands** — CI g
 
 ## What this task must never do
 
-- **Never touch the shared canon** — this task writes only the repo's *own* local packs under
-  `.claudinite/local/packs/`; everything else under `.claudinite/` is the read-only mount, and lifting a
-  lesson up into the canon is the central promote task's job.
+- **Never write outside the repo's own local packs** — this task improves the repo's **packs**, never the
+  canon and never the project's own code. Everything else under `.claudinite/` is the read-only mount, and
+  lifting a lesson up into the canon is the central promote task's job. A lesson tied to one call site lands
+  as its pack's entry **naming the site**, not as an edit out there. The `growth-write-scope` check keys on
+  this run's pinned title (below) and reds any path outside the local packs.
 - **Never widen past the Context window** — the halves it declares live, the substantive commits and the
   touched PRs/issues named there are the scope; do not re-decide it. That includes the upgrade pass: this
   run's own additions, never the standing backlog.

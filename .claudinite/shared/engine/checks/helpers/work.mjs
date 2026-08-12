@@ -67,6 +67,7 @@ class Work {
   get commits() { return this.ctx.commits; }
   get files() { return this.ctx.files; }
   get changedFiles() { return this.ctx.changedFiles; }
+  get deleted() { return this.ctx.deleted; }
   get tracked() { return this.ctx.tracked; }
   // The discovered pack objects (runner-attached) and the normalized config —
   // the pair a rule that reasons over pack metadata (e.g. adoption-interview

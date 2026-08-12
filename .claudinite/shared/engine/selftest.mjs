@@ -208,8 +208,12 @@ async function loadCorpus(root) {
   } catch (e) { loaded = { packs: [], errors: [{ what: `the pack loader itself failed: ${e.message}`, fix: 'the engine is broken or half-vendored — re-run baselining' }] }; }
 
   let migrations = null;
-  const regPath = join(corpus, 'migrations/registry.mjs');
-  if (existsSync(regPath)) {
+  // The registry moved under the engine with the engine/pack split; a mount that
+  // has not converged since still carries the flat path, and probing it as absent
+  // would report a HEALTHY-looking skip on a repo whose registry is right there.
+  const regPath = [join(corpus, 'engine/migrations/registry.mjs'), join(corpus, 'migrations/registry.mjs')]
+    .find((p) => existsSync(p));
+  if (regPath) {
     try {
       const reg = await import(pathToFileURL(regPath).href);
       await reg.loadMigrations();

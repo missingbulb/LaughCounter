@@ -1,5 +1,6 @@
 import growthConfig from './config-check.mjs';
 import dedupIntegrity from './dedup-integrity.mjs';
+import growthWriteScope from './growth-write-scope.mjs';
 
 // Opt into the growth lifecycle: a repo declaring grow_with_claudinite contributes its
 // hard-won lessons up to the Claudinite canon and prunes them back out once the canon
@@ -55,6 +56,8 @@ import dedupIntegrity from './dedup-integrity.mjs';
 // active sets retention_days itself.
 export default {
   id: 'grow_with_claudinite',
+  version: 1,
+  minEngineVersion: 1,
   ruleRoutingGuidance: {
     belongs: 'rules and tasks for capturing lessons into local packs — extraction, dedup, conversation logs, skill-usage folding',
     excludes: 'repo housekeeping of issues, PRs and branches — that is tidy-repo; cross-repo fleet sweeps are sheepdog',
@@ -65,13 +68,14 @@ export default {
   seededByDefault: true,
   prose: null,
   worldRules: [growthConfig],
-  workRules: [dedupIntegrity],
+  workRules: [dedupIntegrity, growthWriteScope],
   skills: [
     'adopt-claudinite',
     'adopt-pack',
     'extract-from-activity',
     'extract-from-conversations',
     'generate-project-instructions',
+    'growth-dedup',
     'prose-to-checks',
     'unattended-agents',
   ],

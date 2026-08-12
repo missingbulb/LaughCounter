@@ -1,31 +1,35 @@
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { MIGRATION_FILE, migrationDirs, migrationActive } from '../engine/checks/helpers/active-migrations.mjs';
-import { MODEL_FAMILIES } from '../engine/scheduler/model-map.mjs';
+import { MIGRATION_FILE, migrationDirs, migrationActive, recordName } from '../checks/helpers/active-migrations.mjs';
+import { MODEL_FAMILIES } from '../scheduler/model-map.mjs';
 
-const dir = dirname(fileURLToPath(import.meta.url));
+// <corpus>/engine/migrations/ — records are addressed corpus-relative, because they
+// no longer share one directory with this module: an engine record sits beside it,
+// a pack's under that pack.
+const corpusRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
-// Each migration lives in its own folder beside the mechanism (this registry,
-// apply.mjs, the README), so a record can carry assets of its own and the set
-// reads cleanly. The sync surface — the folder listing, the recency predicate,
-// and `migrationActive` — lives in the vendored engine lib
+// Each migration lives in its own folder under the flow that owns it — an engine
+// record beside this registry, a pack's under that pack — so a record can carry
+// assets of its own and each flow can ship exactly its own set. The discovery
+// surface — the roots, the folder listing, the recency predicate, and
+// `migrationActive` — lives in the vendored engine lib
 // (engine/checks/helpers/active-migrations.mjs) because pack CHECKS consult it and packs import
 // only the engine surface (pack-independence); this registry re-exports it so
 // canon-side callers keep one import home.
-export { MIGRATION_FILE, migrationActive };
+export { MIGRATION_FILE, migrationActive, recordName };
 
 // Structural discovery, like packs/ and skills/: every
-// migrations/<landed-date>-<slug>/migration.mjs is a spec. ALL records present
-// load — the apply/backfill path is unconditional, and FETCHING decides
+// <flow>/migrations/<landed-date>-<slug>/migration.mjs is a spec. ALL records
+// present load — the apply/backfill path is unconditional, and FETCHING decides
 // relevance: a vendored consumer mount carries only the recent records
 // (vendoring's recency window), while a dormant project baselining out of a
 // fresh canon clone sees every record ever landed and applies what it needs.
-// Each object carries its `dir` folder name, so callers can name a record and
-// build its repo-relative path (migrations/<dir>/migration.mjs).
+// Each object carries its `dir` — the record's CORPUS-RELATIVE path, which both
+// names the record and says which flow owns it.
 export async function loadMigrations() {
   const out = [];
   for (const d of migrationDirs()) {
-    const spec = (await import(pathToFileURL(join(dir, d, MIGRATION_FILE)).href)).default;
+    const spec = (await import(pathToFileURL(join(corpusRoot, d, MIGRATION_FILE)).href)).default;
     out.push({ dir: d, ...spec });
   }
   return out;
@@ -110,10 +114,17 @@ export async function applyMaterializations(migration, { readTemplate, read, wri
 }
 
 // Write side — "rewrite these refs in place": for each declared file, apply its
-// literal from->to replacements (only those whose `from` is still present),
-// writing back when anything changed. Idempotent — a no-op once every `from` is
-// gone. Preserves the rest of the file, so per-repo tweaks the template can't
-// carry (e.g. an uncommented build_env block) survive. Same `appliesTo` gate.
+// replacements (only those still matching), writing back when anything changed.
+// Idempotent — a no-op once nothing matches. Preserves the rest of the file, so
+// per-repo tweaks the template can't carry (e.g. an uncommented build_env block)
+// survive. Same `appliesTo` gate.
+//
+// A replacement is either LITERAL (`{ from, to }`) or a PATTERN
+// (`{ pattern: /…/g, to }`) — the regex-first shape engine migrations are meant to
+// take (DESIGN §2.3), for the changes where no literal is common across repos.
+// The pattern must be global, because every replacement here means replace-ALL:
+// a non-global regex would silently rewrite only the first occurrence and leave a
+// half-migrated file that reads as migrated.
 export async function applyRewrites(migration, { read, write }) {
   if (!migration.rewrite?.length) return [];
   if (migration.appliesTo && !(await migration.appliesTo(read))) return [];
@@ -122,7 +133,16 @@ export async function applyRewrites(migration, { read, write }) {
     const text = await read(file);
     if (text == null) continue;
     let next = text;
-    for (const { from, to } of replace ?? []) next = next.split(from).join(to);
+    for (const r of replace ?? []) {
+      if (r.pattern !== undefined) {
+        if (!(r.pattern instanceof RegExp) || !r.pattern.global) {
+          throw new Error(`migration ${migration.id}: rewrite pattern for ${file} must be a global RegExp — a non-global one rewrites only the first match`);
+        }
+        next = next.replace(r.pattern, r.to);
+      } else {
+        next = next.split(r.from).join(r.to);
+      }
+    }
     if (next !== text) { await write(file, next); done.push(file); }
   }
   return done;
@@ -185,6 +205,75 @@ export async function applyPackDeclarations(migration, { read, write }) {
   return done;
 }
 
+// Write side — "normalize this repo's local-pack declarations": rewrite every
+// declared local pack to the canonical `local/<id>` token, from the bare id or the
+// earlier `local_packs/<id>` form.
+//
+// A NAMED CODEMOD rather than a `rewrite`, because the decision needs the repo's
+// own disk. `local_packs/<id>` → `local/<id>` is a pure pattern, but a BARE id is
+// only a local pack if that repo has one by that name — and a bare id that names a
+// canon pack must not be touched. No regex can tell those apart, so the record
+// declares `normalizeLocalDeclarations: true` and the deterministic code ships with
+// the engine (DESIGN §2.3's "rarely code"). It is one op with one meaning, not a
+// general escape hatch for arbitrary code in a record.
+//
+// SEEDS NOTHING AND DROPS NOTHING: entry objects keep their config, answers and
+// order; only the id token changes. Idempotent — a repo already on `local/` is a
+// no-op — and it patches the parsed declaration back through JSON.stringify with
+// the same 2-space shape every other declaration writer here uses.
+export async function applyLocalDeclarationNormalization(migration, { read, write, exists }) {
+  if (!migration.normalizeLocalDeclarations) return [];
+  if (migration.appliesTo && !(await migration.appliesTo(read))) return [];
+  const raw = await read(DECLARATION);
+  if (raw == null) return [];
+  let config;
+  try { config = JSON.parse(raw); } catch { return []; }
+  if (config === null || typeof config !== 'object' || Array.isArray(config)) return [];
+  if (!Array.isArray(config.packs)) return [];
+
+  const done = [];
+  const packs = [];
+  for (const entry of config.packs) {
+    const id = typeof entry === 'string' ? entry : entry?.id;
+    if (typeof id !== 'string' || id.startsWith(LOCAL_DECL)) { packs.push(entry); continue; }
+    let bare = id.startsWith(LEGACY_LOCAL_DECL) ? id.slice(LEGACY_LOCAL_DECL.length) : null;
+    if (bare === null) {
+      // A bare id: local only if this repo actually carries that pack. Both mount
+      // shapes are checked, because a repo mid-relocation may hold either.
+      const isLocal = (await exists(`.claudinite/local/packs/${id}/pack.mjs`))
+        || (await exists(`.claudinite/local_packs/${id}/pack.mjs`));
+      if (!isLocal) { packs.push(entry); continue; }
+      bare = id;
+    }
+    const token = `${LOCAL_DECL}${bare}`;
+    packs.push(typeof entry === 'string' ? token : { ...entry, id: token });
+    done.push(`${DECLARATION}: ${id} -> ${token}`);
+  }
+  if (done.length) await write(DECLARATION, `${JSON.stringify({ ...config, packs }, null, 2)}\n`);
+  return done;
+}
+
+// The declaration tokens this op normalizes to and from. Stated here rather than
+// imported from the pack registry: this module is the write side a consumer runs
+// out of its own mount, and the two prefixes are the whole of what it needs.
+const LOCAL_DECL = 'local/';
+const LEGACY_LOCAL_DECL = 'local_packs/';
+
+// EVERY write op a record can carry, in the order a run applies them, over one
+// injected io. Both callers — the standalone applier and the engine update flow —
+// go through this, so an op added to the vocabulary cannot reach one and miss the
+// other: that omission is silent (the record simply does nothing on that path) and
+// is exactly what a member would never notice.
+export async function applyMigration(migration, io) {
+  const applied = [];
+  applied.push(...(await applyFileAliases(migration, io)));
+  applied.push(...(await applyMaterializations(migration, io)));
+  applied.push(...(await applyRewrites(migration, io)));
+  applied.push(...(await applyPackDeclarations(migration, io)));
+  applied.push(...(await applyLocalDeclarationNormalization(migration, io)));
+  return applied;
+}
+
 // A migration record MAY carry a machine-readable AGENTIC note (task-prework
 // DESIGN §7, the primitive absorbed from #405): member-side adaptation that no
 // script can do — adapting consumer-authored `local/packs/` content to a changed
@@ -197,6 +286,20 @@ export async function applyPackDeclarations(migration, { read, write }) {
 export function migrationAgentic(m) {
   const a = m.agentic;
   if (a === undefined || a === null) return null;
+  // NO AGENTIC WORK ON AN ENGINE MIGRATION, EVER (DESIGN §5, owner decision 3). The
+  // engine update flow has no agentic stage and no lane to add one, so a note on an
+  // engine record is not work that gets done later — it is a record that stops the
+  // flow for every repo whose gap contains it. Rejected here, at the registry, so it
+  // cannot be written in the first place; a pack record is where such work belongs,
+  // as its update's apply stage.
+  //
+  // Judged by WHERE THE RECORD LIVES (`dir`, corpus-relative), the same structural
+  // classifier everything else in this scheme uses. A spec with no `dir` is a caller
+  // testing the shape rather than a discovered record, and is left alone.
+  if (typeof m.dir === 'string' && m.dir.startsWith('engine/')) {
+    throw new Error(`migration ${m.id}: an ENGINE migration may not carry an "agentic" note — `
+      + 'the engine flow cannot run one (DESIGN §5). Move the work to the owning pack\'s apply stage.');
+  }
   if (typeof a !== 'object' || Array.isArray(a)) {
     throw new Error(`migration ${m.id}: "agentic" must be an object { model, instructions }`);
   }

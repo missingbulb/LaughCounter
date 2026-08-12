@@ -32,7 +32,18 @@ const FETCH_TIMEOUT_MS = 15_000;
 const FETCH_ATTEMPTS = 3;
 
 const note = (s) => process.stdout.write(`USER PREFERENCES: ${s}\n`);
-const emit = (s) => { process.stdout.write(s.endsWith('\n') ? s : `${s}\n`); process.exit(0); };
+
+// How many preferences this person actually has, stated on the engine's facet
+// channel (engine/pack_loader/run-pack-session-start.mjs) so the session's opening
+// summary can say it. One distilled preference per bullet is the store's rule, so
+// the bullets ARE the count — and this step is the only thing in the session that
+// can take it, since the file it read lives in another repository.
+const facet = (text) => {
+  const n = text.split('\n').filter((line) => /^\s*[-*]\s+\S/.test(line)).length;
+  if (n) process.stdout.write(`CLAUDINITE-FACET: ${n} personal preference rule${n === 1 ? '' : 's'}\n`);
+};
+
+const emit = (s) => { facet(s); process.stdout.write(s.endsWith('\n') ? s : `${s}\n`); process.exit(0); };
 
 // Strip quotes/backslashes before embedding an identity in a message, so an unusual
 // one stays tidy in the injected text.

@@ -22,7 +22,7 @@
 //      tasks' declared required_secrets, settings hooks, retired-import removal),
 //      and ask the owner for any declared secret the repo hasn't configured;
 //   4. apply the MECHANICAL migration notes (aliases/materialize/rewrite/declarePacks)
-//      via the cloned migrations/apply.mjs — idempotent — and re-converge the mount
+//      via the cloned engine/migrations/apply.mjs — idempotent — and re-converge the mount
 //      when that changed the DECLARATION, since a newly declared pack's content was
 //      not in the set the vendor pass computed a moment earlier;
 //   5. detect pending AGENTIC notes (registry.mjs `agenticMigrations`, gated on
@@ -40,7 +40,7 @@
 //      left — the scheduler files `ready-for-agent` iff this file appears (§3,
 //      conditional handoff). NO code→agent data channel: the file is a pure
 //      control signal; the agent discovers its work by reading the repo (the
-//      pushed branch, the held stamp, the pending note).
+//      pushed branch, the pending note).
 //
 // Imports: node builtins, plus the vendored ENGINE SURFACE — the one import the
 // pack-independence barrier sanctions. The delivery/landing nuances live in
@@ -70,6 +70,8 @@ import {
   resolveDelivery, pullCreateError, landDelivery,
   pullDisposition, mergeReason, failureSummary, deleteBranch,
 } from '../../../../engine/scheduler/land-pr.mjs';
+// The skew guard, from the engine so BOTH mechanisms read one definition (#768).
+import { servedBy } from '../../../../engine/served-by.mjs';
 
 const CANON_URL = 'https://github.com/missingbulb/Claudinite.git'; // public — no token
 const MAINT_PREFIX = 'claudinite/maintenance';
@@ -77,27 +79,17 @@ const API = 'https://api.github.com';
 
 // --- pure helpers (exported, unit-tested git-free) --------------------------
 
-// The pending AGENTIC notes: those dated on/after the DAY of the prior stamp
-// (same-day inclusive, #330), oldest first. `agenticList` is registry.mjs
-// `agenticMigrations(all)` — already filtered to records carrying a valid
-// `agentic` note (a malformed note throws THERE, aborting the run loudly).
-export function pendingAgentic(agenticList, priorUpdated) {
-  const priorDay = String(priorUpdated ?? '').slice(0, 10);
-  return [...(agenticList ?? [])]
-    .filter((m) => !priorDay || String(m.landed) >= priorDay)
-    .sort((a, b) => String(a.landed).localeCompare(String(b.landed)));
-}
+// Note selection moved to the version gate (#768 Phase 4): a note is pending while
+// its record is in this repo's gap, decided by `migrationApplies` in the engine —
+// the one predicate that also decides what a mount fetches and what a check
+// tolerates. The date-window selector that lived here is gone with the hold below;
+// nothing can now disagree about whether a record still applies.
 
-// HOLD the stamp at the day before the earliest pending agentic note (the
-// stamp/agentic coupling rule): the note stays selected next run until the agent
-// lands it and advances the stamp itself. Returns the held ISO datetime, or null
-// when nothing is pending (the stamp advances normally).
-export function heldStamp(pending) {
-  if (!pending?.length) return null;
-  const d = new Date(`${String(pending[0].landed).slice(0, 10)}T00:00:00.000Z`);
-  d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString();
-}
+// The stamp is no longer HELD for a pending note (#768 Phase 4). Holding it kept a
+// note selected across runs while the date decided selection; version-ranged
+// selection needs no such trick, because a record leaves the gap only when the
+// version carrying its change is installed. Removing the hold is what makes
+// `claudinite.updated` mean one thing again — when this repo last converged.
 
 // A per-cycle maintenance branch name — dated + a short seed so each cycle gets a
 // distinct branch (superseding #407's scheme, native-git side). `seed` is passed
@@ -488,6 +480,26 @@ export async function main() {
     console.log('baselining: no vendored-mount stamp — nothing to self-refresh (canon home or pre-adoption)');
     return; // quiet, no agent (matches the precondition self-skip)
   }
+  // A repo the update flows serve is not this mechanism's to converge (#768's skew
+  // risk). Stepping aside is the FIRST thing after reading the declaration and
+  // before any clone or write: two mechanisms converging one mount would race on
+  // the same files, and the loser's write reads as drift the winner then repairs,
+  // nightly, forever. Quiet and agentless — a repo served elsewhere is not an
+  // anomaly, so there is nothing here for a human to look at.
+  //
+  // A member's copy of this worker is only as new as its last converge, so a repo
+  // flipped before its mount carries this check keeps baselining for one more
+  // cycle. That is the safe direction of that lag: it converges twice by the old
+  // mechanism rather than falling between the two.
+  const served = servedBy(priorRaw);
+  if (served.mechanism !== 'baselining') {
+    console.log(`baselining: this repo is served by the ${served.mechanism} flow — standing down`);
+    return;
+  }
+  if (served.invalid !== undefined) {
+    console.log(`baselining: maintenance.mechanism "${served.invalid}" is not a mechanism — proceeding as ${served.mechanism}`);
+  }
+
   const { delivery, materialize } = resolveDelivery(priorRaw?.maintenance?.delivery);
   if (!delivery) {
     console.error(`baselining: maintenance.delivery "${priorRaw?.maintenance?.delivery}" is neither auto-merge nor review`);
@@ -519,7 +531,7 @@ export async function main() {
   // 2-4. Deterministic converge: mount + stamp, then wiring, then mechanical notes.
   node([join(tmp, 'vendoring/apply-vendor-set.mjs'), '--target', root, '--ref', headSha]);
   const wiringOut = node([join(tmp, 'engine/scheduler/converge-wiring.mjs'), repo], { CLAUDINITE_REPO_ROOT: root });
-  // The handshake (migrations/registry.mjs, WITHHOLD_CAPABLE_ENV): THIS worker withholds
+  // The handshake (engine/migrations/registry.mjs, WITHHOLD_CAPABLE_ENV): THIS worker withholds
   // workflow paths from its commit and hands them to the agent, so a record may safely
   // materialize one. An older vendored worker does not set it and the materialization is
   // skipped instead of wedging its push. Set here, by the code that does the withholding,
@@ -527,7 +539,7 @@ export async function main() {
   // it: apply-vendor-set above has already overwritten this very file with the new
   // version while this old-or-new code is the thing actually executing.
   const declarationBefore = readFileSync(checksPath, 'utf8');
-  node([join(tmp, 'migrations/apply.mjs')], { CLAUDE_PROJECT_DIR: root, CLAUDINITE_CAN_WITHHOLD_WORKFLOWS: '1' });
+  node([join(tmp, 'engine/migrations/apply.mjs')], { CLAUDE_PROJECT_DIR: root, CLAUDINITE_CAN_WITHHOLD_WORKFLOWS: '1' });
   // A note may have DECLARED a pack (the seed shape). The mount above was computed
   // from the declaration as it stood a moment ago, so the new pack's content is not
   // in it — and a declared pack whose code is absent is a BLOCKING config error until
@@ -551,14 +563,21 @@ export async function main() {
     console.log(`baselining: asked the owner to configure ${missingSecrets.join(', ')}`);
   }
 
-  // 5. Pending agentic notes (from the fresh canon clone) + stamp hold.
-  const { loadMigrations, agenticMigrations } = await import(pathToFileURL(join(tmp, 'migrations/registry.mjs')).href);
-  const pending = pendingAgentic(agenticMigrations(await loadMigrations()), priorStamp.updated);
-  if (pending.length) {
-    const raw = JSON.parse(readFileSync(checksPath, 'utf8'));
-    raw.claudinite = { ...raw.claudinite, updated: heldStamp(pending) };
-    writeFileSync(checksPath, JSON.stringify(raw, null, 2) + '\n');
-  }
+  // 5. Pending agentic notes — selected BY VERSION, and no stamp hold (#768 Phase 4).
+  //    A note is pending exactly while its record is still in this repo's gap, which
+  //    is the same predicate vendoring fetches by and checks tolerate by. The date
+  //    comparison it replaces needed the stamp HELD to keep a note selected, and that
+  //    hold is what made `claudinite.updated` unreadable as freshness: a healthy repo
+  //    with outstanding agentic work looked identical to a dead one, which is a
+  //    mistake made about two live members on 2026-08-12 before the flip.
+  //
+  //    Version selection needs no hold: the record leaves the gap when the version
+  //    that carries its change is installed, and nothing before then can deselect it.
+  const { loadMigrations, agenticMigrations } = await import(pathToFileURL(join(tmp, 'engine/migrations/registry.mjs')).href);
+  const { migrationApplies } = await import(pathToFileURL(join(tmp, 'engine/checks/helpers/active-migrations.mjs')).href);
+  const pending = agenticMigrations(await loadMigrations())
+    .filter((m) => migrationApplies(m.dir, { installed: priorStamp }))
+    .sort((a, b) => String(a.landed).localeCompare(String(b.landed)));
 
   // 6. Meaningful change? A stamp-only bump against an unchanged head is not one —
   //    revert it and stay quiet (no nightly stamp-only noise).

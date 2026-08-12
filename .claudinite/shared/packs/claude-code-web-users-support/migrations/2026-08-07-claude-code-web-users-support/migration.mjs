@@ -32,6 +32,7 @@
 export default {
   id: 'claude-code-web-users-support',
   landed: '2026-08-07',
+  version: 1,
   summary: 'seed the claude-code-web-users-support pack into existing members, naming the fleet\'s preferences repo',
   declarePacks: [{ id: 'claude-code-web-users-support', config: { repo: 'missingbulb/Sheepdog' } }],
   legacyPresent: async (exists, read) => {

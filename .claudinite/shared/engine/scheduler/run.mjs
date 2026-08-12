@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { dueSlots, mostRecentSlot } from './slots.mjs';
 import {
   planDispatch, dispatchTitle, dispatchBody, DISPATCH_PREFIX, READY_LABEL, NEEDS_HUMAN_LABEL,
-  SCHEDULER_LABELS, readyLabelForScope,
+  SCHEDULER_LABELS, readyLabelForScope, escalationLabel,
 } from './dispatch.mjs';
 import { isAgentless } from './model-map.mjs';
 import { isDormant } from '../checks/helpers/repo-context.mjs';
@@ -498,7 +498,13 @@ async function main() {
     // The scope-resolved ready label (self vs fleet) from planDispatch — the
     // executor routine wired to it runs the task.
     const readyLabel = rec.dispatch?.label ?? READY_LABEL;
-    const res = await gh(`/repos/${repo}/issues`, { method: 'POST', body: { title, body, labels: [readyLabel] } });
+    // …and the escalation code as a label, so the condition is countable and not
+    // only readable. Minted per code, so it is ensured here rather than in the
+    // up-front SCHEDULER_LABELS pass, which cannot know which code will fire.
+    const escalation = escalationLabel(rec.escalationReason?.code);
+    if (escalation) await ensureLabels(gh, repo, [escalation]);
+    const labels = escalation ? [readyLabel, escalation.name] : [readyLabel];
+    const res = await gh(`/repos/${repo}/issues`, { method: 'POST', body: { title, body, labels } });
     if (res.status >= 300) console.log(`! failed to file dispatch issue for ${rec.pack}/${rec.task}: ${res.status}`);
   };
 

@@ -12,7 +12,7 @@
 // the deterministic pass left non-green (owner, 2026-07-23). The scheduler files
 // `ready-for-agent` iff the worker writes CLAUDINITE_REQUEST_AGENT (run.mjs
 // conditional handoff, DESIGN §3); the worker and agent communicate only through
-// the repository (the pushed branch, the held stamp, the pending note) — task.md.
+// the repository (the pushed branch and the pending note) — task.md.
 //
 // Self-contained (imports nothing) so the scheduler, executor, and a human all
 // load it standalone — the whole contract lives in this default export.

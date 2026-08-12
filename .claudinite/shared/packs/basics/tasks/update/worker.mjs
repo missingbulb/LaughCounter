@@ -1,0 +1,174 @@
+// THE UPDATE RUNNER (#768) — the shell that makes the versioned flows actually run
+// against a member. Everything it decides was decided elsewhere: the flows judge and
+// write, `terminalFor` says what happens to the PR, `servedBy` says whether this repo
+// is ours at all. What lives here is the I/O none of them may carry — the clone, the
+// branch, the commit, the push, the PR, and the hand-off.
+//
+// SAME SHAPE AS BASELINING, deliberately. That worker is the proven pattern for
+// "converge a member from its own Actions run": clone canon fresh, run the CLONE's
+// scripts as subprocesses rather than the mount's stale copies, deliver on a branch,
+// and let the shared landing helper own every nuance of arming versus merging. A
+// second, cleverer shape here would be a second set of the same bugs.
+//
+// IT STANDS DOWN unless the repo declares itself served by the update flows. The
+// inverse of baselining's guard, from the same definition, so exactly one mechanism
+// converges a mount — and a repo that has said nothing is not this one's to touch.
+import { execFileSync } from 'node:child_process';
+import { readFileSync, existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
+import { servedBy } from '../../../../engine/served-by.mjs';
+import { resolveDelivery, pullCreateError, landDelivery } from '../../../../engine/scheduler/land-pr.mjs';
+
+const CANON_URL = 'https://github.com/missingbulb/Claudinite.git'; // public — no token
+const UPDATE_PREFIX = 'claudinite/update';
+const API = 'https://api.github.com';
+
+const git = (args, opts = {}) =>
+  execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
+
+async function gh(token, path, { method = 'GET', body } = {}) {
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: 'application/vnd.github+json',
+      'x-github-api-version': '2022-11-28',
+      ...(body ? { 'content-type': 'application/json' } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let json = null;
+  try { json = await res.json(); } catch { /* empty body */ }
+  return { status: res.status, json };
+}
+
+// --- pure helpers (exported, unit-tested git-free) --------------------------
+
+// One branch per run, dated and seeded like baselining's: two runs on one day must
+// not collide, and a name that carries its date is one a human can read a week later.
+export const updateBranchName = (day, seed) => `${UPDATE_PREFIX}-${day}-${seed}`;
+
+// The PR title and body for a terminal. The body is what a human reads when the run
+// stopped, so it says WHICH terminal fired and why in its first line — a PR that only
+// says "an update ran" makes every reader re-derive the thing the run already knew.
+export function updatePullText(terminal, { engine, packs }) {
+  const moved = [
+    ...(engine?.from !== engine?.to ? [`engine ${engine?.from ?? 'unstamped'} → ${engine?.to}`] : []),
+    ...(packs?.plan ?? []).filter((p) => p.from !== p.to).map((p) => `${p.id} ${p.from ?? 'unstamped'} → ${p.to}`),
+  ];
+  const title = moved.length ? `Claudinite update: ${moved.join(', ')}` : 'Claudinite update';
+  const lines = [`**${terminal.action}** — ${terminal.why}`, ''];
+  if (moved.length) lines.push('Versions moved by this run:', ...moved.map((m) => `- ${m}`), '');
+  else lines.push('No version moved; this run converged the mount and changed nothing else.', '');
+  if (terminal.action === 'needs-human') {
+    lines.push('This PR stays open. Nothing merges on a non-green terminal — see the label.');
+  } else if (terminal.action === 'apply-stage') {
+    lines.push('The deterministic half is done. The agent stage applies the new rules to this repo\'s own content before anything merges.');
+  }
+  return { title, body: `${lines.join('\n')}\n` };
+}
+
+// --- I/O shell (validated by the live pilot, not unit tests) ----------------
+
+export async function main() {
+  const root = process.env.CLAUDINITE_REPO_ROOT || process.cwd();
+  const repo = process.env.CLAUDINITE_REPO || process.env.GITHUB_REPOSITORY;
+  const base = process.env.CLAUDINITE_DEFAULT_BRANCH || 'main';
+  const token = process.env.GITHUB_TOKEN;
+  const requestFile = process.env.CLAUDINITE_REQUEST_AGENT;
+  if (!repo) { console.error('update: no repo (CLAUDINITE_REPO/GITHUB_REPOSITORY)'); process.exit(1); }
+  if (!token) { console.error('update: no GITHUB_TOKEN in env'); process.exit(1); }
+
+  const checksPath = join(root, '.claudinite-checks.json');
+  if (!existsSync(checksPath)) { console.log('update: no .claudinite-checks.json — nothing to update'); return; }
+  const declaration = JSON.parse(readFileSync(checksPath, 'utf8'));
+
+  const served = servedBy(declaration);
+  if (served.mechanism !== 'updates') {
+    console.log(`update: this repo is served by ${served.mechanism} — standing down`);
+    return;
+  }
+  const { delivery } = resolveDelivery(declaration?.maintenance?.delivery);
+  if (!delivery) {
+    console.error(`update: maintenance.delivery "${declaration?.maintenance?.delivery}" is neither auto-merge nor review`);
+    process.exit(1);
+  }
+
+  // The flows run from a FRESH CANON CLONE, never from this repo's mount: the mount is
+  // the thing being replaced, and a flow executing its own stale copy is how a broken
+  // update makes itself permanent (baselining's worker takes the same care).
+  const tmp = mkdtempSync(join(tmpdir(), 'claudinite-canon-'));
+  try {
+    git(['clone', '--depth', '1', CANON_URL, tmp]);
+    const load = async (rel) => import(pathToFileURL(join(tmp, rel)).href);
+    const { engineUpdate } = await load('updates/engine-update.mjs');
+    const { packUpdate } = await load('updates/pack-update.mjs');
+    const { terminalFor, applyStageBrief } = await load('updates/terminals.mjs');
+
+    // ENGINE FIRST, always: a pack declares the minimum engine it runs on, and the
+    // pack flow enforces that against what this repo HAS. Running packs first would
+    // check every pack against yesterday's engine and block updates that the very
+    // next step would have made legal.
+    const engine = await engineUpdate(root, { fullName: repo, delivery, selfTestRun: undefined });
+    console.log(`update: engine — ${engine.status}: ${engine.detail}`);
+    let packs = null;
+    if (engine.status !== 'needs-human') {
+      packs = await packUpdate(root, { fullName: repo, delivery, selfTestRun: undefined });
+      console.log(`update: packs — ${packs.status}: ${packs.detail}`);
+    }
+
+    // The engine's terminal wins when it stopped the run: nothing downstream of a
+    // refused engine update is trustworthy, including a pack flow that never ran.
+    const outcome = engine.status === 'needs-human' ? engine : packs;
+    const terminal = terminalFor(outcome);
+
+    const changed = git(['-C', root, 'status', '--porcelain']).trim();
+    if (!changed && terminal.action !== 'needs-human') {
+      console.log('update: nothing changed — no branch, no PR');
+      return;
+    }
+
+    const day = new Date().toISOString().slice(0, 10);
+    const seed = Math.random().toString(36).slice(2, 8);
+    const branch = updateBranchName(day, seed);
+    git(['-C', root, 'checkout', '-B', branch]);
+    git(['-C', root, 'add', '-A']);
+    const staged = git(['-C', root, 'diff', '--cached', '--name-only']).split('\n').filter(Boolean);
+    const { title, body } = updatePullText(terminal, { engine, packs });
+    git(['-C', root, '-c', 'user.name=claudinite[bot]', '-c', 'user.email=claudinite@users.noreply.github.com',
+      'commit', ...(staged.length ? [] : ['--allow-empty']), '-m', title]);
+    git(['-C', root, 'push', '--force', `https://x-access-token:${token}@github.com/${repo}.git`, `HEAD:refs/heads/${branch}`]);
+
+    const created = await gh(token, `/repos/${repo}/pulls`, { method: 'POST', body: { head: branch, base, title, body } });
+    const failure = pullCreateError(created.status, created.json);
+    if (failure) throw new Error(`could not open the update PR for ${branch}: ${failure}`);
+    const pr = created.json;
+    console.log(`update: opened PR #${pr.number} on ${branch} (${terminal.action})`);
+
+    // The terminal, acted on. Only one action merges, and it is the one the flow
+    // already judged green — everything else leaves the PR standing, labelled or
+    // handed to the agent stage.
+    if (terminal.action === 'merge') {
+      await landDelivery({ token, repo, base, pr, delivery });
+    } else if (terminal.action === 'needs-human') {
+      await gh(token, `/repos/${repo}/issues/${pr.number}/labels`, { method: 'POST', body: { labels: [terminal.label] } });
+      console.log(`update: left PR #${pr.number} open and labelled ${terminal.label} — ${terminal.why}`);
+    } else if (terminal.action === 'apply-stage' && requestFile) {
+      writeFileSync(requestFile, `${JSON.stringify({
+        marker: 'agent-requested',
+        delivered: { branch, pr: pr.number, merged: false },
+        reason: { code: 'apply-stage', detail: terminal.why },
+        brief: applyStageBrief({ packs: terminal.packs, branch }),
+      })}\n`);
+      console.log(`update: requested the apply stage for ${terminal.packs.join(', ')}`);
+    }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((e) => { console.error(`update failed: ${e.message}`); process.exit(1); });
+}
