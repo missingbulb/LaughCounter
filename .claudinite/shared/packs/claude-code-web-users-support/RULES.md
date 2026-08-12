@@ -37,6 +37,17 @@ store, no file for this person, a fetch that fails — each is one plain-text no
 session proceeds on default interaction behavior. Nothing here is load-bearing, and a
 nice-to-have must never be able to stop a session from starting.
 
+### If this repo *is* the store
+
+The file name is the **whole address**: the reader builds `<path>/<email>.md` from the
+identity the harness supplies, and there is no index, no registry and no fallback. So
+every file under `path` is either the store's own `README.md` or one person's
+`<identity>.md`; anything else sits in the tree looking fine and is never opened. Two
+consequences worth holding: the name must be that person's identity **exactly**, because
+it becomes a case-sensitive `raw.githubusercontent.com` path segment that a local
+checkout would happily serve either way; and the store is **flat**, because grouping
+people into subdirectories makes their files unaddressable.
+
 ### Adding or changing a preference
 
 Edit that person's file **in the store repo** — never here, and never in the canon. One

@@ -31,6 +31,7 @@
 // a working store, and a project that wants none answers "n/a" and carries a pack that
 // says so rather than doing anything.
 import storeConfigured from './store-configured.mjs';
+import storeFileNames from './store-file-names.mjs';
 
 export default {
   id: 'claude-code-web-users-support',
@@ -50,5 +51,8 @@ export default {
       distill: 'the answer\'s `owner/name` becomes this entry\'s `config.repo` (add `config.path` only when the files do not sit in `preferences/`); "n/a" leaves the entry without a config and the preferences feature inert',
     },
   ],
-  worldRules: [storeConfigured],
+  // Both audit the repo as it stands, whatever this session touched: a store broken by
+  // an earlier commit is just as silent as one broken by this one. The second is inert
+  // in every repo but the one that HOLDS the store it declares.
+  worldRules: [storeConfigured, storeFileNames],
 };
