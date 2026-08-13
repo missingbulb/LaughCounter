@@ -31,7 +31,7 @@ const has = (flag) => args.includes(flag);
 const value = (flag) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : null);
 // The repo to sweep. `--root` first, then CLAUDE_PROJECT_DIR, and only then the cwd.
 // The env var is not a convenience: the callers that run this from inside a converge
-// (baselining's worker) have a cwd that no longer exists — the vendor step deletes
+// (the update runner) have a cwd that no longer exists — the vendor step deletes
 // `.claudinite/shared/`, which is where prework's cwd lives — and `process.cwd()` then
 // throws `ENOENT … uv_cwd` before a single check runs, which reads from the outside as
 // "this mount has no checks" (#689). engine/selftest.mjs has always resolved its root
@@ -58,7 +58,7 @@ if (has('--init')) {
   // declaration alongside the fingerprinted packs: every pack that flags
   // `seededByDefault` is written in (discovered structurally — the engine names
   // no pack), plus the ones a fingerprint detects. A seeded pack is still
-  // opt-out-able where its own policy allows (baselining re-adds only the packs
+  // opt-out-able where its own policy allows (the update flows re-add only the packs
   // whose absence it treats as drift), so removing a seeded declaration can
   // stick; each seeded pack ships its own one-time seed migration for the fleet.
   // Local packs are declared by hand, never fingerprinted or seeded — exclude

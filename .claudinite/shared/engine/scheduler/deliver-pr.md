@@ -26,7 +26,7 @@ Your task's declared `expected_outcome` is a **ceiling, not a plan**:
   it, never merge it, and never read the standing PR as a failure: degrading `merged-pr`
   to open-pr is the repo's stated intent, and member config wins.
 - **Missing or empty** — proceed as `auto-merge` (the default). Do **not** write the key:
-  materializing it is baselining's converge job, not yours.
+  materializing it is the update converge's job, not yours.
 - **Anything else** — someone stated an intent you cannot honour, and guessing could
   deliver its opposite. Leave the PR open (the posture that merges nothing) and name the
   unrecognized value in your wrap-up comment on the dispatch issue.

@@ -1,7 +1,6 @@
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { MIGRATION_FILE, migrationDirs, migrationActive, recordName } from '../checks/helpers/active-migrations.mjs';
-import { MODEL_FAMILIES } from '../scheduler/model-map.mjs';
+import { MIGRATION_FILE, migrationDirs, migrationActive, recordName, flowOf } from '../checks/helpers/active-migrations.mjs';
 
 // <corpus>/engine/migrations/ — records are addressed corpus-relative, because they
 // no longer share one directory with this module: an engine record sits beside it,
@@ -30,7 +29,12 @@ export async function loadMigrations() {
   const out = [];
   for (const d of migrationDirs()) {
     const spec = (await import(pathToFileURL(join(corpusRoot, d, MIGRATION_FILE)).href)).default;
-    out.push({ dir: d, ...spec });
+    const record = { dir: d, ...spec };
+    // Validated at LOAD, so a retired field cannot reach a flow that would ignore it,
+    // and a malformed apply-stage declaration cannot reach the flow that acts on it.
+    assertNoAgenticNote(record);
+    assertApplyStageDeclaration(record);
+    out.push(record);
   }
   return out;
 }
@@ -80,9 +84,9 @@ export async function applyFileAliases(migration, { exists, move }) {
 // ref — so writing one into a tree that is about to be pushed by such a caller does not
 // deliver a workflow, it fails the entire converge and everything else riding it.
 //
-// The capable caller announces itself with this variable. The baselining worker sets it
-// when it can WITHHOLD those paths from its commit and hand them to the agent stage;
-// anything else — an older vendored worker, a hand-run `node migrations/apply.mjs`, CI —
+// The capable caller announces itself with this variable. The pack update flow sets it
+// when it can WITHHOLD those paths from its commit and hand them to the apply stage;
+// anything else — an older vendored worker, a hand-run `node engine/migrations/apply.mjs`, CI —
 // leaves it unset and the workflow materialization is skipped with a note.
 //
 // An ENV HANDSHAKE rather than a probe of the repo on disk, because what matters is what
@@ -274,48 +278,72 @@ export async function applyMigration(migration, io) {
   return applied;
 }
 
-// A migration record MAY carry a machine-readable AGENTIC note (task-prework
-// DESIGN §7, the primitive absorbed from #405): member-side adaptation that no
-// script can do — adapting consumer-authored `local/packs/` content to a changed
-// engine contract. Shape: `agentic: { model, instructions }`, model a non-`none`
-// family. baselining's prework reads this to decide whether a pending note
-// needs the agent STAGE (and must therefore hold the stamp) rather than converging
-// in code. Returns the validated note, or null when the record carries none;
-// throws on a malformed note so a typo fails loudly instead of silently skipping
-// agentic work (the #405 correctness risk).
-export function migrationAgentic(m) {
-  const a = m.agentic;
-  if (a === undefined || a === null) return null;
-  // NO AGENTIC WORK ON AN ENGINE MIGRATION, EVER (DESIGN §5, owner decision 3). The
-  // engine update flow has no agentic stage and no lane to add one, so a note on an
-  // engine record is not work that gets done later — it is a record that stops the
-  // flow for every repo whose gap contains it. Rejected here, at the registry, so it
-  // cannot be written in the first place; a pack record is where such work belongs,
-  // as its update's apply stage.
-  //
-  // Judged by WHERE THE RECORD LIVES (`dir`, corpus-relative), the same structural
-  // classifier everything else in this scheme uses. A spec with no `dir` is a caller
-  // testing the shape rather than a discovered record, and is left alone.
-  if (typeof m.dir === 'string' && m.dir.startsWith('engine/')) {
-    throw new Error(`migration ${m.id}: an ENGINE migration may not carry an "agentic" note — `
-      + 'the engine flow cannot run one (DESIGN §5). Move the work to the owning pack\'s apply stage.');
-  }
-  if (typeof a !== 'object' || Array.isArray(a)) {
-    throw new Error(`migration ${m.id}: "agentic" must be an object { model, instructions }`);
-  }
-  if (!MODEL_FAMILIES.includes(a.model) || a.model === 'none') {
-    throw new Error(`migration ${m.id}: agentic.model must be a non-"none" model family (${MODEL_FAMILIES.filter((f) => f !== 'none').join(', ')})`);
-  }
-  if (typeof a.instructions !== 'string' || a.instructions.trim() === '') {
-    throw new Error(`migration ${m.id}: agentic.instructions must be a non-empty string`);
-  }
-  return { model: a.model, instructions: a.instructions };
+// THE `agentic` FIELD IS RETIRED (#768 Phase 5), and its successor is `applyStage`
+// below. A record used to carry `agentic: { model, instructions }` — member-side
+// adaptation no script could do — and baselining's prework read it to decide whether
+// a pending note needed an agent stage, holding the member's stamp until one ran.
+//
+// What the successor drops is the MODEL knob. Which model runs a session is the
+// scheduler's answer (engine/scheduler/model-map.mjs, off the task declaration), and
+// a record reaching around it to name its own was a second authority over the same
+// fact. What a record legitimately knows is narrower and is all `applyStage` asks
+// for: whether its change needs a session at all, and what that session must do.
+//
+// The field is not merely ignored, it is REJECTED. An ignored field on a record
+// someone writes in good faith is work that silently never happens; the whole reason
+// the note existed was that skipping such work quietly is a correctness risk (#405).
+// Failing at load turns a stale or hopeful note into an error with a fix attached.
+export function assertNoAgenticNote(m) {
+  if (m?.agentic === undefined || m?.agentic === null) return;
+  throw new Error(`migration ${m.id}: the "agentic" field was retired in #768 Phase 5 and is no longer run. `
+    + 'Declare `applyStage: { why, instructions }` instead — same intent, without the model knob, which the '
+    + 'scheduler owns. Engine records may not carry it at all (DESIGN §5); a pack record may.');
 }
 
-// The records that carry a valid agentic note — the pending set baselining must
-// escalate to an agent rather than apply in code. Stamp-date filtering (which
-// notes still apply) is the caller's; this is the agentic gate over that set.
-export function agenticMigrations(migrations) {
-  return migrations.filter((m) => migrationAgentic(m) !== null);
+// THE `applyStage` FIELD: this record's change needs a session on the member.
+//
+// It exists because the alternative was worse. The pack flow used to decide the
+// apply stage from its VERSION PLAN — "any pack version moved" — which is a fact
+// about the CANON, while the stage exists for a fact about the MEMBER: the pack's
+// new rules met content the canon has never seen. Since a record can only reach an
+// up-to-date member if its pack's manifest version bumps, and every bump fired the
+// stage, a purely mechanical migration — a regex rewrite, a declaration seed — could
+// not be shipped without spending an agent session on every member in the fleet
+// (#798). The record's author knows which of the two kinds they wrote; a version
+// number never can.
+//
+// SHAPE, VALIDATED AT LOAD for the same reason the retired field is rejected there:
+// a record whose declaration is malformed must fail where it is written, not go
+// quietly unread by the flow that would have acted on it.
+//
+//   - `why` (required, non-empty string) — what the session is for, in the PR and in
+//     the log. The terminal vocabulary insists every non-green end be explainable
+//     (updates/terminals.mjs), and this is the sentence for this one.
+//   - `instructions` (optional string) — appended to the standing brief. The standing
+//     brief is policy that holds for every apply stage; this is what only this record
+//     knows, and without it the declaration would be a bare boolean that tells the
+//     session nothing about the change that summoned it.
+//
+// ENGINE RECORDS MAY NOT CARRY IT. "No agentic work in the engine flow. Ever."
+// (DESIGN §5) — and the flow is read off where the record LIVES, so this is checked
+// against the same structural classifier and cannot be misdeclared.
+export function assertApplyStageDeclaration(m) {
+  const declared = m?.applyStage;
+  if (declared === undefined || declared === null) return;
+  const bad = (what) => { throw new Error(`migration ${m.id}: ${what}`); };
+  if (m.dir && flowOf(m.dir).flow !== 'pack') {
+    bad('only a PACK record may declare "applyStage" — the engine update flow has no agentic lane (DESIGN §5). '
+      + 'If the change needs a session on each member, it belongs to the pack whose rules it changes.');
+  }
+  if (typeof declared !== 'object' || Array.isArray(declared)) {
+    bad('"applyStage" must be an object `{ why, instructions }`, not a bare flag — a stage nobody can explain '
+      + 'is one nobody will trust the next time it fires.');
+  }
+  if (typeof declared.why !== 'string' || declared.why.trim() === '') {
+    bad('"applyStage.why" must be a non-empty string saying what the session is for; it is what the PR and the log report.');
+  }
+  if (declared.instructions !== undefined && typeof declared.instructions !== 'string') {
+    bad('"applyStage.instructions" must be a string — it is appended verbatim to the apply-stage brief.');
+  }
 }
 

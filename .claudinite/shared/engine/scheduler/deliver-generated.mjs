@@ -4,7 +4,7 @@
 // It exists because two tasks need exactly this and must not each grow their own
 // copy: the per-repo skill-usage fold and the sheepdog's fleet aggregate both
 // recompute a `*.GENERATED.json` from scratch and want it landed without a human in
-// the loop. (baselining's own `deliver` is deliberately NOT folded in here: it
+// the loop. (the update runner's own delivery is deliberately NOT folded in here: it
 // commits a whole working tree and re-cuts a dated family branch each cycle — a
 // different job that happens to end in a PR too. What the two DO share — every
 // nuance of actually landing the PR under the member's `maintenance.delivery` and
@@ -123,7 +123,7 @@ export async function deliverGenerated({ root, repo, base, token, branchPrefix, 
 
   const baseSha = baseTip(root, remote, base);
   // The member's delivery preference gates everything after the push. Same stance
-  // as baselining: an absent key resolves to the default (materializing it is the
+  // as the update converge: an absent key resolves to the default (materializing it is the
   // converge's job, not a generated-file PR's), an unrecognized value fails loudly
   // — substituting a default would deliver the opposite of a stated intent.
   const { delivery } = deliveryFromChecks(readAt(root, baseSha, '.claudinite-checks.json'));

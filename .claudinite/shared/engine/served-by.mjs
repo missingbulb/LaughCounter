@@ -1,28 +1,34 @@
-// WHICH MECHANISM SERVES THIS REPO — the skew guard for the rollout (#768's first
-// risk). In the ENGINE, not in the canon-internal `updates/` tree, because both
-// sides must read one definition and one of them is VENDORED: baselining's worker
-// runs from a member's own mount, so a guard it could not import would be a guard
-// only half the system obeys — which is worse than none. While baselining and the update flows both exist, a repo must be served by
-// exactly ONE of them: two mechanisms converging one mount would race on the same
-// files, and the loser's write would look like drift the winner then "repairs",
-// nightly, forever.
+// WHICH MECHANISM SERVES THIS REPO — the rollout's skew guard (#768's first risk),
+// now the record of a rollout that finished. It began as the flag that kept
+// baselining and the update flows from converging one mount at once: two mechanisms
+// writing the same files would race, and the loser's write would look like drift the
+// winner then "repairs", nightly, forever.
 //
-// The answer is a per-repo flag, because the transition is per-repo by construction:
-// a member moves when the update that migrates it says so, not when the canon does.
+// PHASE 5 RETIRED BASELINING, so there is no longer a second mechanism to skew
+// against, and the default moves with the fact: a repo that says nothing is served by
+// `updates`, because that is now the only thing any repo can be served by. The rule
+// the old default obeyed is the same rule that moves it — a default may only point at
+// what is already true.
 //
-// DEFAULT IS THE STATUS QUO. A repo that says nothing is served by baselining —
-// which is what every member is doing today, so a member that never hears about any
-// of this keeps working unchanged. That is the one direction a default may point:
-// toward what is already true, never toward the new thing.
+// `baselining` REMAINS A RECOGNISED VALUE, deliberately. A declaration still saying
+// it is a real thing in the world (a repo whose mount predates the flip, restored
+// from a backup, or hand-edited), and reading it as anything other than what it says
+// would hand that repo to a mechanism its owner did not choose. So it still parses,
+// still reports `declared: true`, and the flows still stand down for it — but what it
+// names no longer exists, so a repo declaring it gets NOTHING and must be told so
+// loudly rather than served silently.
 //
-// …but the default is a READING, not a policy. The corpus's rule is that automation
+// The default is a READING, not a policy. The corpus's rule is that automation
 // maintains the explicit value in every file it maintains, so the flag sits visibly
 // in the exact file anyone would go to change it, and a missing key becomes drift the
 // automation repairs rather than a case code must interpret forever. `servedBy`
-// therefore reports whether the value was DECLARED or inferred: the flip is the
-// update's own write, and the inferred case is what tells it there is a write owed.
+// therefore reports whether the value was DECLARED or inferred.
 export const MECHANISMS = ['baselining', 'updates'];
-export const DEFAULT_MECHANISM = 'baselining';
+export const DEFAULT_MECHANISM = 'updates';
+
+// The mechanism that no longer exists — kept nameable so the one caller that must
+// explain the dead end can name it without hard-coding the string.
+export const RETIRED_MECHANISM = 'baselining';
 
 // The declaration key. Beside `delivery`, because both answer "how is this repo
 // maintained" and a second home for the same question is how a repo ends up

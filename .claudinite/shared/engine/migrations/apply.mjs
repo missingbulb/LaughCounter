@@ -16,7 +16,7 @@
 // coincide in the canon repo.
 //
 // Runs against a local checkout (a session, CI, or a future SessionStart
-// self-heal hook wired via bootstrap). Each member migrates ITSELF: baselining
+// self-heal hook wired via bootstrap). Each member migrates ITSELF: the update flows
 // runs this applier from the fresh canon clone it fetched, so even a dormant
 // project catches up on every record ever landed — there is no fleet-wide
 // apply pass and no retirement; the records simply accumulate.

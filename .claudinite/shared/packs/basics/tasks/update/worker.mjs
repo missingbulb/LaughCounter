@@ -19,7 +19,9 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { servedBy } from '../../../../engine/served-by.mjs';
-import { resolveDelivery, pullCreateError, landDelivery } from '../../../../engine/scheduler/land-pr.mjs';
+import {
+  resolveDelivery, pullCreateError, landDelivery, openDeliveredPull, disposeOpenPull,
+} from '../../../../engine/scheduler/land-pr.mjs';
 
 const CANON_URL = 'https://github.com/missingbulb/Claudinite.git'; // public — no token
 const UPDATE_PREFIX = 'claudinite/update';
@@ -50,6 +52,17 @@ async function gh(token, path, { method = 'GET', body } = {}) {
 // not collide, and a name that carries its date is one a human can read a week later.
 export const updateBranchName = (day, seed) => `${UPDATE_PREFIX}-${day}-${seed}`;
 
+// The line the LIVE CANARY rehearsal greps for. A rehearsal that converges nothing
+// and exits 0 is worse than no gate at all — it reports a qualification that never
+// happened — and that is not hypothetical: this exact gate went vacuous the day the
+// canary flipped to `updates`, because the workflow drove the canary's baselining
+// worker, which correctly stood down and exited 0 in zero seconds for weeks.
+//
+// So the rehearsal announces that it really ran, and the workflow fails when this
+// line is absent. Any future path that skips the converge is caught by construction
+// rather than by someone noticing a suspiciously fast green.
+export const REHEARSAL_MARKER = 'claudinite-rehearsal: converged';
+
 // The PR title and body for a terminal. The body is what a human reads when the run
 // stopped, so it says WHICH terminal fired and why in its first line — a PR that only
 // says "an update ran" makes every reader re-derive the thing the run already knew.
@@ -78,6 +91,12 @@ export async function main() {
   const base = process.env.CLAUDINITE_DEFAULT_BRANCH || 'main';
   const token = process.env.GITHUB_TOKEN;
   const requestFile = process.env.CLAUDINITE_REQUEST_AGENT;
+  // REHEARSAL MODE (the live canary): converge this repo against a NAMED canon ref,
+  // report, and restore the working tree — no branch, no commit, no PR, and above
+  // all no stamp. A stamped branch head would leave the canary pointing off trunk,
+  // which is exactly what the next converge's anti-rewind guard refuses: a rehearsal
+  // that wedges its own canary.
+  const rehearsalRef = process.env.CLAUDINITE_CANON_REF || null;
   if (!repo) { console.error('update: no repo (CLAUDINITE_REPO/GITHUB_REPOSITORY)'); process.exit(1); }
   if (!token) { console.error('update: no GITHUB_TOKEN in env'); process.exit(1); }
 
@@ -85,10 +104,15 @@ export async function main() {
   if (!existsSync(checksPath)) { console.log('update: no .claudinite-checks.json — nothing to update'); return; }
   const declaration = JSON.parse(readFileSync(checksPath, 'utf8'));
 
+  // A repo that declares the RETIRED mechanism is not served by anything: Phase 5
+  // deleted it. Standing down silently would leave that repo unmaintained with a
+  // green run to show for it, so the dead end is named and the fix stated.
   const served = servedBy(declaration);
   if (served.mechanism !== 'updates') {
-    console.log(`update: this repo is served by ${served.mechanism} — standing down`);
-    return;
+    console.error(`update: this repo declares maintenance.mechanism "${served.mechanism}", which was retired in`
+      + ' Claudinite #768 Phase 5 — nothing maintains this repo. Set it to "updates" (or remove the key: that is'
+      + ' now the default) to be served by the update flows.');
+    process.exit(1);
   }
   const { delivery } = resolveDelivery(declaration?.maintenance?.delivery);
   if (!delivery) {
@@ -96,16 +120,44 @@ export async function main() {
     process.exit(1);
   }
 
+  // DISPOSE OF THE INCUMBENT FIRST (#787). A cycle that could not land its PR — the
+  // usual cause is a `pull_request` run parked at `action_required` while the
+  // dispatched one goes green seconds after the wait gave up — leaves it open for
+  // "the next run to dispose of". This is that disposal, and it must happen BEFORE
+  // the converge for the reason the bug existed: a cycle that finds nothing to do
+  // returns early, so disposal placed after the converge is unreachable on exactly
+  // the quiet cycle that should perform it. A cycle that cannot clear the way does
+  // not deliver on top of it — one update PR is alive at a time, or none.
+  const open = rehearsalRef ? { json: [] } : await gh(token, `/repos/${repo}/pulls?state=open&per_page=100`);
+  const incumbent = openDeliveredPull(open.json, UPDATE_PREFIX);
+  if (incumbent) {
+    const disposal = await disposeOpenPull({
+      token, repo, pr: incumbent, delivery, log: (s) => console.log(`update: ${s}`),
+    }).catch((e) => { console.log(`update: disposing of PR #${incumbent.number} failed: ${e.message}`); return 'kept'; });
+    if (disposal === 'kept') {
+      console.log(`update: PR #${incumbent.number} still stands — this cycle cannot deliver on top of it`);
+      return;
+    }
+    if (disposal === 'merged') {
+      console.log(`update: landed PR #${incumbent.number}; main has moved past this checkout — next cycle converges from it`);
+      return;
+    }
+  }
+
   // The flows run from a FRESH CANON CLONE, never from this repo's mount: the mount is
   // the thing being replaced, and a flow executing its own stale copy is how a broken
-  // update makes itself permanent (baselining's worker takes the same care).
+  // update makes itself permanent.
   const tmp = mkdtempSync(join(tmpdir(), 'claudinite-canon-'));
   try {
-    git(['clone', '--depth', '1', CANON_URL, tmp]);
+    // A rehearsal names the ref it is qualifying; an ordinary cycle takes the
+    // default branch, which is the only thing a member should ever converge onto.
+    git(rehearsalRef
+      ? ['clone', '--depth', '1', '--branch', rehearsalRef, CANON_URL, tmp]
+      : ['clone', '--depth', '1', CANON_URL, tmp]);
     const load = async (rel) => import(pathToFileURL(join(tmp, rel)).href);
     const { engineUpdate } = await load('updates/engine-update.mjs');
     const { packUpdate } = await load('updates/pack-update.mjs');
-    const { terminalFor, applyStageBrief } = await load('updates/terminals.mjs');
+    const { terminalFor } = await load('updates/terminals.mjs');
 
     // ENGINE FIRST, always: a pack declares the minimum engine it runs on, and the
     // pack flow enforces that against what this repo HAS. Running packs first would
@@ -123,6 +175,22 @@ export async function main() {
     // refused engine update is trustworthy, including a pack flow that never ran.
     const outcome = engine.status === 'needs-human' ? engine : packs;
     const terminal = terminalFor(outcome);
+
+    // A REHEARSAL STOPS HERE. It has the only answer it was asked for — does this
+    // canon ref converge this member and leave it green — so it says so and puts the
+    // tree back exactly as it found it. Restoring is not tidiness: an uncommitted
+    // converge left behind would be picked up by the canary's own next cycle as if a
+    // human had written it.
+    if (rehearsalRef) {
+      git(['-C', root, 'checkout', '--', '.']);
+      git(['-C', root, 'clean', '-fd']);
+      if (terminal.action === 'needs-human') {
+        console.error(`update: rehearsing ${rehearsalRef} FAILED — ${terminal.why}`);
+        process.exit(1);
+      }
+      console.log(`${REHEARSAL_MARKER} ${repo} against ${rehearsalRef} — ${terminal.action}: ${terminal.why}`);
+      return;
+    }
 
     const changed = git(['-C', root, 'status', '--porcelain']).trim();
     if (!changed && terminal.action !== 'needs-human') {
@@ -160,9 +228,8 @@ export async function main() {
         marker: 'agent-requested',
         delivered: { branch, pr: pr.number, merged: false },
         reason: { code: 'apply-stage', detail: terminal.why },
-        brief: applyStageBrief({ packs: terminal.packs, branch }),
       })}\n`);
-      console.log(`update: requested the apply stage for ${terminal.packs.join(', ')}`);
+      console.log(`update: requested the apply stage — ${terminal.why}`);
     }
   } finally {
     rmSync(tmp, { recursive: true, force: true });

@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 // All records are equal — there is no active/archived split and no cleanup pass;
 // FETCHING decides relevance. Vendoring ships only the records landed within
 // RECENT_WINDOW_DAYS, so an up-to-date consumer carries few-to-none, while a
-// dormant project baselining out of a fresh canon clone sees them all and
+// lagging project updating out of a fresh canon clone sees them all and
 // applies what it needs.
 export const MIGRATION_FILE = 'migration.mjs';
 export const RECENT_WINDOW_DAYS = 7;

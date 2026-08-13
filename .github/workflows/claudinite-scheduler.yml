@@ -8,7 +8,7 @@
 # The minute below is a placeholder; bootstrap/vendoring rewrites it to this
 # repo's stable hashed minute in :10–:50, computed by
 # `node .claudinite/shared/engine/scheduler/hash-minute.mjs <owner/repo>`
-# (scheduler-workflow-shape enforces the range; baselining re-derives the value to
+# (scheduler-workflow-shape enforces the range; the update flows re-derive the value to
 # catch drift). `workflow_dispatch` allows a manual run; the concurrency group
 # serializes runs so a slow run and its successor never overlap.
 #
@@ -28,18 +28,26 @@ on:
   workflow_dispatch:
     inputs:
       overrides:
-        description: 'Manual-run overrides: comma-separated KEY=value. FORCE_TASKS=<task ids> runs those tasks unconditionally, even when their slot has passed, e.g. FORCE_TASKS=baselining.'
+        description: 'Manual-run overrides: comma-separated KEY=value. FORCE_TASKS=<task ids> runs those tasks unconditionally, even when their slot has passed, e.g. FORCE_TASKS=update.'
         required: false
         default: ''
 
+# Scheduled (and plain manual) runs serialize in one group so a slow run and its
+# successor never overlap. A run carrying OVERRIDES gets a group of its own, keyed
+# by run id: a forced run does exactly one named task, and the fleet fan-out case
+# (an enforcer firing FORCE_TASKS at many members at once) must neither queue
+# behind the hourly cron nor be silently dropped by it — GitHub keeps at most ONE
+# pending run per group and cancels older pending ones, so a shared group can eat
+# a forced dispatch without a trace. The (task, slot) exactly-once dispatch guard
+# and the workers' idempotence are what make the rare overlap with a cron run safe.
 concurrency:
-  group: claudinite-scheduler
+  group: claudinite-scheduler${{ inputs.overrides != '' && inputs.overrides != null && format('-forced-{0}', github.run_id) || '' }}
   cancel-in-progress: false
 
 permissions:
-  contents: write        # read the repo + vendored engine; baselining's deliver() pushes the maintenance branch (agent-preprocessing §7/E4)
+  contents: write        # read the repo + vendored engine; the update runner pushes its delivery branch (task-prework §7/E4)
   issues: write          # file / label / close dispatch issues
-  pull-requests: write   # baselining's deliver() opens the per-cycle maintenance PR and arms auto-merge
+  pull-requests: write   # the update runner opens the per-cycle PR and arms auto-merge
   actions: write         # read the run ledger (last successful run) for due-slot math, AND
                          # dispatch a workflow a task drives (store-release fires the release
                          # orchestrator's daily leg) — creating a workflow_dispatch event needs
