@@ -12,7 +12,7 @@
 //
 //   #397  inject-pack-prose imported a module that did not exist, so every
 //         active pack's RULES.md was silently un-injected, fleet-wide, for days
-//   #518  loadConfig dropped the mount stamp, so baselining self-skipped
+//   #518  loadConfig dropped the mount stamp, so the nightly converge self-skipped
 //         everywhere and no run ever said so
 //   #555  a required manifest field landed with no migration; consumer packs
 //         stopped validating, and (because normalizeManifest rebuilds `rules`
@@ -74,7 +74,7 @@ export function report(probes) {
 export function probeMount(io) {
   if (!io.exists(MOUNT)) return skip('mount', 'no vendored mount — this is the canon itself, or a repo that has not adopted');
   if (!io.exists(`${MOUNT}/engine/checks/check_the_world.mjs`)) {
-    return fail('mount', `${MOUNT} exists but carries no engine`, 're-run baselining, or bootstrap this repo — the mount is incomplete');
+    return fail('mount', `${MOUNT} exists but carries no engine`, 're-run the update task, or bootstrap this repo — the mount is incomplete');
   }
   return pass('mount');
 }
@@ -90,7 +90,7 @@ export function probeStamp(io) {
   const s = cfg.claudinite;
   if (!s || typeof s.updated !== 'string' || !s.updated) {
     return fail('stamp', 'the mount is present but carries no claudinite.updated stamp',
-      'baselining reads this to decide whether to run and which migration notes apply — a missing stamp makes it self-skip forever (#518)');
+      'the update flows read this to decide what to apply — a missing stamp makes the task self-skip forever (#518)');
   }
   return pass('stamp');
 }
@@ -129,7 +129,7 @@ export function probeHookTargets(io) {
   }
   if (missing.length) {
     return fail('hook-targets', `${missing.length} hook command(s) point at files that do not exist: ${missing.join(', ')}`,
-      're-run baselining to converge the wiring — a hook whose target is missing fails silently every session (#397)');
+      're-run the update task to converge the wiring — a hook whose target is missing fails silently every session (#397)');
   }
   return pass('hook-targets');
 }
@@ -140,7 +140,7 @@ export function probeSkillLinks(io) {
   const dangling = io.dangling(root);
   if (dangling.length) {
     return fail('skill-links', `${dangling.length} mounted skill link(s) dangle: ${dangling.slice(0, 5).join(', ')}`,
-      're-run the skill mount (baselining does it) — a dangling link is a skill the session cannot load (#424)');
+      're-run the skill mount (the update task does it) — a dangling link is a skill the session cannot load (#424)');
   }
   return pass('skill-links');
 }
@@ -164,7 +164,7 @@ export function probeMigrations(migrations) {
   if (migrations === null) return skip('migrations', 'no migrations registry reachable from here');
   if (migrations instanceof Error) {
     return fail('migrations', `the migrations registry failed to load: ${migrations.message}`,
-      'a malformed record aborts every baselining run — fix or remove it');
+      'a malformed record aborts every update run — fix or remove it');
   }
   return pass('migrations');
 }
@@ -205,7 +205,7 @@ async function loadCorpus(root) {
   try {
     const { discoverPacks } = await import(pathToFileURL(join(corpus, 'engine/pack_loader/pack-registry.mjs')).href);
     loaded = await discoverPacks({ localRoot: root });
-  } catch (e) { loaded = { packs: [], errors: [{ what: `the pack loader itself failed: ${e.message}`, fix: 'the engine is broken or half-vendored — re-run baselining' }] }; }
+  } catch (e) { loaded = { packs: [], errors: [{ what: `the pack loader itself failed: ${e.message}`, fix: 'the engine is broken or half-vendored — re-run the update task' }] }; }
 
   let migrations = null;
   // The registry moved under the engine with the engine/pack split; a mount that
@@ -240,7 +240,7 @@ export async function runSelfTest(root) {
 // CLI. Default is REPORT-ONLY (exit 0) because the SessionStart orchestrator
 // discards a hook's stdout on a non-zero exit — failing loudly there would
 // destroy the very message it is trying to deliver. `--strict` exits 1 on
-// failure, for bootstrap and for baselining's prework, where a broken
+// failure, for bootstrap and for the update task's prework, where a broken
 // mechanism must stop the run rather than be reported into a void.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const strict = process.argv.includes('--strict');

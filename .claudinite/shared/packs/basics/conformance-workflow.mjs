@@ -8,7 +8,7 @@ import { finding } from '../../engine/checks/helpers/findings.mjs';
 // auto-merge, which is a queue for CHECKS. Three shapes exist, and only one
 // works:
 //
-//   no pull_request workflow at all  → baselining merges directly (#588). Fine.
+//   no pull_request workflow at all  → the delivery merges directly (#588). Fine.
 //   an UNFILTERED conformance flow   → the sweep runs, auto-merge lands on green.
 //   a PATH-FILTERED flow             → the arm succeeds, and no check ever runs.
 //                                      The PR waits forever. THIS is the trap.
@@ -21,7 +21,7 @@ import { finding } from '../../engine/checks/helpers/findings.mjs';
 // findings on its `main` for as long as they had existed.
 //
 // ADVISORY, DELIBERATELY. Shipping this blocking would turn every member that
-// lacks the workflow red on its very next baselining — which is precisely the
+// lacks the workflow red on its very next update — which is precisely the
 // #555 failure this rule exists to make less likely (a required thing added to
 // the canon with no path for consumers to comply first). It becomes blocking
 // once the fleet carries the workflow; the promotion is a one-line change here.
@@ -74,7 +74,7 @@ const rule = {
   severity: 'advisory',
   description: 'A member has a workflow running check_the_world on every pull request, with no path filter',
   doc: 'packs/basics/scheduled-tasks.md',
-  why: 'auto-merge is a queue for checks — a path-filtered conformance flow arms successfully and then never runs, so the nightly maintenance PR waits forever and the repo silently stops baselining',
+  why: 'auto-merge is a queue for checks — a path-filtered conformance flow arms successfully and then never runs, so the nightly delivery waits forever and the repo silently stops updating',
 
   run(ctx) {
     if (!ctx.files.includes(MOUNT)) return [];  // not a member — inert
@@ -90,7 +90,7 @@ const rule = {
       filtered.push(file);
     }
 
-    // A repo with NO pull_request workflow at all is not flagged: baselining
+    // A repo with NO pull_request workflow at all is not flagged: the delivery
     // merges its maintenance PR directly (#588), which is a coherent shape. The
     // finding is for the trap — a sweep that exists but cannot run.
     if (!filtered.length && !workflows.some((f) => /^\s+pull_request:/m.test(ctx.read(f) ?? ''))) return [];
@@ -100,7 +100,7 @@ const rule = {
       what: filtered.length
         ? `${filtered[0]} runs the world sweep on pull_request but behind a path filter, so a maintenance PR touching only .claudinite/** starts no check`
         : 'this repo has pull_request workflows but none of them runs the world sweep, so its conformance is never gated on a PR',
-      fix: 'add a conformance workflow triggered on `pull_request` with NO `paths:` filter (plus `workflow_dispatch:` so baselining can start it) running '
+      fix: 'add a conformance workflow triggered on `pull_request` with NO `paths:` filter (plus `workflow_dispatch:` so the delivery can start it) running '
         + '`node .claudinite/shared/engine/checks/check_the_world.mjs` — or drop the path filter from the workflow that already runs it',
     })];
   },

@@ -35,9 +35,14 @@
 // The AGENT lane (executor subagents, MCP writes) cannot run this module; its
 // prose twin is `deliver-pr.md` beside this file, and the two must keep saying
 // the same thing — a nuance changed here changes there in the same commit.
-// (baselining's worker consumes this module for the same reason its sibling
-// tasks do; its family-branch disposal — close-and-recut — stays in the worker,
-// because no other task re-cuts a per-cycle branch.)
+//
+// DISPOSAL lives here too (`openDeliveredPull` / `disposeOpenPull`). It began as
+// baselining's private close-and-recut, kept in that worker while it was the only
+// task that re-cut a per-cycle branch. The update flows re-cut one exactly the same
+// way, and #787 is what the second copy would have cost: the update runner promised
+// "leaving it open for the next run to dispose of" with no code anywhere that could
+// keep the promise, so a PR its cycle could not land was superseded by a duplicate
+// the next cycle opened instead. One precedence, one home.
 
 const API = 'https://api.github.com';
 
@@ -78,7 +83,7 @@ export const DEFAULT_DELIVERY = 'auto-merge';
 // with nothing that could ever fix it (the only writer is check_the_world --init,
 // which runs once at adoption; baselining's converge is what repairs the drift).
 // So: resolve to the default and carry on — `materialize: true` tells the one
-// caller that CAN write the repair (baselining) to do so; everyone else just uses
+// caller that CAN write the repair (the update converge) to do so; everyone else just uses
 // the resolved value.
 //
 // An UNRECOGNIZED value is a different thing entirely: someone wrote an intent
@@ -299,7 +304,7 @@ export async function readMergeGate(token, repo, base) {
 //   - Anything still queued/running → `wait`. Never merge mid-flight.
 //   - Any real failure (failure / timed_out / cancelled / startup_failure), or no
 //     successful run to stand on → `close`: NOT a merge, and equally not a reuse.
-//     (What `close` means is the CALLER's policy — baselining closes and re-cuts
+//     (What `close` means is the CALLER's policy — a delivery closes and re-cuts
 //     its per-cycle branch; a landing pass just leaves the PR standing.)
 //
 // A `review` member's PR is the owner's to act on, on their own clock — never
@@ -334,6 +339,78 @@ export function failureSummary(runs) {
   const failed = (runs ?? []).filter((r) => REAL_FAILURES.includes(r?.conclusion));
   if (failed.length) return `failing CI: ${failed.map((r) => `${r.name} ${r.conclusion}`).join(', ')}`;
   return 'no successful run on its head sha';
+}
+
+// --- disposing of the PREVIOUS cycle's delivery (#787) ------------------------
+// A task that delivers on a per-cycle branch must dispose of the last cycle's PR
+// before cutting its own, or the two accumulate: the incumbent can no longer merge
+// (its diff is landed by the newcomer) and nothing else will ever close it.
+//
+// Found by head-branch PREFIX, because the name carries a per-cycle date and seed —
+// the prefix is what identifies the family. The whole PR is returned rather than its
+// ref alone: disposal needs its number and head sha.
+export function openDeliveredPull(pulls, prefix) {
+  return (pulls ?? []).find((pr) => String(pr?.head?.ref ?? '').startsWith(prefix)) ?? null;
+}
+
+// The I/O half: read the runs on that PR's head, decide with the SAME predicate the
+// landing poll uses, and either merge it (its content was verified — only the arm
+// failed) or close it and delete its branch so this cycle re-cuts from scratch.
+//
+// Returns which disposal happened, because the three outcomes leave the caller in
+// three different places and a bare null conflates two of them:
+//
+//   'kept'   — it still stands (a `wait`, a `review` member, or a failed attempt).
+//              Do not deliver on top of it; leaving ONE PR alive is the whole point.
+//   'closed' — the way is clear and main is unchanged, so this cycle re-cuts.
+//   'merged' — the way is clear but MAIN JUST MOVED, and this job's checkout predates
+//              it. Converging on that stale tree would re-deliver a diff already on
+//              main, which GitHub refuses ("No commits between…") and which would in
+//              any case be the duplicate this whole helper exists to prevent. The
+//              caller ends its cycle instead; the next one starts from fresh main.
+//
+// Best-effort throughout: anything unreadable or unmergeable leaves the PR as it was
+// found, because a cycle that cannot dispose of the incumbent must skip rather than
+// pile a second PR on top of it.
+export async function disposeOpenPull({ token, repo, pr, delivery, log = console.log }) {
+  const { status, json } = await gh(token, `/repos/${repo}/actions/runs?head_sha=${pr.head?.sha ?? ''}&per_page=100`);
+  if (status !== 200) {
+    log(`could not read the runs for PR #${pr.number}'s head (HTTP ${status}) — leaving it`);
+    return 'kept';
+  }
+  const runs = (json?.workflow_runs ?? []).map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion }));
+  const disposition = pullDisposition({ delivery, runs });
+
+  if (disposition === 'keep' || disposition === 'wait') {
+    log(`keeping PR #${pr.number} (${disposition})`);
+    return 'kept';
+  }
+
+  if (disposition === 'merge') {
+    const res = await gh(token, `/repos/${repo}/pulls/${pr.number}/merge`, {
+      method: 'PUT', body: { merge_method: 'squash' },
+    });
+    if (res.status === 200) {
+      log(`merged PR #${pr.number} — ${mergeReason(runs)}`);
+      await deleteBranch({ token, repo, ref: pr.head?.ref, log });
+      return 'merged';
+    }
+    log(`could not merge PR #${pr.number} (${res.status}: ${res.json?.message ?? 'no message'})`
+      + ' — closing it instead; the converge is idempotent and this cycle re-cuts it');
+  }
+
+  // Closed, not left to rot: whatever went wrong on that head, the next converge
+  // reproduces the same content from the same inputs. Named in the log because a
+  // member closing its delivery every single cycle is a repo whose CI needs a human,
+  // and the pattern has to be visible to be noticed.
+  const closed = await gh(token, `/repos/${repo}/pulls/${pr.number}`, { method: 'PATCH', body: { state: 'closed' } });
+  if (closed.status !== 200) {
+    log(`could not close PR #${pr.number} (${closed.status}) — leaving it and skipping this cycle`);
+    return 'kept';
+  }
+  log(`closed PR #${pr.number} — it did not land (${failureSummary(runs)}); re-cutting this cycle`);
+  await deleteBranch({ token, repo, ref: pr.head?.ref, log });
+  return 'closed';
 }
 
 // --- landing THIS run's PR when the arm could not (#649) ----------------------

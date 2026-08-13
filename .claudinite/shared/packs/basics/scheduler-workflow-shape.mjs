@@ -55,10 +55,10 @@ const rule = {
     // block caps the token, so the scheduler MUST grant these writes or the
     // self-refresh 403s — an easy-to-miss regression the read-only original had.
     if (!/^\s*contents:\s*write\b/m.test(text)) {
-      flag('does not grant contents: write', "set permissions.contents: write — baselining's deliver() pushes the maintenance branch; without it the self-refresh 403s");
+      flag('does not grant contents: write', "set permissions.contents: write — the update runner pushes its delivery branch; without it the self-refresh 403s");
     }
     if (!/^\s*pull-requests:\s*write\b/m.test(text)) {
-      flag('does not grant pull-requests: write', "set permissions.pull-requests: write — baselining's deliver() opens the maintenance PR and arms auto-merge; without it the PR create 403s");
+      flag('does not grant pull-requests: write', "set permissions.pull-requests: write — the update runner opens its PR and arms auto-merge; without it the PR create 403s");
     }
     return out;
   },

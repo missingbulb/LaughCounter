@@ -12,13 +12,14 @@ import catalogCompleteness from './catalog-completeness.mjs';
 import claudiniteIsolation from './claudinite-isolation.mjs';
 import schedulerWorkflowShape from './scheduler-workflow-shape.mjs';
 import taskDeclarationShape from './task-declaration-shape.mjs';
+import taskDeclarationMatchesFolder from './task-declaration-matches-folder.mjs';
 import taskPhaseDiscipline from './task-phase-discipline.mjs';
 import conformanceWorkflow from './conformance-workflow.mjs';
 import rulesLineLength from './rules-line-length.mjs';
 
 // The baseline pack: working discipline, the task lifecycle, and the core
 // checks. Declared explicitly like every other pack — no pack is active by
-// default. Bootstrap's --init seeds the declaration and the nightly baselining
+// default. Bootstrap's --init seeds the declaration and the nightly update
 // backfills it into existing consumers; never fingerprinted (the declaration is
 // authoritative — dropping it is a deliberate choice).
 export default {
@@ -55,10 +56,11 @@ export default {
     // The per-project scheduling conformance guards (scheduled-tasks.md):
     // scheduling is baseline Claudinite discipline — the scheduler workflow and
     // the task-declaration contract are guarded wherever basics is declared
-    // (everywhere). Both rules are relevance-first: inert until the repo carries
+    // (everywhere). All three are relevance-first: inert until the repo carries
     // the workflow / a tasks/<name>/task.mjs of its own.
     schedulerWorkflowShape,
     taskDeclarationShape,
+    taskDeclarationMatchesFolder,
     // The precondition-is-the-only-gate discipline (owner, 2026-08-06): an
     // advisory hunt for tasks that "escape" — skip their work in the prework or
     // agentic phase after the precondition already said run.
@@ -82,8 +84,8 @@ export default {
   // the pack whose projects need it and move this line with it (#385 moved the
   // git/GitHub and Claudinite-lifecycle skills out).
   //
-  // The baseline scheduled task every repo runs — baselining, the per-repo
-  // self-refresh — lives in this pack's `tasks/baselining/`, discovered by the
+  // The baseline scheduled task every repo runs — `update`, the per-repo
+  // self-refresh — lives in this pack's `tasks/update/`, discovered by the
   // scheduler's filesystem scan (engine/scheduler/discover.mjs), not declared
   // here. Being in basics — declared everywhere — makes it universal.
   skills: [

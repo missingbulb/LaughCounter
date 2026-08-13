@@ -5,13 +5,13 @@
 // slot math anchors on.
 //
 // This is the minute the stub's placeholder (`cron: '10 * * * *'`) is rewritten to
-// when the workflow lands in a repo: bootstrap assigns it, and baselining's
+// when the workflow lands in a repo: bootstrap assigns it, and the update flows'
 // self-refresh preserves it (the one repo-specific value in the otherwise-identical
 // vendored stub). Deriving it from the full name — not storing it — means any
 // session can recompute the canonical value and detect drift.
 //
 // Self-contained by the engine's module rule: imports nothing, so bootstrap, the
-// baselining worker, and a human can load or run it standalone.
+// update runner, and a human can load or run it standalone.
 
 // The inclusive minute band. 41 slots (10..50) — the widest window that clears the
 // :00 stampede and the hour boundary on both sides.
@@ -37,7 +37,7 @@ export function hashedMinute(fullName) {
 // The full hourly cron line for a repo — what the vendored workflow's `cron:` holds.
 export const hashedCron = (fullName) => `${hashedMinute(fullName)} * * * *`;
 
-// CLI: `node hash-minute.mjs <owner/repo>` prints the minute (bootstrap / baselining
+// CLI: `node hash-minute.mjs <owner/repo>` prints the minute (bootstrap / update
 // use this to stamp or verify the workflow's cron without re-implementing the hash).
 if (import.meta.url === `file://${process.argv[1]}`) {
   const fullName = process.argv[2];

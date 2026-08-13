@@ -165,7 +165,7 @@ export function renderSummary(evaluations) {
 //
 // This exists because the hourly cron is not hourly (github-actions-scheduling:
 // GitHub drops and delays scheduled fires freely). The daily anchors stage the
-// nightly chain by an HOUR each — baselining at 02:00 converges the mount before
+// nightly chain by an HOUR each — `update` at 02:00 converges the mount before
 // the 03:00 and 04:00 tasks read it — and that staging holds only while the fires
 // land roughly on time. A run that fires at 05:40 after three dropped fires finds
 // all four daily slots due at once and dispatches them together, so the task whose
@@ -176,7 +176,7 @@ export function renderSummary(evaluations) {
 // It is deliberately a task's decision and not the engine's: the engine learns
 // "this verdict claims the run", never which task claims or why — the same
 // separation `forcedTaskIds` keeps, and the reason nothing here mentions
-// baselining. A task that never returns `exclusive` cannot be affected as a
+// the mount-converging task. A task that never returns `exclusive` cannot be affected as a
 // claimant, only as a deferree.
 //
 // A FORCED task is exempt from deferral (and cannot claim: FORCED_VERDICT carries
@@ -274,7 +274,7 @@ export async function planRun({
 // Exactly one key is understood: `FORCE_TASKS` (see `forcedTaskIds`), and it is
 // understood GENERICALLY — "run these task ids", never what any of them do. No
 // task declaration mentions forcing and no precondition is consulted for a forced
-// task, so the scheduler never learns what baselining is and baselining never
+// task, so the scheduler never learns what the update task is and that task never
 // learns that forcing exists. Anything else in the bag is parsed and ignored,
 // which is what leaves room for a future override without a schema.
 //

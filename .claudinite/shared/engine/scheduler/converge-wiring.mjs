@@ -1,12 +1,12 @@
 // Fresh-path wiring convergence (task-prework DESIGN §7, the primitive
-// absorbed from #405). The deterministic half of baselining's self-refresh that
+// absorbed from #405). The deterministic half of the self-refresh that
 // has nothing to do with the vendored mount's CONTENT: the repo-specific wiring a
 // scheduled Claudinite consumer must carry, converged idempotently in code so the
 // nightly refresh never needs a model to re-enact bootstrap's prose.
 //
 // One source of truth: bootstrap Part 5 (the settings hooks) + Part 6 (the
 // scheduler workflow) describe this same set for a fresh adoption; this module is
-// what both bootstrap and baselining CALL, so the wiring can never drift between
+// what both bootstrap and the update flows CALL, so the wiring can never drift between
 // "how a repo is set up" and "how the nightly keeps it set up".
 //
 // Operates on a repo working tree at `root` with node:fs directly (like
@@ -93,9 +93,21 @@ export function withDeclaredSecrets(stubText, names = []) {
 // declared `required_secrets` stamped into the engine step's env. `stubText` is the
 // vendored stub's content (the caller reads it from the mount). Returns true when
 // the file was written (absent, or drifted from the target).
-export function convergeSchedulerWorkflow(root, fullName, stubText, secretNames = []) {
-  const target = withDeclaredSecrets(stubText, secretNames)
+// What this repo's scheduler workflow SHOULD contain — the stub with its secrets
+// stamped and its cron resolved, as text, touching no disk.
+//
+// Split out from the converge below because the pack update flow needs the answer
+// without the side effect: it cannot write this file (its caller pushes with the
+// Action's GITHUB_TOKEN, which GitHub never lets near `.github/workflows/`), so it
+// WITHHOLDS the content and hands it to a lane that can. A flow that had to write
+// the file in order to learn what it should say could not do that.
+export function schedulerWorkflowTarget(fullName, stubText, secretNames = []) {
+  return withDeclaredSecrets(stubText, secretNames)
     .replace(/cron:\s*'[^']*'/, `cron: '${hashedCron(fullName)}'`);
+}
+
+export function convergeSchedulerWorkflow(root, fullName, stubText, secretNames = []) {
+  const target = schedulerWorkflowTarget(fullName, stubText, secretNames);
   const path = join(root, SCHEDULER_WORKFLOW);
   const current = existsSync(path) ? readFileSync(path, 'utf8') : null;
   if (current === target) return false;
@@ -250,7 +262,7 @@ export async function convergeWiring(root, fullName, stubText, secretNames = [],
 // CLI: `node converge-wiring.mjs [owner/repo] [--badges]` — converge THIS repo's
 // wiring. The full name comes from argv or GITHUB_REPOSITORY/CLAUDINITE_REPO; the
 // scheduler stub from the vendored mount. This is the single surface bootstrap
-// (Part 6) and baselining both invoke, so the wiring set is defined once, here —
+// (Part 6) and the update flows both invoke, so the wiring set is defined once, here —
 // with `--badges` the one thing that differs between them: bootstrap passes it to
 // seed the README pack row, the nightly leaves the README alone.
 async function main() {

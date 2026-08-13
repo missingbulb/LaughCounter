@@ -76,7 +76,7 @@ function vendoredSet(root, files) {
 // outside this set is a typo or a stale name — a settings error as real as invalid
 // JSON, caught at load so it can't silently change nothing. `packConfig` is the
 // legacy home of per-pack parameters — still honored while the fleet migrates to
-// pack-entry `config` (the baselining folds it in), no longer documented. The
+// pack-entry `config` (the converge folds it in), no longer documented. The
 // `pack-entry-config` baseline migration (engine/migrations/) documents the fold; when
 // the fleet is off the old shape, drop the key here (and the overlay below) so
 // a straggler gets the unknown-setting error.

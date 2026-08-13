@@ -249,7 +249,7 @@ const COLLECTORS = {
   },
 
   // The vendored-mount provenance stamp and its age; the canon head sha when the
-  // Action was given one (baselining's precondition falls back to stamp age).
+  // Action was given one (the update task's precondition falls back to stamp age).
   async stamp(gh, ctx) {
     const stamp = ctx.config?.claudinite ?? null;
     let ageDays = null;
