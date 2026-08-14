@@ -1,18 +1,22 @@
-import { finding } from '../../engine/checks/helpers/findings.mjs';
-import { normPrefix, under } from '../../engine/checks/helpers/path-containment.mjs';
+import { finding } from './findings.mjs';
+import { normPrefix, under } from './path-containment.mjs';
 
-// The barriers detection engine — language-agnostic enforcement of a directed
+// The reference-scanning engine — language-agnostic enforcement of a directed
 // folder-access graph. A *barrier edge* forbids the files under one set of
 // folders (`from`) from referencing another (`to`); the engine finds every
-// crossing reference.
+// crossing reference. Mechanism only, like every helper here: the edges are
+// POLICY and arrive as data — a declared check's `forbidReferences` entries
+// (pattern-rules.mjs), or the barriers pack's per-repo config rule and its
+// pack-manifest contribution seam — and every failure text beyond the
+// composed crossing message stays with the declaration.
 //
 // The one idea that keeps it precise and technology-agnostic: **the repo tree is
 // the oracle.** A candidate reference (an import specifier, a path in a comment, a
 // bare filename) only counts when it *resolves to a real tracked path* inside the
 // barred folder. An English word that merely happens to be a folder's name never
 // resolves, so it never fires — no per-language parser, no allowlist of file
-// types, and near-zero false positives. See packs/barriers/README.md, including
-// its "Known limitations" section for the reference forms this does not resolve.
+// types, and near-zero false positives. The barriers pack's README documents
+// the edge vocabulary, including the reference forms this does not resolve.
 // (One deliberate exception: with `matchNames: true` an edge opts into matching
 // the bare *names* of its barred folders — restricted to distinctive names so
 // prose can't false-positive; see the names layer below.)
@@ -21,16 +25,6 @@ import { normPrefix, under } from '../../engine/checks/helpers/path-containment.
 // carve-out (a folder/glob/pattern string that removes files from the guarded
 // region — the `from: "."` helper) or a reviewed exception ({ path, to?, reason }
 // — a specific file's deliberate crossing, staleness-audited when `to` is pinned).
-//
-// Composition happens through DECLARATION, never through importing this module
-// from another pack (pack-independence): a pack that wants a fixed barrier
-// `requires` this pack and carries the barrier as data on its manifest
-// (`contributes` — see contributed.mjs, which builds the rule from that data).
-// The exports here serve this pack's own modules; the path-prefix primitives
-// (`normPrefix`, `under`) live in the engine lib (engine/checks/helpers/path-containment.mjs) and are
-// re-exported for them.
-
-export const DEFAULT_DOC = 'packs/barriers/README.md';
 
 // Test files are out of scope by nature: a test references what it tests, so a
 // core test naming pack/skill content is expected, not a coupling. The engine
@@ -40,8 +34,8 @@ const isTestFile = (f) => /\.test\.[cm]?js$/.test(f);
 // --- path helpers (posix; both separators accepted on input) ----------------
 
 // The prefix primitives (`normPrefix` — a folder/target prefix as the config
-// author wrote it → a bare posix prefix; `under` — containment) come from the
-// engine lib, re-exported for this pack's own modules and tests.
+// author wrote it → a bare posix prefix; `under` — containment) live in
+// path-containment.mjs, re-exported for this engine's consumers and tests.
 export { normPrefix, under };
 
 // Join `rel` onto `base` and resolve "." / ".." segments, posix-style. Returns
@@ -99,16 +93,29 @@ const TRY_INDEX = ['/index.js', '/index.mjs', '/index.ts', '/index.tsx', '/index
 
 // --- repo index (built once per run) ----------------------------------------
 
-// Every known path, every directory prefix, and a basename→paths map (for the
-// unique-filename layer). Built from ctx.tracked PLUS the in-scope untracked
+// Every known path, every directory prefix, a basename→paths map (for the
+// unique-filename layer), and a completion index — for each completable prefix
+// (a module path without its extension, a directory with an index module, a
+// Sass partial addressed without its underscore), the file it resolves to.
+// Precomputing completions is what keeps resolution O(1) per candidate: the
+// probe-per-extension loop this replaces was the whole scan's hotspot. Ranks
+// preserve the old probe order (extensions before index files before Sass
+// partials), so when two files complete one prefix the same one wins.
+// Built from ctx.tracked PLUS the in-scope untracked
 // set (ctx.allFiles), so a reference resolves against everything the repo
 // knows — a Stop-hook run routinely sees fresh files before their first
 // `git add`, and an import of (or a sibling directory made of) untracked
 // files must guard exactly like a tracked one.
+const SASS_RANK = 200;
 export function buildIndex(ctx) {
   const files = new Set();
   const dirs = new Set();
   const byBase = new Map();
+  const completions = new Map();
+  const complete = (prefix, path, rank) => {
+    const cur = completions.get(prefix);
+    if (!cur || rank < cur.rank) completions.set(prefix, { path, rank });
+  };
   for (const raw of new Set([...ctx.tracked, ...(ctx.allFiles ?? [])])) {
     const f = raw.replace(/\\/g, '/');
     files.add(f);
@@ -117,8 +124,22 @@ export function buildIndex(ctx) {
     const base = parts[parts.length - 1];
     if (!byBase.has(base)) byBase.set(base, []);
     byBase.get(base).push(f);
+    for (let i = 0; i < TRY_EXT.length; i++) {
+      if (base.length > TRY_EXT[i].length && f.endsWith(TRY_EXT[i])) {
+        complete(f.slice(0, -TRY_EXT[i].length), f, i);
+        break;
+      }
+    }
+    for (let i = 0; i < TRY_INDEX.length; i++) {
+      if (f.endsWith(TRY_INDEX[i])) {
+        complete(f.slice(0, -TRY_INDEX[i].length), f, TRY_EXT.length + i);
+        break;
+      }
+    }
+    const sass = /^_(.+)\.(scss|sass)$/.exec(base);
+    if (sass) complete(`${f.slice(0, f.length - base.length)}${sass[1]}`, f, SASS_RANK + (sass[2] === 'sass' ? 1 : 0));
   }
-  return { files, dirs, byBase };
+  return { files, dirs, byBase, completions };
 }
 
 // Does `p` name a real tracked file or directory (allowing extension/index and
@@ -127,13 +148,7 @@ function matchTree(p, index) {
   if (!p) return null;
   if (index.files.has(p)) return p;
   if (index.dirs.has(p)) return p;
-  for (const ext of TRY_EXT) if (index.files.has(p + ext)) return p + ext;
-  for (const idx of TRY_INDEX) if (index.files.has(p + idx)) return p + idx;
-  // Sass/SCSS underscore partials: dir/name → dir/_name.scss (imported without the _).
-  const slash = p.lastIndexOf('/');
-  const partial = `${p.slice(0, slash + 1)}_${p.slice(slash + 1)}`;
-  for (const ext of ['.scss', '.sass']) if (index.files.has(partial + ext)) return partial + ext;
-  return null;
+  return index.completions.get(p)?.path ?? null;
 }
 
 // --- candidate extraction ---------------------------------------------------
@@ -175,14 +190,19 @@ export function resolveImport(spec, fromDir, index) {
   const p = normJoin(fromDir, spec.replace(/\\/g, '/'));
   if (!p) return null;
   if (index.files.has(p)) return p;
-  for (const ext of TRY_EXT) if (index.files.has(p + ext)) return p + ext;
-  for (const idx of TRY_INDEX) if (index.files.has(p + idx)) return p + idx;
-  return null;
+  const completion = index.completions.get(p);
+  return completion && completion.rank < SASS_RANK ? completion.path : null;
 }
 
 // Every reference candidate on one line, de-duplicated, cleaned of wrapping
-// punctuation, URLs and query/hash tails dropped.
+// punctuation, URLs and query/hash tails dropped. The character prefilter is
+// exhaustive over both extractors' requirements — a QUOTED hit needs a quote
+// character and every PATHISH shape carries a dot or slash — so a line
+// without any of them can produce no candidate and skips both regexes.
+const CANDIDATE_CHARS = /[."'`/\\]/;
+const NO_CANDIDATES = [];
 export function candidatesOn(line) {
+  if (!CANDIDATE_CHARS.test(line)) return NO_CANDIDATES;
   const raw = new Set();
   let m;
   QUOTED.lastIndex = 0;
@@ -599,17 +619,47 @@ const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // pairs the caller may surface as prune-me findings (gated on a whole-repo sweep).
 // `rule` supplies id / severity / doc. Every crossing finding carries the resolved
 // path as `resolved`; config-shape findings (empty glob) do not.
+//
+// The per-context scan state — the repo index, each file's split lines and
+// per-line reference candidates, and every candidate's resolution — is cached
+// against the (immutable-snapshot) context and shared across edges AND across
+// the barrier-family rules that run in one sweep (the barriers pack's own rule
+// plus every contributed edge set): candidate extraction and tree resolution
+// depend on the file alone, never on the edge asking, so the first rule pays
+// and the rest look up.
+const scanState = new WeakMap();
+
 export function barrierFindings(ctx, edges, rule) {
   if (!edges.length) return { findings: [], stale: [] };
-  const index = buildIndex(ctx);
+  let state = scanState.get(ctx);
+  if (!state) {
+    state = { index: buildIndex(ctx), lines: new Map(), candidates: new Map(), resolved: new Map() };
+    scanState.set(ctx, state);
+  }
+  const index = state.index;
+  const linesOf = (f, text) => {
+    let lines = state.lines.get(f);
+    if (!lines) { lines = text.split('\n'); state.lines.set(f, lines); }
+    return lines;
+  };
+  const candidatesAt = (f, lines) => {
+    let cands = state.candidates.get(f);
+    if (!cands) { cands = lines.map(candidatesOn); state.candidates.set(f, cands); }
+    return cands;
+  };
+  const resolvedRef = (f, fromDir, candidate, matchUniqueFilenames) => {
+    const key = `${matchUniqueFilenames ? 'u' : 'n'}\u0000${f}\u0000${candidate}`;
+    let r = state.resolved.get(key);
+    if (r === undefined) {
+      r = resolveRef(candidate, fromDir, index, matchUniqueFilenames);
+      state.resolved.set(key, r);
+    }
+    return r;
+  };
   const scannable = ctx.files.map((f) => f.replace(/\\/g, '/')).filter((f) => !isTestFile(f));
   const out = [];
   const staleAll = [];
-  const readCache = new Map();
-  const read = (f) => {
-    if (!readCache.has(f)) readCache.set(f, ctx.read(f));
-    return readCache.get(f);
-  };
+  const read = (f) => ctx.read(f);
   const childDirs = (p) => [...index.dirs].filter((d) => d.startsWith(`${p}/`) && !d.slice(p.length + 1).includes('/'));
 
   const scanEdge = (edge) => {
@@ -727,10 +777,11 @@ export function barrierFindings(ctx, edges, rule) {
         }
         continue;
       }
-      const lines = text.split('\n');
+      const lines = linesOf(file, text);
+      const lineCandidates = candidatesAt(file, lines);
       for (let i = 0; i < lines.length; i++) {
-        for (const rawRef of candidatesOn(lines[i])) {
-          const r = resolveRef(rawRef, fromDir, index, edge.matchUniqueFilenames);
+        for (const rawRef of lineCandidates[i]) {
+          const r = resolvedRef(file, fromDir, rawRef, edge.matchUniqueFilenames);
           if (r === null || inGuard(r)) continue;
           if (edge.allow.some((a) => under(r, a))) continue;
           const t = barred.find((b) => under(r, b));

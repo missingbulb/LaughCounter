@@ -1,0 +1,18 @@
+[
+  {
+    "id": "claudinite-isolation",
+    "severity": "blocking",
+    "failureMessage": "the vendored canon is refreshed nightly and refactored upstream — code that reaches into it inherits every canon rename as a breaking change",
+    "fix": "inline the few lines you need into your own tree, remove the reference, or accept it with a reason in .claudinite-checks.json (rule \"claudinite-isolation\")",
+    "relevantWhen": { "pathExists": ".claudinite/shared" },
+    "forbidReferences": [
+      {
+        "from": ".",
+        "to": ".claudinite",
+        "matchUniqueFilenames": false,
+        "except": [".claudinite", ".claude", ".github/workflows", ".gitignore", ".gitattributes", "CLAUDE.md", ".claudinite-checks.json"],
+        "reason": "consumer files must not couple to the vendored canon — the wiring files are the reviewed exceptions (vendoring/DESIGN.md)"
+      }
+    ]
+  }
+]

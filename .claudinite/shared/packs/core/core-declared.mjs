@@ -21,16 +21,27 @@ import { packEntryId } from '../../engine/pack_loader/pack-registry.mjs';
 // the invariant — the edge, the closure and the home's own declaration — so the
 // literal cannot drift from the manifest that earns it.
 //
-// ADVISORY UNTIL THE FLEET CARRIES IT (the `conformance-workflow` precedent, and
-// the #555 failure both are drawn from): shipping this blocking would turn every
-// member red on its very next update, before the record that declares it has
-// reached them. It becomes blocking once the fleet is through — a one-line change.
+// BLOCKING SINCE THE FLEET CARRIED IT. It shipped advisory on the
+// `conformance-workflow` precedent (and the #555 failure both are drawn from):
+// blocking from the start would have turned every member red on its very next
+// update, before the record that declares this pack had reached it. The forced
+// pass of 2026-08-14 landed the declaration in all 11 non-dormant members and the
+// canon home, each read back individually, so the reason to hold it advisory is
+// spent — and the same pass moved the update task into this pack, which makes a
+// missing declaration cost a member its self-refresh rather than just its rules.
+//
+// The three self-declared dormant members are knowingly outside this (owner
+// decision, 2026-08-14): they were never forced, so they do not carry the
+// declaration, and a repo that wakes needs `"core"` added to its `packs` array by
+// hand before its scheduler works again. This rule cannot report that — it does
+// not run when the pack is undeclared — which is exactly why the repair is
+// written down rather than left to be rediscovered.
 const CORE = 'core';
 const DECLARATION = '.claudinite-checks.json';
 
 const rule = {
   id: 'core-declared',
-  severity: 'advisory',
+  severity: 'blocking',
   description: `${DECLARATION} must declare the "${CORE}" pack — it is mandatory in every Claudinite member`,
   doc: 'packs/core/README.md',
   why: 'core carries Claudinite\'s own rules — the mount, the declaration, adoption, the update and the task contract — and a member that does not declare it runs the machinery with none of them',
