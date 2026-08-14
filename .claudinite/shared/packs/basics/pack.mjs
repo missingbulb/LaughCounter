@@ -24,7 +24,14 @@ import rulesLineLength from './rules-line-length.mjs';
 // authoritative — dropping it is a deliberate choice).
 export default {
   id: 'basics',
-  version: 1,
+  // 2 — the mechanism rename (migrations/2026-08-13-mechanism-versioned). The FIRST
+  // bump this pack has taken, and the invariant it establishes: a record's declared
+  // `version` must be ≤ this number, and this number must MOVE for that record to
+  // reach a member already at the previous one. `migrationApplies` is `want > have`
+  // against the stamped version, and what gets stamped is this manifest's number — so
+  // a record declaring a version above it would re-apply every cycle, forever,
+  // draining never.
+  version: 2,
   minEngineVersion: 1,
   ruleRoutingGuidance: {
     belongs: 'cross-project working discipline, issue-branch-PR lifecycle, repo hygiene, doc/reference integrity and the baseline engineering, testing and debugging skills',

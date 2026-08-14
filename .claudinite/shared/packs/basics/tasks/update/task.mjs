@@ -1,5 +1,5 @@
 // basics task: update — the versioned engine/pack update flows, run by a repo on
-// itself (#768, docs/versioned-updates/DESIGN.md). The successor to `baselining`,
+// itself (#768 — see the versioned-updates design there). The successor to `baselining`,
 // and for now its sibling: exactly one of the two serves any repo, decided by that
 // repo's own `maintenance.mechanism` (engine/served-by.mjs).
 //

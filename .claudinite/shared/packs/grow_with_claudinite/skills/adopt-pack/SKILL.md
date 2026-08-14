@@ -62,11 +62,26 @@ A pack that asks nothing adopts fully unattended; this section costs it nothing.
 
 ## 3. Re-vendor
 
-The new packs' prose, checks, and skills must land under the tracked `.claudinite/shared/` mount.
-Fetch a fresh canon to scratch and run its `vendoring/apply-vendor-set.mjs --target . --ref <sha>`
-against the checkout — the same whole-set convergence the on-demand refresh uses (adopt-claudinite,
-[bootstrap.md](../../../../bootstrap.md) Parts 1 and 4). It rebuilds `shared/` from the new vendor
-set and advances the stamp; sessions never fetch.
+The new packs' prose, checks, and skills must land under the tracked `.claudinite/shared/` mount,
+**and the repo must be stamped with the version it is now at.** Fetch a fresh canon to scratch and
+run its install runner against the checkout — sessions never fetch:
+
+```
+node <canon>/updates/install.mjs --target . <pack-id> [<pack-id>…]
+```
+
+**Do not hand-roll this with `apply-vendor-set.mjs`.** That lays the files down correctly and gets
+one thing wrong that nothing notices for weeks: it never writes
+`claudinite.packVersions[<id>]`. The pack is then installed but *unversioned*, so the next update
+flow reads `from: null` and — unable to compare numbers — falls back to the landed-date window,
+which can hand a freshly adopted pack records written for the shapes of an older era. "An install
+runs no migrations" is a correctness rule, and the stamp is what enforces it.
+
+The runner declares each pack, vendors its content, stamps it and every pack in its `requires`
+closure at the newest version, runs any one-shot seed ops, and gates on the converged tree's own
+self-test. It exits non-zero on a refusal or an unanswered interview — a pack already installed is
+**refused**, because reinstalling would restamp the repo to the newest version while skipping every
+record in between.
 
 Then **refresh the README pack-badge row**, from the mount you just rebuilt:
 

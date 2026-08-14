@@ -195,11 +195,21 @@ function identityArgs(root) {
 }
 
 // The remote branch tip's local object id, fetching its objects if it exists.
+// Both network calls are fail-soft, and the result keeps the two zero-tip cases
+// apart: `{ tip: null }` is a branch that does not exist yet (the first capture
+// on this repo), `{ unreachable }` is a remote we could not talk to at all,
+// which the caller retries exactly like a lost push.
 function fetchTip(root, branch) {
-  const ls = git(root, ['ls-remote', '--heads', 'origin', branch]).stdout.trim();
-  if (!ls) return null;
-  git(root, ['fetch', '--quiet', 'origin', branch]);
-  return git(root, ['rev-parse', 'FETCH_HEAD']).stdout.trim();
+  const ls = git(root, ['ls-remote', '--heads', 'origin', branch], { allowFail: true });
+  if (ls.status !== 0) return { unreachable: ls };
+  if (!ls.stdout.trim()) return { tip: null };
+  const fetched = git(root, ['fetch', '--quiet', 'origin', branch], { allowFail: true });
+  if (fetched.status !== 0) return { unreachable: fetched };
+  return { tip: git(root, ['rev-parse', 'FETCH_HEAD']).stdout.trim() };
+}
+
+function gitError(r) {
+  return (r.stderr || r.stdout || '').trim().split('\n')[0] || `exit ${r.status}`;
 }
 
 const BRANCH_README = `# conversation-logs
@@ -216,9 +226,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Compute the delta against the fetched tip and push it as one new file. The
 // whole read-build-push runs inside the retry loop so a lost push race (another
 // session captured first) recomputes against the fresh tip instead of clobbering.
+// Every call that crosses the network — the tip reads that open an attempt as
+// much as the push that closes it — costs the attempt rather than the run: a
+// SessionEnd capture is its session's only chance, so a blip that outlives one
+// attempt must not end the whole capture. The object-plumbing calls in between
+// keep throwing; those failing is a bug, not weather.
 export async function capture({ root, branch, sessionId, bundled, issue, now, redactions = [] }) {
+  let lastError = null;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const tip = fetchTip(root, branch);
+    const fetched = fetchTip(root, branch);
+    if (fetched.unreachable) {
+      lastError = `could not reach origin: ${gitError(fetched.unreachable)}`;
+      if (attempt < 3) await sleep(attempt * 2000);
+      continue;
+    }
+    const tip = fetched.tip;
     const treeLines = tip
       ? git(root, ['ls-tree', tip]).stdout.split('\n').filter(Boolean)
       : [];
@@ -252,9 +274,10 @@ export async function capture({ root, branch, sessionId, bundled, issue, now, re
 
     const push = git(root, ['push', '--quiet', 'origin', `${commit}:refs/heads/${branch}`], { allowFail: true });
     if (push.status === 0) return { name, lastTs, entries: delta.length };
+    lastError = `push rejected: ${gitError(push)}`;
     if (attempt < 3) await sleep(attempt * 2000); // lost a race or a network blip — refetch and rebuild
   }
-  throw new Error(`could not push to ${branch} after 3 attempts`);
+  throw new Error(`could not capture to ${branch} after 3 attempts — ${lastError}`);
 }
 
 // --- transcript discovery -----------------------------------------------------
