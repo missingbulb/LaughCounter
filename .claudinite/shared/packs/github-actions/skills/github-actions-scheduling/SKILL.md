@@ -51,4 +51,4 @@ after 60 days without repository activity.
 
 Claudinite's own scheduler is built to this: a repo-hashed `:10–:50` minute, due-slot math
 against the Actions run ledger rather than the clock, and most-recent-slot-only catch-up — see
-[scheduled-tasks.md](../../../basics/scheduled-tasks.md) for the task-authoring side.
+[scheduled-tasks.md](../../../core/scheduled-tasks.md) for the task-authoring side.

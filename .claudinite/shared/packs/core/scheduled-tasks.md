@@ -186,7 +186,8 @@ owner's repos so that grant stays off the canon's ordinary routine. Nothing new 
   then it is a human's (or the janitor's) to look at.
 - **Task gone** (the dispatch names a task the repo no longer carries — file
   removed, pack undeclared) → the executor **closes** the issue as not planned
-  (resolve-dispatch exit `14`). An obsolete dispatch is not an anomaly; it gets
+  (resolve-dispatch's `task-gone` verdict). An obsolete dispatch is not an
+  anomaly; it gets
   no `needs-human`.
 - Every executor terminal state is recorded in code as a
   `claudinite-task-exec` line (`record-exec.mjs`, and resolve-dispatch for the

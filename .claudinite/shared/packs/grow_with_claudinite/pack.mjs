@@ -42,6 +42,10 @@ import growthWriteScope from './growth-write-scope.mjs';
 // Fleet-wide aggregation is NOT here — the canon knows mechanisms, never repos; that
 // is the sheepdog pack's job, in the fleet-enforcer repo.
 //
+// ADOPTION IS NOT HERE. `adopt-claudinite`, `adopt-pack` and the
+// adopt-requested-packs task were bundled in this pack for want of a better home;
+// their subject is Claudinite's own surface, so they moved to the `core` pack.
+//
 // growth-discover-packs is the weekly LOCAL pack-discovery reflection: the repo
 // manifests its own stack, notices project-specific knowledge no canon pack homes,
 // and authors a local pack for it under its own `.claudinite/local/packs/`.
@@ -67,11 +71,13 @@ export default {
   marker: null,
   seededByDefault: true,
   prose: null,
+  // Growth builds on Claudinite's own surface — a lesson is routed by reading the
+  // pack catalog and landed by adopting or authoring a pack — so `core` is a
+  // prerequisite rather than an ambient assumption.
+  requires: ['core'],
   worldRules: [growthConfig],
   workRules: [dedupIntegrity, growthWriteScope],
   skills: [
-    'adopt-claudinite',
-    'adopt-pack',
     'extract-from-activity',
     'extract-from-conversations',
     'generate-project-instructions',

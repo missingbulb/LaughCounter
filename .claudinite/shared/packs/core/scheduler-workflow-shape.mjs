@@ -14,7 +14,7 @@ const rule = {
   id: 'scheduler-workflow-shape',
   severity: 'blocking',
   description: 'The vendored claudinite-scheduler.yml is a thin shim: hourly :10–:50 cron, concurrency, workflow_dispatch, calls the engine',
-  doc: 'packs/basics/scheduled-tasks.md',
+  doc: 'packs/core/scheduled-tasks.md',
   why: 'the scheduler is the repo\'s only cron and its slot math anchors on the hour — a cron off the :10–:50 band, or a missing concurrency/dispatch guard, silently breaks staggering, double-run safety, or manual runs',
 
   run(ctx) {

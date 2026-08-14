@@ -40,7 +40,7 @@ const rule = {
   id: 'task-phase-discipline',
   severity: 'advisory',
   description: 'After a task\'s precondition passes, neither phase of its execution (prework, agentic work) decides to skip the run for state/timing reasons — flags skip-language in task.md instructions and cycle-skip strings in prework workers',
-  doc: 'packs/basics/scheduled-tasks.md',
+  doc: 'packs/core/scheduled-tasks.md',
   why: 'the precondition is the ONLY decision point: a later-phase skip hides work from the run records (a "ran, did nothing" that was really "declined to run"), re-litigates a verdict already given, and belongs in the precondition where it is code over signals',
 
   run(ctx) {

@@ -17,10 +17,10 @@
 // caller supplies the facts from disk (the `skills/` directory listing), so this
 // module is pure and testable standalone.
 
-// The routing budget. Both sides of `ruleRoutingGuidance` are emitted as one row
-// of a table every session loads (engine/pack_loader/inject-pack-prose.mjs), so
-// the cap is a context cost, not a style preference: enough for a boundary and a
-// pointer to the pack that owns the other side.
+// The routing budget. Both sides of `ruleRoutingGuidance` become one row of the
+// pack catalog (packs/directory.GENERATED.md), which a session reads when deciding
+// which pack owns a piece of content — so the cap keeps a row scannable: enough for
+// a boundary and a pointer to the pack that owns the other side.
 export const MAX_ROUTING_WORDS = 20;
 
 // The two conformance scopes. A rule's scope is its PLACEMENT on the manifest —

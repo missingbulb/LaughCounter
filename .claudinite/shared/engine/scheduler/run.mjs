@@ -137,7 +137,12 @@ export function renderSummary(evaluations) {
     const verb = !e.run ? 'skip' : e.deferred ? 'defer' : e.inline ? 'run-inline' : e.dispatch?.action ?? 'run';
     const forced = e.forced ? ' (forced)' : '';
     const claim = e.exclusive ? ' (exclusive)' : '';
-    return `- ${e.pack}/${e.task} [${e.slotId}]${forced}${claim} ${verb} — ${e.deferred || e.reason || e.dispatch?.reason || ''}`.trimEnd();
+    // A lane held for triage (#821) says so ahead of the precondition's reason,
+    // which otherwise always wins and describes the work that WOULD have run. The
+    // hold is the one suppression a person has to act on, and a summary that
+    // reports only "there was work" is how it stayed invisible for three weeks.
+    const why = (e.dispatch?.escalated && e.dispatch.reason) || e.deferred || e.reason || e.dispatch?.reason || '';
+    return `- ${e.pack}/${e.task} [${e.slotId}]${forced}${claim} ${verb} — ${why}`.trimEnd();
   }).join('\n');
 }
 
@@ -145,7 +150,7 @@ export function renderSummary(evaluations) {
 // CLI wraps with real GitHub I/O. Injected seams:
 //   collectSignals(names) -> signals object (the declared union, collected once)
 //   packConfigFor(packId) -> that pack's entry config from .claudinite-checks.json
-//   existingIssuesFor(pack, task) -> the task family's issues [{number,title,state}]
+//   existingIssuesFor(pack, task) -> the task family's issues [{number,title,state,labels}]
 // Returns `{ evaluations }`: one record per due task with its precondition
 // verdict and, when it runs, either an inline marker (agent_model: none) or a
 // dispatch decision (planDispatch).
@@ -321,15 +326,21 @@ export function buildSignalContext({ root, repo, defaultBranch, now, sinceIso, c
 // GITHUB_TOKEN — the one sanctioned non-MCP surface (DESIGN §10).
 
 // The task family's issues (state=all) via the search API, filtered to exact
-// prefix — the input planDispatch's exactly-once / at-most-one-open guards read.
-async function existingIssuesViaSearch(gh, repo, pack, task) {
+// prefix — the input planDispatch's exactly-once / at-most-one-live guards read.
+//
+// `labels` is load-bearing, not extra: the guard distinguishes a live claim from a
+// `needs-human` terminal by label (#821), and a projection that drops them makes
+// every open issue read as live — the pure rule stays green on fixtures while the
+// shell feeds it a shape in which the distinction cannot exist. Exported for the
+// test that pins exactly that.
+export async function existingIssuesViaSearch(gh, repo, pack, task) {
   const q = encodeURIComponent(`repo:${repo} in:title "${DISPATCH_PREFIX} ${pack}/${task}"`);
   const { status, json } = await gh(`/search/issues?q=${q}&per_page=100`);
   if (status !== 200 || !Array.isArray(json?.items)) return [];
   const prefix = `${DISPATCH_PREFIX} ${pack}/${task} `;
   return json.items
     .filter((i) => `${(i.title ?? '').trim()} `.startsWith(prefix))
-    .map((i) => ({ number: i.number, title: i.title, state: i.state }));
+    .map((i) => ({ number: i.number, title: i.title, state: i.state, labels: i.labels ?? [] }));
 }
 
 // DISPATCH-ISSUE MAINTENANCE DOES NOT LIVE HERE (owner, 2026-08-06). The

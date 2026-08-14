@@ -41,7 +41,10 @@ const root = value('--root') || process.env.CLAUDE_PROJECT_DIR || process.cwd();
 if (has('--list')) {
   const { packs } = await discoverPacks({ localRoot: root });
   for (const r of packRules(packs)) {
-    console.log(`${r.id}\t${r.severity}\t${r.description}\t${r.doc}`);
+    // A declared check carries neither a description nor a doc pointer — it
+    // states its own case — so the catalog prints its failure message in that
+    // column and leaves the pointer empty.
+    console.log(`${r.id}\t${r.severity}\t${r.description ?? r.why ?? ''}\t${r.doc ?? ''}`);
   }
   process.exit(0);
 }

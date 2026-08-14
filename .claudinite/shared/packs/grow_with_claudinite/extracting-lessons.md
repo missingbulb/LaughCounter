@@ -38,6 +38,13 @@ under `.claudinite/` is the read-only mounted canon and is never a capture targe
 territory the lesson belongs to (most repos have one general pack; some segregate a domain pack), then
 prefer the strongest mechanism it allows:
 
+**First check whether a canon pack already owns it, from the catalog and not from the mount.** A repo
+holds only the packs it *declares*, so "nothing here covers this" is a fact about the mount rather than
+about the corpus — and acting on it homes the lesson locally in territory a canon pack already owns.
+Read `.claudinite/shared/packs/directory.GENERATED.md` (canon-side `packs/directory.GENERATED.md`),
+which states every canon pack's boundary including the ones this repo doesn't hold. Where the owning
+pack's stated territory is merely too narrow, propose widening it rather than routing around it.
+
 1. **A check** in that pack's rules — author the `.mjs`, list it on the pack's `pack.mjs`, ship it with a
    red-first fixture. Its failure message *is* the lesson.
 2. **A pack skill**, when the lesson is an activity-scoped procedure rather than a condition.

@@ -14,4 +14,4 @@
 // passed the live canary rehearsal once (DESIGN §2.1), and the bump is what declares
 // that happened. An engine migration is written against the version it lands in — it
 // applies to repos below that number.
-export const ENGINE_VERSION = 3;
+export const ENGINE_VERSION = 4;

@@ -162,15 +162,41 @@ export function dispatchBody({ taskPath, pack, task, slotId, context = [], deliv
 
 // The filing decision for one due (task, slot), given `existing` — the issues
 // the shell fetched for this task's family (title starts with the task key),
-// each `{ number, title, state }` with state 'open' | 'closed'. Two guards
-// (DESIGN §4):
+// each `{ number, title, state, labels }` with state 'open' | 'closed'. Two
+// guards (DESIGN §4):
 //   - exactly-once per (task, slot): a state=all title match for THIS slot → skip
 //     (makes double-runs and crash-retries safe).
-//   - at-most-one-open per task: any OPEN family issue (any slot) suppresses a
-//     new filing → an executor outage accumulates at most one issue per task.
+//   - at-most-one-LIVE per task: an open family issue that is still live work
+//     suppresses a new filing → an executor outage accumulates at most one issue
+//     per task.
 // Otherwise: create (the shell files it labeled with `readyLabel` — the
 // self/fleet ready label the task's scope resolves to, default `ready-for-agent`).
-export function planDispatch({ existing = [], pack, task, slotId, readyLabel = READY_LABEL }) {
+//
+// LIVE, NOT MERELY OPEN (#821). Suppressing on any open issue read `needs-human`
+// as live work, so an escalation did not await triage — it STOPPED the task until
+// a person closed the issue by hand, with nothing saying the lane was shut. That
+// made the stale-claim backstop the opposite of a backstop: it converted one
+// session's death into a permanent stop (13 tasks across 9 repos, the oldest
+// stopped for three weeks). A claim — `agent-running`, or a just-filed issue not
+// yet labeled — is someone working; a terminal is nobody, and never will be.
+//
+// The re-filing is bounded, because a DURABLE cause escalates every slot and would
+// otherwise accumulate one issue per slot — the spam the guard exists to prevent.
+// One unresolved escalation is a transient session death and must not cost the
+// task its next slot; a second says the cause outlived a full cycle of triage, so
+// the lane holds until a person drains it. That hold is a distinct verdict
+// (`escalated`), not the claim verdict, so "a session is on it" and "shut,
+// pending triage" can never again look identical from outside.
+export const NEEDS_HUMAN_HOLD = 2;
+
+// GitHub hands labels back as objects on the issues/search APIs and as bare
+// strings in some fixtures; accept either.
+const labelNames = (issue) =>
+  (issue?.labels ?? []).map((l) => (typeof l === 'string' ? l : l?.name)).filter(Boolean);
+
+const isEscalated = (issue) => labelNames(issue).includes(NEEDS_HUMAN_LABEL);
+
+export function planDispatch({ existing = [], pack, task, slotId, readyLabel = READY_LABEL, hold = NEEDS_HUMAN_HOLD }) {
   const title = dispatchTitle({ pack, task, slotId });
   const keyPrefix = `${dispatchTaskKey({ pack, task })} `;
   const family = existing.filter((i) => `${(i.title ?? '').trim()} `.startsWith(keyPrefix));
@@ -178,9 +204,18 @@ export function planDispatch({ existing = [], pack, task, slotId, readyLabel = R
   if (family.some((i) => (i.title ?? '').trim() === title)) {
     return { action: 'skip', reason: `dispatch issue for slot ${slotId} already exists (exactly-once)` };
   }
-  const open = family.find((i) => i.state === 'open');
-  if (open) {
-    return { action: 'suppress', openIssue: open.number, reason: `an open dispatch issue (#${open.number}) already covers ${pack}/${task}` };
+  const open = family.filter((i) => i.state === 'open');
+  const live = open.find((i) => !isEscalated(i));
+  if (live) {
+    return { action: 'suppress', openIssue: live.number, reason: `an open dispatch issue (#${live.number}) already covers ${pack}/${task}` };
+  }
+  const escalated = open.filter(isEscalated);
+  if (escalated.length >= hold) {
+    const numbers = escalated.map((i) => `#${i.number}`).join(', ');
+    return {
+      action: 'suppress', escalated: true, openIssue: escalated[0].number,
+      reason: `${escalated.length} unresolved escalations (${numbers}) on ${pack}/${task} — held for triage, not running`,
+    };
   }
   return { action: 'create', title, label: readyLabel, reason: `no dispatch issue yet for ${pack}/${task} slot ${slotId}` };
 }
@@ -194,11 +229,6 @@ const SLOT_PERIOD_MS = { h: 3600e3, d: 86400e3, w: 7 * 86400e3, m: 31 * 86400e3 
 function slotPeriodMs(slotId) {
   return SLOT_PERIOD_MS[String(slotId ?? '')[0]] ?? null;
 }
-
-// GitHub hands labels back as objects on the issues/search APIs and as bare
-// strings in some fixtures; accept either.
-const labelNames = (issue) =>
-  (issue?.labels ?? []).map((l) => (typeof l === 'string' ? l : l?.name)).filter(Boolean);
 
 // Open dispatch issues older than `factor` of their own period (DESIGN §4: ~2
 // periods) — the scheduler's backstop when no executor session drains them. The

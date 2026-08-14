@@ -87,6 +87,23 @@ export function packQuestions(pack) {
   return { questions, errors };
 }
 
+// A directory's declared checks — `<dir>/declared-checks.json`, compiled by the
+// pattern-check engine. The declaration file gates the import: a tree with no
+// declarations never reaches for the checks helpers, so the loader keeps working
+// wherever only the pack machinery is present. A broken declaration is reported
+// like a broken manifest, never thrown — the neighbouring coded rules still run.
+const DECLARED_CHECKS_FILE = 'declared-checks.json';
+async function declaredChecksIn(dir, label, errors) {
+  if (!existsSync(join(dir, DECLARED_CHECKS_FILE))) return [];
+  try {
+    const { loadDeclaredChecks } = await import('../checks/helpers/pattern-rules.mjs');
+    return loadDeclaredChecks(dir);
+  } catch (e) {
+    errors.push({ what: `the declared checks in ${label} failed to load: ${e.message}`, fix: `fix ${DECLARED_CHECKS_FILE} in ${label}`, dir });
+    return [];
+  }
+}
+
 async function scanPackDir(dir, { local, subdir }, errors) {
   const out = [];
   if (!existsSync(dir)) return out;
@@ -156,7 +173,11 @@ async function scanPackDir(dir, { local, subdir }, errors) {
     for (const e of validateManifest(mod, { label: `the pack in ${rel}`, skillDirs: skillDirNames(packDir) })) {
       errors.push({ ...e, dir: packDir });
     }
-    const pack = { ...normalizeManifest(mod), dir: packDir, local };
+    // The pack's declared checks (declared-checks.json — data, not a module) ride
+    // its world rules: discovered structurally like the pack itself, so a
+    // declaration is added by writing it, with no manifest line to keep in sync.
+    const declared = await declaredChecksIn(packDir, rel, errors);
+    const pack = { ...normalizeManifest({ ...mod, worldRules: [...(mod.worldRules ?? []), ...declared] }), dir: packDir, local };
     pack.skillChecks = await scanSkillChecks(packDir, errors);
     out.push(pack);
   }
@@ -178,8 +199,9 @@ function skillDirNames(packDir) {
 }
 
 // A pack's skill-owned checks: any <pack>/skills/<skill>/checks.mjs (default
-// export = an array of rules). Isolated per import; run gated by the owning
-// pack being active, exactly like the pack's own rules — a skill is pack
+// export = an array of coded rules) plus its declared-checks.json (the same
+// declaration format a pack's own carries). Isolated per skill; run gated by the
+// owning pack being active, exactly like the pack's own rules — a skill is pack
 // content, so its checks ride the pack's activation.
 async function scanSkillChecks(packDir, errors) {
   const rules = [];
@@ -194,12 +216,14 @@ async function scanSkillChecks(packDir, errors) {
     return rules;
   }
   for (const name of names) {
-    const manifest = join(skillsRoot, name, 'checks.mjs');
+    const skillDir = join(skillsRoot, name);
+    rules.push(...await declaredChecksIn(skillDir, `the ${name} skill`, errors));
+    const manifest = join(skillDir, 'checks.mjs');
     if (!existsSync(manifest)) continue;
     try {
       rules.push(...(await import(pathToFileURL(manifest).href)).default);
     } catch (e) {
-      errors.push({ what: `local skill check ${name}/checks.mjs failed to load: ${e.message}`, fix: 'fix or remove the skill\'s checks.mjs', dir: join(skillsRoot, name) });
+      errors.push({ what: `local skill check ${name}/checks.mjs failed to load: ${e.message}`, fix: 'fix or remove the skill\'s checks.mjs', dir: skillDir });
     }
   }
   return rules;
