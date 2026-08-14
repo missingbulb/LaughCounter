@@ -61,7 +61,7 @@
           "/^\\s*path:\\s*['\"]?\\.\\/?['\"]?\\s*$/m"
         ],
         "require": "/\\brm\\b[^\\n]*\\.claude/",
-        "what": "uploads the repo root (path: .) to actions/upload-pages-artifact, but .claude/skills/* are symlinks into the gitignored .claudinite/ corpus (empty in CI) — they dangle and the action tars with --dereference, so the deploy fails",
+        "what": "uploads the repo root (path: .) to actions/upload-pages-artifact with no step pruning .claude/ — its skills/* symlinks dangle in CI and the tar fails",
         "fix": "add a step before the upload that prunes the agent tooling: `run: rm -rf .claude .claudinite` (never part of a published site)"
       }
     ]
@@ -78,7 +78,7 @@
         "relevantWhen": { "pathExists": ".github/workflows/claudinite-scheduler.yml" },
         "forbid": "/^\\s*schedule:/m",
         "what": "carries a `schedule:` trigger, but the vendored claudinite-scheduler.yml is this repo's only permitted cron",
-        "fix": "port this workflow's steps into the scheduler task that owns the work and delete the workflow in the same commit — after cutover a task IS the recurring unit, so do not leave a dispatch-only workflow behind for a task to fire (per-project-scheduling §3)"
+        "fix": "port this workflow's steps into the scheduler task that owns the work and delete the workflow in the same commit (per-project-scheduling §3)"
       },
       {
         "relevantWhen": { "pathAbsent": ".github/workflows/claudinite-scheduler.yml" },

@@ -2,25 +2,23 @@
   {
     "id": "in-session-github-access",
     "severity": "blocking",
-    "failureMessage": "a routine runs in an MCP-only session with no shell GitHub REST credential; a REST client / GITHUB_TOKEN in its own steps cannot authenticate there — that belongs in a workflow_dispatch-only CI executor",
+    "failureMessage": "a routine runs in an MCP-only session with no GitHub REST credential — REST calls in its own steps cannot authenticate there",
+    "fix": "reach GitHub through the session's injected MCP-backed I/O (a gh(path) reader for reads, a semantic io object for writes); move credential-needing work into a workflow_dispatch-only executor",
     "scanFiles": "/^(routines|migrations)\\/.*\\.mjs$/",
-    "excludeFiles": "/\\.test\\.mjs$/",
-    "skipLinesMatching": "/^\\s*(\\/\\/|\\*|\\/\\*)/",
+    "excludeFileClasses": ["testFiles"],
+    "scanIgnoringComments": true,
     "matchLines": [
       {
         "match": "/process\\.env\\.(GITHUB_TOKEN|GH_TOKEN|FLEET_GITHUB_TOKEN)/",
-        "what": "reads a GitHub REST token from the environment — in-session routine code has no REST credential",
-        "fix": "reach GitHub through the session's injected MCP-backed I/O (a gh(path) reader for reads, a semantic io object for writes); move any work that needs an account-wide credential into a workflow_dispatch-only executor"
+        "what": "reads a GitHub REST token from the environment — in-session routine code has no REST credential"
       },
       {
         "match": "/\\bmakeGh\\s*\\(|from\\s+['\"][^'\"]*\\bfleet-api/",
-        "what": "uses the REST client (makeGh / fleet-api) — in-session routine code has no REST credential",
-        "fix": "reach GitHub through the session's injected MCP-backed I/O (a gh(path) reader for reads, a semantic io object for writes); move any work that needs an account-wide credential into a workflow_dispatch-only executor"
+        "what": "uses the REST client (makeGh / fleet-api) — in-session routine code has no REST credential"
       },
       {
         "match": "/['\"`]https?:\\/\\/api\\.github\\.com/",
-        "what": "targets the GitHub REST API (api.github.com) directly — in-session routine code has no REST credential",
-        "fix": "reach GitHub through the session's injected MCP-backed I/O (a gh(path) reader for reads, a semantic io object for writes); move any work that needs an account-wide credential into a workflow_dispatch-only executor"
+        "what": "targets the GitHub REST API (api.github.com) directly — in-session routine code has no REST credential"
       }
     ]
   }

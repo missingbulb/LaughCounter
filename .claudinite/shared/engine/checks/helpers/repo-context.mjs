@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { parseEntries } from './session-transcript.mjs';
 import { SHARED_SUBDIR, packEntryId } from '../../pack_loader/pack-registry.mjs';
@@ -23,6 +23,7 @@ function resolveBaseRef(root) {
 }
 
 const FETCH_TIMEOUT_MS = 8000;
+const FETCH_WINDOW_MS = 5 * 60_000;
 
 // A remote-tracking base ref is only as fresh as the last fetch, and a cloud session's
 // clone freezes it at container-creation time — so every commit the base branch gained
@@ -37,14 +38,34 @@ const FETCH_TIMEOUT_MS = 8000;
 // before this existed. It writes ONLY the remote-tracking ref (explicit refspec, no tags):
 // no local branch, no index, no working tree, nothing the session could be surprised by.
 // Set CLAUDINITE_CHECKS_NO_FETCH=1 to skip it (sealed sandboxes, or to pin a base).
+//
+// And it runs once per freshness window, not once per run: the Stop hook builds a context
+// every turn with tracked changes, and the fetch is that path's dominant wall-clock cost
+// (~0.7s healthy, 8s timeout when the network is not). A marker in the git dir records
+// which ref was refreshed and when; a run inside the window trusts it and skips. The
+// marker is PER-REF on purpose — a fetch of some other ref (or a marker left by one) says
+// nothing about this base's freshness — and the staleness the window admits is the same
+// class the fetch's own failure tolerance already accepts, now bounded by the window.
 function refreshBaseRef(root, ref) {
   if (!ref || process.env.CLAUDINITE_CHECKS_NO_FETCH === '1') return;
   const m = /^([^/]+)\/(.+)$/.exec(ref);
   if (!m) return; // a local branch is already as current as the checkout — nothing to fetch
+  const markerRel = (gitTry(root, 'rev-parse', '--git-path', 'claudinite-base-refresh.json') || '').trim();
+  const marker = markerRel ? resolve(root, markerRel) : null;
+  if (marker) {
+    try {
+      const last = JSON.parse(readFileSync(marker, 'utf8'));
+      if (last.ref === ref && Date.now() - last.at < FETCH_WINDOW_MS) return;
+    } catch { /* no marker (or an unreadable one) means no known freshness — fetch */ }
+  }
   const [, remote, branch] = m;
-  sh(root, 'git', ['fetch', '--quiet', '--no-tags', remote,
+  const fetched = sh(root, 'git', ['fetch', '--quiet', '--no-tags', remote,
     `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`],
   { allowFail: true, timeout: FETCH_TIMEOUT_MS });
+  if (fetched !== null && marker) {
+    try { writeFileSync(marker, JSON.stringify({ ref, at: Date.now() })); }
+    catch { /* an unwritable git dir only costs the next run a fetch */ }
+  }
 }
 
 function lines(out) {

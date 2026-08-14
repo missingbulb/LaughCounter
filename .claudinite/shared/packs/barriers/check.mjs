@@ -1,6 +1,7 @@
 import {
-  normalizeEdges, barrierFindings, staleFindings, specFinding, DEFAULT_DOC,
-} from './engine.mjs';
+  normalizeEdges, barrierFindings, staleFindings, specFinding,
+} from '../../engine/checks/helpers/reference-scanning.mjs';
+import { DEFAULT_DOC } from './contributed.mjs';
 
 // The project-declared barrier check: a repo states its folder-access graph as
 // `config.rules` on its barriers pack entry in .claudinite-checks.json (the

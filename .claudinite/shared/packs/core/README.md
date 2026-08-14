@@ -16,9 +16,9 @@ not prose: the session that has lost its rules is the session least able to noti
 
 | Rule | Severity | What goes wrong when it fires |
 |---|---|---|
-| `core-declared` | advisory | this pack's entry is gone from `.claudinite-checks.json`, so none of the rules below run and the session cannot tell |
+| `core-declared` | blocking | this pack's entry is gone from `.claudinite-checks.json`, so none of the rules below run and the session cannot tell |
 | `rules-index-current` | blocking | the generated index is missing, stale or unimported — the repo's packs contribute no prose to any session |
-| `claudinite-isolation` | blocking | the repo's own code reaches into `.claudinite/`, so the next canon refactor is a breaking migration for code the canon does not own (a contributed [barriers](../barriers/README.md) edge) |
+| `claudinite-isolation` | blocking | the repo's own code reaches into `.claudinite/`, so the next canon refactor is a breaking migration for code the canon does not own (a declared `forbidReferences` [barrier](../barriers/README.md) edge) |
 | `conformance-workflow` | advisory | nothing in CI runs the world sweep unfiltered on a pull request, so conformance is ungated and the maintenance PR never lands |
 | `scheduler-workflow-shape` | blocking | the vendored scheduler's cron, concurrency or dispatch guard has drifted — staggering, double-run safety or manual runs break |
 | `task-declaration-shape` | blocking | a task declaration the scheduler reads is incomplete or illegal, so the task never fires or fires wrong |
@@ -45,10 +45,12 @@ what it guards is a hand-maintained index, not a member's status. It stays in
 
 | Task | frequency | Runs when |
 |---|---|---|
+| `update` | daily (02:00 slot) | the mount is behind the canon, or a declared pack moved |
 | `adopt-requested-packs` | daily | the repo carries an open pack-adoption request |
 
-The `update` self-refresh task is still `basics`' (`packs/basics/tasks/update/`) and moves here in a
-second change, once every member's declaration is confirmed to carry `core`. A member runs that task
-from its **vendored** copy, and `discoverTasks` only finds a task whose pack is literally declared —
-so moving the directory before the declaration has landed everywhere would leave a member with no
-update task at all, and nothing left that could deliver it one.
+`update` is the per-repo self-refresh — the task that converges a member's mount and stamps it. It
+is why `core-declared` is blocking: a member runs `update` from its **vendored** copy, and
+`discoverTasks` finds only a literally-declared pack's tasks, so a repo that loses this pack's entry
+loses its self-refresh, and nothing is left that could deliver it one. That is also why the task
+arrived here a change later than the rest of the pack — it moved only once every non-dormant member's
+declaration had been read back and confirmed to carry `core`.

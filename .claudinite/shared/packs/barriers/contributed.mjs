@@ -3,8 +3,12 @@ import { join } from 'node:path';
 import { finding } from '../../engine/checks/helpers/findings.mjs';
 import { LOCAL_PACKS_SUBDIR } from '../../engine/pack_loader/pack-registry.mjs';
 import {
-  normalizeEdges, barrierFindings, staleFindings, specFinding, DEFAULT_DOC,
-} from './engine.mjs';
+  normalizeEdges, barrierFindings, staleFindings, specFinding,
+} from '../../engine/checks/helpers/reference-scanning.mjs';
+
+// The default doc pointer for barrier rules is this PACK's policy — the engine
+// helper points at no pack content.
+export const DEFAULT_DOC = 'packs/barriers/README.md';
 
 // Pack-contributed barriers — how another pack ships a FIXED barrier without
 // importing this pack's code (pack-independence). The contributing pack

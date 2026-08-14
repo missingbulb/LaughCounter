@@ -7,6 +7,7 @@ import filePlacement from './file-placement.mjs';
 import squashMergeHistory from './squash-merge-history.mjs';
 import sharedConstants from './shared-constants.mjs';
 import rulesLineLength from './rules-line-length.mjs';
+import declaredCheckMessages from './declared-check-messages.mjs';
 
 // The baseline pack: cross-project working discipline, the task lifecycle, and
 // the general engineering skills. Declared explicitly like every other pack — no pack is active by
@@ -42,6 +43,7 @@ export default {
   worldRules: [
     markdownLinkLabels,
     rulesLineLength,
+    declaredCheckMessages,
     warningSuppression,
     filePlacement,
     sharedConstants,
@@ -61,10 +63,9 @@ export default {
   // the pack whose projects need it and move this line with it (#385 moved the
   // git/GitHub and Claudinite-lifecycle skills out).
   //
-  // The baseline scheduled task every repo runs — `update`, the per-repo
-  // self-refresh — lives in this pack's `tasks/update/`, discovered by the
-  // scheduler's filesystem scan (engine/scheduler/discover.mjs), not declared
-  // here. Being in basics — declared everywhere — makes it universal.
+  // `task-janitor` is this pack's one scheduled task, discovered by the
+  // scheduler's filesystem scan (engine/scheduler/discover.mjs) rather than
+  // declared here.
   skills: [
     'authoring-agent-docs',
     'bug-investigation',
