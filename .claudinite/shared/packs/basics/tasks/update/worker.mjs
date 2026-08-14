@@ -18,7 +18,7 @@ import { readFileSync, existsSync, mkdtempSync, writeFileSync, rmSync } from 'no
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { servedBy } from '../../../../engine/served-by.mjs';
+import { servedBy, servedByUpdates } from '../../../../engine/served-by.mjs';
 import {
   resolveDelivery, pullCreateError, landDelivery, openDeliveredPull, disposeOpenPull,
 } from '../../../../engine/scheduler/land-pr.mjs';
@@ -107,11 +107,17 @@ export async function main() {
   // A repo that declares the RETIRED mechanism is not served by anything: Phase 5
   // deleted it. Standing down silently would leave that repo unmaintained with a
   // green run to show for it, so the dead end is named and the fix stated.
+  // Asked as "are these flows mine to run", NOT as a string comparison against one
+  // spelling. The mechanism was renamed `updates` → `versioned` (#768), and the two
+  // names are live at once while that record drains — so a literal here would refuse
+  // a member the moment its own declaration was correctly renamed, which is the
+  // fielded-worker asymmetry all over again: this file is vendored and a cycle behind
+  // the flows that rewrite the declaration it reads.
   const served = servedBy(declaration);
-  if (served.mechanism !== 'updates') {
+  if (!servedByUpdates(declaration)) {
     console.error(`update: this repo declares maintenance.mechanism "${served.mechanism}", which was retired in`
-      + ' Claudinite #768 Phase 5 — nothing maintains this repo. Set it to "updates" (or remove the key: that is'
-      + ' now the default) to be served by the update flows.');
+      + ' Claudinite #768 Phase 5 — nothing maintains this repo. Set it to "versioned" (or remove the key: that'
+      + ' is now the default) to be served by the update flows.');
     process.exit(1);
   }
   const { delivery } = resolveDelivery(declaration?.maintenance?.delivery);

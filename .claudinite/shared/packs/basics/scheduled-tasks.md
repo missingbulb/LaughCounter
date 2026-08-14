@@ -1,7 +1,7 @@
 # Scheduled tasks — the per-project scheduling mechanism
 
-How a repo's recurring Claudinite work runs (per-project-scheduling
-[DESIGN](../../docs/per-project-scheduling/DESIGN.md), issue #394). A repo
+How a repo's recurring Claudinite work runs (per-project-scheduling design —
+see issue #394). A repo
 schedules **itself**, and the machinery is **three responsibilities, strictly
 separated** (owner, 2026-08-06):
 
@@ -26,8 +26,8 @@ scheduling is baseline Claudinite discipline, present wherever basics is
 declared (everywhere), not an opt-in feature.
 
 The checks below are the doctrine's enforcement; the phased rollout (and the
-retirement of the legacy central planner it replaces) lives in
-[MIGRATION.md](../../docs/per-project-scheduling/MIGRATION.md).
+retirement of the legacy central planner it replaces) lives in the
+per-project-scheduling migration record, linked from issue #394.
 
 ## What the checks guard
 
@@ -82,7 +82,7 @@ retirement of the legacy central planner it replaces) lives in
 
 - **Every run is bounded.** An agentic task (`agent_model !== none`) declares
   `agent_execution_timeout` — seconds bounding the agentic run
-  (task-prework [DESIGN](../../docs/task-prework/DESIGN.md) §2, §6).
+  (task-prework design §2, §6 — see issue #394).
   There is no platform wall-clock kill for a launched executor session, so the
   bound is best-effort: the executor surfaces it into the subagent's brief ("fail
   after N minutes") and the stale-`agent-running` backstop catches a dead session.
