@@ -12,8 +12,11 @@
 // different questions and neither substitutes for the other — a session where
 // every step ran and nothing was declared looks identical from the footer alone.
 //
-// RUNS LAST, after the steps whose work it counts (the prose injector, the skill
-// mount), so it describes the session that exists rather than the one about to.
+// RUNS LAST, after the steps whose work it counts (the skill mount), so it describes
+// the session that exists rather than the one about to. The prose it weighs no longer
+// arrives through this hook at all — it rides CLAUDE.md since #807 — but the weight is
+// still this line's to state, because the cost lands in the same context window and a
+// session that cannot see it has no way to notice the corpus growing.
 //
 // Core names no pack to get a pack-specific facet. A pack that has one states it
 // on the FACET CHANNEL — a `CLAUDINITE-FACET:` line from its session-start step,

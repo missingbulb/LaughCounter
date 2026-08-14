@@ -19,6 +19,7 @@ import { SHARED_SUBDIR } from '../../engine/pack_loader/pack-registry.mjs';
 // - '.claude': settings.json registers the hooks by path.
 // - '.github/workflows': a repo's own workflow may run the vendored engine.
 // - '.gitignore', '.gitattributes': the mount's housekeeping rules.
+// - 'CLAUDE.md': the generated rules index's `@` import (#807 — see below).
 // - '.claudinite-checks.json': settings legitimately spell paths.
 // Coverage note: quoted references (imports, requires, config values) and
 // relative traversals resolve and fire; a bare unquoted `.claudinite/...` in
@@ -26,14 +27,23 @@ import { SHARED_SUBDIR } from '../../engine/pack_loader/pack-registry.mjs';
 // imports/wiring are the coupling class that matters.
 export default {
   id: 'claudinite-isolation',
-  // CLAUDE.md was a wiring exception until #384: a consumer's CLAUDE.md carried an
-  // `@.claudinite/shared/CLAUDE.md` import, a real reference into the mount that the
-  // carve-out existed to permit. #384 retired that import and had converge-wiring
-  // strip it (`removeRetiredCorpusImport`), removing the only reason a consumer's
-  // CLAUDE.md needs to name the mount — so the carve-out went with it, deliberately.
-  // This description said otherwise for far longer than it should have, and the gap
-  // fired on canon-shaped orientation prose across the fleet.
-  description: 'Outside the wiring files (.claude/, .gitignore, .gitattributes, .github/workflows/, the settings file), nothing may reference .claudinite/ — CLAUDE.md included — inline what you need instead of importing the canon',
+  // CLAUDE.md's carve-out has been removed once and restored once, and the round trip
+  // is worth keeping straight. #384 retired the `@.claudinite/shared/CLAUDE.md` corpus
+  // import and had converge-wiring strip it (`removeRetiredCorpusImport`); with the
+  // only legitimate reference gone, the carve-out went too. #807 then measured what
+  // replaced it: the SessionStart hook the corpus moved onto has no delivery receipt,
+  // and ~80KB of guidance was silently truncated away on the way into a live session.
+  // So a CLAUDE.md import is wiring again — `@.claudinite/claudinite-rules.GENERATED.md`, the
+  // generated rules index (engine/pack_loader/generate-rules-index.mjs), converged by
+  // the same flow that converges the hooks.
+  //
+  // The carve-out is the FILE, not the import: a CLAUDE.md may name the index, and the
+  // reason the barrier existed still holds for everything else it could name. The
+  // index itself is consumer-owned and sits BESIDE the mount (`.claudinite/`, not
+  // `.claudinite/shared/`), so this is not a re-coupling to canon internals the way the
+  // retired `shared/CLAUDE.md` import was — which is exactly why that one is still
+  // stripped on every converge while this one is written by it.
+  description: 'Outside the wiring files (.claude/, .gitignore, .gitattributes, .github/workflows/, CLAUDE.md, the settings file), nothing may reference .claudinite/ — inline what you need instead of importing the canon',
   why: 'the vendored canon is refreshed nightly and refactored upstream; code that reaches into it inherits every canon rename as a breaking change',
   doc: 'vendoring/DESIGN.md',
   // The remedy is to stop depending on the canon, not to relocate the
@@ -48,7 +58,7 @@ export default {
     from: '.',
     to: '.claudinite',
     matchUniqueFilenames: false,
-    except: ['.claudinite', '.claude', '.github/workflows', '.gitignore', '.gitattributes', '.claudinite-checks.json'],
+    except: ['.claudinite', '.claude', '.github/workflows', '.gitignore', '.gitattributes', 'CLAUDE.md', '.claudinite-checks.json'],
     reason: 'consumer files must not couple to the vendored canon — the wiring files are the reviewed exceptions (vendoring/DESIGN.md)',
   }],
 };

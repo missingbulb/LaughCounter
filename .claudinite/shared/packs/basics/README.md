@@ -1,6 +1,6 @@
 # basics pack
 
-The baseline pack — the `RULES.md` prose every session loads (injected by the pack-prose hook) plus the core checks. Declared explicitly like every other pack — no pack is active by default; bootstrap seeds the declaration and the nightly baselining backfills it into existing consumers.
+The baseline pack — the `RULES.md` prose every session loads (injected by the pack-prose hook) plus the working-discipline checks. Its subject is **how work is done**, whatever tool is running it. Declared explicitly like every other pack — no pack is active by default; bootstrap seeds the declaration and the nightly baselining backfills it into existing consumers.
 
 ## Prose (`RULES.md`)
 

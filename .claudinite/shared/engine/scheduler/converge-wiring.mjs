@@ -17,6 +17,8 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { hashedCron } from './hash-minute.mjs';
+import { writeRulesIndex, RULES_INDEX_FILE, RULES_INDEX_IMPORT } from '../pack_loader/generate-rules-index.mjs';
+import { LOCAL_PACKS_SUBDIR, LOCAL_DECL_PREFIX } from '../pack_loader/pack-registry.mjs';
 
 // The settings-hook registrations a scheduled repo carries (bootstrap Part 5).
 // Ensured present without clobbering — a set-union keyed on the command string, so
@@ -156,6 +158,138 @@ export function removeRetiredCorpusImport(root) {
   return true;
 }
 
+// The CLAUDE.md channel (#807): the generated rules index, plus the one line in the
+// repo's own CLAUDE.md that imports it. Converged here rather than left to a session
+// because the index is a function of the DECLARATION — so the two flows that already
+// change a declaration (the nightly engine refresh and any pack change) are exactly
+// the moments it can go stale, and both call convergeWiring.
+//
+// NOT the retired `@.claudinite/shared/CLAUDE.md` this file still strips above. That
+// import reached INTO the mount, which is one-directional and slated to become a
+// submodule; this one names a consumer-owned file sitting BESIDE it, derived from the
+// consumer's own declaration. The two coexist deliberately: a member converging today
+// loses the old shape and gains the new one in the same pass.
+//
+// The import goes after the first `# ` heading when the repo has one (the badge row's
+// placement rule, for the same reason — a repo's title stays its first line), and at
+// the very top otherwise. A repo with no CLAUDE.md at all gets one: without it the
+// index is a file nothing loads.
+const RULES_INDEX_IMPORT_RE = new RegExp(`^\\s*${RULES_INDEX_IMPORT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'm');
+
+export function ensureRulesIndexImport(root) {
+  const path = join(root, CLAUDE_MD);
+  if (!existsSync(path)) {
+    writeFileSync(path, `${RULES_INDEX_IMPORT}\n`);
+    return true;
+  }
+  const text = readFileSync(path, 'utf8');
+  if (RULES_INDEX_IMPORT_RE.test(text)) return false;
+  const lines = text.split('\n');
+  const title = lines.findIndex((l) => l.startsWith('# '));
+  const at = title === -1 ? 0 : title + 1;
+  lines.splice(at, 0, ...(at === 0 ? [RULES_INDEX_IMPORT, ''] : ['', RULES_INDEX_IMPORT]));
+  writeFileSync(path, lines.join('\n'));
+  return true;
+}
+
+// A GENERATED file wants a `merge=ours` .gitattributes entry (the canon's
+// GENERATED-file discipline and the `generated-merge-driver` check that enforces it),
+// declared in the same converge that first writes the file — otherwise every member
+// picks up an advisory finding on a file it did not author.
+export const RULES_INDEX_MERGE_ATTR = 'claudinite-rules.GENERATED.md merge=ours';
+
+export function ensureRulesIndexMergeAttribute(root) {
+  const path = join(root, '.gitattributes');
+  const text = existsSync(path) ? readFileSync(path, 'utf8') : '';
+  if (text.split('\n').some((l) => l.trim() === RULES_INDEX_MERGE_ATTR)) return false;
+  writeFileSync(path, (text && !text.endsWith('\n') ? `${text}\n` : text) + `${RULES_INDEX_MERGE_ATTR}\n`);
+  return true;
+}
+
+// --- the repo's own local pack, seeded once at adoption ----------------------
+
+// Every repo has lessons that are its own and portable nowhere: they need a home the
+// moment there is anything to write, and a session that has to invent one first
+// usually doesn't — it writes the rule into `basics` or into a `CLAUDE.md` paragraph
+// instead, which is how a project's rules end up somewhere the corpus cannot reach.
+// So adoption seeds the home empty, named for the repo, declared and imported like any
+// other pack.
+//
+// BOOTSTRAP ONLY, and gated like the badge row for the same reason: this is a one-time
+// seed of a file the repo then OWNS. A nightly that re-created it would resurrect a
+// pack the owner deliberately deleted, and a nightly that rewrote it would overwrite
+// the rules it exists to hold.
+
+// A repo name as a pack id: kebab-case, the canon's naming rule for a pack directory
+// (lowercase words joined by single hyphens), since the id is what the declaration,
+// the mount path and every cross-reference then spell.
+export const packIdForRepo = (fullName) => (fullName ?? '').split('/').pop()
+  .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+  .replace(/[^a-zA-Z0-9]+/g, '-')
+  .toLowerCase()
+  .replace(/^-+|-+$/g, '');
+
+const SEED_MANIFEST = (id) => `// ${id} — this repo's own rules: the ones that are true here and portable nowhere.
+// Seeded empty at adoption; everything in it is this repo's to write. A lesson that
+// would hold in another repo belongs in a canon pack instead — propose it upstream.
+export default {
+  id: '${id}',
+  version: 1,
+  ruleRoutingGuidance: {
+    belongs: 'working rules and lessons specific to this repository and not portable to any other',
+    excludes: 'anything true beyond this repo — that belongs in a canon pack, proposed upstream',
+  },
+  detect: null,
+  marker: null,
+  prose: 'RULES.md',
+  worldRules: [],
+};
+`;
+
+const SEED_PROSE = (id) => `# ${id} — this repo's own rules
+
+The capture surface for lessons **specific to this repository**. Loaded into every session
+through the rules index, so what lands here should be a directive an agent can act on, not a
+description of how something works.
+
+A lesson that would hold in another repo does not belong here — propose it to the Claudinite
+canon instead, where every repo gets it.
+
+<!-- Nothing yet. The growth lifecycle writes here; so may you. -->
+`;
+
+// Seed `.claudinite/local/packs/<repo>/` and declare it. Returns the pack id when it
+// created one, null when the repo already has that pack or already declares any local
+// pack — a repo that has grown its own home must never get a second, empty one.
+export function seedRepoLocalPack(root, fullName) {
+  const id = packIdForRepo(fullName);
+  if (!id) return null;
+  const dir = join(root, LOCAL_PACKS_SUBDIR, id);
+  if (existsSync(dir)) return null;
+
+  const settingsPath = join(root, '.claudinite-checks.json');
+  let raw;
+  try { raw = JSON.parse(readFileSync(settingsPath, 'utf8')); } catch { return null; }
+  const declared = Array.isArray(raw.packs) ? raw.packs : [];
+  // Any local declaration at all means this repo already has a home of its own.
+  if (declared.some((p) => String(typeof p === 'string' ? p : p?.id).startsWith('local'))) return null;
+
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'pack.mjs'), SEED_MANIFEST(id));
+  writeFileSync(join(dir, 'RULES.md'), SEED_PROSE(id));
+
+  // Declared as text, never a JSON round-trip: re-serializing rewrites what it was not
+  // asked to — `ensure_ascii` escapes every non-ASCII character in a settings file full
+  // of prose, and indent and key order become the serializer's opinion.
+  const text = readFileSync(settingsPath, 'utf8');
+  const entry = `"${LOCAL_DECL_PREFIX}${id}"`;
+  const patched = text.replace(/("packs"\s*:\s*\[)/, (m) => `${m}\n    ${entry},`);
+  writeFileSync(settingsPath, patched === text
+    ? text // no `packs` array to extend — leave the file alone rather than guess at its shape
+    : patched);
+  return id;
+}
+
 // Strip the retired `badges` setting from `.claudinite-checks.json`. `badges` is
 // not in CONFIG_KEYS, so a member still carrying it gets an unknown-setting error
 // until the key goes; doing it here — beside the retired corpus import, for the
@@ -248,33 +382,50 @@ export function convergeBadgeRow(root, entries) {
 // task set, so pack changes are what rewrite it, and only the pack flow carries a
 // credential that can land a workflow file at all (DESIGN §2.4, §3.7). A flow that
 // wrote one it cannot deliver would fail its whole push, not just that file.
-export async function convergeWiring(root, fullName, stubText, secretNames = [], { badges = false, workflows = true } = {}) {
+// `seedLocalPack` defaults off for the same reason `badges` does: both are one-time
+// seeds of files the repo then owns, and only bootstrap passes them.
+export async function convergeWiring(root, fullName, stubText, secretNames = [], { badges = false, workflows = true, seedLocalPack = false } = {}) {
   const changed = [];
   if (workflows && convergeSchedulerWorkflow(root, fullName, stubText, secretNames)) changed.push(SCHEDULER_WORKFLOW);
   const hooks = ensureHooks(root);
   for (const h of hooks.added) changed.push(`hook:${h}`);
   if (removeRetiredCorpusImport(root)) changed.push(`removed retired ${CLAUDE_MD} corpus import`);
   if (removeRetiredBadgeSetting(root)) changed.push('removed retired badges setting');
+  // Adoption only, and BEFORE the index: seeding declares a pack, and the index is a
+  // function of the declaration, so seeding after it would leave the repo's own pack
+  // unimported until some later converge.
+  if (seedLocalPack) {
+    const seeded = seedRepoLocalPack(root, fullName);
+    if (seeded) changed.push(`seeded ${LOCAL_PACKS_SUBDIR}/${seeded}`);
+  }
+  // The CLAUDE.md channel, in dependency order: the index, then the import that
+  // loads it, then the merge attribute that keeps it from being hand-resolved.
+  if (await writeRulesIndex(root)) changed.push(RULES_INDEX_FILE);
+  if (ensureRulesIndexImport(root)) changed.push(`${CLAUDE_MD} rules-index import`);
+  if (ensureRulesIndexMergeAttribute(root)) changed.push('.gitattributes merge=ours for the rules index');
   if (badges && convergeBadgeRow(root, await badgeRowEntries(root, await repoConfig(root)))) changed.push(`${README} pack row`);
   return { changed, ...(hooks.error ? { error: hooks.error } : {}) };
 }
 
-// CLI: `node converge-wiring.mjs [owner/repo] [--badges]` — converge THIS repo's
-// wiring. The full name comes from argv or GITHUB_REPOSITORY/CLAUDINITE_REPO; the
-// scheduler stub from the vendored mount. This is the single surface bootstrap
-// (Part 6) and the update flows both invoke, so the wiring set is defined once, here —
-// with `--badges` the one thing that differs between them: bootstrap passes it to
-// seed the README pack row, the nightly leaves the README alone.
+// CLI: `node converge-wiring.mjs [owner/repo] [--badges] [--seed-local-pack]` —
+// converge THIS repo's wiring. The full name comes from argv or
+// GITHUB_REPOSITORY/CLAUDINITE_REPO; the scheduler stub from the vendored mount. This
+// is the single surface bootstrap (Part 6) and the update flows both invoke, so the
+// wiring set is defined once, here — and the two flags are the whole difference
+// between them. Both are ONE-TIME SEEDS of files the repo then owns (the README badge
+// row, the repo's own local pack), which is exactly why the nightly must not pass
+// them: it would rewrite a row the owner moved, or resurrect a pack they deleted.
 async function main() {
   const argv = process.argv.slice(2);
   const badges = argv.includes('--badges');
+  const seedLocalPack = argv.includes('--seed-local-pack');
   const fullName = argv.find((a) => !a.startsWith('--')) || process.env.GITHUB_REPOSITORY || process.env.CLAUDINITE_REPO;
   if (!fullName) { console.error('converge-wiring: need owner/repo (argv or GITHUB_REPOSITORY)'); process.exit(1); }
   const root = process.env.CLAUDINITE_REPO_ROOT || process.cwd();
   const stubPath = join(root, '.claudinite/shared/engine/scheduler/stubs/claudinite-scheduler.yml');
   if (!existsSync(stubPath)) { console.error(`converge-wiring: vendored stub not found at ${stubPath}`); process.exit(1); }
   const secretNames = await declaredSecrets(root, await repoConfig(root));
-  const { changed, error } = await convergeWiring(root, fullName, readFileSync(stubPath, 'utf8'), secretNames, { badges });
+  const { changed, error } = await convergeWiring(root, fullName, readFileSync(stubPath, 'utf8'), secretNames, { badges, seedLocalPack });
   if (error) console.log(`! ${error}`);
   console.log(changed.length ? `converge-wiring: ${changed.join(', ')}` : 'converge-wiring: already converged');
 }

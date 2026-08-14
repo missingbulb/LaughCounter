@@ -19,7 +19,6 @@ scheduler (`engine/scheduler/discover.mjs`) wherever the pack is declared:
 | `growth-dedup` ([tasks/growth-dedup/task.md](tasks/growth-dedup/task.md)) | weekly, when the canon or the project's local packs moved in the week | the repo's own local packs, via a PR that auto-merges after CI |
 | `growth-discover-packs` ([tasks/growth-discover-packs/task.md](tasks/growth-discover-packs/task.md)) | weekly | a new **local** pack in the repo's own `.claudinite/local/packs/`, via a reviewed PR |
 | `prose-to-checks-sweep` ([tasks/prose-to-checks-sweep/task.md](tasks/prose-to-checks-sweep/task.md)) | weekly (no-ops cheaply on a quiet corpus) | a PR converting always-testable pack prose into checks |
-| `adopt-requested-packs` ([tasks/adopt-requested-packs/task.md](tasks/adopt-requested-packs/task.md)) | `manual` — fired by a fleet enforcer that placed an `add-packs` work-list issue here ([#749](https://github.com/missingbulb/Claudinite/issues/749)) | the requested/confirmed packs declared, vendored and scaffolded, via one reviewed PR |
 
 (Plus [usage-fold](tasks/usage-fold/task.md), the agentless daily fold described below.)
 
@@ -142,10 +141,10 @@ Each stage's **method** lives in a skill, so the task doc frames the unattended 
 method is available to an owner asking in-session. Extract's three are listed above;
 [**growth-dedup**](skills/growth-dedup/SKILL.md) is the dedup stage's — what to prune, strip, or
 rephrase, the keep-test, and the shrink-only discipline. The pack also bundles
-[generate-project-instructions](skills/generate-project-instructions/SKILL.md),
-[unattended-agents](skills/unattended-agents/SKILL.md),
-[adopt-claudinite](skills/adopt-claudinite/SKILL.md) and
-[adopt-pack](skills/adopt-pack/SKILL.md).
+[unattended-agents](skills/unattended-agents/SKILL.md) and
+[generate-project-instructions](skills/generate-project-instructions/SKILL.md). Adoption itself —
+`adopt-claudinite`, `adopt-pack` and the `adopt-requested-packs` task — is the
+[core](../core/README.md) pack's: its subject is Claudinite's own surface, not lesson capture.
 
 ## Rules
 

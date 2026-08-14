@@ -37,19 +37,29 @@ goes through your GitHub tools.
    duplicate execution the one-session-one-issue rule exists to prevent, and would put the
    fleet routine's cross-repo grant behind an ordinary project's `self` executor. So a fleet
    dispatch reaching a session whose prompt forgot the word is a **misconfigured routine**, not
-   a dispatch to adopt: it exits `11` below, and the fix is one word in the routine's prompt.
+   a dispatch to adopt: it prints `dispatch: scope-mismatch` below, and the fix is one word in
+   the routine's prompt.
 
-   **Act on its exit code — that is the interface**, not the prose it prints:
+   **Act on the printed `dispatch:` field — that is the interface**, not the prose beside it and
+   not the exit code. Every verdict below prints one, on its own `dispatch: <verdict>` line:
 
-   | exit | verdict | what you do |
+   | `dispatch:` | verdict | what you do |
    | --- | --- | --- |
-   | `0` | valid dispatch, yours | Quote the printed `brief:` line in chat (see below), then go to step 2. The printed block is your brief: issue, label, task path, pack, task, slot, model, outcome ceiling, `executionTimeout`. |
-   | `13` | issue named, body needed | Fetch **the printed issue and only it** over MCP, save the raw response JSON **verbatim** to a file, and re-run with `--issue-json <path>` — the shell extracts body, labels, and title itself, and refuses a response for the wrong issue. Act on *that* run's exit code. |
-   | `14` | task gone | The dispatch is well-formed but this repo no longer carries the task it names (file removed, pack undeclared). It never runs and needs no human: comment the printed `reason`, **CLOSE the issue** (as not planned), end the session. Do **not** add `needs-human` — an obsolete dispatch is not an anomaly to triage. |
-   | `10` | invalid dispatch | It never runs. Comment the printed `reason`, remove the ready label, add `needs-human`, end the session. |
-   | `11` | not yours | Another scope's dispatch, or one another session has already claimed. **Stop**: change nothing, comment nothing, end the session. One exception to the silence, in your final message only: if the printed `labelScope` is `fleet` and your prompt named no scope, say plainly that this looks like the fleet routine missing the `fleet` word — nothing on GitHub records that, the janitor re-arms the dispatch, and it will decline forever until a human reads it here. |
-   | `12` | no trigger at all | **Stop**: run nothing, change nothing, comment nothing. There is no fallback — do not list the queue, do not take the oldest, do not take *any*. Say plainly in your final message that no trigger reached the shell; that is a defect worth a human seeing. |
-   | `2`, `1` | bad invocation, internal fault | Comment what you saw, add `needs-human` if you know the issue, end the session. Do not proceed on a guess. |
+   | `valid` | a legal dispatch, yours | Quote the printed `brief:` line in chat (see below), then go to step 2. The printed block is your brief: issue, label, task path, pack, task, slot, model, outcome ceiling, `executionTimeout`. |
+   | `needs-issue` | issue named, body needed | Fetch **the printed issue and only it** over MCP, save the raw response JSON **verbatim** to a file, and re-run with `--issue-json <path>` — the shell extracts body, labels, and title itself, and refuses a response for the wrong issue. Act on *that* run's `dispatch:` field. |
+   | `task-gone` | task gone | The dispatch is well-formed but this repo no longer carries the task it names (file removed, pack undeclared). It never runs and needs no human: comment the printed `reason`, **CLOSE the issue** (as not planned), end the session. Do **not** add `needs-human` — an obsolete dispatch is not an anomaly to triage. |
+   | `invalid` | invalid dispatch | It never runs. Comment the printed `reason`, remove the ready label, add `needs-human`, end the session. |
+   | `not-mine` | not yours | The issue carries no ready label, or no longer carries one because another session has already claimed it. **Stop**: change nothing, comment nothing, end the session. |
+   | `scope-mismatch` | misconfigured routine | The label is the **other** scope's (the printed `labelScope`). Each routine fires on its own ready label, so this is not a dispatch that wandered in — this session's launcher prompt is wrong, most often the fleet routine missing the word `fleet`. **Stop**: change nothing, comment nothing — but say plainly in your final message that the routine looks misconfigured. Nothing on GitHub records this; the janitor re-arms the dispatch and it will decline forever until a human reads it here. |
+   | `no-trigger` | no trigger at all | **Stop**: run nothing, change nothing, comment nothing. There is no fallback — do not list the queue, do not take the oldest, do not take *any*. Say plainly in your final message that no trigger reached the shell; that is a defect worth a human seeing. |
+   | *(no block printed)* | bad invocation, internal fault | The shell exited `2` or `1` with only an error on stderr. Comment what you saw, add `needs-human` if you know the issue, end the session. Do not proceed on a guess. |
+
+   **The exit code answers a different, narrower question**: zero whenever the routine goes on —
+   including when going on means stopping on purpose, as `not-mine`, `invalid` and `task-gone`
+   all do — and non-zero only when it stops unexpectedly (`scope-mismatch` is `15`, `no-trigger`
+   is `12`, a bad invocation `2`, an internal fault `1`). Never read a non-zero exit as "the
+   dispatch is bad", and never read a zero one as "proceed": the `dispatch:` field decides that,
+   and it says `invalid` on a zero exit.
 
    **Announce your dispatch before you act**: quote the printed `brief:` line prominently in
    chat — bold, on its own line, e.g. **`Task: grow_with_claudinite/growth-dedup (slot

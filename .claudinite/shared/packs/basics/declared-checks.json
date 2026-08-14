@@ -1,0 +1,43 @@
+[
+  {
+    "id": "claude-md-length",
+    "severity": "advisory",
+    "failureMessage": "everything in CLAUDE.md loads every session; past ~200 lines it crowds out the rules that matter",
+    "scanFiles": "CLAUDE.md",
+    "maxLines": {
+      "limit": 200,
+      "what": "{lines} lines (target under {limit})",
+      "fix": "move multi-step procedures to skills and part-of-repo rules to path-scoped packs; keep CLAUDE.md to always-true facts"
+    }
+  },
+  {
+    "id": "generated-merge-driver",
+    "severity": "advisory",
+    "failureMessage": "without merge=ours a conflicting merge on a generated file gets hand-resolved and desyncs from its source",
+    "coveredByGlobLine": [
+      {
+        "eachPathMatching": "/(?<base>[^/]*GENERATED[^/]*)$/",
+        "includeVendored": true,
+        "globFile": ".gitattributes",
+        "globLineMatching": "/\\bmerge=ours\\b/",
+        "what": "a GENERATED file with no merge=ours .gitattributes entry",
+        "fix": "add `{base} merge=ours` to .gitattributes (plus a one-time `git config merge.ours.driver true`) so a conflicting merge auto-resolves"
+      }
+    ]
+  },
+  {
+    "id": "catalog-completeness",
+    "severity": "blocking",
+    "failureMessage": "a hand-maintained catalog that omits a real pack misroutes readers and hides capability; the check keeps the index honest against the tree",
+    "relevantWhen": { "trackedFileMatches": "/^engine\\/pack_loader\\/pack-registry\\.mjs$/" },
+    "listedInFile": [
+      {
+        "eachTrackedPathMatching": "/^packs\\/(?<name>[^/]+)\\/pack\\.mjs$/",
+        "listFile": "packs/README.md",
+        "asText": "({name}/",
+        "what": "the pack \"{name}\" exists on disk but is not listed in packs/README.md",
+        "fix": "add a \"{name}\" entry to packs/README.md (or delete the pack if it is dead)"
+      }
+    ]
+  }
+]

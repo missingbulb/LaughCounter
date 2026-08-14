@@ -43,28 +43,51 @@
 // rule. The CCR path does not change that: this shell never fetches the issue
 // itself, it tells the EXECUTOR to fetch it over MCP and hand the bytes back.
 //
-// EXIT CODES ARE THE INTERFACE (see EXIT below). The executor branches on the
-// number, so each verdict has its own code and its own documented next step:
+// THE VERDICT IS THE INTERFACE; THE EXIT CODE IS ONLY "did the routine break".
+// The executor branches on the printed `dispatch:` field, which every decided
+// verdict carries. The exit code answers a narrower question, and answers it the
+// way every other command does (owner, 2026-08-14): ZERO WHEN THE ROUTINE GOES
+// ON — including when going on means stopping on purpose — and NON-ZERO ONLY
+// WHEN IT STOPS UNEXPECTEDLY. A verdict this shell was written to reach is not a
+// failure, and a harness that paints exit 11 red teaches both the reader and the
+// agent to read an ordinary "not mine" as a fault.
 //
-//   0  valid       — a legal dispatch for this session's scope; go claim it.
-//   10 invalid     — a forged or mangled dispatch. Comment the printed `reason`,
-//                    remove the ready label, add `needs-human`, end the session.
-//                    It never runs.
-//   14 task-gone   — a well-formed dispatch naming a task this repo no longer
-//                    carries (file removed, pack undeclared). CLOSE the issue
-//                    with the printed reason (owner, 2026-08-06) — an obsolete
-//                    dispatch is not a human's problem. It never runs.
-//   11 not-mine    — the trigger label is the OTHER executor's ready label, is no
-//                    ready label at all, or the issue no longer carries one (a
-//                    dispatch another session has already claimed). Stop. Change
-//                    nothing, comment nothing.
-//   13 needs-issue — a CCR trigger named the issue but carries no body/labels.
-//                    Fetch THAT issue over MCP and re-invoke with them.
-//   12 no-trigger  — NO source names an issue. STOP THE SESSION. There is no
-//                    fallback: never select a dispatch by listing (see below).
-//   2  usage       — bad invocation (an unknown scope argument, an unreadable
-//                    `--issue-body-file`).
-//   1  internal    — an unexpected fault in this shell.
+// Exit 0, `dispatch:` names which one:
+//
+//   valid       — a legal dispatch for this session's scope; go claim it.
+//   needs-issue — a CCR trigger named the issue but carries no body/labels.
+//                 Fetch THAT issue over MCP and re-invoke with them. The routine
+//                 is mid-handshake, not stopped.
+//   invalid     — a forged or mangled dispatch. Comment the printed `reason`,
+//                 remove the ready label, add `needs-human`, end the session.
+//                 It never runs. Prescribed work, so: zero.
+//   task-gone   — a well-formed dispatch naming a task this repo no longer
+//                 carries (file removed, pack undeclared). CLOSE the issue
+//                 with the printed reason (owner, 2026-08-06) — an obsolete
+//                 dispatch is not a human's problem. It never runs.
+//   not-mine    — the trigger label is no ready label at all, or the issue no
+//                 longer carries one (a dispatch another session has already
+//                 claimed). Stop. Change nothing, comment nothing. An expected
+//                 stop is not an error.
+//
+// Non-zero — the routine stops and something needs a human:
+//
+//   12 no-trigger      — NO source names an issue. STOP THE SESSION. There is no
+//                        fallback: never select a dispatch by listing (see below).
+//   15 scope-mismatch  — the trigger label is the OTHER executor's ready label.
+//                        Each routine fires on its own label, so this is a
+//                        MISCONFIGURED ROUTINE (a fleet routine whose prompt lost
+//                        the word `fleet`, most often), not a dispatch to adopt.
+//                        Stop — change nothing, comment nothing — but stop LOUDLY:
+//                        nothing on GitHub records this, the janitor re-arms the
+//                        dispatch, and it declines forever until a human reads it.
+//   2  usage           — bad invocation (an unknown scope argument, an unreadable
+//                        `--issue-body-file`).
+//   1  internal        — an unexpected fault in this shell.
+//
+// Codes 10, 11, 13 and 14 are RETIRED, not renumbered — every one of them now
+// exits 0 under its own `dispatch:` name, and no live code carries a changed
+// meaning for a reader who remembers the old table.
 //
 // THERE IS NO FALLBACK, BY DESIGN. Exit 12 used to send the executor off to list
 // the open dispatches and take the oldest. That is precisely the
@@ -97,11 +120,8 @@ export const EXIT = {
   ok: 0,
   internal: 1,
   usage: 2,
-  invalid: 10,
-  notMine: 11,
   noTrigger: 12,
-  needsIssue: 13,
-  taskGone: 14,
+  scopeMismatch: 15,
 };
 
 // The executor scope a ready label implies — the exact inverse of the mapping the
@@ -318,12 +338,12 @@ async function main() {
       }
       labels = labelsCsv.split(',').map((l) => l.trim()).filter(Boolean);
     } else {
-      done(EXIT.needsIssue, { dispatch: 'needs-issue', issue: number, scope, source: 'ccr', repo: trigger.repo || '(unset)' },
+      done(EXIT.ok, { dispatch: 'needs-issue', issue: number, scope, source: 'ccr', repo: trigger.repo || '(unset)' },
         `the CCR trigger names issue #${number} but carries neither its body nor its labels. Fetch ISSUE #${number} ALONE over MCP (the issue-get tool), save the tool's raw JSON response verbatim to a file, then re-run: node <engine>/scheduler/resolve-dispatch.mjs ${scope} --issue-json <path>. Do not list, select, or touch any other issue.`);
     }
     const { label: ready, error: labelError } = readyLabelAmong(labels);
     if (labelError) {
-      done(EXIT.notMine, { dispatch: 'not-mine', issue: number, scope, labels: labels.join('|') || '(none)' },
+      done(EXIT.ok, { dispatch: 'not-mine', issue: number, scope, labels: labels.join('|') || '(none)' },
         `issue #${number}: ${labelError}. Stop: change nothing, comment nothing.`);
     }
     label = ready;
@@ -331,12 +351,17 @@ async function main() {
 
   const labelScope = scopeForLabel(label);
   if (labelScope === null) {
-    done(EXIT.notMine, { dispatch: 'not-mine', issue: number, scope, label },
+    done(EXIT.ok, { dispatch: 'not-mine', issue: number, scope, label },
       `issue #${number} was labeled "${label}", which is not a ready label — this is not an executor dispatch. Stop: change nothing, comment nothing.`);
   }
+  // The one stop that is NOT ordinary. Each executor routine fires on its own
+  // ready label, so a dispatch arriving under the other scope's label did not
+  // wander in — the routine that woke for it is misconfigured, and nothing on
+  // GitHub will ever say so. Hence non-zero: the session is the only place a
+  // human can read it, and a green exit there reads as "nothing to see".
   if (labelScope !== scope) {
-    done(EXIT.notMine, { dispatch: 'not-mine', issue: number, scope, label, labelScope },
-      `issue #${number} is labeled "${label}", a ${labelScope}-scoped dispatch, but this session's scope is "${scope}"${scopeGiven ? '' : ' (the default — pass "fleet" if this IS the fleet executor)'}. It is the other executor's to run and it already has a session. Stop: change nothing, comment nothing.`);
+    done(EXIT.scopeMismatch, { dispatch: 'scope-mismatch', issue: number, scope, label, labelScope },
+      `issue #${number} is labeled "${label}", a ${labelScope}-scoped dispatch, but this session's scope is "${scope}"${scopeGiven ? '' : ' (the default — pass "fleet" if this IS the fleet executor)'}. Each routine fires on its own ready label, so this session's routine is misconfigured — it will decline every ${labelScope} dispatch until a human fixes its launcher prompt. Stop: change nothing, comment nothing, and say so plainly in your final message.`);
   }
 
   // The checkout the dispatch's task path must resolve in. `exists` reads the
@@ -376,13 +401,13 @@ async function main() {
       ? renderTaskExec({ pack: verdict.pack, task: verdict.task, slotId: slotForRecord, status: verdict.gone ? 'task-gone' : 'invalid' })
       : null;
     if (verdict.gone) {
-      done(EXIT.taskGone, {
+      done(EXIT.ok, {
         dispatch: 'task-gone', issue: number, scope, label, reason: verdict.reason,
         ...(record ? { record } : {}),
       },
         `issue #${number} names a task this repo no longer carries: ${verdict.reason}. It must not run and needs no human: comment the reason, CLOSE the issue (not planned), and end the session. Do not add "needs-human".`);
     }
-    done(EXIT.invalid, {
+    done(EXIT.ok, {
       dispatch: 'invalid', issue: number, scope, label, reason: verdict.reason,
       ...(record ? { record } : {}),
     },

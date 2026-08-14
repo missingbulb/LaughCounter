@@ -5,20 +5,11 @@ import taskLifecycle from './task-lifecycle.mjs';
 import warningSuppression from './warning-suppression.mjs';
 import filePlacement from './file-placement.mjs';
 import squashMergeHistory from './squash-merge-history.mjs';
-import claudeMdLength from './claude-md-length.mjs';
-import generatedMergeDriver from './generated-merge-driver.mjs';
 import sharedConstants from './shared-constants.mjs';
-import catalogCompleteness from './catalog-completeness.mjs';
-import claudiniteIsolation from './claudinite-isolation.mjs';
-import schedulerWorkflowShape from './scheduler-workflow-shape.mjs';
-import taskDeclarationShape from './task-declaration-shape.mjs';
-import taskDeclarationMatchesFolder from './task-declaration-matches-folder.mjs';
-import taskPhaseDiscipline from './task-phase-discipline.mjs';
-import conformanceWorkflow from './conformance-workflow.mjs';
 import rulesLineLength from './rules-line-length.mjs';
 
-// The baseline pack: working discipline, the task lifecycle, and the core
-// checks. Declared explicitly like every other pack — no pack is active by
+// The baseline pack: cross-project working discipline, the task lifecycle, and
+// the general engineering skills. Declared explicitly like every other pack — no pack is active by
 // default. Bootstrap's --init seeds the declaration and the nightly update
 // backfills it into existing consumers; never fingerprinted (the declaration is
 // authoritative — dropping it is a deliberate choice).
@@ -42,39 +33,18 @@ export default {
   marker: null,
   seededByDefault: true,
   prose: 'RULES.md',
-  // The consumer-isolation wall rides the barriers mechanism: basics requires
-  // the barriers pack and CONTRIBUTES the fixed barrier as manifest data
-  // (claudinite-isolation.mjs — pure data, no cross-pack import;
-  // pack-independence). git-github carries the git/GitHub side of the task
-  // lifecycle (#385). Universal because basics is declared everywhere; the
-  // requires closure materializes both declarations alongside it.
-  requires: ['barriers', 'git-github'],
-  contributes: { barriers: [claudiniteIsolation] },
+  // `core` is required rather than assumed: this pack is declared everywhere, so
+  // the closure is what puts Claudinite's own rules in front of every session, and
+  // `barriers` arrives with it. git-github carries the git/GitHub side of the task
+  // lifecycle (#385).
+  requires: ['core', 'git-github'],
   // Rules that audit the repo as it stands, whatever this session did.
   worldRules: [
     markdownLinkLabels,
     rulesLineLength,
     warningSuppression,
     filePlacement,
-    claudeMdLength,
-    generatedMergeDriver,
     sharedConstants,
-    catalogCompleteness,
-    // The per-project scheduling conformance guards (scheduled-tasks.md):
-    // scheduling is baseline Claudinite discipline — the scheduler workflow and
-    // the task-declaration contract are guarded wherever basics is declared
-    // (everywhere). All three are relevance-first: inert until the repo carries
-    // the workflow / a tasks/<name>/task.mjs of its own.
-    schedulerWorkflowShape,
-    taskDeclarationShape,
-    taskDeclarationMatchesFolder,
-    // The precondition-is-the-only-gate discipline (owner, 2026-08-06): an
-    // advisory hunt for tasks that "escape" — skip their work in the prework or
-    // agentic phase after the precondition already said run.
-    taskPhaseDiscipline,
-    // And the CI half of the same discipline: a member whose world sweep cannot
-    // run on a pull request has no gate, and its maintenance PR never lands.
-    conformanceWorkflow,
   ],
   // Rules that judge the change and the session in front of you — the branch's
   // commits, the diff, the conversation.

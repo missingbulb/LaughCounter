@@ -25,7 +25,7 @@ const rule = {
   id: 'task-declaration-shape',
   severity: 'blocking',
   description: 'A tasks/<name>/task.mjs default-exports the full task contract (id, frequency, precondition_signals, agent_model, expected_outcome, agent_instructions, precondition) with legal enum values; an agentic task bounds its run with agent_execution_timeout, and any prework carries a timeout and stays task-local',
-  doc: 'packs/basics/scheduled-tasks.md',
+  doc: 'packs/core/scheduled-tasks.md',
   why: 'the scheduler and executor read agent_model/expected_outcome/frequency from this file, not the dispatch issue — an illegal or missing value means a task never fires, fires wrong, or writes past its ceiling',
 
   run(ctx) {

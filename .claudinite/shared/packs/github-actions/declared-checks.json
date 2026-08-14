@@ -1,0 +1,92 @@
+[
+  {
+    "id": "gha/scheduled-failure-escalation",
+    "severity": "advisory",
+    "failureMessage": "nobody watches a scheduled run — a red run in the Actions list reaches no one",
+    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanTracked": true,
+    "checkEachFile": [
+      {
+        "whenFileMatches": "/^\\s*schedule:/m",
+        "require": "/failure\\(\\)|report-failure/",
+        "what": "runs on a schedule but has no visible failure escalation (no failure() job, no report-failure call)",
+        "fix": "add a job that runs on failure() and opens a workflow-failure tracking issue a human will see (or use the shared report-failure action)"
+      }
+    ]
+  },
+  {
+    "id": "gha/label-create-before-add",
+    "severity": "advisory",
+    "failureMessage": "--add-label fails when the label does not exist yet — GitHub will not create it on demand",
+    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanTracked": true,
+    "checkEachFile": [
+      {
+        "whenFileMatches": "/--add-label/",
+        "require": "/label create/",
+        "what": "uses --add-label with no idempotent `gh label create … || true` beforehand",
+        "fix": "create the label idempotently before adding it, so the workflow survives its first run"
+      }
+    ]
+  },
+  {
+    "id": "gha/unique-automation-branch",
+    "severity": "advisory",
+    "failureMessage": "a date-keyed branch collides with itself on a repeat run for the same key",
+    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanTracked": true,
+    "matchLines": [
+      {
+        "match": "/checkout -b .*\\$\\(date/",
+        "unlessLineMatches": "/\\$RANDOM|github\\.run_id|github\\.run_number|\\$\\{\\{\\s*github\\.sha/",
+        "what": "creates a branch keyed only by the date",
+        "fix": "append a per-run-unique suffix ($RANDOM, github.run_id) to the branch name"
+      }
+    ]
+  },
+  {
+    "id": "gha/pages-artifact-symlinks",
+    "severity": "blocking",
+    "failureMessage": "upload-pages-artifact tars with --dereference and fails on the dangling .claude/skills/* symlinks, blocking every deploy",
+    "relevantWhen": {
+      "trackedFileMatches": "/^\\.claude\\/skills\\//",
+      "noTrackedFileMatches": "/^\\.claudinite\\/skills\\//"
+    },
+    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanTracked": true,
+    "checkEachFile": [
+      {
+        "whenFileMatches": [
+          "/uses:\\s*actions\\/upload-pages-artifact/",
+          "/^\\s*path:\\s*['\"]?\\.\\/?['\"]?\\s*$/m"
+        ],
+        "require": "/\\brm\\b[^\\n]*\\.claude/",
+        "what": "uploads the repo root (path: .) to actions/upload-pages-artifact, but .claude/skills/* are symlinks into the gitignored .claudinite/ corpus (empty in CI) — they dangle and the action tars with --dereference, so the deploy fails",
+        "fix": "add a step before the upload that prunes the agent tooling: `run: rm -rf .claude .claudinite` (never part of a published site)"
+      }
+    ]
+  },
+  {
+    "id": "gha/no-scheduled-fleet-executor",
+    "severity": "blocking",
+    "failureMessage": "a second cron competes with the one schedule the repo is meant to have — the per-repo scheduler, which owns every recurring Claudinite job",
+    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanTracked": true,
+    "excludeFiles": ".github/workflows/claudinite-scheduler.yml",
+    "checkEachFile": [
+      {
+        "relevantWhen": { "pathExists": ".github/workflows/claudinite-scheduler.yml" },
+        "forbid": "/^\\s*schedule:/m",
+        "what": "carries a `schedule:` trigger, but the vendored claudinite-scheduler.yml is this repo's only permitted cron",
+        "fix": "port this workflow's steps into the scheduler task that owns the work and delete the workflow in the same commit — after cutover a task IS the recurring unit, so do not leave a dispatch-only workflow behind for a task to fire (per-project-scheduling §3)"
+      },
+      {
+        "relevantWhen": { "pathAbsent": ".github/workflows/claudinite-scheduler.yml" },
+        "whenFileMatches": "/uses:\\s*\\S*\\/Claudinite\\/\\.github\\/workflows\\//i",
+        "forbid": "/^\\s*schedule:/m",
+        "what": "a Claudinite executor (it calls a canon reusable workflow) carries a `schedule:` trigger",
+        "fix": "remove the schedule: trigger — make it workflow_dispatch only, and adopt the vendored claudinite-scheduler.yml, which owns every recurring Claudinite job (packs/core/scheduled-tasks.md)"
+      }
+    ]
+  }
+]

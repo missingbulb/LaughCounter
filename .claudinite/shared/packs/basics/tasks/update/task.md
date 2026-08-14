@@ -66,10 +66,32 @@ Confirm it exists and that its prompt points at the mounted executor instruction
 
 ## 5. End green, or end at `needs-human`
 
-Run this repo's checks. Green: push to the branch and let the PR land per this repo's
-delivery setting. Not green, or a repair you are not sure of: leave the PR open, label
+Run this repo's checks. Green: push to the branch, then **land the delivery yourself**,
+per this repo's `maintenance.delivery` in `.claudinite-checks.json`:
+
+- **`auto-merge`** — merge the PR. Nothing else will: the deterministic half arms
+  auto-merge only on a `merge` terminal, and yours was `apply-stage`, so the PR is
+  sitting unarmed. This is the one step that puts your work on `main`.
+- **`review`** — leave it open. A human merges it, and that is the setting's whole
+  meaning.
+
+Not green, or a repair you are not sure of: leave the PR open, label
 it `needs-human`, and say in one comment what is unresolved. A withheld workflow you did
 not deliver is "not green" — it stays owed, and the next cycle will stage it again.
+
+**Why you merge it rather than leaving it.** An unmerged PR is not lost — the next
+cycle's disposal merges a green one. But `update` is a **daily** task, so "the next
+cycle" is up to a day away, and until then a workflow you moved into
+`.github/workflows/` on the branch is not in `.github/workflows/` on `main`. That
+standing ~24h offset between a run's output and the member's `main` is the exact defect
+`landDelivery` was written to close for the deterministic half (#649,
+`engine/scheduler/land-pr.mjs`): *the evidence that settles it does not take a day to
+arrive*. The same reasoning binds here — the only difference is that you hold the
+credential, so you are the one who acts on it.
+
+Merging is within this task's ceiling (`expected_outcome: 'merged-pr'`), and a ceiling is
+the most a run may do, never a target — so this is permission, not licence to merge
+something red. Green first, then merge.
 
 Every non-green end looks the same here, and that is the point — a repair nobody
 verified is not a smaller problem than a red check, it is the same problem with less

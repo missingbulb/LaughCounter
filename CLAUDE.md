@@ -1,3 +1,5 @@
+@.claudinite/claudinite-rules.GENERATED.md
+
 ## Project-specific procedures
 
 Local instructions for this repo, layered on the shared Claudinite canon

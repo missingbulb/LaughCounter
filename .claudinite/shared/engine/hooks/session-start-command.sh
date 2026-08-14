@@ -12,8 +12,11 @@
 # checkout itself.
 #
 # Each step's stdout is forwarded to this hook's stdout, which SessionStart adds
-# to the session context (pack prose, a pack's own session-start step, halt-and-ask
-# directives). Progress — a timestamp and what it is doing — is written to .claudinite-hooks.log and to
+# to the session context (a pack's own session-start step, halt-and-ask directives,
+# the summary line) — everything a session can only learn at session time. Static pack
+# prose is NOT here and must not come back: it rides CLAUDE.md, on a channel that does
+# not truncate (#807, and the missing step above).
+# Progress — a timestamp and what it is doing — is written to .claudinite-hooks.log and to
 # stderr, so a triggering failure (no lines at all) reads differently from an
 # execution failure (a step logged `start` but not `done`).
 #
@@ -76,8 +79,14 @@ hooklog orchestrator "start"
 # non-zero exit makes Claude Code DISCARD this hook's stdout, which would throw
 # away the very report it exists to deliver (and any halt directive with it).
 run_step selftest           node "$corpus/engine/selftest.mjs"
-run_step load-active-prose  node "$corpus/engine/pack_loader/inject-pack-prose.mjs"
-# What a pack can only know at session time, after the prose it is fixed beside:
+# NO PROSE STEP. The active packs' RULES.md used to be emitted here, and #807 measured
+# what that cost: 79,750 of this hook's 82,267 bytes, silently truncated to a ~2KB
+# preview on the way into a live session, with no signal back either way. The corpus
+# now reaches a session through `.claudinite/claudinite-rules.GENERATED.md`, imported
+# by the repo's CLAUDE.md, which the harness loads in full
+# (engine/pack_loader/generate-rules-index.mjs). What is left here is what only a
+# session can compute — which is the test for anything proposed for this hook.
+# What a pack can only know at session time:
 # each active pack's own session-start.mjs, run and forwarded into context. Core
 # never learns what one does — the SessionEnd runner's terms, at the other end of
 # the session.
@@ -87,7 +96,7 @@ run_step env-check          node "$corpus/engine/pack_loader/env-requirements.mj
 # The interview machinery is the adoption skill's, bundled in the
 # Claudinite-lifecycle pack — absent when the tree doesn't carry it, and then
 # there is no interview.
-interview="$corpus/packs/grow_with_claudinite/skills/adopt-claudinite/interview.mjs"
+interview="$corpus/packs/core/skills/adopt-claudinite/interview.mjs"
 [ -f "$interview" ] && run_step interview-check node "$interview" check
 # LAST, and about the session rather than the machinery: the one line stating what
 # loaded — the packs, their checks, the token weight of their prose, the skills, and

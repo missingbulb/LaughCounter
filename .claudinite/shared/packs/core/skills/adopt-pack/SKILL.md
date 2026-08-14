@@ -70,12 +70,16 @@ run its install runner against the checkout — sessions never fetch:
 node <canon>/updates/install.mjs --target . <pack-id> [<pack-id>…]
 ```
 
-**Do not hand-roll this with `apply-vendor-set.mjs`.** That lays the files down correctly and gets
-one thing wrong that nothing notices for weeks: it never writes
-`claudinite.packVersions[<id>]`. The pack is then installed but *unversioned*, so the next update
-flow reads `from: null` and — unable to compare numbers — falls back to the landed-date window,
-which can hand a freshly adopted pack records written for the shapes of an older era. "An install
-runs no migrations" is a correctness rule, and the stamp is what enforces it.
+**Do not hand-roll this with `apply-vendor-set.mjs`.** It lays the files down correctly and does one
+thing that nothing notices for weeks: it stamps **every declared pack** at the newest version,
+whether or not the records between were ever applied. `migrationApplies` is `want > have`, so once
+the stamp reaches a record's own version that record stops applying — not for this cycle, but
+permanently. Re-vendoring a repo to add one pack therefore silently burns every pending record for
+the packs it *already* had, and the repo is left claiming a version whose shape it was never
+migrated into.
+
+That is correct behaviour at version zero, where there is no older state to skip; it is wrong
+everywhere else, and adding a pack to a live repo is everywhere else.
 
 The runner declares each pack, vendors its content, stamps it and every pack in its `requires`
 closure at the newest version, runs any one-shot seed ops, and gates on the converged tree's own
