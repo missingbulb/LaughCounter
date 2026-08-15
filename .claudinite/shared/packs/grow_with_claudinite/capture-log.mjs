@@ -231,13 +231,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // SessionEnd capture is its session's only chance, so a blip that outlives one
 // attempt must not end the whole capture. The object-plumbing calls in between
 // keep throwing; those failing is a bug, not weather.
-export async function capture({ root, branch, sessionId, bundled, issue, now, redactions = [] }) {
+// `retryBackoffMs` scales the wait between attempts (attempt N waits N x it). Only
+// the tests set it, so a suite covering the retry path costs milliseconds instead
+// of sitting through the real outage timings it is describing.
+export async function capture({ root, branch, sessionId, bundled, issue, now, redactions = [], retryBackoffMs = 2000 }) {
   let lastError = null;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     const fetched = fetchTip(root, branch);
     if (fetched.unreachable) {
       lastError = `could not reach origin: ${gitError(fetched.unreachable)}`;
-      if (attempt < 3) await sleep(attempt * 2000);
+      if (attempt < 3) await sleep(attempt * retryBackoffMs);
       continue;
     }
     const tip = fetched.tip;
@@ -275,7 +278,7 @@ export async function capture({ root, branch, sessionId, bundled, issue, now, re
     const push = git(root, ['push', '--quiet', 'origin', `${commit}:refs/heads/${branch}`], { allowFail: true });
     if (push.status === 0) return { name, lastTs, entries: delta.length };
     lastError = `push rejected: ${gitError(push)}`;
-    if (attempt < 3) await sleep(attempt * 2000); // lost a race or a network blip — refetch and rebuild
+    if (attempt < 3) await sleep(attempt * retryBackoffMs); // lost a race or a network blip — refetch and rebuild
   }
   throw new Error(`could not capture to ${branch} after 3 attempts — ${lastError}`);
 }

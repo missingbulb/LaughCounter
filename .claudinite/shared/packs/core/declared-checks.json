@@ -14,5 +14,78 @@
         "reason": "consumer files must not couple to the vendored canon — the wiring files are the reviewed exceptions (vendoring/DESIGN.md)"
       }
     ]
+  },
+  {
+    "id": "scheduler-workflow-shape",
+    "severity": "blocking",
+    "failureMessage": "the scheduler is the repo's only cron and its slot math anchors on the hour — a drifted cron or a missing guard silently breaks staggering, double-run safety, or manual runs",
+    "scanFiles": ".github/workflows/claudinite-scheduler.yml",
+    "countMatchingLines": [
+      {
+        "linesMatching": "/\\bcron:\\s/",
+        "atLeast": 1,
+        "atMost": 1,
+        "what": "declares {count} cron schedules, expected exactly one",
+        "fix": "keep a single hourly cron — the scheduler is the repo's only cron"
+      }
+    ],
+    "matchLines": [
+      {
+        "match": "/\\bcron:.*/",
+        "unlessLineMatches": "/\\bcron:\\s*['\"]?(1[0-9]|[2-4][0-9]|50) \\* \\* \\* \\*['\"]?\\s*$/",
+        "what": "{match} is not hourly on a fixed minute in :10\u2013:50",
+        "fix": "use \"<minute> * * * *\" with a minute from 10 to 50 (bootstrap assigns it) — other crons collide with the :00 stampede or break the hourly slot math"
+      }
+    ],
+    "checkEachFile": [
+      {
+        "require": "/^\\s*workflow_dispatch:/m",
+        "what": "has no workflow_dispatch trigger",
+        "fix": "add workflow_dispatch: so the scheduler can be run manually"
+      },
+      {
+        "require": "/^\\s*concurrency:/m",
+        "what": "has no concurrency group",
+        "fix": "add a concurrency: group so overlapping runs serialize (double-run safety)"
+      },
+      {
+        "require": "/engine\\/scheduler\\/run\\.mjs/",
+        "what": "does not run the vendored engine entry",
+        "fix": "the job must run node .claudinite/shared/engine/scheduler/run.mjs — all logic lives in the vendored engine, not the workflow"
+      },
+      {
+        "require": "/^\\s*contents:\\s*write\\b/m",
+        "what": "does not grant contents: write",
+        "fix": "set permissions.contents: write — the update runner pushes its delivery branch; without it the self-refresh 403s"
+      },
+      {
+        "require": "/^\\s*pull-requests:\\s*write\\b/m",
+        "what": "does not grant pull-requests: write",
+        "fix": "set permissions.pull-requests: write — the update runner opens its PR and arms auto-merge; without it the PR create 403s"
+      }
+    ]
+  },
+  {
+    "id": "task-phase-discipline",
+    "severity": "advisory",
+    "failureMessage": "the precondition is the ONLY decision point — a later-phase skip hides work from the run records and re-litigates a verdict already given",
+    "scanFiles": "/(^|\\/)tasks\\/[^/]+\\/(task\\.md|[^/]+\\.mjs)$/",
+    "excludeFiles": "/(^|\\/)tasks\\/[^/]+\\/task\\.mjs$/",
+    "matchLines": [
+      {
+        "whenPathMatches": "/\\.md$/",
+        "match": "/.*\\b([Ss]kip(s|ped|ping)?|stop( here)?|[Aa]bort|[Bb]ail( out)?|[Dd]o\\s+(\\*\\*?not\\*\\*?|not)\\s+(run|proceed|continue|stack)|[Ll]eav(e|ing)\\s+(it\\s+|this\\s+)?(cycle'?s?\\s+)?(converge\\s+)?undelivered)\\b.*/",
+        "andLineMatches": "/\\b(if\\b|when\\b|unless\\b|already\\b|still\\s+(open|running|unreviewed)|(nothing|no\\s+new|not?\\s+\\w+)\\s+(changed|has\\s+changed)|before\\s+(anything|starting|researching)|unset\\s+means|absent\\b)\\b/i",
+        "unlessLineMatches": "/\\bContext\\b|\\bprecondition\\b/",
+        "what": "instructs a conditional skip after the precondition already passed: \"{match}\"",
+        "fix": "move the run/no-run decision into the task.mjs precondition — or, if the work ran and found nothing, reword it as an empty outcome, not a decision to skip"
+      },
+      {
+        "whenPathMatches": "/\\.mjs$/",
+        "match": "/.*(skip(ping)?\\s+this\\s+(cycle|run)|leaving\\s+this\\s+cycle|cycle\\s+skips|nothing\\s+to\\s+self-refresh).*/i",
+        "what": "prework announces a discretionary cycle skip: \"{match}\"",
+        "fix": "let the precondition make that call, or complete the work and report an empty outcome; only a genuine failure may stop a run past the precondition"
+      }
+    ]
   }
 ]

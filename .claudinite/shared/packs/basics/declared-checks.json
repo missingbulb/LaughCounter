@@ -1,5 +1,61 @@
 [
   {
+    "id": "warning-suppression",
+    "severity": "blocking",
+    "failureMessage": "an unexplained suppression hides the signal instead of recording why the fix was rejected",
+    "fix": "add the reason on the suppression line or in the comment above — or fix the cause; if it genuinely can't be annotated, accept it in .claudinite-checks.json with a reason",
+    "scanFiles": "/^(?!.*\\.md$)/",
+    "excludeFiles": "/^packs\\/|(^|\\/)checks\\/test\\/|^\\.claudinite\\/local(\\/packs|_packs)\\/[^/]+\\/([^/]+\\.mjs|skills\\/[^/]+\\/checks\\.mjs)$/",
+    "matchLines": [
+      {
+        "match": "/eslint-disable(-next-line|-line)?(\\s+[\\w@/-]+(\\s*,\\s*[\\w@/-]+)*)?\\s*(\\*\\/)?\\s*$/",
+        "unlessPreviousLineMatches": "/^(?=\\s*(\\/\\/|#|\\*|\\/\\*|<!--))(?=.*[a-zA-Z])(?!.*(eslint-disable|@ts-ignore|@ts-nocheck|\\bnoqa\\b|pylint:\\s*disable|@SuppressWarnings|#\\s*type:\\s*ignore))/",
+        "what": "carries a warning-suppression marker with no reason at the site: {match}"
+      },
+      {
+        "match": "/@ts-ignore\\s*(\\*\\/)?\\s*$/",
+        "unlessPreviousLineMatches": "/^(?=\\s*(\\/\\/|#|\\*|\\/\\*|<!--))(?=.*[a-zA-Z])(?!.*(eslint-disable|@ts-ignore|@ts-nocheck|\\bnoqa\\b|pylint:\\s*disable|@SuppressWarnings|#\\s*type:\\s*ignore))/",
+        "what": "carries a warning-suppression marker with no reason at the site: {match}"
+      },
+      {
+        "match": "/@ts-nocheck\\s*(\\*\\/)?\\s*$/",
+        "unlessPreviousLineMatches": "/^(?=\\s*(\\/\\/|#|\\*|\\/\\*|<!--))(?=.*[a-zA-Z])(?!.*(eslint-disable|@ts-ignore|@ts-nocheck|\\bnoqa\\b|pylint:\\s*disable|@SuppressWarnings|#\\s*type:\\s*ignore))/",
+        "what": "carries a warning-suppression marker with no reason at the site: {match}"
+      },
+      {
+        "match": "/\\bnoqa(:\\s*[A-Z0-9]+(\\s*,\\s*[A-Z0-9]+)*)?\\s*$/",
+        "unlessPreviousLineMatches": "/^(?=\\s*(\\/\\/|#|\\*|\\/\\*|<!--))(?=.*[a-zA-Z])(?!.*(eslint-disable|@ts-ignore|@ts-nocheck|\\bnoqa\\b|pylint:\\s*disable|@SuppressWarnings|#\\s*type:\\s*ignore))/",
+        "what": "carries a warning-suppression marker with no reason at the site: {match}"
+      },
+      {
+        "match": "/pylint:\\s*disable(-next)?=[\\w-]+(\\s*,\\s*[\\w-]+)*\\s*(\\*\\/)?\\s*$/",
+        "unlessPreviousLineMatches": "/^(?=\\s*(\\/\\/|#|\\*|\\/\\*|<!--))(?=.*[a-zA-Z])(?!.*(eslint-disable|@ts-ignore|@ts-nocheck|\\bnoqa\\b|pylint:\\s*disable|@SuppressWarnings|#\\s*type:\\s*ignore))/",
+        "what": "carries a warning-suppression marker with no reason at the site: {match}"
+      },
+      {
+        "match": "/@SuppressWarnings\\s*\\(\\s*(\\{[^}]*\\}|\"[^\"]*\"|'[^']*')\\s*\\)\\s*$/",
+        "unlessPreviousLineMatches": "/^(?=\\s*(\\/\\/|#|\\*|\\/\\*|<!--))(?=.*[a-zA-Z])(?!.*(eslint-disable|@ts-ignore|@ts-nocheck|\\bnoqa\\b|pylint:\\s*disable|@SuppressWarnings|#\\s*type:\\s*ignore))/",
+        "what": "carries a warning-suppression marker with no reason at the site: {match}"
+      },
+      {
+        "match": "/#\\s*type:\\s*ignore(\\[[\\w,\\s-]+\\])?\\s*$/",
+        "unlessPreviousLineMatches": "/^(?=\\s*(\\/\\/|#|\\*|\\/\\*|<!--))(?=.*[a-zA-Z])(?!.*(eslint-disable|@ts-ignore|@ts-nocheck|\\bnoqa\\b|pylint:\\s*disable|@SuppressWarnings|#\\s*type:\\s*ignore))/",
+        "what": "carries a warning-suppression marker with no reason at the site: {match}"
+      }
+    ]
+  },
+  {
+    "id": "rules-line-length",
+    "severity": "advisory",
+    "failureMessage": "a rule changed one word at a time still shows as a whole-paragraph diff when its bullet is one physical line",
+    "scanFiles": "/(^|\\/)RULES\\.md$/",
+    "maxLineLength": {
+      "bytes": 100,
+      "what": "{count} line(s) over {bytes} bytes, longest {longest}",
+      "fix": "wrap the prose at {bytes} columns — a Markdown bullet continues on an indented line, so the rendering is unchanged"
+    }
+  },
+  {
     "id": "claude-md-length",
     "severity": "advisory",
     "failureMessage": "everything in CLAUDE.md loads every session; past ~200 lines it crowds out the rules that matter",
