@@ -2,11 +2,9 @@ import commentClassification from './comment-classification.mjs';
 import referenceIntegrity from './reference-integrity.mjs';
 import markdownLinkLabels from './markdown-link-labels.mjs';
 import taskLifecycle from './task-lifecycle.mjs';
-import warningSuppression from './warning-suppression.mjs';
 import filePlacement from './file-placement.mjs';
 import squashMergeHistory from './squash-merge-history.mjs';
 import sharedConstants from './shared-constants.mjs';
-import rulesLineLength from './rules-line-length.mjs';
 import declaredCheckMessages from './declared-check-messages.mjs';
 
 // The baseline pack: cross-project working discipline, the task lifecycle, and
@@ -40,11 +38,11 @@ export default {
   // lifecycle (#385).
   requires: ['core', 'git-github'],
   // Rules that audit the repo as it stands, whatever this session did.
+  // warning-suppression and rules-line-length are declared checks in this
+  // pack's declared-checks.json, discovered structurally beside these.
   worldRules: [
     markdownLinkLabels,
-    rulesLineLength,
     declaredCheckMessages,
-    warningSuppression,
     filePlacement,
     sharedConstants,
   ],

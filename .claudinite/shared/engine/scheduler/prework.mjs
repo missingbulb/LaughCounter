@@ -39,7 +39,13 @@ export function runPrework(command, {
   echo = (chunk, stream) => (stream === 'stderr' ? process.stderr : process.stdout).write(chunk),
 }) {
   return new Promise((resolve) => {
-    const child = spawn(command, { cwd: taskDir, env, shell: true });
+    // `detached` puts the shell and everything it spawns in their OWN process
+    // group, which is what makes the kill below reach the worker: `shell: true`
+    // means the direct child is `sh -c`, and signalling it alone leaves the
+    // worker running — still acting on the repo, past a bound the scheduler has
+    // already reported as enforced — while `close` waits on the stdio pipes the
+    // survivor still holds.
+    const child = spawn(command, { cwd: taskDir, env, shell: true, detached: true });
     let stdout = '';
     let stderr = '';
     let timedOut = false;
@@ -48,7 +54,9 @@ export function runPrework(command, {
     const mirror = (chunk, stream) => { try { echo?.(String(chunk), stream); } catch { /* the run matters, the echo does not */ } };
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGKILL'); // the hard kill — no grace period past the declared bound
+      // The hard kill — no grace period past the declared bound. Negative pid is
+      // the whole group; if the group is already gone, so is the worker.
+      try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); }
     }, timeoutSeconds * 1000);
 
     child.stdout?.on('data', (d) => { stdout += d; mirror(d, 'stdout'); });

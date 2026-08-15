@@ -57,6 +57,11 @@ import { normalizeEdges, barrierFindings, staleFindings } from './reference-scan
 //                      (string-aware, line count preserved — code-scanning.mjs
 //                      stripComments), so a comment merely naming a forbidden
 //                      token never fires
+//   scanIgnoringMarkdownFences  true = content assertions read each markdown
+//                      file with its fenced code blocks blanked (line count
+//                      preserved — the view checkSections always gets), so an
+//                      example inside a fence never satisfies or trips a
+//                      pattern; non-markdown files are untouched
 //   scanTracked        true = scan every git-tracked file (mode-independent);
 //                      default is ctx.files (the run's scanned set —
 //                      tracked+untracked minus vendored, and only the changed
@@ -78,13 +83,28 @@ import { normalizeEdges, barrierFindings, staleFindings } from './reference-scan
 //                                                         if findings exist
 //   whenMissing        { what, fix } — fires when an exact-path scanFiles is absent
 //   maxLines           { limit, what, fix } — fires past `limit` lines, anchored there
+//   maxLineLength      { bytes, what, fix } — one finding per file whose lines
+//                      run past `bytes` (UTF-8 bytes, so wide characters count
+//                      what they cost), anchored at the first over-long line;
+//                      {count}/{longest}/{bytes} interpolate
 //   skipLinesMatching  RegExp — lines it matches are invisible to matchLines
-//   matchLines         [{ match, unlessLineMatches, whenFileMatches,
-//                         unlessFileMatches, what, fix }]
-//                      flag each line `match` hits (unless `unlessLineMatches`
-//                      hits it too), in files where every `whenFileMatches`
-//                      matches and `unlessFileMatches` does not; per line, the
-//                      first matching assertion wins
+//   matchLines         [{ match, andLineMatches, unlessLineMatches,
+//                         unlessPreviousLineMatches, whenPathMatches,
+//                         whenFileMatches, unlessFileMatches, what, fix }]
+//                      flag each line `match` hits — provided `andLineMatches`
+//                      (if declared) also hits it, `unlessLineMatches` does
+//                      not, and `unlessPreviousLineMatches` does not hit the
+//                      line above (the first line has none) — in files whose
+//                      path matches `whenPathMatches` (absent = every scanned
+//                      file), where every `whenFileMatches` matches the text
+//                      and `unlessFileMatches` does not; per line, the first
+//                      matching assertion wins
+//   countMatchingLines [{ linesMatching, atLeast, atMost, what, fix }]
+//                      per file, the number of lines `linesMatching` hits must
+//                      sit within the declared bounds (at least one bound;
+//                      atMost: 0 forbids the pattern); too many anchors at the
+//                      first line past atMost, too few at the file;
+//                      {count}/{atLeast}/{atMost} interpolate
 //   checkEachFile      [{ relevantWhen, whenFileMatches, require, forbid, what, fix }]
 //                      one finding per file: where every `whenFileMatches`
 //                      matches, `require` must match / `forbid` must not
@@ -221,8 +241,10 @@ const excluded = (path, exclude) =>
 const MSG = ['what', 'fix'];
 const SPEC_KEYS = {
   spec: ['id', 'severity', 'failureMessage', 'fix', 'scanFiles', 'scanTracked', 'excludeFiles',
-    'scanFileClasses', 'excludeFileClasses', 'scanIgnoringComments', 'relevantWhen', 'whenMissing',
-    'maxLines', 'skipLinesMatching', 'matchLines', 'checkEachFile', 'repoWide', 'requirePaths',
+    'scanFileClasses', 'excludeFileClasses', 'scanIgnoringComments', 'scanIgnoringMarkdownFences',
+    'relevantWhen', 'whenMissing',
+    'maxLines', 'maxLineLength', 'skipLinesMatching', 'matchLines', 'countMatchingLines',
+    'checkEachFile', 'repoWide', 'requirePaths',
     'requireIndexCoverage', 'checkParsedFiles', 'forbidReferences',
     'listedInFile', 'coveredByGlobLine', 'checkParsedFile', 'equalParsedValues',
     'forEachParsedEntry', 'checkKeyValueFile', 'checkSections'],
@@ -243,7 +265,10 @@ const SPEC_KEYS = {
   someTrackedFileContains: ['pathMatching', 'text'],
   whenMissing: MSG,
   maxLines: ['limit', ...MSG],
-  matchLines: ['match', 'unlessLineMatches', 'whenFileMatches', 'unlessFileMatches', ...MSG],
+  maxLineLength: ['bytes', ...MSG],
+  matchLines: ['match', 'andLineMatches', 'unlessLineMatches', 'unlessPreviousLineMatches',
+    'whenPathMatches', 'whenFileMatches', 'unlessFileMatches', ...MSG],
+  countMatchingLines: ['linesMatching', 'atLeast', 'atMost', ...MSG],
   checkEachFile: ['relevantWhen', 'whenFileMatches', 'require', 'forbid', ...MSG],
   repoWide: ['unlessSomeFileMatches', 'flagFilesMatching', 'neverFlagFiles', ...MSG],
   requirePaths: ['path', ...MSG],
@@ -345,8 +370,24 @@ function normalizeLegacySpellings(spec) {
 }
 
 // Shape rules the key table can't state: each merged-family entry needs exactly
-// one selector, at least one assertion, and closed-vocabulary mode values.
-function validateMergedEntries(spec, where) {
+// one selector, at least one assertion, and closed-vocabulary mode values; a
+// count entry needs its pattern and a coherent bound.
+function validateEntryShapes(spec, where) {
+  for (const a of spec.countMatchingLines ?? []) {
+    if (!(a.linesMatching instanceof RegExp)) {
+      throw new Error(`${where}: a countMatchingLines entry needs "linesMatching", the pattern it counts`);
+    }
+    const bounds = [a.atLeast, a.atMost].filter((b) => b !== undefined);
+    if (!bounds.length) {
+      throw new Error(`${where}: a countMatchingLines entry needs a bound — "atLeast", "atMost", or both`);
+    }
+    if (bounds.some((b) => !Number.isInteger(b) || b < 0)) {
+      throw new Error(`${where}: countMatchingLines bounds ("atLeast"/"atMost") are whole numbers of lines`);
+    }
+    if (a.atLeast !== undefined && a.atMost !== undefined && a.atLeast > a.atMost) {
+      throw new Error(`${where}: countMatchingLines declares "atLeast" above "atMost" — no count can satisfy it`);
+    }
+  }
   for (const a of spec.checkParsedFiles ?? []) {
     if ((a.file === undefined) === (a.filesMatching === undefined)) {
       throw new Error(`${where}: a checkParsedFiles entry selects by exactly one of "file" or "filesMatching"`);
@@ -417,16 +458,22 @@ function realDateUTC(y, mo, d) {
     ? dt.getTime() : null;
 }
 
-// One parse of a page's section structure, shared by every subscribing rule:
-// fenced lines blanked (count preserved, so line numbers never shift), the
-// first `## ` heading, and each named section's body ({ line, text } entries,
-// 1-indexed) memoized per name.
-function markdownIndex(text) {
+// Fenced code blocks blanked line-for-line, so line numbers never shift — the
+// view markdownIndex always reads, and the one scanIgnoringMarkdownFences
+// hands the content assertions.
+function blankMarkdownFences(text) {
   let inFence = false;
-  const stripped = text.split('\n').map((l) => {
+  return text.split('\n').map((l) => {
     if (/^\s*(```|~~~)/.test(l)) { inFence = !inFence; return ''; }
     return inFence ? '' : l;
-  });
+  }).join('\n');
+}
+
+// One parse of a page's section structure, shared by every subscribing rule:
+// fenced lines blanked, the first `## ` heading, and each named section's body
+// ({ line, text } entries, 1-indexed) memoized per name.
+function markdownIndex(text) {
+  const stripped = blankMarkdownFences(text).split('\n');
   const firstLine = stripped.find((l) => /^##\s/.test(l));
   const sections = new Map();
   return {
@@ -699,18 +746,34 @@ function assertReferenceEdges(ctx, j) {
 
 // One file visited once for every subscribing rule: whole-text assertions and
 // repo-wide bookkeeping first, then a single walk of the lines shared by all
-// the rules' line assertions. A rule with scanIgnoringComments reads the
-// comment-blanked view of the same file (computed at most once per visit;
-// stripComments preserves line count, so both views' line numbers agree and
-// the markdown-section index stays on the raw text).
+// the rules' line assertions. A rule's scanIgnoring* keys pick its VIEW of the
+// same file — comments blanked, markdown fences blanked, or both — each view
+// computed at most once per visit; every blanking preserves line count, so all
+// views' line numbers agree and the markdown-section index stays on the raw
+// text (whose fences markdownIndex already blanks itself).
 function visit(ctx, subs, path, text) {
-  let strippedText = null;
-  const textFor = (j) => (j.spec.scanIgnoringComments ? (strippedText ??= stripComments(text)) : text);
-  let rawSplit = null;
-  let strippedSplit = null;
-  const lines = () => (rawSplit ??= text.split('\n'));
-  const linesFor = (j) => (j.spec.scanIgnoringComments
-    ? (strippedSplit ??= textFor(j).split('\n')) : lines());
+  const fenced = FILE_CLASSES.markdownFiles.test(path);
+  const viewKey = (j) => (j.spec.scanIgnoringComments ? 'c' : '') +
+    (j.spec.scanIgnoringMarkdownFences && fenced ? 'f' : '');
+  const textViews = new Map();
+  const lineViews = new Map();
+  const textFor = (j) => {
+    const key = viewKey(j);
+    if (!textViews.has(key)) {
+      let t = text;
+      if (key.includes('c')) t = stripComments(t);
+      if (key.includes('f')) t = blankMarkdownFences(t);
+      textViews.set(key, t);
+    }
+    return textViews.get(key);
+  };
+  const linesFor = (j) => {
+    const key = viewKey(j);
+    if (!lineViews.has(key)) lineViews.set(key, textFor(j).split('\n'));
+    return lineViews.get(key);
+  };
+  const RAW = { spec: {} };
+  const lines = () => linesFor(RAW);
   let mdIndex = null;
   const md = () => (mdIndex ??= markdownIndex(text));
   const lineJobs = [];
@@ -723,6 +786,37 @@ function visit(ctx, subs, path, text) {
       j.out.push(finding(j.rule, {
         file: path, line: s.maxLines.limit + 1,
         what: fill(s.maxLines.what, vars), fix: fill(s.maxLines.fix, vars),
+      }));
+    }
+    if (s.maxLineLength) {
+      const a = s.maxLineLength;
+      const over = linesFor(j)
+        .map((ln, i) => ({ n: i + 1, bytes: Buffer.byteLength(ln) }))
+        .filter((l) => l.bytes > a.bytes);
+      if (over.length) {
+        const vars = { count: over.length, bytes: a.bytes, longest: Math.max(...over.map((l) => l.bytes)) };
+        j.out.push(finding(j.rule, {
+          file: path, line: over[0].n, what: fill(a.what, vars), fix: fill(a.fix, vars),
+        }));
+      }
+    }
+    for (const a of s.countMatchingLines ?? []) {
+      const view = linesFor(j);
+      let count = 0;
+      let overflowAt = null;
+      for (let i = 0; i < view.length; i++) {
+        if (!a.linesMatching.test(view[i])) continue;
+        count += 1;
+        if (overflowAt === null && a.atMost !== undefined && count === a.atMost + 1) overflowAt = i + 1;
+      }
+      const under = a.atLeast !== undefined && count < a.atLeast;
+      if (!under && overflowAt === null) continue;
+      const vars = { count,
+        ...(a.atLeast !== undefined ? { atLeast: a.atLeast } : {}),
+        ...(a.atMost !== undefined ? { atMost: a.atMost } : {}) };
+      j.out.push(finding(j.rule, {
+        file: path, ...(under ? {} : { line: overflowAt }),
+        what: fill(a.what, vars), fix: fill(a.fix, vars),
       }));
     }
     for (const a of s.checkEachFile ?? []) {
@@ -742,6 +836,7 @@ function visit(ctx, subs, path, text) {
       }
     }
     const eligible = (s.matchLines ?? []).filter((a) =>
+      (!a.whenPathMatches || a.whenPathMatches.test(path)) &&
       arr(a.whenFileMatches).every((re) => re.test(textFor(j))) && !a.unlessFileMatches?.test(textFor(j)));
     if (eligible.length) lineJobs.push({ j, eligible, viewLines: linesFor(j) });
   }
@@ -753,7 +848,8 @@ function visit(ctx, subs, path, text) {
       if (j.spec.skipLinesMatching?.test(ln)) continue;
       for (const a of eligible) {
         const m = ln.match(a.match);
-        if (!m || a.unlessLineMatches?.test(ln)) continue;
+        if (!m || (a.andLineMatches && !a.andLineMatches.test(ln)) || a.unlessLineMatches?.test(ln)) continue;
+        if (a.unlessPreviousLineMatches && i > 0 && a.unlessPreviousLineMatches.test(viewLines[i - 1])) continue;
         const vars = { match: m[0] };
         j.out.push(finding(j.rule, {
           file: path, line: i + 1, what: fill(a.what, vars), fix: fill(a.fix, vars),
@@ -842,11 +938,12 @@ function results(ctx) {
 // (scanFiles: "README.md" is read directly), an authoring error anywhere else.
 const PATH_OR_PATTERN_KEYS = new Set(['scanFiles', 'excludeFiles']);
 const PATTERN_KEYS = new Set([
-  'skipLinesMatching', 'match', 'unlessLineMatches', 'whenFileMatches', 'unlessFileMatches',
+  'skipLinesMatching', 'match', 'andLineMatches', 'unlessLineMatches',
+  'unlessPreviousLineMatches', 'whenPathMatches', 'whenFileMatches', 'unlessFileMatches',
   'require', 'forbid', 'trackedFileMatches', 'noTrackedFileMatches', 'exactlyOneTrackedFileMatches',
   'pathMatching', 'text', 'repoContains', 'unlessSomeFileMatches', 'flagFilesMatching',
   'neverFlagFiles', 'eachTrackedPathMatching', 'eachPathMatching', 'globLineMatching',
-  'filesMatching', 'whereFileContains', 'inFilesMatching', 'pattern',
+  'filesMatching', 'whereFileContains', 'inFilesMatching', 'pattern', 'linesMatching',
   'eachScannedPathMatching', 'coveredByGlobLinesMatching',
 ]);
 const RE_FORM = /^\/(.*)\/([dgimsuvy]*)$/s;
@@ -885,7 +982,7 @@ export function patternRule(declaration, { selfExclude = null } = {}) {
   validateSpecKeys(declaration, 'spec', where);
   const spec = compileSpec(declaration, null, where);
   normalizeLegacySpellings(spec);
-  validateMergedEntries(spec, where);
+  validateEntryShapes(spec, where);
   const classPatterns = (names) => (names ?? []).map((n) => {
     if (!FILE_CLASSES[n]) {
       throw new Error(`${where}: "${n}" is not a file class — the classes are: ${Object.keys(FILE_CLASSES).join(', ')}`);
