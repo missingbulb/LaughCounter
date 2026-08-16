@@ -149,31 +149,11 @@ on the repo's **real** sources; a synthetic clean fixture would have passed and
 the false positive would have shipped, so every new check gets a real-tree case
 alongside its red-first one. (#152/#159)
 
-**Every scheduled session here takes two hits the executor doc doesn't mention —
-expect both and spend nothing re-deriving them.** All six of 2026-08-09's
-scheduled sessions hit both, and each paid a few tool calls working out what had
-happened. First, the Stop hook's **blocking `comment-classification` finding**:
-the scheduler's own dispatch prompt (*"Execute the Claudinite executor: …"*) is
-an owner comment as far as that check is concerned, so a session that never
-declares a class has its first Stop blocked every single time. Emit `Comment
-class: other` in the first substantive reply — a scheduler dispatch is a command
-phrase, which is exactly what `other` covers — and the Stop passes. Second, a
-**second `<github-trigger-context>` for the same issue arrives mid-run**: it is
-the webhook echo of your own `ready-for-agent` → `agent-running` swap, since a
-label change is itself a labeling event. It is not a new dispatch and not a
-competing claim — `resolve-dispatch.mjs` answers `exit 11 / not-mine` precisely
-because *you* are the claimant — so change nothing, comment nothing, do not
-re-dispatch, and do not read it as a lease you lost. (#149/#150/#151/#152/#154/#155)
-
-**When a conformance check flags text, ask what a reader could act on before
-reaching for an `accept`.** `claudinite-isolation` fired on `CLAUDE.md`'s
-orientation header for spelling the vendored mount path. Nothing in that header
-told a reader to go open the directory, so the path was pure decoration that
-coupled a consumer file to a canon-internal layout — exactly the crossing the rule
-exists to prevent, bought for nothing. Rewording to "vendored into this repo and
-injected at session start" kept both facts a reader needs and lost only the
-coupling. An `accept` entry is for a crossing that *must* exist; every one in this
-repo's `.claudinite-checks.json` names a real constraint (a framework-fixed method
-name, a deliberate broad-except, an optional-dependency availability probe). So
-before adding one, delete the part the check is pointing at and see whether
-anything actionable went with it — often nothing does. (#34)
+**Every scheduled session here takes a hit the executor doc doesn't mention —
+expect it and spend nothing re-deriving it.** All six of 2026-08-09's scheduled
+sessions hit it: a second `<github-trigger-context>` for the same issue arrives
+mid-run. It is the webhook echo of your own `ready-for-agent` → `agent-running`
+swap, since a label change is itself a labeling event. It is not a new dispatch
+and not a competing claim — `resolve-dispatch.mjs` answers `exit 11 / not-mine`
+precisely because *you* are the claimant — so change nothing, comment nothing,
+do not re-dispatch, and do not read it as a lease you lost. (#149/#150/#151/#152/#154/#155)
