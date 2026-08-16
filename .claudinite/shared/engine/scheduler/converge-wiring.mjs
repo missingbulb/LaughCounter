@@ -31,6 +31,11 @@ export const REQUIRED_HOOKS = [
 ];
 
 export const SCHEDULER_WORKFLOW = '.github/workflows/claudinite-scheduler.yml';
+// The queue's second workflow (tasks-dispatch DESIGN §14). The first one keeps
+// the path above: in queue mode `claudinite-scheduler.yml` holds the tick and its
+// drain rather than the slot run, so the repo still has exactly one cron, at one
+// well-known path, whichever mechanism it runs.
+export const EXECUTOR_WORKFLOW = '.github/workflows/claudinite-executor.yml';
 export const SETTINGS_PATH = '.claude/settings.json';
 export const CLAUDE_MD = 'CLAUDE.md';
 export const README = 'README.md';
@@ -73,8 +78,33 @@ const repoConfig = async (root) => (await import('../checks/helpers/repo-context
 export async function declaredSecrets(root, config) {
   const { discoverTasks } = await import('./discover.mjs');
   const { tasks } = await discoverTasks(root, config);
-  return [...new Set(tasks.flatMap((t) => t.decl?.required_secrets ?? []))].sort();
+  const names = tasks.flatMap((t) => t.decl?.required_secrets ?? []);
+  // Endpoint tokens ride the same rail (tasks-dispatch DESIGN §12, §14.6): the
+  // config maps an endpoint name to a URL and to the NAME of the Actions secret
+  // holding its token, and the stamp puts that name in the executor's env exactly
+  // as a `required_secrets` entry. The executor reads it only at the moment of the
+  // invocation call; nothing else in a task's life ever sees it.
+  const endpointTokens = Object.values(config?.taskScheduler?.endpoints ?? {})
+    .map((e) => e?.tokenSecret).filter((n) => typeof n === 'string' && n);
+  return [...new Set([...names, ...endpointTokens])].sort();
 }
+
+// Which dispatch mechanism this repo's wiring must express — THE one place the
+// question is answered, so a caller never re-derives it from the config key (three
+// used to, and a default cannot be changed while the rule lives in four places).
+//
+// ABSENCE IS NOW `queue`: the work-item queue is the mechanism, and the slot
+// scheduler is the retired thing a repo must ask for by name. That is what flips the
+// fleet — a member's next converge changes its answer here with no edit to any file
+// the member owns, which is the standing "a default stays in the code, never
+// materialized into a member's config" ruling applied to the migration itself.
+//
+// What the flip does NOT do is move a repo's workflow: `.github/workflows/` is the
+// one path a converge cannot push, so the tick and executor files are staged and
+// landed by the apply stage. Between those two moments the repo answers `queue`
+// while still running the slot workflow — which is why `run.mjs` treats being run at
+// all in queue mode as the reportable state it is, rather than a silent no-op.
+export const dispatchMode = (config) => (config?.taskScheduler?.dispatch === 'slots' ? 'slots' : 'queue');
 
 // Stamp the declared secrets into the scheduler workflow's engine step, beside
 // GITHUB_TOKEN. This is the whole delivery mechanism: GitHub Actions requires each
@@ -83,9 +113,15 @@ export async function declaredSecrets(root, config) {
 // `process.env.<NAME>` like any other environment variable. No bundle, no parsing,
 // no engine-side selection. Regenerated from the stub each converge, so the list
 // tracks the declarations rather than accumulating.
+// A stub says WHERE with the `# claudinite:secrets` marker, and the queue's tick
+// stub needs that: it has two jobs carrying GITHUB_TOKEN and only the executing
+// one may see a secret. The slot stub predates the marker and is stamped under its
+// GITHUB_TOKEN line, which is the same place it always was.
+const SECRETS_MARKER = /^[ \t]*# claudinite:secrets\b.*$/m;
 export function withDeclaredSecrets(stubText, names = []) {
   if (!names.length) return stubText;
   const lines = names.map((n) => `          ${n}: \${{ secrets.${n} }}`).join('\n');
+  if (SECRETS_MARKER.test(stubText)) return stubText.replace(SECRETS_MARKER, (m) => `${m}\n${lines}`);
   return stubText.replace(/^(\s*GITHUB_TOKEN: \$\{\{ github\.token \}\})$/m, `$1\n${lines}`);
 }
 
@@ -109,8 +145,18 @@ export function schedulerWorkflowTarget(fullName, stubText, secretNames = []) {
 }
 
 export function convergeSchedulerWorkflow(root, fullName, stubText, secretNames = []) {
-  const target = schedulerWorkflowTarget(fullName, stubText, secretNames);
-  const path = join(root, SCHEDULER_WORKFLOW);
+  return writeWorkflow(root, SCHEDULER_WORKFLOW, schedulerWorkflowTarget(fullName, stubText, secretNames));
+}
+
+// The queue's second workflow — the label-event executor. No cron of its own (the
+// tick's drain is the poll), so nothing about it is hashed; it only needs its
+// secrets stamped.
+export function convergeExecutorWorkflow(root, stubText, secretNames = []) {
+  return writeWorkflow(root, EXECUTOR_WORKFLOW, withDeclaredSecrets(stubText, secretNames));
+}
+
+function writeWorkflow(root, relPath, target) {
+  const path = join(root, relPath);
   const current = existsSync(path) ? readFileSync(path, 'utf8') : null;
   if (current === target) return false;
   mkdirSync(dirname(path), { recursive: true });
@@ -384,9 +430,14 @@ export function convergeBadgeRow(root, entries) {
 // wrote one it cannot deliver would fail its whole push, not just that file.
 // `seedLocalPack` defaults off for the same reason `badges` does: both are one-time
 // seeds of files the repo then owns, and only bootstrap passes them.
-export async function convergeWiring(root, fullName, stubText, secretNames = [], { badges = false, workflows = true, seedLocalPack = false } = {}) {
+export async function convergeWiring(root, fullName, stubText, secretNames = [], { badges = false, workflows = true, seedLocalPack = false, executorStub = null } = {}) {
   const changed = [];
   if (workflows && convergeSchedulerWorkflow(root, fullName, stubText, secretNames)) changed.push(SCHEDULER_WORKFLOW);
+  // In queue mode `stubText` IS the tick stub (the CLI picks it by dispatch mode),
+  // and the executor is its second workflow. Nothing removes the executor when a
+  // repo flips back: rolling back is a config edit, and an executor workflow whose
+  // repo runs no queue simply never sees a `task:ready` label event.
+  if (workflows && executorStub && convergeExecutorWorkflow(root, executorStub, secretNames)) changed.push(EXECUTOR_WORKFLOW);
   const hooks = ensureHooks(root);
   for (const h of hooks.added) changed.push(`hook:${h}`);
   if (removeRetiredCorpusImport(root)) changed.push(`removed retired ${CLAUDE_MD} corpus import`);
@@ -422,10 +473,18 @@ async function main() {
   const fullName = argv.find((a) => !a.startsWith('--')) || process.env.GITHUB_REPOSITORY || process.env.CLAUDINITE_REPO;
   if (!fullName) { console.error('converge-wiring: need owner/repo (argv or GITHUB_REPOSITORY)'); process.exit(1); }
   const root = process.env.CLAUDINITE_REPO_ROOT || process.cwd();
-  const stubPath = join(root, '.claudinite/shared/engine/scheduler/stubs/claudinite-scheduler.yml');
+  const config = await repoConfig(root);
+  // Which stub the repo's one cron workflow gets is the dispatch mode's whole
+  // wiring consequence: `slots` keeps the slot scheduler, `queue` puts the tick
+  // and its drain at the same path and adds the executor beside it.
+  const queue = dispatchMode(config) === 'queue';
+  const stubs = join(root, '.claudinite/shared/engine/scheduler/stubs');
+  const stubPath = join(stubs, queue ? 'claudinite-tick.yml' : 'claudinite-scheduler.yml');
   if (!existsSync(stubPath)) { console.error(`converge-wiring: vendored stub not found at ${stubPath}`); process.exit(1); }
-  const secretNames = await declaredSecrets(root, await repoConfig(root));
-  const { changed, error } = await convergeWiring(root, fullName, readFileSync(stubPath, 'utf8'), secretNames, { badges, seedLocalPack });
+  const executorStub = queue && existsSync(join(stubs, 'claudinite-executor.yml'))
+    ? readFileSync(join(stubs, 'claudinite-executor.yml'), 'utf8') : null;
+  const secretNames = await declaredSecrets(root, config);
+  const { changed, error } = await convergeWiring(root, fullName, readFileSync(stubPath, 'utf8'), secretNames, { badges, seedLocalPack, executorStub });
   if (error) console.log(`! ${error}`);
   console.log(changed.length ? `converge-wiring: ${changed.join(', ')}` : 'converge-wiring: already converged');
 }

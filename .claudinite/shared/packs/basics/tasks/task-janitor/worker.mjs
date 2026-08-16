@@ -103,10 +103,26 @@ export async function sweep(gh, repo, now) {
   return result;
 }
 
+// WHICH SWEEP is the repo's dispatch mode (tasks-dispatch DESIGN §14): the two
+// mechanisms have disjoint issue families, so a janitor that ran both sweeps would
+// find nothing in one of them and a janitor that ran the wrong one would find
+// nothing at all — and report a clean bill of health either way. One repo, one
+// mechanism, one sweep.
 export async function main() {
   const repo = process.env.CLAUDINITE_REPO || process.env.GITHUB_REPOSITORY;
   if (!repo) throw new Error('CLAUDINITE_REPO / GITHUB_REPOSITORY is not set (owner/repo)');
   if (!process.env.GITHUB_TOKEN) throw new Error('GITHUB_TOKEN is not set — the janitor cannot read or write issues');
+  const root = process.env.CLAUDINITE_REPO_ROOT || process.cwd();
+  const { loadConfig } = await import('../../../../engine/checks/helpers/repo-context.mjs');
+  const config = loadConfig(root);
+  const { dispatchMode } = await import('../../../../engine/scheduler/converge-wiring.mjs');
+  if (dispatchMode(config) === 'queue') {
+    const { sweepQueue } = await import('./queue-sweep.mjs');
+    const { discoverTasks } = await import('../../../../engine/scheduler/discover.mjs');
+    const { tasks } = await discoverTasks(root, config);
+    await sweepQueue(makeGh(), repo, new Date(), { tasks, log });
+    return;
+  }
   await sweep(makeGh(), repo, new Date());
 }
 

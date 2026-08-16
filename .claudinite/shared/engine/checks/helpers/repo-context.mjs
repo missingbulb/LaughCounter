@@ -146,7 +146,15 @@ export const isDormant = (config) => config?.dormant === true;
 // The keys a `schedule` object may carry, and the canonical weekday vocabulary
 // (mirrored from engine/scheduler/slots.mjs WEEKDAYS — kept as a literal here so
 // the checks layer does not import the scheduler engine).
-const SCHEDULE_KEYS = ['dailyHour', 'weeklyDay', 'monthlyDay'];
+const SCHEDULE_KEYS = ['dailyHour', 'weeklyDay', 'monthlyDay', 'dispatch', 'endpoints'];
+
+// Which dispatch mechanism this repo runs (tasks-dispatch DESIGN §14). The two
+// coexist per-repo behind this one key, sharing the task contract and keeping
+// disjoint issue families (`[claudinite-task]` vs `[claudinite-work]`) — so a repo
+// can move either way with each mechanism's open items untouched by the other.
+// ABSENCE MEANS `queue`: the answer lives in `dispatchMode`, and `slots` is the
+// retired mechanism a repo must now ask for by name.
+export const DISPATCH_MODES = ['slots', 'queue'];
 const SCHEDULE_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // The properties a `packs` entry object may carry: the pack's parameters
@@ -311,6 +319,26 @@ export function loadConfig(root) {
       }
       if (monthlyDay !== undefined && !(Number.isInteger(monthlyDay) && monthlyDay >= 1 && monthlyDay <= 31)) {
         errors.push({ what: `"taskScheduler.monthlyDay" must be an integer 1–31, got ${JSON.stringify(monthlyDay)}`, fix: 'set a day of the month, 1 through 31 (clamped to the month length)' });
+      }
+      const { dispatch, endpoints } = raw.taskScheduler;
+      if (dispatch !== undefined && !DISPATCH_MODES.includes(dispatch)) {
+        errors.push({ what: `"taskScheduler.dispatch" must be one of ${DISPATCH_MODES.join(', ')}, got ${JSON.stringify(dispatch)}`, fix: 'omit it for the work-item queue, or set "slots" to keep the retired slot scheduler' });
+      }
+      // The endpoint map (tasks-dispatch DESIGN §12): a name → { url, tokenSecret }.
+      // `tokenSecret` is the NAME of a repo Actions secret and never a value —
+      // that indirection is the whole reason a task may declare an endpoint at all,
+      // since a task declaration is vendored verbatim into every consuming repo.
+      if (endpoints !== undefined) {
+        if (endpoints === null || typeof endpoints !== 'object' || Array.isArray(endpoints)) {
+          errors.push({ what: '"taskScheduler.endpoints" must be an object of endpoint name → { url, tokenSecret }', fix: 'e.g. { "default": { "url": "https://…", "tokenSecret": "CCR_SESSION_TOKEN" } }' });
+        } else {
+          for (const [name, entry] of Object.entries(endpoints)) {
+            if (entry === null || typeof entry !== 'object' || Array.isArray(entry)
+                || typeof entry.url !== 'string' || typeof entry.tokenSecret !== 'string') {
+              errors.push({ what: `"taskScheduler.endpoints.${name}" must be { url, tokenSecret } (both strings)`, fix: 'give the endpoint an invocation URL and the NAME of the repo Actions secret holding its token — never the token itself' });
+            }
+          }
+        }
       }
       taskScheduler = raw.taskScheduler;
     }

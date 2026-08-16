@@ -93,7 +93,7 @@ Apply the same narrowness as the other two:
 
 Take the surface from wherever the framework already defines it, rather than restating it. If some other rule enforces "an extension may import only X," that same X is what placement should exempt — one definition, so the two can't drift apart and disagree about the same import.
 
-In this corpus that means a pack module under `packs/` or `.claudinite/local/packs/` importing the engine surface (everything under `engine/` — `engineSurface()` in `engine/checks/helpers/module-imports.mjs`, the allow list the `pack-independence` barrier enforces; vendored under `.claudinite/shared/` in a consuming repo). The `basics/file-placement` check implements this exemption, so a pack rule's `findings.mjs` import needs no acceptance entry. A pack reaching into *another* pack, or deep into its own subtree, is judged normally.
+In this corpus that means a pack module under `packs/` or `.claudinite/local/packs/` importing the engine surface (everything under `engine/` — `engineSurface()` in `engine/checks/helpers/module-imports.mjs`, the allow list the `pack-independence` barrier enforces; vendored under `.claudinite/shared/` in a consuming repo). The `basics/file-placement` check implements this exemption, so a pack rule's `findings.mjs` import is never flagged at all. A pack reaching into *another* pack, or deep into its own subtree, is judged normally.
 
 ## Tooling acts on paths: encode act-on-able distinctions structurally
 
@@ -115,4 +115,5 @@ This complements the reference-distance metric, which asks *what a file depends 
 - When **placing a new file**, put it where its distance-0/1 neighbors are — with the files it will import and that will import it. If no such home exists, that's a hint the structure needs a new folder, not that the file goes "somewhere."
 - When **reviewing**, scan a file's imports/links and ask how far each reaches. A cluster of distance-2+ references is a refactor prompt, not a nit.
 - Use it as a **direction, not a hard gate.** The goal is low *average* reach and no surprising *far* reach — not a mechanical ban on distance ≥ 2.
+- The check that measures this is **advisory and stays advisory.** It never fails a run and takes no acceptance entry in `.claudinite-checks.json`: a finding is a placement question to answer in the tree — move the file, lift the dependency, introduce an entry point, or judge the reach deliberate and leave it. Writing config to release it would be paying review cost to silence something that was never holding anything up.
 

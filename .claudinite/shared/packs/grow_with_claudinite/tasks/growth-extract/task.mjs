@@ -19,6 +19,12 @@
 export default {
   id: 'growth-extract',
   frequency: 'daily-1h',           // the 03:00 slot — lessons captured from an already-converged mount (DESIGN §2)
+  // …and, where the repo dispatches through the work-item queue, the ordering the
+  // anchor hour only IMPLIES, declared (tasks-dispatch DESIGN §9): this task reads
+  // a mount `core/update` converges, so it yields while that task's item is live
+  // this cycle and runs the moment it converges — or rolls. Ignored under slot
+  // dispatch, where the staggered anchors carry the same intent.
+  after: ['core/update'],
   precondition_signals: ['commits', 'prs', 'issues', 'conversationLogs'],
   agent_model: 'opus',                   // generalizing/curating lessons is the heaviest judgment, and the default delivery lands the PR with no human review
   expected_outcome: 'merged-pr',            // additive edits to the repo's own local packs; delivered to land per the repo's delivery settings

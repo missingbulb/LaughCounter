@@ -33,14 +33,19 @@ const FETCH_ATTEMPTS = 3;
 
 const note = (s) => process.stdout.write(`USER PREFERENCES: ${s}\n`);
 
-// How many preferences this person actually has, stated on the engine's facet
-// channel (engine/pack_loader/run-pack-session-start.mjs) so the session's opening
-// summary can say it. One distilled preference per bullet is the store's rule, so
-// the bullets ARE the count — and this step is the only thing in the session that
-// can take it, since the file it read lives in another repository.
+// What these preferences cost the session, stated on the engine's facet channel
+// (engine/pack_loader/run-pack-session-start.mjs) so the opening summary can say it
+// in the unit it states the rest of the load in. This step is the only thing in the
+// session that can weigh them: the file it read lives in another repository.
+//
+// Words at the standard English ratio, the same estimate the summary line makes of
+// the corpus prose — a character count is thrown off by exactly what these files are
+// full of, punctuation-dense Markdown. Rounded to 10 where the corpus rounds to 500,
+// because this is hundreds of tokens against its tens of thousands.
 const facet = (text) => {
-  const n = text.split('\n').filter((line) => /^\s*[-*]\s+\S/.test(line)).length;
-  if (n) process.stdout.write(`CLAUDINITE-FACET: ${n} personal preference rule${n === 1 ? '' : 's'}\n`);
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  const tokens = Math.round(words / 0.75 / 10) * 10;
+  if (tokens) process.stdout.write(`CLAUDINITE-FACET: ${tokens.toLocaleString('en-US')} personal preference tokens\n`);
 };
 
 const emit = (s) => { facet(s); process.stdout.write(s.endsWith('\n') ? s : `${s}\n`); process.exit(0); };

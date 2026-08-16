@@ -1,5 +1,4 @@
 import rulesIndexCurrent from './rules-index-current.mjs';
-import coreDeclared from './core-declared.mjs';
 import conformanceWorkflow from './conformance-workflow.mjs';
 import taskDeclarationShape from './task-declaration-shape.mjs';
 import taskDeclarationMatchesFolder from './task-declaration-matches-folder.mjs';
@@ -38,9 +37,8 @@ export default {
   // required for the per-repo config rule members' own edges ride.
   requires: ['barriers'],
   worldRules: [
-    // The declaration itself, and the index the declaration produces — the two
-    // things that decide whether this member is running Claudinite at all.
-    coreDeclared,
+    // The index the declaration produces; the declaration itself is guarded by
+    // core-declared, a declared check in this pack's declared-checks.json.
     rulesIndexCurrent,
     // The member's plumbing — the CI gate its maintenance PR merges through
     // (relevance-first: inert until the repo carries the artifact). The

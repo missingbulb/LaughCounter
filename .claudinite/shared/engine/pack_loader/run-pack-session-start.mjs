@@ -33,7 +33,7 @@
 // orchestrator's whole stdout, including the steps that did work.
 //
 // THE FACET CHANNEL. A step may also state one short phrase about what it loaded —
-// `CLAUDINITE-FACET: 7 personal preference rules` on a line of its own. Those lines
+// `CLAUDINITE-FACET: 450 personal preference tokens` on a line of its own. Those lines
 // are lifted out of the step's contribution and appended to the file
 // CLAUDINITE_SESSION_FACETS names, where the summary step (session-summary.mjs)
 // folds them into the one line a session opens with. It rides the step, and not a

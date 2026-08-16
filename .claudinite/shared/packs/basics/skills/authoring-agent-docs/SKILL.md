@@ -76,6 +76,8 @@ this section has none. It is how the rules in this corpus's `RULES.md` files are
 - **Splitting a rule that only makes sense after the one above it** — don't. If the subject
   needs a "that" pointing back ("Writing that record"), it is a clause of the rule above, not a
   situation of its own. Split when a reader could arrive at the second rule without the first.
+- **Separating the blocks** — one blank line between rules. The block is what a reader lands on,
+  and an unbroken run of bullets makes them scan lines instead; the separation costs one token.
 - **Ordering a file of many rules** — past roughly fifteen, group them under headings naming the
   surface each concerns, so a reader scans headings before subjects. A flat list that long makes
   every bold subject do the work one heading would.
@@ -99,6 +101,16 @@ this section has none. It is how the rules in this corpus's `RULES.md` files are
 - **Cutting a rule's prose** — drop rationale that only restates the rule, examples that
   re-express it, and mechanics another document owns. Keep the motivation itself: a consequence
   the reader needs in order to apply the rule under pressure earns its clause.
+- **Carrying the evidence a rule came from** — dates, issue and session ids, quoted exchanges and
+  the story of the incident are archaeology, and the commit that added the rule keeps them. Keep a
+  measurement only where the number *is* the argument — a cost the reader wouldn't believe stated
+  qualitatively ("the retry ran to 81% of a session's tool wall-clock"). A rule that reads as a
+  post-mortem with a directive at the top is the wrong way round.
+- **Auditing a file of rules that already exists** — take each rule and ask what a reader would
+  get wrong without it. Fold the one whose subject points back at its neighbour; cut the one another
+  pack already carries, the one a check now enforces (keeping only the half the check can't see),
+  and the one whose mechanism has since been retired — a rule naming code that no longer exists
+  teaches a world the reader won't find.
 - **Rewriting an existing rule** — carry the source's own strength forward. A rewrite must not
   weaken a rule, and it must not strengthen one either.
 
