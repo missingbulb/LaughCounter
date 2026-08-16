@@ -27,6 +27,12 @@
     "mechanism": "versioned"
   },
   "taskScheduler": {
+    "endpoints": {
+      "default": {
+        "url": "https://api.anthropic.com/v1/claude_code/routines/trig_01RD71c5quPEaqaLwMKhLuiK/fire",
+        "tokenSecret": "CCR_ROUTINE_TOKEN"
+      }
+    },
     "dailyHour": 4,
     "weeklyDay": "Sun",
     "monthlyDay": 1

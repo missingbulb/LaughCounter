@@ -71,6 +71,7 @@ jobs:
           # The wiring converge stamps every declared required_secret, and every
           # configured invocation endpoint's token, below this marker — by name.
           # claudinite:secrets
+          CCR_ROUTINE_TOKEN: ${{ secrets.CCR_ROUTINE_TOKEN }}
         run: node .claudinite/shared/engine/scheduler/queue/executor.mjs
 
   # A scheduled run reaches no one when it goes red, so escalate a whole-run
