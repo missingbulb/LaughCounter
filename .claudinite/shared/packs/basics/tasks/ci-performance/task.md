@@ -1,0 +1,41 @@
+# Find out why CI got slower, and fix it if it is worth fixing
+
+You are here because prework measured this repo's CI and found at least one workflow whose median
+duration this week is materially above the week before. The dispatch names the workflow and the
+before/after; the standing tracker issue (`[claudinite] CI performance`) carries the full table and
+the step breakdown of the slowest run.
+
+The whole of *how* is the [ci-performance-evaluation](../../skills/ci-performance-evaluation/SKILL.md)
+skill. Follow it in order — it is written so each step tells you whether the next is worth doing.
+Don't re-derive it here.
+
+## What is yours in particular
+
+- **The regression is a claim to test, not a fact to act on.** Prework compared two medians; it did
+  not establish a cause, and runner weather, a new test suite, or a genuinely bigger repo all move
+  a median. Confirm the change is real and attributable before optimizing anything, and if it is
+  not, say so on the tracker and stop — that is a complete outcome.
+- **Find the cause before the fix.** The skill's steps 3–5 exist because the obvious suspect is
+  usually wrong. A broad band of similar-duration tests means a shared fixture cost, not a slow
+  test; a test that waits on a timeout is often reporting a bug in the thing it tests.
+- **A/B against the whole suite and revert what does not show** (step 7). A change that helps one
+  file and nothing overall does not ship.
+- **Report both numbers separately** (step 8): what changed locally and what changed in a real CI
+  run, with the mechanism for any gap.
+
+## Landing it
+
+One PR, ceilinged at `open-pr` — a change to how this repo builds or tests is always reviewed.
+Reference the tracker issue in the PR body, and comment the PR link on the tracker so the week the
+regression was open is legible afterwards.
+
+If the honest answer is that the regression is real and not worth fixing — the suite grew because
+the repo grew — write that on the tracker with the numbers behind it and open no PR. A measurement
+that concludes "this is the correct cost" is the point of taking the measurement.
+
+## What you must not do
+
+- **Never merge.** This task is ceilinged at `open-pr` and the executor enforces it in code.
+- **Never make a test weaker to make it faster** — deleting coverage, dropping a case, loosening an
+  assertion, or excluding a suite from the run. If a test genuinely costs more than it is worth,
+  that is an argument to put to the owner on the tracker, not a change to land here.

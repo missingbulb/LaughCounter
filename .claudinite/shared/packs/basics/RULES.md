@@ -10,17 +10,11 @@ change, independent of any one project.
 
 - **Replying to an owner comment** — open with an explicit classification line,
   `Comment class: correction | feature | process-change | other`, where `other` covers questions,
-  approvals and command phrases and a mixed comment names each part.
-
-- **Replying to an automation dispatch prompt** — it is a comment too: classify it, class `other`,
-  in your *first* substantive reply rather than at the end of the run.
-
-- **Writing that classification line** — put the class **alone on it** and any explanation on the
-  next line; the line is scanned for *every* class token on it, so restating the menu declares all
-  of them.
-
-- **Wanting to change a class you already declared** — it cannot be taken back, and a clean
-  re-declaration further down does not override the first.
+  approvals and command phrases and a mixed comment names each part. An automation dispatch prompt
+  is a comment too: class `other`, in your *first* substantive reply rather than at the end of the
+  run. Put the class **alone on the line** and any explanation on the next one: the line is scanned
+  for *every* class token on it, so restating the menu declares all of them. A class cannot be taken
+  back, and a clean re-declaration further down does not override the first.
 
 - **Acting on a correction** — you misunderstood something. Repair the shared understanding, then
   rework what the misread already touched; the artifact changes as much as the correction demands,
@@ -37,21 +31,15 @@ change, independent of any one project.
   interactive session's.
 
 - **Choosing what goes on that ladder** — only a rule that constrains *how work is done* and
-  outlives any one feature; a checkable signature doesn't earn a rule its place.
-
-- **Vetting a rule before it goes on the ladder** — reject two shapes outright: a check that
-  asserts particular code exists or still reads a particular way (it pins a point in time), and a
-  rule derivable from the product's requirements (that is a requirement — take it to the feature
-  path, the requirements document and the test that proves it).
+  outlives any one feature; a checkable signature doesn't earn a rule its place. Reject two shapes
+  outright: a check that asserts particular code exists or still reads a particular way (it pins a
+  point in time), and a rule derivable from the product's requirements (that is a requirement —
+  take it to the feature path, the requirements document and the test that proves it).
 
 - **Landing a rule anywhere on the ladder** — author the assurance first, the check the future
   world must satisfy, execute it and watch it fail, and only then make the fixes that turn it green.
-
-- **Landing a rule at the prose rung** (an in-flight judgment rule no check can carry) — the
-  equivalent step is showing the corpus doesn't already cover the rule before writing it.
-
-- **Starting work on either build path** — they share one spine: state the expectation in its
-  durable home first, watch it fail against the current world, then change the world to satisfy it.
+  At the prose rung, where no check can carry an in-flight judgment rule, the equivalent step is
+  showing the corpus doesn't already cover the rule before writing it.
 
 - **Building a mechanism for a behavior** — verify against a real run that it isn't already
   provided.
@@ -60,10 +48,8 @@ change, independent of any one project.
   first; copying a mechanic from a sibling repo is the tell that it belongs centrally. If no pack
   owns it, report the gap rather than author a third copy.
 
-- **Taking on a task** — minimize its shelf-life, the time from starting it until everyone can
-  forget about it.
-
-- **Finishing a change** — watch it work **now**; never park it on "check tomorrow".
+- **Finishing a change** — watch it work **now**; never park it on "check tomorrow". What a task
+  costs is its shelf-life, the time from starting it until everyone can forget about it.
 
 - **Changing scheduled or unattended machinery** — force a run now (the scheduler's `FORCE_TASKS`
   lever, a `workflow_dispatch`, the fleet-wide force sweep) and watch it to a terminal state rather
@@ -88,9 +74,15 @@ change, independent of any one project.
   version from the *source* before reading the existing draft, then diff against the old draft to
   surface what was actually wrong.
 
+- **Acting on an approval to merge, ship or proceed** — it applies only *backward*, to the work
+  already in front of the owner when it's given, never to anything requested or done *after* it. A
+  later follow-up, even a fix to the just-approved change, needs its own explicit approval — and a
+  multiple-choice answer is not an approval at all, even when an option's wording mentioned the
+  action.
+
 ## Harness-tool contracts
 
-Three contracts worth knowing before you spend a call rediscovering them.
+Contracts worth knowing before you spend a call rediscovering them.
 
 - **Searching for a tool with `ToolSearch`** — a search that finds nothing is evidence about your
   query, not about the environment. Search the fully-qualified name (`select:mcp__<server>__<tool>`,
@@ -106,25 +98,25 @@ Three contracts worth knowing before you spend a call rediscovering them.
   sibling URL — attribute the search snippet to the publisher instead of asserting it, and mark it
   for re-verification.
 
-- **Seeing a build, test or CI warning** — fix it rather than tolerate it, with a small, targeted
-  fix that addresses the *cause* in the same change.
-
-- **Suppressing a warning** — muting it with a flag (e.g. `--disable-warning`), `eslint-disable`,
-  swallowing it — is **not** a small fix and never the quick path. Reach for it only as a
-  deliberate, reviewed decision once the real fix has been weighed and rejected.
-
-- **Keeping a suppression** — **carry its reason at the site**, on the suppression line or in the
-  comment immediately above it, saying why the fix was rejected; that inline reason *is* the review
-  record, so record no second justification elsewhere.
-
-- **Waiving a finding on *text* rather than code** — try deleting the flagged phrase first; a
-  waiver is for a crossing that genuinely must exist.
-
 - **Hitting a sandbox or proxy that denies a fetch** — treat it as a **policy boundary, not an
   obstacle to route around**: don't reach for an open-network runner, an ad-hoc CI workflow or a
   push-triggered "probe", to make the request from somewhere the policy doesn't apply. Answer from
   committed reference material or ask the owner, and say plainly that anything unverifiable is
   unverified.
+
+## Warnings and findings
+
+- **Seeing a build, test or CI warning** — fix it rather than tolerate it, with a small, targeted
+  fix that addresses the *cause* in the same change.
+
+- **Suppressing a warning** — muting it with a flag (e.g. `--disable-warning`), `eslint-disable`,
+  swallowing it — is **not** a small fix and never the quick path. Reach for it only as a
+  deliberate, reviewed decision once the real fix has been weighed and rejected, and **carry the
+  reason at the site**, on the suppression line or the comment immediately above it; that inline
+  reason *is* the review record, so record no second justification elsewhere.
+
+- **Waiving a finding on *text* rather than code** — try deleting the flagged phrase first; a
+  waiver is for a crossing that genuinely must exist.
 
 - **Working around a finding from a vendored check** — confirm the vendored copy is current first;
   the fix may already exist upstream and simply not be pulled in.
@@ -133,13 +125,6 @@ Three contracts worth knowing before you spend a call rediscovering them.
   upstream release, or the real fix is a larger refactor) — open a dedicated issue unless one is
   already open, then move on. Resolving it, by real fix or a consciously-chosen suppression, happens
   in that issue's own change.
-
-- **Acting on an approval to merge, ship or proceed** — it applies only *backward*, to the work
-  already in front of the owner when it's given, never to anything requested or done *after* it. A
-  later follow-up, even a fix to the just-approved change, needs its own explicit approval.
-
-- **Treating a multiple-choice answer as authorization** — it isn't, even when an option's wording
-  mentioned the action.
 
 # The task lifecycle
 
@@ -154,27 +139,19 @@ For every new task:
 3. Update the issue's status (comments / close) as work progresses and when it's done.
 
 - **Handing over a step only a human can perform** (flipping a repository or console setting,
-  granting a permission, adding a secret) — give it **its own issue**, never a note in the PR
-  body. The exception is a step whose home is an artifact the human is already editing.
-
-- **Writing that hand-over issue** — give it a checkbox per step, what breaks while each is off,
-  and its closing condition.
-
-- **Before handing a step over at all** — confirm you genuinely can't do it yourself.
+  granting a permission, adding a secret) — first confirm you genuinely can't do it yourself, then
+  give it **its own issue**, never a note in the PR body, with a checkbox per step, what breaks
+  while each is off, and its closing condition. The exception is a step whose home is an artifact
+  the human is already editing.
 
 # Engineering practices
 
-General software-engineering practices, independent of any one project — portable, shared rules;
-project-specific rules (architecture, test mechanics) live in the consuming repo's own docs. The
-portable git/GitHub-operational practices — branch/commit history, merging, automated-job branches
-— live in [the git-github-advanced skill](../git-github/skills/git-github-advanced/SKILL.md); the
-mechanics of searching and rewriting text across files — grep/sed sweeps, renames, broken
-references — live in [the repo-text-sweeps skill](skills/repo-text-sweeps/SKILL.md); the practices
-for writing trustworthy tests — see-it-fail, snapshot/golden discipline, CI-only and heavy-browser
-tests, coverage gating — live in [the writing-tests skill](skills/writing-tests/SKILL.md); and how
-to investigate a bug and pin down its root cause — version-gap triage, re-deriving after a failed
-fix, probing for a real datapoint — lives in
-[the bug-investigation skill](skills/bug-investigation/SKILL.md).
+General software-engineering practices, independent of any one project; project-specific rules
+(architecture, test mechanics) live in the consuming repo's own docs. Four neighbouring skills own
+their own procedures: [git-github-advanced](../git-github/skills/git-github-advanced/SKILL.md) for
+branch, commit and merge operations, [repo-text-sweeps](skills/repo-text-sweeps/SKILL.md) for
+sweeps and renames across files, [writing-tests](skills/writing-tests/SKILL.md) for tests you can
+trust, and [bug-investigation](skills/bug-investigation/SKILL.md) for pinning down a root cause.
 
 - **Naming a file, module, or symbol** — name it for its scope or responsibility, not the
   technology or mechanism behind it.

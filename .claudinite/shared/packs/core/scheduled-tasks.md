@@ -116,6 +116,26 @@ routine-folder convention; the issue-driven-dispatch security rule (the issue is
 data, the task path is code-validated, agent_model/expected_outcome come from the repo) lives
 with that skill's agent practices.
 
+### Three optional declarations, for a repo dispatching through the work-item queue
+
+Additive, and inert under slot dispatch — declare one only when its rule applies.
+
+- **`after: ['<pack>/<task>']`** — this task yields while a named upstream's item is live
+  *this cycle*, and picks up the moment it converges or rolls. Declare it when your task
+  reads what another task produces; never as a general priority hint. It is not a
+  `Blocked-by` edge and must not be described as one.
+- **`on_interrupt: 'requeue' | 'needs-human'`** (default `requeue`) — declare `needs-human`
+  only for a genuinely one-shot side effect (a store submission, an external notification):
+  it makes every recovery path that would re-execute the task converge to triage instead.
+- **`invocation_endpoint: '<name>'`** — a key into the repo's `taskScheduler.endpoints`, for a
+  task whose agentic phase needs reach the repo's ordinary sessions lack. **Never a URL**: a
+  task declaration is vendored verbatim into every consuming repo, so deployment detail and
+  anything adjacent to a credential stay in that repo's own config.
+
+A task's `prework_timeout` must stay under the executor's one-hour claim leash — a prework
+that can outlive it is reclaimed while still running, and the item livelocks. The declaration
+contract enforces this; do not raise a timeout past it, split the work instead.
+
 ## The precondition is the ONLY decision point
 
 Task execution is **two similar, consecutive phases**: deterministic **prework**

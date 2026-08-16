@@ -77,7 +77,7 @@ const rule = {
           out.push(finding(rule, {
             file, line,
             what: `references ${target} at distance ${d}`,
-            fix: 'move one of the two nearer the other, lift the shared dependency to a common ancestor, or accept it in .claudinite-checks.json with a reason if it is a deliberate cross-cutting concern',
+            fix: 'move one of the two nearer the other, lift the shared dependency to a common ancestor, or introduce an entry point so outsiders reference one near file — and leave it as it stands if the reach is a deliberate cross-cutting concern',
           }));
         }
       }

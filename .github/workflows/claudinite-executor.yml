@@ -1,0 +1,54 @@
+# Claudinite work-item executor (tasks-dispatch DESIGN §6, §10) — a pull worker
+# over the queue, triggered by a `task:ready` / `task:urgent` label event for
+# latency and by hand for a drain. It carries NO cron: the tick's own drain job is
+# the poll that makes a lost label event irrelevant, so events here are latency
+# sugar and never the only delivery.
+#
+# THIS IS THE ONLY PLACE SECRETS LIVE (DESIGN §14). The wiring converge stamps
+# every task's declared `required_secrets`, plus each configured invocation
+# endpoint's token secret, into the step env below by name — the tick and the
+# janitor get none, because they never execute task code. Prework is the only task
+# code that ever sees a value; the agent hop carries nothing.
+#
+# MORE CAPACITY IS MORE EXECUTORS. Nothing enumerates them and each claim is
+# independently leased, so a second job, a matrix width, or a runner outside
+# Actions entirely all work — the executor's whole interface is issue read/write
+# plus the repo at HEAD.
+name: Claudinite executor
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  execute:
+    # A label event on anything else is not this workflow's business — and a
+    # workflow_dispatch carries no label at all, so it always runs.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || github.event.label.name == 'task:ready'
+      || github.event.label.name == 'task:urgent'
+    runs-on: ubuntu-latest
+    # MUST stay ≤ the engine's executing leash (60m): a hung runner has to be
+    # killed by the platform before its claim is reaped and the item re-picked, or
+    # a zombie's prework runs beside its replacement's (F17).
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Pick up and execute ready work
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # The wiring converge stamps every declared required_secret, and every
+          # configured invocation endpoint's token, below this marker — by name.
+          # claudinite:secrets
+        run: node .claudinite/shared/engine/scheduler/queue/executor.mjs

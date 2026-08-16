@@ -49,9 +49,9 @@
         "fix": "add a concurrency: group so overlapping runs serialize (double-run safety)"
       },
       {
-        "require": "/engine\\/scheduler\\/run\\.mjs/",
+        "require": "/engine\\/scheduler\\/(run|queue\\/tick)\\.mjs/",
         "what": "does not run the vendored engine entry",
-        "fix": "the job must run node .claudinite/shared/engine/scheduler/run.mjs — all logic lives in the vendored engine, not the workflow"
+        "fix": "the job must run the vendored engine — node .claudinite/shared/engine/scheduler/run.mjs (slot dispatch) or .../queue/tick.mjs (queue dispatch); all logic lives in the engine, not the workflow"
       },
       {
         "require": "/^\\s*contents:\\s*write\\b/m",
@@ -85,6 +85,19 @@
         "match": "/.*(skip(ping)?\\s+this\\s+(cycle|run)|leaving\\s+this\\s+cycle|cycle\\s+skips|nothing\\s+to\\s+self-refresh).*/i",
         "what": "prework announces a discretionary cycle skip: \"{match}\"",
         "fix": "let the precondition make that call, or complete the work and report an empty outcome; only a genuine failure may stop a run past the precondition"
+      }
+    ]
+  },
+  {
+    "id": "core-declared",
+    "severity": "blocking",
+    "failureMessage": "core carries Claudinite's own rules — the mount, the declaration, adoption, the update and the task contract — a member that does not declare it runs the machinery with none of them",
+    "checkParsedFiles": [
+      {
+        "file": ".claudinite-checks.json",
+        "requireValueInArray": { "atField": "packs", "value": "core", "matchingEntryObjectsByField": "id" },
+        "what": "does not declare the mandatory \"core\" pack",
+        "fix": "add \"core\" to \"packs\" — it is basics' own dependency, so the requires closure writes it back the next time the declaration is written"
       }
     ]
   }

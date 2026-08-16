@@ -72,12 +72,20 @@ cleanup() { [ -n "${CLAUDINITE_SESSION_FACETS:-}" ] && rm -f "$CLAUDINITE_SESSIO
 trap cleanup EXIT
 
 hooklog orchestrator "start"
-# FIRST, and report-only: "can Claudinite run here?" — the mount, the stamp, the
-# pack manifests, the hook targets, the mounted skills, the cron, the migrations
-# registry. It runs ahead of the steps that depend on those things so its output
-# explains their failures rather than trailing them. Never `--strict` here: a
-# non-zero exit makes Claude Code DISCARD this hook's stdout, which would throw
-# away the very report it exists to deliver (and any halt directive with it).
+# CONVERGE BEFORE REPORTING. This step regenerates the .claude/skills mounts to match
+# the declared packs, and the self-test below judges those same links — so running it
+# first is what makes that judgment true of the session the person actually gets. The
+# other way round, a resume whose mounts had gone stale reported dangling links that
+# the same firing repaired a second later, under a "re-run the skill mount" remedy
+# that had already run (#875). It costs the report nothing: this step writes no
+# stdout, so the self-test still LEADS the injected context either way.
+run_step mount-skills       node "$corpus/engine/pack_loader/mount-skills.mjs"
+# FIRST OF THE REPORTING STEPS, and report-only: "can Claudinite run here?" — the
+# mount, the stamp, the pack manifests, the hook targets, the mounted skills, the
+# cron, the migrations registry. It leads the steps whose dependencies it judges, so
+# its output explains their failures rather than trailing them. Never `--strict`
+# here: a non-zero exit makes Claude Code DISCARD this hook's stdout, which would
+# throw away the very report it exists to deliver (and any halt directive with it).
 run_step selftest           node "$corpus/engine/selftest.mjs"
 # NO PROSE STEP. The active packs' RULES.md used to be emitted here, and #807 measured
 # what that cost: 79,750 of this hook's 82,267 bytes, silently truncated to a ~2KB
@@ -91,7 +99,6 @@ run_step selftest           node "$corpus/engine/selftest.mjs"
 # never learns what one does — the SessionEnd runner's terms, at the other end of
 # the session.
 run_step pack-session-start node "$corpus/engine/pack_loader/run-pack-session-start.mjs"
-run_step mount-skills       node "$corpus/engine/pack_loader/mount-skills.mjs"
 run_step env-check          node "$corpus/engine/pack_loader/env-requirements.mjs" check
 # The interview machinery is the adoption skill's, bundled in the
 # Claudinite-lifecycle pack — absent when the tree doesn't carry it, and then

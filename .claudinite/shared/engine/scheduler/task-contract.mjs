@@ -6,6 +6,7 @@
 
 import { FREQUENCIES } from './slots.mjs';
 import { MODEL_FAMILIES } from './model-map.mjs';
+import { EXECUTING_LEASH_MS } from './queue/leases.mjs';
 
 // A declared timeout is always a whole number of seconds, > 0.
 const isPositiveInt = (n) => Number.isInteger(n) && n > 0;
@@ -52,6 +53,12 @@ export const OUTCOMES = ['none', 'open-pr', 'merged-pr'];
 // (growth-promote, growth-discover-packs), whose fleet executor is a separate,
 // broader-scoped routine in that one repo.
 export const SESSION_SCOPES = ['self', 'fleet'];
+
+// What must happen to a task's work item when a recovery path would re-execute it
+// (tasks-dispatch DESIGN §6). `requeue` is the safe-side default for sweep-shaped
+// work; `needs-human` is the at-most-once dial a one-shot side effect declares.
+export const INTERRUPT_POLICIES = ['requeue', 'needs-human'];
+
 
 // The signal-collector vocabulary (DESIGN §3.3). A task collects only the union
 // of what its due tasks declare. `fleet` is canon-only (consumers cannot declare
@@ -124,7 +131,48 @@ export function validateTaskDeclaration(raw) {
     }
     if (!isPositiveInt(decl.prework_timeout)) {
       bad('"prework" is set but "prework_timeout" is not a positive integer', 'add "prework_timeout": the seconds after which the subprocess is killed and the task fails');
+    } else if (decl.prework_timeout * 1000 >= EXECUTING_LEASH_MS) {
+      // F17: a prework legally allowed to outlive the executing leash is reclaimed
+      // WHILE ALIVE, and the failure is not one duplicate run but a livelock —
+      // every tenure reclaimed before it can finish, prework re-executing each
+      // cycle, the occurrence never converging. The leash is the engine's, so the
+      // comparison is made where a declaration is judged.
+      bad(`"prework_timeout" (${decl.prework_timeout}s) reaches the executor's ${EXECUTING_LEASH_MS / 60e3}-minute claim leash`,
+        `bound prework under ${EXECUTING_LEASH_MS / 60e3} minutes — a prework that can outlive the leash is reclaimed while still running, and the item livelocks`);
     }
+  }
+
+  // --- the work-item queue's three optional declarations (tasks-dispatch DESIGN) ---
+
+  // `after` — ordering, declared (DESIGN §9). A list of `<pack>/<task>` ids this
+  // task yields to WHILE THEY ARE LIVE THIS CYCLE. It compiles to the executor's
+  // pick-time yield, never to a `Blocked-by` edge: a standing item that rolls
+  // never closes, so blocked-by would starve every dependent of a quiet upstream
+  // forever. The engine never learns what any named task does — it reads item
+  // states, generically.
+  if (decl.after !== undefined
+      && !(Array.isArray(decl.after) && decl.after.every((s) => typeof s === 'string' && /^[^/\s]+\/[^/\s]+$/.test(s)))) {
+    bad('"after" is not an array of "<pack>/<task>" ids', 'e.g. "after": ["core/update"] — this task yields while those are live this cycle');
+  }
+
+  // `on_interrupt` — the ack-early/ack-late dial (DESIGN §6). Most of this fleet's
+  // tasks are sweep-shaped and converge safely on a re-run, so the default is
+  // `requeue`. A genuinely one-shot side effect (a store submission, an external
+  // notification) declares `needs-human`, and every recovery path that would
+  // re-execute it — the leash reclaim, the hand-off retry — converges to triage
+  // instead: at-most-once plus a human.
+  if (decl.on_interrupt !== undefined && !INTERRUPT_POLICIES.includes(decl.on_interrupt)) {
+    bad(`"on_interrupt" ${JSON.stringify(decl.on_interrupt)} is not a legal policy`, `set one of: ${INTERRUPT_POLICIES.join(', ')} (default "requeue")`);
+  }
+
+  // `invocation_endpoint` — a NAME, never a URL (DESIGN §12). The repo's config
+  // maps the name to the URL and to the name of the Actions secret holding its
+  // token, so no vendored pack file carries deployment detail or anything adjacent
+  // to a credential. This is also what replaces session_scope: reach is a property
+  // of which endpoint a task names.
+  if (decl.invocation_endpoint !== undefined
+      && !(typeof decl.invocation_endpoint === 'string' && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(decl.invocation_endpoint))) {
+    bad('"invocation_endpoint" is not a kebab-case endpoint name', 'name a key from the repo\'s taskScheduler.endpoints map, e.g. "fleet" — never a URL');
   }
 
   // The repo Actions secrets this task needs configured (DESIGN §9). Purely

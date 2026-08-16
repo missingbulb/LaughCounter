@@ -136,6 +136,11 @@ export const TASK_EXEC_STATUSES = Object.freeze([
 
 export const TASK_EXEC_TAG = 'claudinite-task-exec';
 
+// The bracketed field is the OCCURRENCE'S IDENTITY, which is a different thing under
+// each dispatch mechanism: a slot id (`d2026-08-06`) where slots decide what runs, and
+// the work item's issue number (`#867`) where the queue does. `slotId` keeps its name
+// for the fielded records that already carry one; what it must never become is a
+// constant, since it is the only join from a record back to the work it describes.
 export const renderTaskExec = ({ pack, task, slotId, status }) =>
   `${TASK_EXEC_TAG} ${VERSION} ${pack}/${task} [${slotId ?? 'unknown'}] ${status}`;
 

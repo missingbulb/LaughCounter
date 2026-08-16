@@ -14,8 +14,12 @@ import { LOCAL_PACK_ROOTS } from './local.mjs';
 // A default-branch commit is genuine project work unless it is bot/CI
 // housekeeping or one of Claudinite's own automated writes — the same exclusions
 // the fleet planner applies (kept in sync), extended with the scheduler's own
-// `[claudinite-task]` writes so the scheduler never self-triggers.
-const HOUSEKEEPING = /\[skip ci\]|(^|\n)\s*baselin(e|ing)\b|claudinite[ -](baselin|maintenance|growth|task)|seed default-on/i;
+// `[claudinite-task]` and `[claudinite-work]` writes so neither dispatch
+// mechanism ever self-triggers. The queue's vocabulary is excluded HERE, before
+// any repo flips (tasks-dispatch F8): a queue-mode repo's own work items are
+// repo activity to every precondition watching issues, so a collector that had
+// not learned the new title would wake tasks on the queue's own churn.
+const HOUSEKEEPING = /\[skip ci\]|(^|\n)\s*baselin(e|ing)\b|claudinite[ -](baselin|maintenance|growth|task|work)|seed default-on/i;
 const isSubstantive = (c) => {
   const login = c.author?.login ?? '';
   if (login.endsWith('[bot]')) return false;
@@ -147,7 +151,7 @@ const COLLECTORS = {
     // Exclude PRs (the issues endpoint returns both) and the scheduler's own
     // dispatch issues / standing trackers — invisible to signals (DESIGN §3.3).
     const real = open.filter((i) => !i.pull_request
-      && !/^\[claudinite-task\]/.test(i.title ?? '')
+      && !/^\[claudinite-(task|work)\]/.test(i.title ?? '')
       && !/^(claudinite tracker:|auto-improvements tracker\b|repo tidy tracker$)/i.test((i.title ?? '').trim()));
     return {
       open: real.map((i) => ({ number: i.number, title: i.title, updatedAt: i.updated_at, labels: (i.labels ?? []).map((l) => l.name ?? l) })),

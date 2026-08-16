@@ -61,13 +61,14 @@ export default {
   // the pack whose projects need it and move this line with it (#385 moved the
   // git/GitHub and Claudinite-lifecycle skills out).
   //
-  // `task-janitor` is this pack's one scheduled task, discovered by the
-  // scheduler's filesystem scan (engine/scheduler/discover.mjs) rather than
-  // declared here.
+  // `task-janitor` and `ci-performance` are this pack's scheduled tasks,
+  // discovered by the scheduler's filesystem scan (engine/scheduler/discover.mjs)
+  // rather than declared here.
   skills: [
     'authoring-agent-docs',
     'bug-investigation',
     'bump-version',
+    'ci-performance-evaluation',
     'file-placement',
     'repo-text-sweeps',
     'writing-tests',
