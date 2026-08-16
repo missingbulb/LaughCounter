@@ -1,0 +1,29 @@
+[
+  {
+    "id": "macos-audio/no-sudden-termination",
+    "severity": "blocking",
+    "failureMessage": "sudden termination lets logout SIGKILL the app past every teardown path, abandoning the input tap's IOProc on the device — the state that wedges a USB mic until it is re-plugged",
+    "scanFiles": "/^mac\\/Resources\\/.*\\.plist$/",
+    "matchLines": [
+      {
+        "match": "/NSSupportsSuddenTermination/",
+        "what": "the app's Info.plist declares NSSupportsSuddenTermination",
+        "fix": "remove the key — the app must get the chance to remove its tap and stop the engine on the way out; weigh any launch cost against a wedged mic"
+      }
+    ]
+  },
+  {
+    "id": "macos-audio/engine-construction-confined",
+    "severity": "blocking",
+    "failureMessage": "constructing an engine opens the default input and churns a hidden coreaudiod aggregate device — the one mechanism by which this app could plausibly wedge a mic",
+    "scanFiles": "/^mac\\/Sources\\/.*\\.swift$/",
+    "excludeFiles": "mac/Sources/LaughCounter/AudioHub.swift",
+    "matchLines": [
+      {
+        "match": "/\\bAVAudioEngine\\s*\\(/",
+        "what": "builds an AVAudioEngine outside mac/Sources/LaughCounter/AudioHub.swift",
+        "fix": "ask AudioDiagnostics instead — hasUsableInput and inputAvailability answer from HAL queries that open no device; if capture is needed, route it through AudioHub, the engine's single owner"
+      }
+    ]
+  }
+]

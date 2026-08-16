@@ -4,25 +4,39 @@
 //   node --test .claudinite/local/packs/on-device-privacy/pack.test.mjs
 //
 // They live here rather than in tests/ (`claudinite-isolation`). The fake ctx is
-// the slice of the engine's context a check actually uses — `files` and `read` —
-// so these tests need neither the canon mount nor a git checkout.
+// the slice of the engine's context a check actually uses — `files`, `tracked`
+// and `read` — so no git checkout is needed.
+//
+// Three of these rules are DECLARATIONS (declared-checks.json), so their half of
+// the file compiles them through the mounted engine and needs `.claudinite/shared/`
+// present; the two coded rules are imported directly, as before.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import noNetworkClient from './no-network-client.mjs';
 import onDeviceSpeech from './on-device-speech.mjs';
-import noAudioPersistence from './no-audio-persistence.mjs';
 import singleStorageDirectory from './single-storage-directory.mjs';
-import noListener from './no-listener.mjs';
+import { loadDeclaredChecks } from '../../../shared/engine/checks/helpers/pattern-rules.mjs';
 
-const repoRoot = dirname(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))));
+const here = dirname(fileURLToPath(import.meta.url));
+const repoRoot = dirname(dirname(dirname(dirname(here))));
 
-// Fixture ctx: an in-memory tree of { path: contents }.
+const declared = (id) => {
+  const rule = loadDeclaredChecks(here).find((r) => r.id === id);
+  if (!rule) throw new Error(`no declared check ${id} in ${here}/declared-checks.json`);
+  return rule;
+};
+const noNetworkClient = declared('on-device-privacy/no-network-client');
+const noAudioPersistence = declared('on-device-privacy/no-audio-persistence');
+const noListener = declared('on-device-privacy/no-listener');
+
+// Fixture ctx: an in-memory tree of { path: contents }. `tracked` mirrors
+// `files` — the declared rules' scan sweep reads both.
 const ctxOf = (tree) => ({
   files: Object.keys(tree),
+  tracked: Object.keys(tree),
   read: (path) => tree[path] ?? null,
 });
 

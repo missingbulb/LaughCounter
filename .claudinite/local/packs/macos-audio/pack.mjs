@@ -1,7 +1,5 @@
-import engineConstructionConfined from './engine-construction-confined.mjs';
 import inputNodeConfined from './input-node-confined.mjs';
 import signalTeardownRouting from './signal-teardown-routing.mjs';
-import noSuddenTermination from './no-sudden-termination.mjs';
 import swiftToolchainGate from './swift-toolchain-gate.mjs';
 
 // The macOS microphone lifecycle, as a pack: AVAudioEngine, CoreAudio device
@@ -27,11 +25,5 @@ export default {
   detect: null,
   marker: null,
   prose: 'RULES.md',
-  worldRules: [
-    engineConstructionConfined,
-    inputNodeConfined,
-    signalTeardownRouting,
-    noSuddenTermination,
-    swiftToolchainGate,
-  ],
+  worldRules: [inputNodeConfined, signalTeardownRouting, swiftToolchainGate],
 };

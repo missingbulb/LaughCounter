@@ -1,0 +1,43 @@
+[
+  {
+    "id": "on-device-privacy/no-network-client",
+    "severity": "blocking",
+    "failureMessage": "the product's headline promise is that the room's audio never leaves the machine — a client in the capture path is how that promise breaks",
+    "scanFiles": "/^mac\\/Sources\\/.*\\.swift$/",
+    "fix": "keep analysis on-device — drop the client; the app has no accepted egress, so adding one is a product decision that belongs in RULES.md first",
+    "matchLines": [
+      { "match": "/\\bURLSession\\b/", "what": "URLSession in the capture path" },
+      { "match": "/\\bNSURLConnection\\b/", "what": "NSURLConnection in the capture path" },
+      { "match": "/^\\s*import\\s+Network\\b/", "what": "the Network framework imported in the capture path" },
+      { "match": "/\\bNWConnection\\b/", "what": "NWConnection in the capture path" }
+    ]
+  },
+  {
+    "id": "on-device-privacy/no-audio-persistence",
+    "severity": "blocking",
+    "failureMessage": "the product promise is that only derived metadata is kept and no audio is stored — a file-writing audio API in the capture path is how that promise breaks",
+    "scanFiles": "/^mac\\/Sources\\/.*\\.swift$/",
+    "fix": "keep audio out of persistence — drop the writer; deliberately adding audio storage (the v3 roadmap) is a product decision that belongs in RULES.md and the mic usage strings first",
+    "matchLines": [
+      { "match": "/\\bAVAudioFile\\s*\\(\\s*forWriting\\b/", "what": "AVAudioFile(forWriting:) in the capture path" },
+      { "match": "/\\bAVAudioRecorder\\s*\\(/", "what": "AVAudioRecorder in the capture path" },
+      { "match": "/\\bExtAudioFileCreateWithURL\\s*\\(/", "what": "ExtAudioFileCreateWithURL in the capture path" },
+      { "match": "/\\bAudioFileCreateWithURL\\s*\\(/", "what": "AudioFileCreateWithURL in the capture path" }
+    ]
+  },
+  {
+    "id": "on-device-privacy/no-listener",
+    "severity": "blocking",
+    "failureMessage": "a listener exposes the laugh log to whatever can reach the port — reintroducing one is a decision about who may read the room, not a feature",
+    "scanFiles": "/^mac\\/Sources\\/.*\\.swift$/",
+    "fix": "drop the listener; a dashboard, metrics port or remote-control API needs the owner's sign-off, a loopback-only default and an auth/CSRF story in RULES.md first",
+    "matchLines": [
+      { "match": "/\\bNWListener\\b/", "what": "NWListener (a Network-framework listener) in the app" },
+      { "match": "/\\bNSXPCListener\\b/", "what": "NSXPCListener in the app" },
+      { "match": "/\\bCFSocket[A-Za-z]*\\s*\\(/", "what": "a CFSocket API in the app" },
+      { "match": "/\\b(?:NS)?SocketPort\\b/", "what": "SocketPort in the app" },
+      { "match": "/\\bsocket\\s*\\(/", "what": "socket(2) in the app" },
+      { "match": "/^\\s*import\\s+(?:Vapor|NIO[A-Za-z]*|Swifter|Telegraph|Hummingbird|Kitura[A-Za-z]*|Perfect[A-Za-z]*|FlyingFox|Embassy|GCDWebServer|Criollo)\\b/", "what": "an embedded HTTP server framework imported in the app" }
+    ]
+  }
+]
