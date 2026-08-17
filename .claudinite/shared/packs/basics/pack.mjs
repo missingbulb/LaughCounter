@@ -1,9 +1,7 @@
 import commentClassification from './comment-classification.mjs';
 import referenceIntegrity from './reference-integrity.mjs';
 import markdownLinkLabels from './markdown-link-labels.mjs';
-import taskLifecycle from './task-lifecycle.mjs';
 import filePlacement from './file-placement.mjs';
-import squashMergeHistory from './squash-merge-history.mjs';
 import sharedConstants from './shared-constants.mjs';
 import declaredCheckMessages from './declared-check-messages.mjs';
 
@@ -47,12 +45,12 @@ export default {
     sharedConstants,
   ],
   // Rules that judge the change and the session in front of you — the branch's
-  // commits, the diff, the conversation.
+  // commits, the diff, the conversation. task-lifecycle and squash-merge-history
+  // are declared checks carrying scope: "work", discovered structurally beside
+  // these.
   workRules: [
     commentClassification,
     referenceIntegrity,
-    taskLifecycle,
-    squashMergeHistory,
   ],
   // The baseline skills — general engineering practice every project's work
   // can call for, whatever its technology — bundled under skills/ in this pack's
@@ -71,6 +69,7 @@ export default {
     'ci-performance-evaluation',
     'file-placement',
     'repo-text-sweeps',
+    'writing-migration-plans',
     'writing-tests',
   ],
 };

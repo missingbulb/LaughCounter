@@ -149,3 +149,9 @@ export default {
 ```
 
 Each contribution becomes a **first-class rule under its own id** — per-rule overrides (`rules: { "requirements-isolation": "off" }`) and acceptances address it directly, and `description`/`why`/`doc`/`severity`/`crossingRemedy`/`crossingExcuse` ride the contribution. The two `crossing*` fields own the halves of a crossing finding's `fix`: `crossingRemedy` replaces the default "route shared code through …" opener where relocating the dependency isn't the way out (a one-sided isolation edge has no shared folder to route through), and `crossingExcuse` names the excusal lever that actually works for a pack-shipped edge. Write the remedy into one of these, not into `description` — a rendered finding carries `what`/`why`/`fix`/`doc` and never the rule's description. `gateDir` is the one declarative gate: the rule stays inert until that directory exists in the repo under test (how the baseline's consumer-isolation wall stays quiet pre-flip). The runner hands this pack the active-pack list (`contributedRules` on its manifest, the generic core seam), and [contributed.mjs](contributed.mjs) builds the rules — an undeclared pack contributes nothing, exactly as its own rules would not run. A consumer's local pack contributes the same way. A helper a pack needs beside a barrier (path containment, say) lives in the engine lib (`engine/checks/helpers/path-containment.mjs`), never in this pack's modules.
+
+## The check
+
+| Check | Severity | Reason | Enforcement |
+|---|---|---|---|
+| `barrier` | high | complexity | check: blocking |

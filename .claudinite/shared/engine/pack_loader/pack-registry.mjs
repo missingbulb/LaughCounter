@@ -174,10 +174,16 @@ async function scanPackDir(dir, { local, subdir }, errors) {
       errors.push({ ...e, dir: packDir });
     }
     // The pack's declared checks (declared-checks.json — data, not a module) ride
-    // its world rules: discovered structurally like the pack itself, so a
+    // its rule lists: discovered structurally like the pack itself, so a
     // declaration is added by writing it, with no manifest line to keep in sync.
+    // A coded rule's scope is the list it sits in; a declaration has no list, so
+    // its own `scope` picks the list it joins — and normalizeManifest stamps the
+    // same answer back either way.
     const declared = await declaredChecksIn(packDir, rel, errors);
-    const pack = { ...normalizeManifest({ ...mod, worldRules: [...(mod.worldRules ?? []), ...declared] }), dir: packDir, local };
+    const pack = { ...normalizeManifest({ ...mod,
+      worldRules: [...(mod.worldRules ?? []), ...declared.filter((r) => r.scope !== 'work')],
+      workRules: [...(mod.workRules ?? []), ...declared.filter((r) => r.scope === 'work')],
+    }), dir: packDir, local };
     pack.skillChecks = await scanSkillChecks(packDir, errors);
     out.push(pack);
   }

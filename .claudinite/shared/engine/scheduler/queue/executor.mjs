@@ -160,9 +160,17 @@ export async function runExecutor({
     }));
     const comments = await api.listComments(gh, repo, candidate.number);
     const winner = claimWinner(comments);
-    if (!winner || !(winner.body ?? '').includes(`executor \`${executorId}\``)) {
+    const mine = [...comments]
+      .sort((a, b) => a.id - b.id)
+      .filter((c) => (c.body ?? '').includes(CLAIM_MARKER) && (c.body ?? '').includes(`executor \`${executorId}\``))
+      .at(-1);
+    if (!winner || winner.id !== mine?.id) {
       // The loser reverts nothing — the winner's labels already stand — and moves
-      // on to a DIFFERENT item, read from live state on the next iteration.
+      // on to a DIFFERENT item, read from live state on the next iteration. It
+      // does strike its own claim (F24): letting go covers losing too, and a
+      // claim left behind here outlives the winner's episode and becomes the
+      // earliest of the NEXT one, moving the livelock one episode along.
+      await strikeClaim(api, gh, repo, mine);
       log(`- #${candidate.number}: another executor holds this episode's earliest claim — moving on`);
       continue;
     }
@@ -179,7 +187,7 @@ export async function runExecutor({
 
     const outcome = await executeItem({
       api, gh, repo, root, config, schedule, byId, item: candidate, executorId,
-      now, collectSignalsFor, runTaskPrework, invokeAgent, log,
+      claim: winner, now, collectSignalsFor, runTaskPrework, invokeAgent, log,
     });
     done.push({ issue: candidate.number, outcome });
   }
@@ -200,7 +208,7 @@ async function withClaimIds(api, gh, repo, items, selfNumber) {
 
 // One claimed item, from validation through to a terminal state (or a hand-off).
 async function executeItem({
-  api, gh, repo, root, config, schedule, byId, item, executorId,
+  api, gh, repo, root, config, schedule, byId, item, executorId, claim,
   now, collectSignalsFor, runTaskPrework, invokeAgent, log,
 }) {
   const parsed = parseWorkItemTitle(item.title);
@@ -210,7 +218,7 @@ async function executeItem({
 
   // --- validate in code, before anything trusts the issue ------------------
   if (!parsed || !taskPath) {
-    await converge(api, gh, repo, item.number, EXECUTING, NEEDS_HUMAN,
+    await converge(api, gh, repo, item.number, EXECUTING, NEEDS_HUMAN, claim,
       'This work item is malformed — its title or first body line does not name a task. Possible forgery; a human should look at it.');
     return 'needs-human';
   }
@@ -220,7 +228,7 @@ async function executeItem({
     return 'obsolete';
   }
   if (task.taskPath !== taskPath) {
-    await converge(api, gh, repo, item.number, EXECUTING, NEEDS_HUMAN,
+    await converge(api, gh, repo, item.number, EXECUTING, NEEDS_HUMAN, claim,
       `This item's task path (\`${taskPath}\`) is not where \`${id}\` lives at HEAD (\`${task.taskPath}\`). Not running it.`);
     return 'needs-human';
   }
@@ -243,6 +251,9 @@ async function executeItem({
     }
     // The roll writes no comment — the `Not-before` bump IS the record, and an
     // hourly task that stays quiet would otherwise fill its own timeline (§5).
+    // Which is exactly why the claim is STRUCK rather than closed by a marker
+    // comment: the episode has to end here (F24) without costing a timeline entry.
+    await strikeClaim(api, gh, repo, claim);
     await gh(`/repos/${repo}/issues/${item.number}`, {
       method: 'PATCH',
       body: { body: rollBody(item.body, plan.until, plan.reason, at.toISOString()) },
@@ -256,12 +267,12 @@ async function executeItem({
   if (task.decl.prework) {
     const result = await runTaskPrework(task, { item, context: verdict.context ?? [] });
     if (!result.ok) {
-      await converge(api, gh, repo, item.number, EXECUTING, NEEDS_HUMAN,
+      await converge(api, gh, repo, item.number, EXECUTING, NEEDS_HUMAN, claim,
         `Prework failed: ${result.why}${result.detail ? `\n\n\`\`\`\n${result.detail}\n\`\`\`` : ''}`);
       return 'needs-human';
     }
     if (result.missingSecrets?.length) {
-      await converge(api, gh, repo, item.number, EXECUTING, NEEDS_HUMAN,
+      await converge(api, gh, repo, item.number, EXECUTING, NEEDS_HUMAN, claim,
         `This task declares repo Actions secrets that are not configured: ${result.missingSecrets.join(', ')}. Set them in repo settings and re-queue this item (remove \`needs-human\`, add \`task:ready\`).`);
       return 'needs-human';
     }
@@ -273,16 +284,16 @@ async function executeItem({
           : 'Prework did this run\'s work; no agent was needed.');
       return outcome;
     }
-    return handOff({ api, gh, repo, item, task, id, verdict, result, executorId, invokeAgent, config, log });
+    return handOff({ api, gh, repo, item, task, id, verdict, result, executorId, claim, invokeAgent, config, log });
   }
 
   // An agentless task with no prework does nothing (the contract forbids it).
   if (task.decl.agent_model === 'none') {
-    await converge(api, gh, repo, item.number, EXECUTING, NEEDS_HUMAN,
+    await converge(api, gh, repo, item.number, EXECUTING, NEEDS_HUMAN, claim,
       'This task is agentless but declares no prework, so there is nothing to run — a contract-forbidden shape that reached the queue.');
     return 'needs-human';
   }
-  return handOff({ api, gh, repo, item, task, id, verdict, result: {}, executorId, invokeAgent, config, log });
+  return handOff({ api, gh, repo, item, task, id, verdict, result: {}, executorId, claim, invokeAgent, config, log });
 }
 
 // The roll's body edit: stamp the next anchor and keep the last reason where an
@@ -300,7 +311,7 @@ export function rollBody(body, until, reason, at) {
 // what lets this be as short as it is. The nonce goes on the item before the call
 // and travels in the payload, so the session can prove the fire it arrived on is
 // the hand-off this item recorded and stop if it is not.
-async function handOff({ api, gh, repo, item, task, id, verdict, result, executorId, invokeAgent, config, log }) {
+async function handOff({ api, gh, repo, item, task, id, verdict, result, executorId, claim, invokeAgent, config, log }) {
   const nonce = `${item.number}-${Math.random().toString(36).slice(2, 10)}`;
   let body = item.body;
   if (verdict.context?.length) body = withSection(body, 'Context', verdict.context);
@@ -322,7 +333,7 @@ async function handOff({ api, gh, repo, item, task, id, verdict, result, executo
   if (invocation.answered) {
     // The endpoint refused, so no session exists and none will: a token, a URL or
     // a routine is wrong, and every future pick would be refused the same way.
-    await converge(api, gh, repo, item.number, AGENT, NEEDS_HUMAN,
+    await converge(api, gh, repo, item.number, AGENT, NEEDS_HUMAN, claim,
       `Could not start an agent session: ${invocation.error}\n\nNo session was started. Fix the invocation endpoint, then re-queue this item (remove \`${NEEDS_HUMAN}\`, add \`${READY}\`).`);
     return 'needs-human';
   }
@@ -341,9 +352,33 @@ async function handOff({ api, gh, repo, item, task, id, verdict, result, executo
   return 'unknown';
 }
 
+// LETTING GO OF AN OPEN ITEM KILLS YOUR CLAIM (DESIGN §6.2, F24). An executor
+// that stops owning an item without closing it — the roll, and every
+// `needs-human` park — strikes its own claim by appending the episode marker to
+// it. `claimWinner` already treats the last marker as the boundary, so a struck
+// claim stops outranking anything and the next claimant wins on its first try.
+//
+// APPENDING rather than commenting is what lets the roll stay silent (§5): an
+// hourly task that declines every hour adds no timeline entry. A successful
+// hand-off deliberately does NOT strike — the episode is still live, owned by the
+// agent session — and neither does a close, since nothing re-claims a closed item.
+//
+// Struck BEFORE the label swap, so the crash window degrades the safe way: an
+// executor that dies between the two leaves the item `task:executing` with a
+// spent claim, which the tick's leash reclaim already recovers. Striking after
+// would leave exactly the state this fixes — parked, re-queued by a human, and
+// unclaimable forever.
+async function strikeClaim(api, gh, repo, claim) {
+  if (!claim || (claim.body ?? '').includes(EPISODE_MARKER)) return;
+  await api.editComment(gh, repo, claim.id,
+    `${claim.body}\n\n${EPISODE_MARKER}\nThis claim is spent — the executor released this item without closing it.`);
+}
+
 // Every exit converges the item exactly once, with one comment saying what
-// happened — the terminal-state discipline the incidents bought.
-async function converge(api, gh, repo, number, from, to, body) {
+// happened — the terminal-state discipline the incidents bought. The claim sits
+// before the body so every state argument is grouped ahead of the prose.
+async function converge(api, gh, repo, number, from, to, claim, body) {
+  await strikeClaim(api, gh, repo, claim);
   await api.comment(gh, repo, number, body);
   await api.swapLabel(gh, repo, number, from, to);
 }

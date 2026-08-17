@@ -10,7 +10,7 @@ lessons into its local packs, and pruning them once the shared canon covers them
 **promote** stage — which lifts portable lessons up into the shared canon — is a home-only duty
 that runs canon-side, not a repo-side task, so it lives outside this pack.
 
-Its scheduled work is four tasks under this pack's own `tasks/`, each discovered by the repo's
+Its scheduled work is five tasks under this pack's own `tasks/`, each discovered by the repo's
 scheduler (`engine/scheduler/discover.mjs`) wherever the pack is declared:
 
 | Task | Runs when | Where it lands |
@@ -19,6 +19,7 @@ scheduler (`engine/scheduler/discover.mjs`) wherever the pack is declared:
 | `growth-dedup` ([tasks/growth-dedup/task.md](tasks/growth-dedup/task.md)) | weekly, when the canon or the project's local packs moved in the week | the repo's own local packs, via a PR that auto-merges after CI |
 | `growth-discover-packs` ([tasks/growth-discover-packs/task.md](tasks/growth-discover-packs/task.md)) | weekly | a new **local** pack in the repo's own `.claudinite/local/packs/`, via a reviewed PR |
 | `prose-to-checks-sweep` ([tasks/prose-to-checks-sweep/task.md](tasks/prose-to-checks-sweep/task.md)) | weekly (no-ops cheaply on a quiet corpus) | a PR converting always-testable pack prose into checks |
+| `rule-revalidation` ([tasks/rule-revalidation/task.md](tasks/rule-revalidation/task.md)) | weekly | a reviewed PR correcting rules whose environment claim no longer probes true |
 
 (Plus [usage-fold](tasks/usage-fold/task.md), the agentless daily fold described below.)
 
@@ -150,7 +151,6 @@ rephrase, the keep-test, and the shrink-only discipline. The pack also bundles
 
 | Rule | Kind | What |
 |---|---|---|
-| `growth-config` | hardcoded ([config-check.mjs](config-check.mjs)) | entry config shape valid |
 | `dedup-prune-integrity` | work-scope ([dedup-integrity.mjs](dedup-integrity.mjs)) | a dedup edit only removes portable text — never grows a local pack or re-imports a canon rule |
 | `growth-write-scope` | work-scope ([growth-write-scope.mjs](growth-write-scope.mjs)) | a capture run (extract, dedup) writes only the repo's own local packs |
 
@@ -171,6 +171,29 @@ the one place this stage differs from extract). It writes only the repo's own
 `.claudinite/local/packs/`; lifting a local pack up into the shared canon is the central promote
 task's job.
 
+## Rules expire when the environment moves — revalidation
+
+Capture, dedup and conversion all assume a rule is either right or superseded. A third failure mode
+has no local signal at all: the rule was right, and the **world** changed. A claim that the harness
+rejects a call in some shape, that the Action's token cannot push a path, that an MCP tool exists —
+each is a fact about a platform this repo does not control, and when it stops being true nothing
+here goes red. The prose keeps reading as authoritative, sessions keep obeying it, and the cost
+lands as a session spent on a route that closed.
+
+[rule-revalidation](tasks/rule-revalidation/task.md) is the weekly re-probe. It slices the corpus by
+longest-since-probed, **runs** the smallest read-only thing that would distinguish true from false
+for each environment-dependent claim, and corrects what the probe contradicts — in a reviewed PR
+whose body carries the probe evidence, since that is the one thing a reviewer cannot re-derive from
+the diff. Its scope is the same `pack_paths` config `prose-to-checks-sweep` reads, so a repo names
+its capture surface once.
+
+The dangerous verdict is the one it refuses to reach. An executor session carries the reach its
+repo's routine was provisioned with, which is not the reach every rule was written under, so a probe
+that cannot run is logged **unprobed** and the rule is left untouched. Rewriting a rule into "you
+cannot do X" because one session could not is unfalsifiable afterwards and removes the capability
+from every future session — which is why the corpus each run touches is small and every verdict is
+logged on a standing tracker, including the ones that changed nothing.
+
 ## Identifying a project's capture surface: its local packs (the same way in every stage)
 
 Every growth stage operates on a project's **local packs** — the tracked packs a repo keeps under
@@ -185,9 +208,10 @@ Markdown (a repo with no local packs yet simply has nothing to extract, dedup, o
 project adopts the structure via the `generate-project-instructions` skill).
 
 Prefer the strongest mechanism the lesson allows — the **local promotion ladder**, applied at the
-project's own level: a deterministic rule becomes a **check** in the owning pack's `rules` (its
-failure message carries the lesson), an activity-scoped procedure becomes a **pack skill**, and only
-what neither can carry lands as **prose** in a pack's `RULES.md`. A check relieves every session's
+project's own level: a deterministic rule becomes a **check** whose failure message carries the lesson —
+a **declared** one in the owning pack's `declared-checks.json` wherever patterns over files can say it,
+a **rule module** in its `rules` only where they can't — an activity-scoped procedure becomes a **pack
+skill**, and only what none of those can carry lands as **prose** in a pack's `RULES.md`. A check relieves every session's
 context completely where prose only relocates it, so capture writes *more checks and less prose*.
 
 The stages differ only in *how they read that set*, never in *which set it is*: extract and dedup
@@ -195,3 +219,12 @@ run against the member repo and read the local packs from the working tree; prom
 and reads the same subtree over the GitHub API (get-file-contents under `.claudinite/local_packs/`).
 Extract writes into it, promote reads from it, dedup prunes within it — all against the identical,
 `.claudinite/local_packs/`-rooted set.
+
+## Checks
+
+| Check | Severity | Reason | Enforcement |
+|---|---|---|---|
+| `dedup-prune-integrity` | high | correctness | check: blocking |
+| `growth-write-scope` | high | correctness | check: blocking |
+| `in-session-github-access` | high | correctness | check: blocking |
+| `routine-structure` | medium | complexity | check: blocking |

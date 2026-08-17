@@ -57,6 +57,14 @@ export async function swapLabel(gh, repo, number, from, to) {
 export const comment = (gh, repo, number, body) =>
   gh(`/repos/${repo}/issues/${number}/comments`, { method: 'POST', body: { body } });
 
+// The ONE sanctioned edit to a comment, and the reason the arbitration record is
+// no longer strictly append-only: an executor striking its OWN claim on the way
+// out (tasks-dispatch DESIGN §6.2). Only a claim's author ever edits it, so a
+// claim can be withdrawn but never forged earlier, and comment ids still give the
+// total order arbitration reads.
+export const editComment = (gh, repo, commentId, body) =>
+  gh(`/repos/${repo}/issues/comments/${commentId}`, { method: 'PATCH', body: { body } });
+
 export const listComments = async (gh, repo, number) => {
   const out = [];
   for (let page = 1; ; page += 1) {

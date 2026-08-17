@@ -58,7 +58,8 @@ change, independent of any one project.
 - **Planning a migration** — prefer the design that converges in one forced pass to the one that
   trickles across nightly cycles, accept legacy input at the door so nothing has to wait for
   stragglers, and drive the stragglers with a standing mechanism rather than a phase someone must
-  remember to close.
+  remember to close. Order the plan's phases by what blocks rather than by subject —
+  [writing-migration-plans](skills/writing-migration-plans/SKILL.md) owns that sort.
 
 - **When verifying now is genuinely impossible** (an external release window, an upstream fix in
   flight) — make the follow-up a mechanism that comes to you: a scheduled task, a watched PR, an
@@ -104,6 +105,11 @@ Contracts worth knowing before you spend a call rediscovering them.
   committed reference material or ask the owner, and say plainly that anything unverifiable is
   unverified.
 
+- **Scheduling a wake-up with the harness** — pass `prompt`, the instruction the woken turn is to
+  act on, on any call that isn't `stop: true`; a no-op flag and a stated `reason` do not exempt it,
+  and the call is rejected without it. A rejection leaves no fallback armed, which is what the
+  `unattended-agents` skill's re-issue rule is for.
+
 ## Warnings and findings
 
 - **Seeing a build, test or CI warning** — fix it rather than tolerate it, with a small, targeted
@@ -123,8 +129,11 @@ Contracts worth knowing before you spend a call rediscovering them.
 
 - **Deferring a warning you can't fix now with a small cause-addressing change** (it waits on an
   upstream release, or the real fix is a larger refactor) — open a dedicated issue unless one is
-  already open, then move on. Resolving it, by real fix or a consciously-chosen suppression, happens
-  in that issue's own change.
+  already open, then move on. Search for that open one by the **invariant identifier** the finding
+  names — the symbol, path or id it is *about* — never the sentence it arrived in: every filer
+  paraphrases the message and prefixes its own stage's name, so the wording is the one part that
+  differs across filings, and a new branch, PR number or run is not a new finding. Resolving it, by
+  real fix or a consciously-chosen suppression, happens in that issue's own change.
 
 # The task lifecycle
 
@@ -147,11 +156,13 @@ For every new task:
 # Engineering practices
 
 General software-engineering practices, independent of any one project; project-specific rules
-(architecture, test mechanics) live in the consuming repo's own docs. Four neighbouring skills own
+(architecture, test mechanics) live in the consuming repo's own docs. Five neighbouring skills own
 their own procedures: [git-github-advanced](../git-github/skills/git-github-advanced/SKILL.md) for
 branch, commit and merge operations, [repo-text-sweeps](skills/repo-text-sweeps/SKILL.md) for
 sweeps and renames across files, [writing-tests](skills/writing-tests/SKILL.md) for tests you can
-trust, and [bug-investigation](skills/bug-investigation/SKILL.md) for pinning down a root cause.
+trust, [bug-investigation](skills/bug-investigation/SKILL.md) for pinning down a root cause, and
+[writing-migration-plans](skills/writing-migration-plans/SKILL.md) for a phased plan's ordering and
+its tracking issue.
 
 - **Naming a file, module, or symbol** — name it for its scope or responsibility, not the
   technology or mechanism behind it.

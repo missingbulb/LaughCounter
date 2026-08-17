@@ -1,4 +1,3 @@
-import growthConfig from './config-check.mjs';
 import dedupIntegrity from './dedup-integrity.mjs';
 import growthWriteScope from './growth-write-scope.mjs';
 
@@ -46,6 +45,14 @@ import growthWriteScope from './growth-write-scope.mjs';
 // adopt-requested-packs task were bundled in this pack for want of a better home;
 // their subject is Claudinite's own surface, so they moved to the `core` pack.
 //
+// rule-revalidation (tasks/rule-revalidation/) covers the failure mode the other
+// stages structurally cannot see: a rule that was right, and whose ENVIRONMENT
+// moved. A claim about the harness, a token's reach or an MCP tool's existence is
+// falsified by a platform this repo does not control, and nothing here goes red
+// when it happens — so the trigger is the calendar, and the method is re-running
+// the probe rather than re-reading the prose. It shares prose-to-checks-sweep's
+// `pack_paths` config: a member revalidates its own local packs, the canon its own.
+//
 // growth-discover-packs is the weekly LOCAL pack-discovery reflection: the repo
 // manifests its own stack, notices project-specific knowledge no canon pack homes,
 // and authors a local pack for it under its own `.claudinite/local/packs/`.
@@ -63,7 +70,7 @@ export default {
   version: 1,
   minEngineVersion: 1,
   ruleRoutingGuidance: {
-    belongs: 'rules and tasks for capturing lessons into local packs — extraction, dedup, conversation logs, skill-usage folding',
+    belongs: 'rules and tasks for capturing and maintaining lessons in local packs — extraction, dedup, revalidation, conversation logs, skill-usage folding',
     excludes: 'repo housekeeping of issues, PRs and branches — that is tidy-repo; cross-repo fleet sweeps are sheepdog',
   },
   badge: 'badge.svg',
@@ -75,7 +82,7 @@ export default {
   // pack catalog and landed by adopting or authoring a pack — so `core` is a
   // prerequisite rather than an ambient assumption.
   requires: ['core'],
-  worldRules: [growthConfig],
+  worldRules: [],
   workRules: [dedupIntegrity, growthWriteScope],
   skills: [
     'extract-from-activity',

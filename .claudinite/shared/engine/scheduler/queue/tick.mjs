@@ -15,7 +15,7 @@ import { pathToFileURL } from 'node:url';
 import { mostRecentAnchor, nextAnchor } from './anchors.mjs';
 import { EXECUTING_LEASH_MS } from './leases.mjs';
 import {
-  WORK_PREFIX, BLOCKED, READY, EXECUTING, ORIGIN_SCHEDULE, NEEDS_HUMAN, OUTCOME_OBSOLETE,
+  WORK_PREFIX, BLOCKED, READY, EXECUTING, AGENT, ORIGIN_SCHEDULE, NEEDS_HUMAN, OUTCOME_OBSOLETE,
   QUEUE_LABELS, EPISODE_MARKER, workItemTitle, parseWorkItemTitle, parseWorkItemBody,
   workItemBody, labelNames, hasLabel,
 } from './work-item.mjs';
@@ -136,6 +136,50 @@ export function planTick({
   return { ops };
 }
 
+// --- the forced wake (DESIGN §8) ----------------------------------------------
+
+// Which standing items a `wake` dispatch names. Forcing a scheduled task IS waking
+// its standing item, and this is that same lever reached from OUTSIDE the repo: the
+// fleet enforcer dispatches this workflow with the task ids it wants run now, and
+// the member wakes its own items with its own token. The enforcer therefore needs
+// no issue access anywhere — the fan-out model the sheepdog pack is built on, where
+// the enforcer dispatches and the member executes.
+//
+// An id is `pack/task` or a bare `task` resolved against this repo's own discovered
+// tasks, so a caller spanning many members never has to know any one member's pack
+// layout. Every id that matches nothing comes back in `unmatched`: a force whose
+// report counts only what it woke reads as coverage it did not have.
+//
+// An item already in flight (`task:ready`, `task:executing`, `task:agent`) is left
+// alone and reported as `already`, never re-woken — an episode boundary dropped on
+// a live claim is exactly the livelock F18 describes.
+export function planWake(spec, tasks = [], items = []) {
+  const ids = String(spec ?? '').split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+  const wake = []; const already = []; const unmatched = [];
+  for (const id of ids) {
+    const [a, b] = id.includes('/') ? id.split('/') : [null, id];
+    const owners = tasks.filter((t) => t.id === b && (a === null || t.pack === a));
+    if (owners.length !== 1) {
+      unmatched.push({ id, why: owners.length ? `${owners.length} declared packs own a "${b}" task — name it as pack/task` : 'no declared pack owns a task by that name' });
+      continue;
+    }
+    const { pack, id: task } = owners[0];
+    const item = items.find((i) => {
+      if (i.state !== 'open') return false;
+      const parsed = parseWorkItemTitle(i.title);
+      return parsed && parsed.pack === pack && parsed.task === task;
+    });
+    if (!item) { unmatched.push({ id, why: `no open standing item for ${pack}/${task}` }); continue; }
+    if (IN_FLIGHT.some((l) => hasLabel(item, l))) { already.push({ id, issue: item.number }); continue; }
+    wake.push({ id: `${pack}/${task}`, issue: item.number });
+  }
+  return { wake, already, unmatched };
+}
+
+// The states that mean someone already holds this item. `task:agent` counts: the
+// work is with a session, and waking would hand a second executor the same item.
+const IN_FLIGHT = [READY, EXECUTING, AGENT];
+
 // --- CLI: the thin I/O shell the vendored tick workflow invokes ---------------
 // Reads the work-item list, plans, applies. All GitHub access is the Action's
 // GITHUB_TOKEN. Dormancy is the first gate, before any read — a project that has
@@ -240,6 +284,26 @@ async function main() {
   }
 
   if (!ops.length) console.log('- nothing to do: every task has its standing item, nothing is due, no claim is dead');
+
+  // The forced wake, last: an item this run just instantiated is wakeable in the
+  // same run, so a force never has to be pressed twice. The drain job that follows
+  // picks up whatever this readies.
+  const spec = process.env.CLAUDINITE_WAKE ?? '';
+  if (spec.trim()) {
+    const { wakeItem } = await import('./create-work-item.mjs');
+    // Re-read: the ops above may have created or readied the very items named.
+    const current = await listWorkItems(gh, repo, { since });
+    const { wake, already, unmatched } = planWake(spec, tasks, current);
+    for (const w of wake) {
+      const res = await wakeItem(gh, repo, w.issue);
+      console.log(res.ok ? `- woke #${w.issue} ${w.id}` : `! could not wake #${w.issue} ${w.id}: ${res.error}`);
+    }
+    for (const a of already) console.log(`- ${a.id} is already in flight on #${a.issue} — left alone`);
+    for (const u of unmatched) console.log(`! nothing woken for "${u.id}": ${u.why}`);
+    // A force that woke nothing is a failed force, and a green run saying so in a
+    // log line is how it goes unnoticed by the fleet lever that pressed it.
+    if (unmatched.length) process.exitCode = 1;
+  }
 }
 
 // Run only when invoked directly (the workflow's `node tick.mjs`), never on import.

@@ -58,9 +58,10 @@ re-derive any of it here.
    just wrote.** Both halves route down the local promotion ladder as they go, but a lesson written as prose
    under time pressure is exactly where a convertible rule hides. So before opening the PR, take the prose
    this run added and ask the skill's questions of it: does it clear the working-rule gate, and does it
-   constrain a static signature a check could observe? If yes, convert it now — author the rule module,
-   register it in its pack's `pack.mjs`, prove it with a **see-it-fail** fixture, and apply the deletion
-   test to the prose the check now stands beside. **Scope is this run's own additions only** — the standing
+   constrain a static signature a check could observe? If yes, convert it now — as a declaration in its
+   pack's `declared-checks.json`, dropping to a rule module registered in `pack.mjs` only where patterns
+   can't say it — prove it with a **see-it-fail** fixture, and apply the deletion test to the prose the
+   check now stands beside. **Scope is this run's own additions only** — the standing
    prose backlog is the weekly [prose-to-checks-sweep](../prose-to-checks-sweep/task.md)'s job, and widening
    into it here would duplicate that task's work under an auto-merging PR.
 

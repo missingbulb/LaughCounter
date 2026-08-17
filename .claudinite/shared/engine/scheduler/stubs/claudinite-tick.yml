@@ -18,13 +18,23 @@
 # sugar, which is what retires the re-arm.
 #
 # `workflow_dispatch` is not a convenience: it is the never-wait-for-the-cron
-# lever every forced run, migration and validation burst depends on.
+# lever every forced run, migration and validation burst depends on. Its one
+# input is how that lever reaches ACROSS repos: the fleet enforcer dispatches
+# this workflow naming the tasks to run now, and this member wakes its own
+# standing items with its own token (DESIGN §8). The alternative — the enforcer
+# editing every member's issues directly — would widen the fleet PAT to issue
+# writes on every repository, for a job the member can do for itself.
 name: Claudinite scheduler
 
 on:
   schedule:
     - cron: '10 * * * *'
   workflow_dispatch:
+    inputs:
+      wake:
+        description: 'Task ids to run now (`pack/task` or a bare task name, space-separated) — wakes each one’s standing item regardless of its anchor'
+        required: false
+        type: string
 
 # One tick at a time, always. The tick's duplicate-standing-item self-heal is
 # written assuming exactly this — it closes every open family item but the oldest,
@@ -50,6 +60,7 @@ jobs:
       - name: Instantiate, ready and reclaim work items
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          CLAUDINITE_WAKE: ${{ inputs.wake }}
         run: node .claudinite/shared/engine/scheduler/queue/tick.mjs
 
   # The post-tick drain. `timeout-minutes` MUST stay ≤ the engine's executing

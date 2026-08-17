@@ -1,7 +1,3 @@
-import secretsInJobIf from './secrets-in-job-if.mjs';
-import runPipefail from './run-pipefail.mjs';
-import checkoutSubmodules from './checkout-submodules.mjs';
-
 export default {
   id: 'github-actions',
   version: 1,
@@ -14,10 +10,6 @@ export default {
   marker: '.github/workflows/*.ya?ml',
   detect: (ctx) => ctx.tracked.some((f) => /^\.github\/workflows\/.+\.ya?ml$/.test(f)),
   prose: null,
-  worldRules: [
-    secretsInJobIf,
-    runPipefail,
-    checkoutSubmodules,
-  ],
+  worldRules: [],
   skills: ['github-actions-scheduling'],
 };
