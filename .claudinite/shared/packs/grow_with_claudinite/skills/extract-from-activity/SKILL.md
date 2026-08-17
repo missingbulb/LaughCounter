@@ -54,9 +54,10 @@ logs that actually carry the timestamps.
 
 ## Landing it
 
-Route each keeper down the ladder in [extracting-lessons.md](../../extracting-lessons.md) — check first,
-then pack skill, prose last — into the local pack whose territory owns it. Write more checks and less
-prose, and keep each addition terse and in the repo's own voice.
+Route each keeper down the ladder in [extracting-lessons.md](../../extracting-lessons.md) — a declared
+check first, a custom code rule only where patterns can't say it, then pack skill, prose last — into the
+local pack whose territory owns it. Write more checks and less prose, and keep each addition terse and in
+the repo's own voice.
 
 A new check ships **green or not at all**: see it fail on a violating fixture and pass on a clean one. A
 rule that cannot be made confident lands as prose instead — never as a broken check.

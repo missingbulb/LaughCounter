@@ -29,6 +29,16 @@ export default {
   agent_instructions: 'task.md',
   agent_execution_timeout: 1800,            // proving canon coverage per local item — generous bound, extreme protection
 
+  // The deterministic half: what the mounted canon ADDED in the window — prose
+  // lines and new checks alike — written into the task's tracker issue as the
+  // brief the agentic phase starts from. Reading a diff is code work, and the
+  // pack owns it: the `sharedMount` signal names the packs that moved and stops
+  // there, deliberately, because a signal is a cheap gate for every task in a
+  // slot, not one task's research. The hand-off is unconditional (worker.mjs) —
+  // the precondition below is the only place this run may be declined.
+  prework: 'node worker.mjs',
+  prework_timeout: 600,                     // one commit listing plus a read per window commit
+
   // Gate: the repo must actually track local packs (no local packs → nothing to
   // prune, self-skip). Given local packs, run when the mounted canon this repo
   // CARES about moved — a declared pack's vendored files changed (`sharedMount`),

@@ -1,5 +1,60 @@
 [
   {
+    "id": "gha/secrets-in-job-if",
+    "severity": "blocking",
+    "failureMessage": "secrets are not available in a job-level if:, so the condition cannot evaluate and the job fails instead of skipping",
+    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanTracked": true,
+    "matchLines": [
+      {
+        "match": "/secrets\\.\\w+/",
+        "andLineMatches": "/^\\s*if:\\s/",
+        "unlessWithinBlockOpenedBy": "/^\\s*steps:\\s*$/",
+        "what": "job-level if: reads {match}",
+        "fix": "put the non-sensitive flag in a repository variable and gate with vars.* (if: ${{ vars.X != '' }}); keep the secret for the steps inside the job"
+      }
+    ]
+  },
+  {
+    "id": "gha/run-pipefail",
+    "severity": "blocking",
+    "failureMessage": "GitHub's implicit run shell is bash -e without pipefail, so a failing piped command still shows the step green",
+    "fix": "add defaults.run.shell: bash (workflow- or job-level) so the step runs with -o pipefail",
+    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanTracked": true,
+    "matchLines": [
+      {
+        "match": "/^\\s*(?:-\\s+)?run:\\s*\\S/",
+        "andLineMatches": "/(^|[^|])\\|([^|]|$)/",
+        "unlessLineMatches": "/run:\\s*[|>][+-]?\\s*$/",
+        "unlessFileMatches": "/shell:\\s*bash/",
+        "what": "a piped run: step in a workflow with no bash shell default"
+      },
+      {
+        "match": "/^\\s*(?:-\\s+)?run:\\s*[|>][+-]?\\s*$/",
+        "andIndentedBlockBelowMatches": "/(^|[^|])\\|([^|]|$)/",
+        "unlessFileMatches": "/shell:\\s*bash/",
+        "what": "a piped run: step in a workflow with no bash shell default (the pipe is inside its block scalar)"
+      }
+    ]
+  },
+  {
+    "id": "gha/checkout-submodules",
+    "severity": "blocking",
+    "failureMessage": "checkout does not fetch submodules by default, so any gate reading submodule content passes vacuously",
+    "relevantWhen": { "pathExists": ".gitmodules" },
+    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanTracked": true,
+    "matchLines": [
+      {
+        "match": "/uses:\\s*actions\\/checkout@/",
+        "unlessIndentedBlockBelowMatches": "/submodules:\\s*(true|recursive)/",
+        "what": "actions/checkout without submodules: true in a repo that has .gitmodules",
+        "fix": "add `with: submodules: true` (or recursive) to this checkout step"
+      }
+    ]
+  },
+  {
     "id": "gha/scheduled-failure-escalation",
     "severity": "advisory",
     "failureMessage": "nobody watches a scheduled run — a red run in the Actions list reaches no one",
@@ -86,6 +141,23 @@
         "forbid": "/^\\s*schedule:/m",
         "what": "a Claudinite executor (it calls a canon reusable workflow) carries a `schedule:` trigger",
         "fix": "remove the schedule: trigger — make it workflow_dispatch only, and adopt the vendored claudinite-scheduler.yml, which owns every recurring Claudinite job (packs/core/scheduled-tasks.md)"
+      }
+    ]
+  },
+  {
+    "id": "gha/cron-minute-off-the-hour",
+    "severity": "advisory",
+    "failureMessage": "a cron on a round minute is the firing GitHub's scheduler queue most often delays or silently drops, since every repo's cron lands there at once",
+    "fix": "move the minute to a single fixed literal in :10–:50, clear of the :00 stampede and the hour boundary",
+    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanTracked": true,
+    "excludeFiles": ".github/workflows/claudinite-scheduler.yml",
+    "matchLines": [
+      {
+        "match": "/(?<=^\\s*-\\s*)cron\\s*:\\s*\\S.*$/",
+        "andWithinBlockOpenedBy": "/^\\s*schedule\\s*:\\s*(#.*)?$/",
+        "unlessLineMatches": "/^\\s*-\\s*cron\\s*:\\s*['\"]?(1[0-9]|[2-4][0-9]|50)\\b/",
+        "what": "cron \"{match}\" fires outside a fixed minute in :10–:50"
       }
     ]
   }

@@ -95,8 +95,11 @@ Follow the extract stage's check-authoring discipline (the local promotion ladde
 > see-it-fail fixture is the only gate a converted check gets there. Convert only what you can prove;
 > anything shakier stays prose and waits for the weekly sweep's reviewed PR.
 
-1. **Author the check** in the owning pack (`<pack>/<rule>.mjs`, listed in its `pack.mjs`) — the
-   failure message *is* the rule (what / why / fix / `doc:` pointer back to the prose).
+1. **Author the check** in the owning pack, at the ladder's highest check rung the rule allows: an entry
+   in `<pack>/declared-checks.json` when its logic is patterns over files, dropping to `<pack>/<rule>.mjs`
+   listed in `pack.mjs` only when it needs what patterns can't say. Either way the failure message *is*
+   the rule (what / why / fix — plus, for a rule module, the `doc:` pointer back to the prose; a
+   declaration carries no pointer and must state its own case).
 2. **Write the fixture first and see it fail** — a violating fixture must find, a clean one must
    not (the test lives beside the pack's other tests). A conversion with no proving fixture
    doesn't ship.

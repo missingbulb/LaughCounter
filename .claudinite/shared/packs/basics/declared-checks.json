@@ -1,5 +1,29 @@
 [
   {
+    "id": "task-lifecycle",
+    "severity": "blocking",
+    "failureMessage": "every task starts from an issue; the reference is what ties the branch to it",
+    "scope": "work",
+    "checkBranchCommits": [
+      {
+        "someMessageMatches": "/#\\d+/",
+        "unlessOnDefaultBranch": true,
+        "what": "none of the {commits} commit(s) since {base} references an issue (#N)",
+        "fix": "create or locate the GitHub issue for this task and reference it (e.g. \"Refs #N\", \"Closes #N\") in a commit message — amending the latest commit is fine"
+      }
+    ]
+  },
+  {
+    "id": "squash-merge-history",
+    "severity": "blocking",
+    "failureMessage": "the squash-only repo setting can be off or bypassed; a merge commit in the work is the effect that proves it",
+    "scope": "work",
+    "forbidIntroducedMergeCommits": {
+      "what": "merge commit introduced by this change: {subject}",
+      "fix": "rebase to drop the merge commit (git pull --rebase, or git rebase onto the base) so the branch lands squashed"
+    }
+  },
+  {
     "id": "warning-suppression",
     "severity": "blocking",
     "failureMessage": "an unexplained suppression hides the signal instead of recording why the fix was rejected",
