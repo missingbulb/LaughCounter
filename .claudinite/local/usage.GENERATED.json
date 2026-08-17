@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "foldedThrough": "2026-08-15",
-  "runsFoldedThrough": "2026-08-16T04:21:14Z",
+  "foldedThrough": "2026-08-16",
+  "runsFoldedThrough": "2026-08-17T03:33:19Z",
   "days": {
     "2026-07-28": {
       "captures": 1,
@@ -1077,27 +1077,43 @@
       }
     },
     "2026-08-16": {
-      "captures": 1,
-      "merges": 1,
-      "sessions": 1,
-      "userMessages": 0,
+      "captures": 6,
+      "merges": 6,
+      "sessions": 6,
+      "userMessages": 3,
       "userCommands": 0,
-      "skillLoads": {},
+      "skillLoads": {
+        "git-github-advanced": 1,
+        "growth-dedup": 1
+      },
       "checks": {
-        "world": {
+        "work": {
           "runs": 1,
           "failures": 0,
           "errors": 0,
           "blocking": 0,
-          "advisory": 1,
+          "advisory": 0,
+          "ciRuns": 0,
+          "ciFailures": 0
+        },
+        "world": {
+          "runs": 11,
+          "failures": 1,
+          "errors": 0,
+          "blocking": 23,
+          "advisory": 6,
           "ciRuns": 0,
           "ciFailures": 0
         }
       },
       "checkFindings": {
+        "declared-check-messages": {
+          "blocking": 3,
+          "advisory": 0
+        },
         "rules-line-length": {
           "blocking": 0,
-          "advisory": 1
+          "advisory": 3
         }
       },
       "tasks": {
@@ -1110,6 +1126,46 @@
         }
       },
       "taskExec": {
+        "core/update": {
+          "success": 1,
+          "failed": 0,
+          "task-gone": 0,
+          "invalid": 0
+        }
+      }
+    },
+    "2026-08-17": {
+      "captures": 1,
+      "merges": 1,
+      "sessions": 1,
+      "userMessages": 0,
+      "userCommands": 0,
+      "skillLoads": {},
+      "checks": {
+        "world": {
+          "runs": 3,
+          "failures": 0,
+          "errors": 0,
+          "blocking": 0,
+          "advisory": 2,
+          "ciRuns": 0,
+          "ciFailures": 0
+        }
+      },
+      "checkFindings": {
+        "rules-line-length": {
+          "blocking": 0,
+          "advisory": 3
+        }
+      },
+      "tasks": {},
+      "taskExec": {
+        "<pack>/<task>": {
+          "success": 1,
+          "failed": 0,
+          "task-gone": 0,
+          "invalid": 0
+        },
         "core/update": {
           "success": 1,
           "failed": 0,
@@ -1341,20 +1397,22 @@
       }
     },
     "2026-W33": {
-      "days": 6,
-      "captures": 6,
-      "merges": 6,
-      "sessionDays": 6,
-      "userMessages": 0,
+      "days": 7,
+      "captures": 12,
+      "merges": 12,
+      "sessionDays": 12,
+      "userMessages": 3,
       "userCommands": 0,
       "skillLoads": {
         "extract-from-activity": 1,
         "extract-from-conversations": 1,
+        "git-github-advanced": 1,
+        "growth-dedup": 1,
         "single-issue-triage": 2
       },
       "checks": {
         "work": {
-          "runs": 3,
+          "runs": 4,
           "failures": 2,
           "errors": 0,
           "blocking": 2,
@@ -1363,11 +1421,11 @@
           "ciFailures": 0
         },
         "world": {
-          "runs": 2,
-          "failures": 0,
+          "runs": 13,
+          "failures": 1,
           "errors": 0,
-          "blocking": 0,
-          "advisory": 1,
+          "blocking": 23,
+          "advisory": 7,
           "ciRuns": 0,
           "ciFailures": 0
         }
@@ -1377,9 +1435,13 @@
           "blocking": 2,
           "advisory": 0
         },
+        "declared-check-messages": {
+          "blocking": 3,
+          "advisory": 0
+        },
         "rules-line-length": {
           "blocking": 0,
-          "advisory": 1
+          "advisory": 4
         }
       },
       "tasks": {
@@ -1405,7 +1467,7 @@
           "deferred": 0
         },
         "core/update": {
-          "agent": 0,
+          "agent": 1,
           "prework": 2,
           "skipped": 0,
           "failed": 0,
@@ -1436,6 +1498,12 @@
       "taskExec": {
         "basics/update": {
           "success": 2,
+          "failed": 0,
+          "task-gone": 0,
+          "invalid": 0
+        },
+        "core/update": {
+          "success": 1,
           "failed": 0,
           "task-gone": 0,
           "invalid": 0
