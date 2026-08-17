@@ -22,5 +22,8 @@ the canon home repo's own pack is named for it.
 | A text-matching check hits the comment documenting the idiom it bans | `RULES.md` prose |
 | Every scheduled session trips `comment-classification` and a webhook echo | `RULES.md` prose |
 | Delete the flagged coupling before reaching for an `accept` | `RULES.md` prose |
+| `search_issues`'s `query` is natural language, not GitHub qualifier syntax | `RULES.md` prose |
+| `verify-outcome.mjs` is a module export, not a CLI | `RULES.md` prose |
+| A post-merge scratchpad git sync can be classifier-denied — verify read-only | `RULES.md` prose |
 
 Prose-only so far.

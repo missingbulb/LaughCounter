@@ -157,3 +157,32 @@ swap, since a label change is itself a labeling event. It is not a new dispatch
 and not a competing claim — `resolve-dispatch.mjs` answers `exit 11 / not-mine`
 precisely because *you* are the claimant — so change nothing, comment nothing,
 do not re-dispatch, and do not read it as a lease you lost. (#149/#150/#151/#152/#154/#155)
+
+**`mcp__github__search_issues`'s `query` is natural-language semantic matching,
+not GitHub qualifier syntax — pass `repo:`/`in:title` via the dedicated
+`owner`/`repo` parameters and a `fields` filter, never fold them into the query
+string.** Hunting a `Claudinite tracker: *` issue by its exact title is something
+every `tidy-issues`/`tidy-prs`/`tidy-branches` and `growth-extract` run has to do,
+and the same query shape — quoted title text plus `repo:`/`in:title` embedded in
+`query` — has now blown the token limit on the full-body response three separate
+times (#180, #185, and again on this run's own dispatch #193), forcing a fallback
+read of a saved JSON dump each time. Pass `owner`/`repo` as their own parameters
+and `fields: ["number","title","state"]` when hunting one known-titled issue.
+(#180/#185/#193)
+
+**`verify-outcome.mjs` is a plain ESM module export (`verifyOutcome()`), not a
+CLI — `--help` returns nothing.** `executor.md` gives `record-exec.mjs` an
+explicit `node <engine>/scheduler/record-exec.mjs …` invocation snippet but
+never shows one for `verify-outcome.mjs`, so a session reaches for `--help` or
+writes a scratchpad file to probe it first. Call it directly:
+`node -e "import('<engine>/scheduler/verify-outcome.mjs')
+  .then(m => console.log(JSON.stringify(m.verifyOutcome({outcome, openedPr, mergedPr}))))"`. (#185)
+
+**A scratchpad clone's local git mutation can be denied by the auto-mode
+classifier after a merge already landed server-side — don't retry a second
+mutating variant, verify read-only instead.** Post-merge sync on PR #203 tried
+`merge-to-main`'s own step 5 (`git checkout main && git pull origin main`), got
+denied, retried with `git reset --hard origin/main`, got denied again — ~50s of
+blocked round trips — before switching to `git log`/`get_file_contents` against
+the server, which is all a post-merge check actually needs once the API call
+already reports `merged: true`. (#202)
