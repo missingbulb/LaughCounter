@@ -14,7 +14,8 @@ only on issues.
 | Rule | Severity | Reason | Enforcement |
 |---|---|---|---|
 | Branches, PRs — assess only. | critical | correctness | prose: 34 words |
-| Issues — act. | medium | correctness | prose: 125 words |
+| Issues — act. | medium | correctness | prose: 60 words |
+| Trackers — record changes, not scans. | low | complexity | prose: 118 words |
 
 ## Maintenance tasks
 
@@ -30,7 +31,9 @@ a dimension with nothing to do stays silent:
 
 Each applies its per-object skill (`single-issue-triage` / `single-pr-status` /
 `single-branch-status`) across the targets the precondition hands it, then rewrites its tracker
-(`Claudinite tracker: Tidy Issues` / `Tidy PRs` / `Tidy Branches`) from those verdicts.
+(`Claudinite tracker: Tidy Issues` / `Tidy PRs` / `Tidy Branches`) from those verdicts — but only when
+the run has something to record: an action taken, or a picture that differs from the body's. A run
+whose verdicts match what the tracker already says writes nothing at all.
 
 **Nothing new, no run.** Every dimension is gated on *its own* objects moving in the window: no issue
 touched, no `tidy-issues`; no open PR opened or updated, no `tidy-prs`; no branch created or pushed,

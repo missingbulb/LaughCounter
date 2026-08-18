@@ -27,12 +27,18 @@ For each branch in the Context list, run the
 
 ## 2. Reconcile this task's tracker
 
-One standing tracker issue per repo, titled exactly `Claudinite tracker: Tidy Branches` — found by that
-**exact title, never a fuzzy match**; create it **already closed** if absent (never a fresh issue per run,
-never a bare number that can dangle). Each dimension keeps its **own** tracker, so three tasks never race
-to rewrite one body.
+**Only a run whose picture changed reaches the tracker.** Read the tracker's current body first and compare:
+a branch entering or leaving the list, or a verdict that flipped, is news. Verdicts identical to the ones
+already in the body are **nothing to record** — leave the body, post no comment, and create no tracker if
+none exists. Re-deriving last week's picture is a scan, not a change.
 
-Touch it two ways each run:
+One standing tracker issue per repo, titled exactly `Claudinite tracker: Tidy Branches` — found by that
+**exact title, never a fuzzy match**; create it **already closed** when there is something to record and it
+is absent — creation always lands an issue open and ignores a `state: closed` argument, so create it and
+close it in a second call (never a fresh issue per run, never a bare number that can dangle). Each dimension
+keeps its **own** tracker, so three tasks never race to rewrite one body.
+
+Touch it two ways on a run that has something to record:
 
 - **Rewrite the issue body** to today's **dated** snapshot: the branches carrying genuine unmerged work, the
   safe-to-delete count and names, and anything orphaned. The body is the live picture — it replaces last

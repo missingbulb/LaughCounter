@@ -93,8 +93,9 @@ The task's standing log is the issue titled exactly, in this repo:
 > **Claudinite tracker: Growth Extract**
 
 Find it **by that exact title, never a fuzzy match or a hard-coded number** (a bare number can dangle, and it
-differs per repo). A run that finds no issue under the exact title just creates one (closed). **Never open,
-close, or reopen it** afterward — its state carries no meaning, only the log does. When a run adds a lesson,
+differs per repo). A run that finds no issue under the exact title just creates one (closed) — creation always
+lands an issue open and ignores a `state: closed` argument, so create it and close it in a second call.
+**Never open, close, or reopen it** afterward — its state carries no meaning, only the log does. When a run adds a lesson,
 converts one to a check, or prunes logs, log it as a **dated comment** — not a sub-issue — so the issue
 accumulates a scrollable history, each entry naming **what happened and where**. A run that changed nothing
 logs nothing. (A repo that still carries a closed `Claudinite tracker: Conversation Extract` issue from when

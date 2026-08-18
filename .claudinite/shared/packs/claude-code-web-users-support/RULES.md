@@ -3,7 +3,7 @@
 A Claude Code **web** session runs for a signed-in person, in a managed container. A
 terminal session does neither. This pack is where the capabilities that depend on that
 difference live — anything a project can offer only when the session knows **who** is
-here.
+here, or only because the environment it runs in is one somebody configured.
 
 ## Personal interaction preferences
 
@@ -54,3 +54,13 @@ Edit that person's file **in the store repo** — never here, and never in the c
 distilled preference per bullet, in the imperative: a preference is a rule the assistant
 can act on, not a description of a mood. A preference that turns out to be a project
 convention in disguise belongs in the pack that owns its subject instead.
+
+## The web environment's Setup script
+
+Only a managed container has a **Setup script** field, and the web base image ships no
+toolchains — so a web session can run a project's tests only if somebody pasted one in.
+The body to paste is [`environment-setup-command.sh`](environment-setup-command.sh),
+whole and unedited: it installs every active pack's declared requirement, so it is
+identical for every project and never changes as those requirements do. Re-paste it (and
+rebuild) when a session-start check reports a missing requirement — never hand-edit a
+project-specific step into it; that step belongs in the owning pack's `env` declaration.

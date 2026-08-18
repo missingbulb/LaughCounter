@@ -198,6 +198,17 @@ repo's executor routine was provisioned with. `ready-for-agent-fleet` survives f
 task-level `session_scope: 'fleet'` — the canon's curation tasks, whose broader executor holds the
 owner's repos so that grant stays off the canon's ordinary routine. Nothing new declares a scope.
 
+## A duplicate dispatch trigger for the issue you already hold is usually your own echo
+
+Claiming a dispatch swaps its label (e.g. `ready-for-agent` → `agent-running`), and a label change
+is itself a triggering event, so the swap re-fires the very webhook that started you — a second
+dispatch notification for the same issue can arrive mid-run. Judge by **ownership**, not by
+treating it as a fresh signal: if the claim comment on the issue is yours, this is your own echo —
+change nothing extra, don't re-resolve, and keep running the work you already own. The one
+exception is when the work is delegated to a still-running subagent: don't let the echo pull the
+orchestrating session into re-reading the subagent's targets or redoing its work — confirm (once)
+that the dispatch is already claimed and let the subagent converge it.
+
 ## Dispatch lifecycle — every exit is terminal, and stale dispatches close
 
 - Success → the executor comments the result and **closes** the issue.

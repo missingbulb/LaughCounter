@@ -42,14 +42,14 @@
     "ref": "631a067f5a0413e154a0d4c1a66275f18b255af9",
     "engineVersion": 4,
     "packVersions": {
-      "basics": 2,
-      "barriers": 1,
-      "git-github": 1,
-      "grow_with_claudinite": 1,
-      "tidy-repo": 1,
-      "github-actions": 1,
-      "claude-code-web-users-support": 1,
-      "core": 1
+      "basics": 3,
+      "barriers": 2,
+      "git-github": 2,
+      "grow_with_claudinite": 2,
+      "tidy-repo": 2,
+      "github-actions": 2,
+      "claude-code-web-users-support": 2,
+      "core": 3
     }
   }
 }

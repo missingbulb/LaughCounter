@@ -25,6 +25,10 @@
 // keys here cannot drift from the words the runs actually emit.
 import { loadPacks, isActive, bundledSkillSources } from '../../../../engine/pack_loader/pack-registry.mjs';
 import { TASK_RUN_OUTCOMES, TASK_EXEC_STATUSES, emptyTaskRun, parseTaskExecs } from '../../../../engine/scheduler/run-record.mjs';
+// The file's on-disk shape is its SIBLING here (usage-format.mjs). Everything below
+// works in the NAMED counter shape and meets the tuples only at the two boundary
+// functions at the foot of this file.
+import { USAGE_FIELDS, USAGE_VERSION, encodeUsageFile, decodeUsageFile } from './usage-format.mjs';
 
 // --- entry classification -----------------------------------------------------
 // Every shape below was verified against real captured transcripts on a
@@ -296,7 +300,7 @@ function checkOutputKey(text) {
 // run that printed something: a green CI sweep prints nothing and is invisible. A
 // consumer wanting a rate over runs it can see the whole of subtracts them; one
 // asking "how often did the checks catch something" adds nothing and uses the total.
-const emptyScope = () => ({ runs: 0, failures: 0, errors: 0, blocking: 0, advisory: 0, ciRuns: 0, ciFailures: 0 });
+const emptyScope = () => Object.fromEntries(USAGE_FIELDS.checks.map((f) => [f, 0]));
 
 // Count check activations across one capture file's entries.
 //
@@ -428,10 +432,12 @@ export function countEntries(entries, mounted = new Set()) {
 
 // --- day buckets ---------------------------------------------------------------
 
-// An empty day row — the shape every counter folds through.
+// An empty day row — the shape every counter folds through. Its scalars come from the
+// file format's own day vocabulary, so the row and the header it is written under
+// cannot drift apart.
 const emptyDay = () => ({
-  captures: 0, merges: 0, sessions: 0, userMessages: 0, userCommands: 0, skillLoads: {},
-  checks: {}, checkFindings: {}, tasks: {}, taskExec: {},
+  ...Object.fromEntries(USAGE_FIELDS.day.map((f) => [f, 0])),
+  skillLoads: {}, checks: {}, checkFindings: {}, tasks: {}, taskExec: {},
 });
 
 function addLoads(into, from) {
@@ -556,17 +562,22 @@ export function daysToFold(days, foldedThrough, today) {
 // in each), so the week-level field is named for what it actually is — the sum of
 // the day-level distinct counts — rather than claiming a precision folding cannot
 // give.
+// Every scalar add is `?? 0` on the WEEK side for the same reason the counter maps
+// below default rather than crash: a week frozen before a field existed carries no key
+// for it, and the field must start accumulating from the first day that has it instead
+// of wedging the watermark or reading back as NaN.
 export function addDayToWeek(week, day) {
   const w = week ?? {
-    days: 0, captures: 0, merges: 0, sessionDays: 0, userMessages: 0, userCommands: 0,
+    ...Object.fromEntries(USAGE_FIELDS.week.map((f) => [f, 0])),
     skillLoads: {}, checks: {}, checkFindings: {},
   };
-  w.days += 1;
-  w.captures += day.captures;
-  w.merges += day.merges;
-  w.sessionDays += day.sessions;
-  w.userMessages += day.userMessages;
-  w.userCommands += day.userCommands;
+  const add = (field, n) => { w[field] = (w[field] ?? 0) + n; };
+  add('days', 1);
+  add('captures', day.captures);
+  add('merges', day.merges);
+  add('sessionDays', day.sessions);
+  add('userMessages', day.userMessages);
+  add('userCommands', day.userCommands);
   addLoads(w.skillLoads, day.skillLoads);
   // A week folded before the checks were counted has no `checks` key at all —
   // default rather than crash, so the first fold after this shipped extends the
@@ -584,23 +595,12 @@ export function addDayToWeek(week, day) {
 
 // --- the whole file ------------------------------------------------------------
 
-export const USAGE_VERSION = 1;
+export { USAGE_VERSION };
 
 // Sorted keys throughout, so a recompute that found nothing new produces a
 // byte-identical file and the delivery opens no PR.
 function sortKeys(obj) {
   return Object.fromEntries(Object.keys(obj).sort().map((k) => [k, obj[k]]));
-}
-
-function sortRow(row) {
-  return {
-    ...row,
-    skillLoads: sortKeys(row.skillLoads),
-    checks: sortKeys(row.checks ?? {}),
-    checkFindings: sortKeys(row.checkFindings ?? {}),
-    tasks: sortKeys(row.tasks ?? {}),
-    taskExec: sortKeys(row.taskExec ?? {}),
-  };
 }
 
 // Fold one run: day rows recomputed from `files` (the live raw window), week rows
@@ -630,7 +630,6 @@ export function foldUsage({ files, prior = {}, today, taskRuns = [], runsFoldedT
   }
 
   return {
-    version: USAGE_VERSION,
     foldedThrough,
     // The second watermark: how far the scheduler's own run ledger has been read.
     // Separate from `foldedThrough` because it advances on a different clock (runs,
@@ -638,10 +637,14 @@ export function foldUsage({ files, prior = {}, today, taskRuns = [], runsFoldedT
     // outage in one silently look like an outage in the other. Carried forward
     // unchanged when this run read no new runs.
     runsFoldedThrough: runsFoldedThrough ?? prior.runsFoldedThrough ?? null,
-    days: sortKeys(Object.fromEntries(Object.entries(days).map(([k, v]) => [k, sortRow(v)]))),
-    weeks: sortKeys(Object.fromEntries(Object.entries(weeks).map(([k, v]) => [k, sortRow(v)]))),
+    days: sortKeys(days),
+    weeks: sortKeys(weeks),
   };
 }
+
+// --- the file boundary ----------------------------------------------------------
+// Everything above works in NAMED counters; the on-disk tuple shape is met only here.
+export { encodeUsageFile as encodeUsage, decodeUsageFile as decodeUsage };
 
 // --- the mounted-skill set -----------------------------------------------------
 

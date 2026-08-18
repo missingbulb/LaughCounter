@@ -13,6 +13,7 @@ reports it.
 | Rule | Severity | Reason | Enforcement |
 |---|---|---|---|
 | Reading a rule that arrived from Claudinite | high | correctness | prose: 43 words + check (`claudinite-isolation`) |
+| Finding a mounted skill's real path | medium | complexity | prose: 81 words |
 | Wanting a pack's rules to apply here | high | correctness | prose: 47 words + check (`core-declared`) |
 | Adding a pack | medium | complexity | prose: 27 words |
 | Setting a project up on Claudinite | medium | complexity | prose: 15 words |

@@ -52,6 +52,14 @@ const isVersion = (v) => Number.isInteger(v) && v > 0;
 const isSeedOps = (v) => Array.isArray(v)
   && v.every((o) => o !== null && typeof o === 'object' && typeof o.template === 'string' && typeof o.dest === 'string');
 
+// A handover step needs all three parts or it is not one. `step` alone is a note
+// someone has to interpret; `breaks` is how an adopter judges whether to do it now;
+// `done` is what lets the tracking issue ever be closed. The shape IS the basics rule
+// for handing over human-only work, so a pack that declares one declares all of it.
+const isAdoptionHandover = (v) => Array.isArray(v) && v.every((o) => o !== null
+  && typeof o === 'object'
+  && ['step', 'breaks', 'done'].every((k) => typeof o[k] === 'string' && o[k].trim() !== ''));
+
 // Every field a manifest may carry. `required` fields must be present; the rest
 // are validated only when declared. An UNDECLARED field is an error: the spec is
 // the closed vocabulary of a pack, so a typo (`rule:`, `skill:`) fails loudly
@@ -69,6 +77,7 @@ export const PACK_FIELDS = {
   version: { describe: 'the pack version — a positive integer, advanced by a pack release', valid: isVersion },
   minEngineVersion: { describe: 'the lowest engine version this pack version runs on — a positive integer', valid: isVersion },
   seedOps: { describe: 'files seeded ONCE at install and owned by the repo thereafter, as { template, dest } pairs', valid: isSeedOps },
+  adoptionHandover: { describe: 'steps only a human can do after adoption, as { step, breaks, done } — printed by the install flow and filed as a tracking issue', valid: isAdoptionHandover },
   ruleRoutingGuidance: { required: true, describe: 'what belongs in this pack and what does not, each at most 20 words', valid: isPlainObject },
   badge: { describe: 'the pack badge filename, resolved off the pack directory', valid: (v) => typeof v === 'string' },
   detect: { describe: 'a fingerprint predicate over the repo context, or null', valid: (v) => v === null || typeof v === 'function' },

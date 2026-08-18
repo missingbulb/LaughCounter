@@ -71,7 +71,21 @@ CLAUDINITE_SESSION_FACETS="$(mktemp 2>/dev/null || true)"; export CLAUDINITE_SES
 cleanup() { [ -n "${CLAUDINITE_SESSION_FACETS:-}" ] && rm -f "$CLAUDINITE_SESSION_FACETS" 2>/dev/null || true; }
 trap cleanup EXIT
 
+# The repo-local git config the `merge=ours` .gitattributes entries and conflict
+# replay need. It converges here, not in the environment Setup script, because it
+# is per-CLONE state: a fresh checkout — every terminal clone, and a web session
+# whose container re-clones — carries none of it however the image was built.
+git_config() {
+  local d="${CLAUDE_PROJECT_DIR:-.}"
+  if ! git -C "$d" rev-parse --git-dir >/dev/null 2>&1; then
+    hooklog git-config "no git repo at $d — nothing to configure"
+    return 0
+  fi
+  git -C "$d" config merge.ours.driver true && git -C "$d" config rerere.enabled true
+}
+
 hooklog orchestrator "start"
+run_step git-config git_config
 # CONVERGE BEFORE REPORTING. This step regenerates the .claude/skills mounts to match
 # the declared packs, and the self-test below judges those same links — so running it
 # first is what makes that judgment true of the session the person actually gets. The

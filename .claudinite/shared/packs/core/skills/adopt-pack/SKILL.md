@@ -108,6 +108,18 @@ world sweep and let each finding name the file: e.g. `product-wiki` wants its in
 reviewed `product-requirements/` sink before the isolation wall has anything to guard. Scaffold
 per the pack's own README template; the pack's rules are the checklist.
 
+## 4b. File what adoption cannot do
+
+A pack may declare `adoptionHandover` — steps only a human can perform (a repository or
+console setting, a permission, a secret). The install runner prints them; they are not
+optional and they are not PR-body notes. **Open one tracking issue per adopting repo**,
+a checkbox per step, carrying each step's `breaks` (what is broken while it is off) and
+`done` (its closing condition) verbatim. Per-repo manual work reliably does not happen,
+so an unfiled step is a capability that dies silently in that member.
+
+Say on the adoption PR that the issue exists and link it. If the repo already has an
+open issue for the same steps, comment there rather than opening a second.
+
 ## 5. Land
 
 World and work checks green (`.claudinite/shared/engine/checks/check_the_world.mjs`; the Stop hook

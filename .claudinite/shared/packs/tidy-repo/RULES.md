@@ -16,8 +16,12 @@ The one rule that shapes everything: **assess PRs and branches read-only; act on
   / quick-win / leave. "Implemented in `main`" means the issue's actual ask is true of `main`'s
   content **now** — confirm it there and cite it; when you can't, comment, don't close. Every action
   defaults to the reversible option (comment / leave) when the check is inconclusive.
+- **Trackers — record changes, never scans.** A run reaches its tracker only with something to record:
+  an action actually taken (issues), or a picture that differs from what the body already says (PRs,
+  branches). A run that acted on nothing, or re-derived the same verdicts, leaves the tracker untouched
+  and creates none.
 
 Each task applies its single-object skill across the targets its precondition hands it, then rewrites
 **its own** standing tracker from the verdicts it gathered (one issue per dimension per repo, body
-rewritten to today's state, a dated comment per run). One tracker per task, never a shared one: the
+rewritten to today's state, a dated comment beside it). One tracker per task, never a shared one: the
 three tasks are independent and may run at once, so nothing races to rewrite one body.

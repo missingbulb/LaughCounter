@@ -103,7 +103,7 @@
         "whenIndexFileAbsent": "flagEveryPath",
         "anchorFindingsAt": "eachUncoveredPath",
         "what": "a GENERATED file with no merge=ours .gitattributes entry",
-        "fix": "add `{base} merge=ours` to .gitattributes (plus a one-time `git config merge.ours.driver true`) so a conflicting merge auto-resolves"
+        "fix": "add `{base} merge=ours` to .gitattributes so a conflicting merge auto-resolves — the session-start hook already sets the `merge.ours.driver` config in the clone"
       }
     ]
   },
