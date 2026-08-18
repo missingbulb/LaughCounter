@@ -228,7 +228,16 @@ export async function main() {
       await landDelivery({ token, repo, base, pr, delivery });
     } else if (terminal.action === 'needs-human') {
       await gh(token, `/repos/${repo}/issues/${pr.number}/labels`, { method: 'POST', body: { labels: [terminal.label] } });
-      console.log(`update: left PR #${pr.number} open and labelled ${terminal.label} — ${terminal.why}`);
+      console.error(`update: left PR #${pr.number} open and labelled ${terminal.label} — ${terminal.why}`);
+      // NON-ZERO, so the work item lands in `needs-human` rather than closing
+      // `outcome:done`. This terminal means the converge DID NOT DELIVER — the PR
+      // is parked awaiting a person — and a run that delivered nothing must not
+      // report success. Exiting 0 here is what hid #939 for five days: every
+      // member's nightly update closed `outcome:done` while its PR sat parked, so
+      // the whole fleet was frozen and every signal said healthy. This is the
+      // "reserve non-zero for genuine breakage" rule's genuine breakage: the
+      // member is not converging and nothing else will say so.
+      process.exitCode = 1;
     } else if (terminal.action === 'apply-stage' && requestFile) {
       writeFileSync(requestFile, `${JSON.stringify({
         marker: 'agent-requested',

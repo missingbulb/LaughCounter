@@ -47,7 +47,7 @@ Land the new pack (and its declaration) through a single PR on a per-run-unique 
 
 ## Tracking
 
-The standing log is the issue titled exactly **`Claudinite tracker: Discover Local Packs`** in this repo. Find it **by that exact title, never a fuzzy match or a hard-coded number**; create it already closed if missing. **Never open, close, or reopen it** — its state carries no meaning, only the log does. Log each run as a **dated comment**: the pack authored (the repo segment it covers + the rungs its rules landed on), or "nothing new worth a local pack this run", and any "should declare canon pack X instead" note. For a candidate you found nothing groundable for, name it and why.
+The standing log is the issue titled exactly **`Claudinite tracker: Discover Local Packs`** in this repo. Find it **by that exact title, never a fuzzy match or a hard-coded number**; create it already closed if missing — creation always lands an issue open and ignores a `state: closed` argument, so create it and close it in a second call. **Never open, close, or reopen it** afterward — its state carries no meaning, only the log does. Log each run as a **dated comment**: the pack authored (the repo segment it covers + the rungs its rules landed on), or "nothing new worth a local pack this run", and any "should declare canon pack X instead" note. For a candidate you found nothing groundable for, name it and why.
 
 ## What this task must never do
 

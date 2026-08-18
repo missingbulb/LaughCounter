@@ -1,6 +1,6 @@
 export default {
   id: 'github-actions',
-  version: 1,
+  version: 2,
   minEngineVersion: 1,
   ruleRoutingGuidance: {
     belongs: 'workflow YAML and Actions runner platform behaviour: triggers, secrets, permissions, scheduling, artifacts, reusable workflows and their pitfalls',

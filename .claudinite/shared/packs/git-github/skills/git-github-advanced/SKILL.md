@@ -63,6 +63,22 @@ Conflict size scales with how long a branch lives and how far it drifts from the
 
 **In a repo that forbids merge commits on the branch — the `squash-merge-history` check, or squash-only merging generally — sync by *rebasing*, never `git merge` the base in.** A `git merge origin/main` (even just to resolve conflicts) leaves a **merge commit** the check blocks, forcing a redo; `git pull --rebase` / `git rebase origin/main` replays your work with no merge commit. GitHub's **"Update branch"** button — and the `update_pull_request_branch` API behind it — is this same base-merge in disguise: it adds exactly the merge commit the check blocks, so refresh with a local rebase + `git push --force-with-lease` instead. The merge-conflict-resolution gotchas below apply to a rebase's conflicts exactly the same way.
 
+## A local git-mutation refusal after a merge already succeeded server-side is not worth a second variant
+
+Once an API call reports the merge done (`merged: true`), syncing your local checkout afterward is a convenience, not part of landing it — so if the session's own permission/auto-mode classifier denies a mutating git command (`git checkout main`, `git pull`, `git reset --hard`), take one attempt and stop; a differently-phrased retry (a plain `checkout`, then `fetch origin main`, then `reset --hard`) hits the same classifier and burns minutes on a step with nothing downstream of it. State plainly that local `main` is behind and move on, or confirm what's needed **read-only** (`git log`, a file-contents fetch against the server) instead of continuing to mutate.
+
+## The sandbox checkout can be shallow, and a shallow history breaks `git merge-base`
+
+A shallow clone (or a shallow default checkout in a sandboxed session) carries a truncated history graph with synthetic grafts, so `git merge-base <default> <branch>` fails for branches that predate the shallow point — even ordinary, cleanly-merged ones — and any check that reads that failure as "orphaned" or "unrelated" produces false positives at scale. Before trusting a merge-base result (or any cross-branch history comparison), run `git rev-parse --is-shallow-repository`; if it reads `true`, unshallow first: `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune && git fetch --unshallow`.
+
+## Prefer `git commit && git push` over the MCP file-write tools for a file already correct on disk
+
+`push_files`/`create_or_update_file` take the file body as a literal string the model composes for the call, so what lands is a **transcription** of the file, not the file — a truncated JSON config and a stray inserted blank line have both landed this way on real PRs, each caught only by chance. Reserve the MCP write path for what genuinely needs it (a file a scoped token can push but the session's own git remote can't — e.g. `.github/workflows/` under a `GITHUB_TOKEN` that's forbidden to push it), and when you do use it, read the result back with a file-contents fetch and diff it against the local copy before moving on.
+
+## A run that never executed the repo's own steps is infrastructure, not a CI failure to wait out
+
+Two tells: a check stuck `queued` that auto-cancels around 15 minutes with its job logs then 404ing, or a job that dies in an early platform-provided step (e.g. "Prepare all required actions" / "Failed to resolve action download info … Service Unavailable") before your own workflow's steps ever start. Recognize the pattern and say plainly that it's a platform outage rather than continuing to poll or hunting for a repo-side cause — re-running (once) is the whole remedy; waiting longer or diagnosing the workflow file spends more time on an outage neither can fix.
+
 ## After a remote-side merge, fetch before branching off origin/main
 
 A GitHub API/UI (or any remote-side) merge does **not** advance your local `origin/main` — it stays at the pre-merge commit until you `git fetch`. Branching off `origin/main` immediately after a remote merge forks the pre-merge state, silently missing the just-merged work; symptoms surface later as a missing file or a failed `git mv` on the new branch. Fix: `git fetch origin main` before creating the branch.
@@ -121,7 +137,7 @@ GitHub **Actions** reports results as **check runs**, not the legacy **commit st
 
 ## To confirm a non-PR run (push / dispatch), read its job logs — it has no PR check runs
 
-A `push` or `workflow_dispatch` run isn't attached to a PR, so the PR-scoped check-run query above doesn't apply to it. Confirm such a run through the GitHub API/MCP tools: `get_job_logs(run_id, failed_only: true)` — "0 failed jobs" means green — or, for a release build, `get_release_by_tag`. Don't `curl` the run's status instead: in a sandboxed session `api.github.com` is proxy-blocked and returns an error body that never matches a success pattern, so a `curl`/`Monitor` poll silently reports "still running" until it times out.
+A `push` or `workflow_dispatch` run isn't attached to a PR, so the PR-scoped check-run query above doesn't apply to it. Confirm such a run through the GitHub API/MCP tools: `get_job_logs(run_id, failed_only: true)` — "0 failed jobs" means green — or, for a release build, `get_release_by_tag`. `get_job_logs` needs more than a bare `run_id`: it rejects with "job_id is required when failed_only is false" unless you pass `failed_only: true` or fetch a `job_id` first (`list_workflow_jobs`), and it 404s for a job still `in_progress` — wait for the job to finish. Don't `curl` the run's status instead: in a sandboxed session `api.github.com` is proxy-blocked and returns an error body that never matches a success pattern, so a `curl`/`Monitor` poll silently reports "still running" until it times out.
 
 ## A green run is not evidence its job ran — read the job's own conclusion
 

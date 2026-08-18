@@ -18,12 +18,18 @@ inconclusive it **comments, doesn't close**. Collect what each triage did.
 
 ## 2. Reconcile this task's tracker
 
-One standing tracker issue per repo, titled exactly `Claudinite tracker: Tidy Issues` — found by that
-**exact title, never a fuzzy match**; create it **already closed** if absent (never a fresh issue per run,
-never a bare number that can dangle). Each dimension keeps its **own** tracker, so three tasks never race
-to rewrite one body.
+**Only a run that changed something reaches the tracker.** What counts is a triage action actually taken —
+an issue closed, a comment posted — or something this run leaves for a human. A run that worked its whole
+Context list and took no action has **nothing to record**: leave the tracker exactly as found, no body
+rewrite and no comment, and create none if it doesn't exist. The scan itself is not news.
 
-Touch it two ways each run:
+One standing tracker issue per repo, titled exactly `Claudinite tracker: Tidy Issues` — found by that
+**exact title, never a fuzzy match**; create it **already closed** when there is something to record and it
+is absent — creation always lands an issue open and ignores a `state: closed` argument, so create it and
+close it in a second call (never a fresh issue per run, never a bare number that can dangle). Each dimension
+keeps its **own** tracker, so three tasks never race to rewrite one body.
+
+Touch it two ways on a run that has something to record:
 
 - **Rewrite the issue body** to today's **dated** snapshot: the actions taken this run and anything left
   for a human. The body is the live picture — it replaces yesterday's, it doesn't accumulate.

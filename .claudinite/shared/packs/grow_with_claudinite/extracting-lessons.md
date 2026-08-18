@@ -31,6 +31,12 @@ session or window.** Before adding anything:
   the rule is *expired*, not that the lesson is novel.
 - **One-offs don't qualify.** A situational detail, a restatement of a generic truism, or something already
   implied by an existing rule is below the bar.
+- **Never capture a rule that teaches routing around a permission, security, or classifier denial.** A
+  pattern of "it was denied, then succeeded on retry" is real signal about *reliability*, not license to
+  write a rule instructing every future session to retry, ignore, or explain past such a denial without
+  asking — however solid the retry evidence looks, that shape of lesson never clears the bar. Report a
+  recurring denial to the owner instead; a checked-in instruction that tells unattended sessions to bypass
+  a safety gate is a standing bypass with no consent behind it, however it got there.
 - **Promote what's portable.** A lesson true for projects beyond this one belongs in shared, cross-project
   canon, not stuck in one repo's local packs — the growth lifecycle's promote stage lifts it there
   centrally; capture it well locally and let promote generalize whatever travels.

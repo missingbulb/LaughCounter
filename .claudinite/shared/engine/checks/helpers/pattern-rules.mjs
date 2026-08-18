@@ -365,7 +365,16 @@ const SPEC_KEYS = {
   extractValueSets: ['setName', 'fromParsedFile', 'fromParsedFilesMatching', 'whereFileContains',
     'valuesOfArraysAtFields', 'whenSetEmpty'],
   requireIndexCoverage: ['eachTrackedPathMatching', 'eachScannedPathMatching', 'includeVendored',
-    'whoseTextMatches', 'eachValueOfSet',
+    // `eachValueInParsedArray` is `eachValueOfSet`'s pre-#895 spelling, accepted
+    // here and rewritten by normalizeLegacySpellings. It cannot simply be dropped:
+    // a member's vendored packs are delivered on a PACK VERSION BUMP while the
+    // engine that validates them is delivered on its own, so a rename inside a
+    // pack's declared-checks.json reaches no member while the engine that rejects
+    // the old spelling reaches all of them. The resulting mixed tree fails the
+    // self-test, which parks the update PR — the very PR that would have carried
+    // the new spelling. Retire this only once a member's packs cannot be older
+    // than its engine.
+    'whoseTextMatches', 'eachValueOfSet', 'eachValueInParsedArray',
     'indexFile', 'coveredByText', 'coveredByGlobLinesMatching', 'coveredByValueInArrayAtField',
     'whenIndexFileAbsent', 'anchorFindingsAt', ...MSG],
   coveredByValueInArrayAtField: ['atField', 'value', 'ignoreCase', 'matchingEntryObjectsByField'],
@@ -465,6 +474,32 @@ function normalizeLegacySpellings(spec) {
   delete spec.checkParsedFile;
   delete spec.forEachParsedEntry;
   delete spec.equalParsedValues;
+
+  // The pre-#895 value-set quantifier, which INLINED the extraction it now names:
+  //   eachValueInParsedArray: { filesMatching, whereFileContains, atField }
+  // becomes an `extractValueSets` entry plus a reference to it. Translated rather
+  // than rejected so a member whose vendored packs predate the split still loads
+  // its checks — see the key table for why that combination is reachable at all.
+  // The synthetic set name is indexed so several legacy entries in one pack cannot
+  // collide, and it is prefixed to keep it out of any hand-declared set's space.
+  const legacy = (spec.requireIndexCoverage ?? []).filter((a) => a.eachValueInParsedArray !== undefined);
+  if (legacy.length) {
+    const sets = [...(spec.extractValueSets ?? [])];
+    legacy.forEach((a, i) => {
+      const inline = a.eachValueInParsedArray;
+      const setName = `legacyInlineSet${i}`;
+      sets.push({
+        setName,
+        fromParsedFilesMatching: inline.filesMatching,
+        whereFileContains: inline.whereFileContains,
+        valuesOfArraysAtFields: [inline.atField],
+        whenSetEmpty: 'assertNothing',
+      });
+      a.eachValueOfSet = setName;
+      delete a.eachValueInParsedArray;
+    });
+    spec.extractValueSets = sets;
+  }
 
   const coverage = [...(spec.requireIndexCoverage ?? [])];
   for (const a of spec.listedInFile ?? []) {

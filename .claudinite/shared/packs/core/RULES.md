@@ -7,6 +7,13 @@ self-refresh, and the contract a scheduled task is written to.
   `.claudinite/shared/`, and the update flows replace that whole tree. Never edit anything there:
   change it in the canon, or carry the difference in this repo's own `.claudinite/local/packs/`.
 
+- **Finding a mounted skill, or following a link from inside one you already loaded** — a canon
+  skill lives at `.claudinite/shared/packs/<pack>/skills/<name>/SKILL.md`; there is no flat
+  `.claudinite/shared/skills/`. When the `Skill` tool announces a per-session flat "base directory"
+  (e.g. `.claude/skills/<name>/`) that holds only that one `SKILL.md`, any relative link the
+  skill's own text carries (to a sibling doc, a sibling skill) was written for its real home and
+  dangles from that announced base — resolve such links against the canon path instead.
+
 - **Wanting a pack's rules to apply here** — declare its id in `.claudinite-checks.json`. Nothing
   activates by being mounted, fingerprinted or present on disk, so a pack whose files you can see
   but whose id is undeclared contributes no prose, no checks, no skills and no tasks.

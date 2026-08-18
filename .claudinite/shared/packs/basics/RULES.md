@@ -94,6 +94,11 @@ Contracts worth knowing before you spend a call rediscovering them.
   count. The moment shell output tells you which file you're about to change, read that exact path;
   a narrow offset window satisfies it.
 
+- **Calling `Grep` with a context flag** (`-n`/`-A`/`-B`/`-C`) — it's silently ignored under the
+  default `output_mode: "files_with_matches"`, so the call answers only a match count or file
+  list, never the lines you asked for, with no error to catch it. Pass `output_mode: "content"`
+  in the same call as any context flag.
+
 - **Needing exact text from the web** — a summarizing fetch tool is not a source; when the bytes
   matter, `curl` into the scratchpad and read from disk. On a `403` don't retry and don't try a
   sibling URL — attribute the search snippet to the publisher instead of asserting it, and mark it
@@ -103,7 +108,12 @@ Contracts worth knowing before you spend a call rediscovering them.
   obstacle to route around**: don't reach for an open-network runner, an ad-hoc CI workflow or a
   push-triggered "probe", to make the request from somewhere the policy doesn't apply. Answer from
   committed reference material or ask the owner, and say plainly that anything unverifiable is
-  unverified.
+  unverified. Recognize a fetch tool's own signal for a domain-wide **egress block** (e.g. an
+  explicit `EGRESS_BLOCKED` error) rather than reading it as an ordinary publisher `403` — a block
+  is domain-wide, so working down a list of alternate sources for the same fact spends the same
+  denial again on each one, where a `403` is at least per-site. And never file the gap as
+  "re-verify next pass": no later agent pass can close a policy-level block either, so mark it as
+  needing a human or an unblocked environment instead.
 
 - **Scheduling a wake-up with the harness** — pass `prompt`, the instruction the woken turn is to
   act on, on any call that isn't `stop: true`; a no-op flag and a stated `reason` do not exempt it,
@@ -177,7 +187,10 @@ its tracking issue.
 
 - **Writing file A so it depends on file B** — say what A needs from B, or that it delegates, and
   don't re-spell how B does its job. If you're about to paraphrase B's procedure, point at B
-  instead. This holds for code comments and Markdown alike.
+  instead. This holds for code comments and Markdown alike. The test for whether a detail
+  belongs: if that detail changes, does A actually care? A specific that wouldn't force A to
+  change — B's cadence, B's file layout, the reasoning behind how B works — is B's detail, not
+  A's, and doesn't belong in A even as color.
 
 - **Committing** — one concern per commit: if two changes could each stand alone, split them, and
   a message that wants numbered items is the split talking. Once a commit has landed, revise with a
@@ -239,6 +252,13 @@ its tracking issue.
 - **Writing the exit path of a pipeline or CI step** — an expected, handled outcome exits clean
   with a comment. Reserve non-zero for genuine breakage.
 
+- **Piping a long command's output through `tail` (or `head`) to keep it readable** — it discards
+  the pipeline's real exit code (`$?` becomes the trailing command's, not the one you're
+  checking), so a mid-chain failure goes unnoticed, and any earlier summary lines the truncation
+  cut are gone right when you need them. Redirect to a file (or `tee`) instead, read `$?` from
+  that same invocation, and grep the file afterward for whatever slice you actually need — never
+  re-run the whole thing to re-slice its output.
+
 - **Killing a process by pattern** — `pkill -f` matches the invoking shell's own command line too,
   so never chain it, and bracket one character of the pattern (`[h]ttp.server 8099`) to break the
   self-match.
@@ -267,7 +287,12 @@ its tracking issue.
   it matches code, not prose — string-aware, since a `//` inside a URL is not a comment. Reuse
   `stripComments` from
   [`engine/checks/helpers/code-scanning.mjs`](../../engine/checks/helpers/code-scanning.mjs); if the
-  scan can't import it, inline the same pass and point a comment back at that source.
+  scan can't import it, inline the same pass and point a comment back at that source. Strip in
+  **both** directions — a comment that documents or warns about the banned pattern is exactly
+  where a naive check trips over its own reasoning, so a commented-out instance must not count as
+  present either. And prove the check silent against the repo's own **real** sources, not only a
+  synthetic clean fixture — a fixture spelling the same gap the check has just keeps proving the
+  matching, and only a real-tree run can disagree with you.
 
 - **Writing a comment** — carry the why, or a cross-file relationship the code can't state itself;
   if the code plus a known convention already says it, write nothing. Describe the current state,

@@ -153,9 +153,19 @@ export function planTick({
 // An item already in flight (`task:ready`, `task:executing`, `task:agent`) is left
 // alone and reported as `already`, never re-woken — an episode boundary dropped on
 // a live claim is exactly the livelock F18 describes.
+//
+// WHEN THE STANDING ITEM DOES NOT EXIST, forcing MINTS it (§8's other lever). A
+// task that completes closes its item, and the next one appears only at the next
+// anchor — so between the two there is nothing to wake, and that gap is the common
+// case rather than an edge: a daily task is missing its item for most of the day.
+// A force that reported "nothing to wake" there would fail on most members most of
+// the time, which is precisely what a fleet-wide converge lever must not do. The
+// minted item is an ordinary standing item, `origin:schedule` and all: it consumes
+// the CURRENT occurrence, so the tick does not then create a second one beside it,
+// and it leaves the next anchor's occurrence untouched.
 export function planWake(spec, tasks = [], items = []) {
   const ids = String(spec ?? '').split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
-  const wake = []; const already = []; const unmatched = [];
+  const wake = []; const create = []; const already = []; const unmatched = [];
   for (const id of ids) {
     const [a, b] = id.includes('/') ? id.split('/') : [null, id];
     const owners = tasks.filter((t) => t.id === b && (a === null || t.pack === a));
@@ -163,18 +173,25 @@ export function planWake(spec, tasks = [], items = []) {
       unmatched.push({ id, why: owners.length ? `${owners.length} declared packs own a "${b}" task — name it as pack/task` : 'no declared pack owns a task by that name' });
       continue;
     }
-    const { pack, id: task } = owners[0];
+    const owner = owners[0];
+    const { pack, id: task } = owner;
     const item = items.find((i) => {
       if (i.state !== 'open') return false;
       const parsed = parseWorkItemTitle(i.title);
       return parsed && parsed.pack === pack && parsed.task === task;
     });
-    if (!item) { unmatched.push({ id, why: `no open standing item for ${pack}/${task}` }); continue; }
+    if (!item) { create.push({ id: `${pack}/${task}`, pack, task, taskPath: owner.taskPath }); continue; }
     if (IN_FLIGHT.some((l) => hasLabel(item, l))) { already.push({ id, issue: item.number }); continue; }
     wake.push({ id: `${pack}/${task}`, issue: item.number });
   }
-  return { wake, already, unmatched };
+  return { wake, create, already, unmatched };
 }
+
+// The Context a forced standing item carries. It says the force is the only reason
+// the item exists, because the executor still evaluates the precondition at pick:
+// a force that finds no work must roll with its reason on record, not invent work.
+export const FORCED_WAKE_CONTEXT =
+  'Minted by a force — this task had no open standing item at the time. The precondition is still evaluated at pick, so converge to a no-op if there is nothing to do.';
 
 // The states that mean someone already holds this item. `task:agent` counts: the
 // work is with a session, and waking would hand a second executor the same item.
@@ -293,10 +310,20 @@ async function main() {
     const { wakeItem } = await import('./create-work-item.mjs');
     // Re-read: the ops above may have created or readied the very items named.
     const current = await listWorkItems(gh, repo, { since });
-    const { wake, already, unmatched } = planWake(spec, tasks, current);
+    const { wake, create, already, unmatched } = planWake(spec, tasks, current);
     for (const w of wake) {
       const res = await wakeItem(gh, repo, w.issue);
       console.log(res.ok ? `- woke #${w.issue} ${w.id}` : `! could not wake #${w.issue} ${w.id}: ${res.error}`);
+    }
+    if (create.length) await ensureLabels(gh, repo, QUEUE_LABELS);
+    for (const c of create) {
+      const res = await createIssue(gh, repo, {
+        title: workItemTitle({ pack: c.pack, task: c.task }),
+        body: workItemBody({ taskPath: c.taskPath, context: [FORCED_WAKE_CONTEXT] }),
+        labels: [ORIGIN_SCHEDULE, READY],
+      });
+      if (res.number) console.log(`- created #${res.number} ${c.id} (forced: it had no open standing item)`);
+      else { console.log(`! could not create a work item for ${c.id}: ${res.status}`); process.exitCode = 1; }
     }
     for (const a of already) console.log(`- ${a.id} is already in flight on #${a.issue} — left alone`);
     for (const u of unmatched) console.log(`! nothing woken for "${u.id}": ${u.why}`);

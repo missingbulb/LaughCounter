@@ -7,10 +7,10 @@
 // view):
 //
 //   node env.mjs install   Run every active pack's `setup` in the checkout. The
-//                          project's one generic environment-setup script (in
-//                          .claudinite/) calls this after syncing the corpus;
-//                          installs land in the environment image (snapshotted,
-//                          reused).
+//                          one generic environment-setup script — the web pack's,
+//                          pasted into the environment's Setup script field —
+//                          calls this; installs land in the environment image
+//                          (snapshotted, reused).
 //   node env.mjs check     SessionStart assertion (web only): run every active
 //                          pack's `probe`; if a requirement isn't actually
 //                          present, inject the halt-gate context telling the
@@ -84,8 +84,9 @@ async function install(projectRoot) {
 // --- check (SessionStart assertion — pure probes) -----------------------
 function emitAlert(problems) {
   const msg =
-    `Environment setup incomplete: ${problems.join('; ')}. Alert the user: re-paste the full body of ` +
-    '.claudinite/shared/engine/hooks/environment-setup-command.sh into the Claude Code Web environment Setup script field (environment ' +
+    `Environment setup incomplete: ${problems.join('; ')}. Alert the user: re-paste the full body of the ` +
+    'setup script (`find .claudinite/shared -name environment-setup-command.sh`; a pack owns it, so the ' +
+    'engine does not name its path) into the Claude Code Web environment Setup script field (environment ' +
     'settings), then start a fresh session so the snapshot rebuilds with the prerequisites installed.';
   // SessionStart adds stdout to the session context. Emit plain text (not a JSON
   // additionalContext envelope) so this step's output merges cleanly with the

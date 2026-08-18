@@ -28,7 +28,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { deliverGenerated, baseTip, readAt, remoteUrl } from '../../../../engine/scheduler/deliver-generated.mjs';
-import { countEntries, foldUsage, mountedSkillNames } from './fold-usage.mjs';
+import { countEntries, foldUsage, encodeUsage, decodeUsage, mountedSkillNames } from './fold-usage.mjs';
+import { renderUsageFile } from './usage-format.mjs';
 import { makeReader, readTaskRuns } from './read-task-runs.mjs';
 
 const BRANCH = 'conversation-logs';
@@ -122,8 +123,10 @@ export async function main() {
   // the base — days recompute statelessly and the watermark advances from the same
   // place, so nothing is ever counted twice.
   const baseSha = baseTip(root, remote, base);
+  // Decoded on the way in: the prior file may have been written by any version of this
+  // format, and the fold works in named counters throughout.
   let prior = {};
-  try { prior = JSON.parse(readAt(root, baseSha, USAGE_PATH) ?? '{}'); } catch { /* unparsable → refold */ }
+  try { prior = decodeUsage(JSON.parse(readAt(root, baseSha, USAGE_PATH) ?? '{}')); } catch { /* unparsable → refold */ }
 
   // The second source: what the scheduler itself did with each task, read from its
   // own run logs past the aggregate's run watermark (read-task-runs.mjs). Fail-soft
@@ -138,9 +141,9 @@ export async function main() {
   if (taskRuns.remaining) log(`${taskRuns.remaining} scheduler run(s) past this fold's cap — the next fold continues from the watermark`);
 
   const today = now.slice(0, 10);
-  const text = `${JSON.stringify(foldUsage({
+  const text = renderUsageFile(encodeUsage(foldUsage({
     files, prior, today, taskRuns: taskRuns.records, runsFoldedThrough: taskRuns.watermark,
-  }), null, 2)}\n`;
+  })));
   const attributes = withMergeAttribute(readAt(root, baseSha, '.gitattributes'));
 
   if (readAt(root, baseSha, USAGE_PATH) === text && attributes === null) {

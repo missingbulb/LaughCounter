@@ -26,6 +26,14 @@
 // lets this be a pack at all, rather than a special case wired into the session-start
 // machinery of every repo that mounts the corpus.
 //
+// SECOND FEATURE: THE ENVIRONMENT SETUP SCRIPT. `environment-setup-command.sh` is the
+// body a project pastes into its web environment's Setup script field, so the image
+// carries the toolchains the base image doesn't ship. It lives here because a managed
+// container is the only surface that has such a field at all — a terminal session
+// installs its toolchains itself. What it installs is every active pack's business
+// (the `env` declarations the engine aggregates), which is why the body is generic and
+// identical everywhere.
+//
 // SEEDED BY DEFAULT. Any project can have people working on it from the web, so
 // `--init` declares it; the adoption question below is what turns the declaration into
 // a working store, and a project that wants none answers "n/a" and carries a pack that
@@ -35,7 +43,7 @@ import storeFileNames from './store-file-names.mjs';
 
 export default {
   id: 'claude-code-web-users-support',
-  version: 1,
+  version: 2,
   minEngineVersion: 1,
   ruleRoutingGuidance: {
     belongs: 'what a project offers people working from Claude Code on the web, where the session knows who they are',

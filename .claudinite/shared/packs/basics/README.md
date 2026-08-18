@@ -25,8 +25,9 @@ The baseline pack — the `RULES.md` prose every session loads (injected by the 
 | Acting on an approval | high | correctness | prose: 69 words |
 | Searching for a tool with ToolSearch | medium | complexity | prose: 57 words |
 | Calling Edit | low | complexity | prose: 39 words |
+| Calling Grep with a context flag | medium | complexity | prose: 51 words |
 | Needing exact text from the web | high | correctness | prose: 56 words |
-| Hitting a denied fetch | critical | legal | prose: 64 words |
+| Hitting a denied fetch | critical | legal | prose: 152 words |
 | Scheduling a wake-up with the harness | high | correctness | prose: 60 words |
 | Seeing a build, test or CI warning | medium | correctness | prose: 28 words |
 | Suppressing a warning | medium | complexity | prose: 74 words + check (`warning-suppression`) |
@@ -36,7 +37,7 @@ The baseline pack — the `RULES.md` prose every session loads (injected by the 
 | Handing over a human-only step | high | complexity | prose: 142 words |
 | Naming a file, module, or symbol | low | complexity | prose: 22 words |
 | Referring to a value from two places | high | correctness | prose: 117 words + check (`shared-constants`) |
-| Writing a file that depends on another | medium | complexity | prose: 48 words |
+| Writing a file that depends on another | medium | complexity | prose: 97 words |
 | Committing | medium | complexity | prose: 43 words |
 | Working with a generated file | high | correctness | prose: 64 words + check (`generated-merge-driver`) |
 | Depending on platform or runtime behaviour | high | correctness | prose: 31 words |
@@ -50,11 +51,12 @@ The baseline pack — the `RULES.md` prose every session loads (injected by the 
 | Driving an external runtime repeatedly | low | complexity | prose: 51 words |
 | Automating something that needs live conversation context | medium | complexity | prose: 46 words |
 | Writing a pipeline step's exit path | medium | correctness | prose: 26 words |
+| Piping a long command through tail | medium | correctness | prose: 87 words |
 | Killing a process by pattern | high | correctness | prose: 34 words |
 | Working in a fresh checkout or sandbox | low | complexity | prose: 54 words |
 | Deciding where a config value lives | medium | complexity | prose: 69 words |
 | Handling a value that can be unknown | high | correctness | prose: 103 words |
-| Writing a check that scans the repo | high | correctness | prose: 93 words |
+| Writing a check that scans the repo | high | correctness | prose: 170 words |
 | Writing a comment | low | complexity | prose: 93 words |
 
 ## Checks
