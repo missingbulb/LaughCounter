@@ -4,7 +4,7 @@
 // `validate-dispatch` validate against this one function, so the accepted shape
 // can never drift between the two surfaces.
 
-import { FREQUENCIES } from './slots.mjs';
+import { FREQUENCIES } from './calendar.mjs';
 import { MODEL_FAMILIES } from './model-map.mjs';
 import { EXECUTING_LEASH_MS } from './queue/leases.mjs';
 
@@ -44,14 +44,17 @@ export function normalizeTaskDeclaration(decl) {
 export const OUTCOMES = ['none', 'open-pr', 'merged-pr'];
 
 
-// The executor-session dispatch vocabulary — DEPRECATED as a declared field, kept
-// as routing. 'self' dispatches ride `ready-for-agent`; 'fleet' rides
-// `ready-for-agent-fleet`, the label whose executor session holds the owner's repos.
-// A task no longer declares this: a repo's executor carries the access it was
-// provisioned with (the sheepdog enforcer's already spans the fleet), so the split
-// protects nothing there. The one standing use is the canon home's curation tasks
-// (growth-promote, growth-discover-packs), whose fleet executor is a separate,
-// broader-scoped routine in that one repo.
+// The retired scope vocabulary. It routed a slot dispatch to one of two labels, and
+// its last reader went with the slot scheduler (#974): reach is now a property of
+// which endpoint the hand-off calls (`invocation_endpoint`), so nothing anywhere
+// asks a task what its scope is.
+//
+// The values stay so a declaration still carrying the field VALIDATES rather than
+// failing — nothing converges a member's task files, so a member cannot be moved
+// off it by a release; `task-declaration-shape` raises it as an advisory rename
+// instead, and the field is dropped as each declaration is next edited.
+// @deprecated Declares nothing. Name an `invocation_endpoint` if the task needed
+//   reach an ordinary session in its repo does not have.
 export const SESSION_SCOPES = ['self', 'fleet'];
 
 // What must happen to a task's work item when a recovery path would re-execute it
@@ -106,17 +109,16 @@ export function validateTaskDeclaration(raw) {
   }
 
   /**
-   * session_scope — OPTIONAL; still honoured while it lingers (the canon's
-   * curation tasks are the one standing use — each pacifies the warning with a
-   * comment at its declaration site). It stays VALIDATED rather than ignored: a
-   * deprecated field that silently accepts a typo mis-routes the dispatch to an
-   * executor that declines it, and the task then never runs while the scheduler
-   * re-arms it hourly.
-   * @deprecated An executor's reach is how its repo is provisioned, never
-   *   something a task asks for — drop the field; dispatches ride ready-for-agent.
+   * session_scope — OPTIONAL, and READ BY NOTHING. Kept validated rather than
+   * rejected outright so a lingering declaration still loads: nothing carries a
+   * task-file change across the fleet, so a member cannot be migrated off the field
+   * by a release, and rejecting it would stop that member's task running over a word
+   * that no longer does anything.
+   * @deprecated Declares nothing since #974. Drop it; if the task needed reach an
+   *   ordinary session in its repo does not have, name an `invocation_endpoint`.
    */
   if (decl.session_scope !== undefined && !SESSION_SCOPES.includes(decl.session_scope)) {
-    bad(`"session_scope" ${JSON.stringify(decl.session_scope)} is not a legal session scope`, `drop it (dispatches ride ready-for-agent by default) — or, while it lingers, set one of: ${SESSION_SCOPES.join(', ')}`);
+    bad(`"session_scope" ${JSON.stringify(decl.session_scope)} is not a legal session scope`, `drop it — the field is read by nothing; name an "invocation_endpoint" if the task needs wider reach`);
   }
 
   // Prework (task-prework DESIGN §2) — OPTIONAL. The deterministic first phase

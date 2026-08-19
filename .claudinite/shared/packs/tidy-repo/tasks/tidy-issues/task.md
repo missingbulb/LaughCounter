@@ -1,7 +1,7 @@
 # tidy-issues worker
 
 The **acting** third of the repo tidy-up: triage the issues in scope, then record what you did. You run
-under the executor, dispatched by a `ready-for-agent` issue; its **Context section is binding scope** — it
+from a work item the executor handed off; its **Context section is binding scope** — it
 lists the issues to triage. Work only those; don't enumerate the repo yourself. GitHub access is
 **MCP-only** (`mcp__github__*`).
 
@@ -14,14 +14,16 @@ pushes — those dimensions belong to `tidy-prs` and `tidy-branches`, which are 
 For each issue in the Context list, run the [single-issue-triage](../../skills/single-issue-triage/SKILL.md)
 skill. The skill owns the action ladder and the safeguards: "implemented in `main`" means the issue's actual
 ask is true of `main`'s content **now** — verified there and cited, never inferred — and when the check is
-inconclusive it **comments, doesn't close**. Collect what each triage did.
+inconclusive it **comments, doesn't close** — and an issue whose verdict is the one the skill
+already posted there returns `unchanged`, written to nowhere. Collect what each triage did.
 
 ## 2. Reconcile this task's tracker
 
 **Only a run that changed something reaches the tracker.** What counts is a triage action actually taken —
-an issue closed, a comment posted — or something this run leaves for a human. A run that worked its whole
-Context list and took no action has **nothing to record**: leave the tracker exactly as found, no body
-rewrite and no comment, and create none if it doesn't exist. The scan itself is not news.
+an issue closed, a comment posted — or something this run leaves for a human. `left` and
+`unchanged` are not actions. A run that worked its whole Context list and took no action has
+**nothing to record**: leave the tracker exactly as found, no body rewrite and no comment, and
+create none if it doesn't exist. The scan itself is not news.
 
 One standing tracker issue per repo, titled exactly `Claudinite tracker: Tidy Issues` — found by that
 **exact title, never a fuzzy match**; create it **already closed** when there is something to record and it

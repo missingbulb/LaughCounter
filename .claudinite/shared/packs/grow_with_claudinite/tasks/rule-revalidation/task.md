@@ -4,7 +4,7 @@ Most of a pack's prose is judgment: how to approach a change, what to do first, 
 
 This task re-runs the probe behind each such claim, weekly, and corrects what no longer holds.
 
-You run under the executor, dispatched by a `ready-for-agent` issue whose **Context section is binding scope**: it names the **pack paths** to revalidate and the two probe rules below. Work those paths — a consuming repo's own local packs by default; Claudinite also its core `packs/`. A canon pack a repo only mounts is revalidated in the repo that owns it, on this same task.
+You run from a work item the executor handed off whose **Context section is binding scope**: it names the **pack paths** to revalidate and the two probe rules below. Work those paths — a consuming repo's own local packs by default; Claudinite also its core `packs/`. A canon pack a repo only mounts is revalidated in the repo that owns it, on this same task.
 
 The declared outcome ceiling is **`open-pr`**. This task rewrites the rules sessions obey, on evidence a reviewer cannot re-derive from the diff, so every run's changes go in front of the owner.
 

@@ -14,9 +14,10 @@
 import { writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { makeGh } from '../../../../engine/scheduler/signals/gh.mjs';
+import { findOrCreateTracker, writeTracker } from '../../../../engine/scheduler/tracker.mjs';
 
-const slotId = process.env.CLAUDINITE_SLOT_ID || '';
-const log = (s) => console.log(`ci-performance${slotId ? ` [${slotId}]` : ''}: ${s}`);
+const item = process.env.CLAUDINITE_ITEM || '';
+const log = (s) => console.log(`ci-performance${item ? ` [#${item}]` : ''}: ${s}`);
 
 export const WINDOW_DAYS = 7;
 // A regression has to clear BOTH bars. The ratio alone fires on a fast workflow
@@ -126,24 +127,8 @@ export function reportBody(summary, { repo, nowIso, steps = [] }) {
   ].join('\n');
 }
 
+// The standing record this task keeps. Its own, named here and nowhere else.
 export const TRACKER_TITLE = '[claudinite] CI performance';
-
-async function upsertTracker(gh, repo, body, comment) {
-  const q = encodeURIComponent(`repo:${repo} is:issue is:open in:title "${TRACKER_TITLE}"`);
-  const found = await gh(`/search/issues?q=${q}`);
-  const existing = (found.json?.items ?? []).find((i) => i.title === TRACKER_TITLE);
-  if (!existing) {
-    const made = await gh(`/repos/${repo}/issues`, { method: 'POST', body: { title: TRACKER_TITLE, body } });
-    if (made.status >= 300) throw new Error(`could not open the tracker: POST issues returned ${made.status}`);
-    return made.json.number;
-  }
-  const patched = await gh(`/repos/${repo}/issues/${existing.number}`, { method: 'PATCH', body: { body } });
-  if (patched.status >= 300) throw new Error(`could not refresh the tracker: PATCH issue returned ${patched.status}`);
-  // A comment only when there is something to say. A dated comment per run turns a
-  // standing record into a scroll of identical notes nobody reads.
-  if (comment) await gh(`/repos/${repo}/issues/${existing.number}/comments`, { method: 'POST', body: { body: comment } });
-  return existing.number;
-}
 
 async function main() {
   const repo = process.env.GITHUB_REPOSITORY;
@@ -181,7 +166,13 @@ async function main() {
   const comment = summary.regressions.length
     ? `${nowIso} — regression: ${detail}. Investigating by the \`ci-performance-evaluation\` skill.`
     : null;
-  const tracker = await upsertTracker(gh, repo, body, comment);
+  // THIS TASK's tracker, resolved by this task — the shared helper owns only the
+  // exact-title lookup and the create-then-close pair, never the decision to keep
+  // one. Every run rewrites the body (the measurement IS the record), so
+  // find-or-create is right here; the comment is conditional, because a dated note
+  // per run turns a standing record into a scroll of identical lines nobody reads.
+  const { number: tracker } = await findOrCreateTracker(gh, repo, TRACKER_TITLE);
+  await writeTracker(gh, repo, tracker, { body, comment });
   log(`tracker #${tracker} refreshed`);
 
   if (!summary.regressions.length) {
@@ -191,6 +182,9 @@ async function main() {
 
   const requestPath = process.env.CLAUDINITE_REQUEST_AGENT;
   if (!requestPath) throw new Error('CLAUDINITE_REQUEST_AGENT is not set — cannot hand off to the agent stage');
+  // The number reaches the agentic phase the ordinary way: the hand-off payload's
+  // `delivered`, which the dispatch renders as an `Issue:` line. Nothing else in
+  // this run's life carries it.
   writeFileSync(requestPath, JSON.stringify({
     delivered: { issue: tracker },
     reason: { code: 'ci-duration-regression', detail },

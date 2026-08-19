@@ -14,7 +14,7 @@ only on issues.
 | Rule | Severity | Reason | Enforcement |
 |---|---|---|---|
 | Branches, PRs — assess only. | critical | correctness | prose: 34 words |
-| Issues — act. | medium | correctness | prose: 60 words |
+| Issues — act. | medium | correctness | prose: 84 words |
 | Trackers — record changes, not scans. | low | complexity | prose: 118 words |
 
 ## Maintenance tasks
@@ -40,7 +40,9 @@ touched, no `tidy-issues`; no open PR opened or updated, no `tidy-prs`; no branc
 no `tidy-branches`. The verdicts over an unmoved set are the ones already in the tracker, so a re-run
 rewrites the body with itself and spends an agent to do it. What does **not** count as movement: a
 `main` that advanced (that widens an already-triggered issue run, but never wakes one — on an active
-repo it is true most days), a PR that merged, and a push to the default or infra branches.
+repo it is true most days), a PR that merged, and a push to the default or infra branches. Nor can
+`tidy-issues` be its own movement: `single-issue-triage` posts nothing when the verdict is the
+one it already posted there, so a standing verdict never re-arms tomorrow's run.
 
 **Where the "full run" lives.** Scope is never narrowed to the movers, because a verdict is relative to
 the rest — superseded-by, already-in-`main`, implemented-by-a-commit all need the others in view. So

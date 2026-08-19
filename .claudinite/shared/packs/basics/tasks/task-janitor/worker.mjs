@@ -31,10 +31,10 @@ import {
   SCHEDULER_LABELS,
 } from '../../../../engine/scheduler/dispatch.mjs';
 import { makeGh } from '../../../../engine/scheduler/signals/gh.mjs';
-import { ensureLabels } from '../../../../engine/scheduler/run.mjs';
+import { ensureLabels } from '../../../../engine/scheduler/github.mjs';
 
-const slotId = process.env.CLAUDINITE_SLOT_ID || '';
-const log = (s) => console.log(`task-janitor${slotId ? ` [${slotId}]` : ''}: ${s}`);
+const item = process.env.CLAUDINITE_ITEM || '';
+const log = (s) => console.log(`task-janitor${item ? ` [#${item}]` : ''}: ${s}`);
 
 // Every OPEN dispatch issue in the repo, with the labels / age / comment count
 // the rules read. Repo-wide and open-only — the scheduler's own per-family
@@ -115,18 +115,17 @@ export async function main() {
   const root = process.env.CLAUDINITE_REPO_ROOT || process.cwd();
   const { loadConfig } = await import('../../../../engine/checks/helpers/repo-context.mjs');
   const config = loadConfig(root);
-  const { dispatchMode } = await import('../../../../engine/scheduler/converge-wiring.mjs');
-  if (dispatchMode(config) === 'queue') {
-    const { sweepQueue } = await import('./queue-sweep.mjs');
-    const { discoverTasks } = await import('../../../../engine/scheduler/discover.mjs');
-    const { tasks } = await discoverTasks(root, config);
-    await sweepQueue(makeGh(), repo, new Date(), { tasks, log });
-    return;
-  }
+  const { sweepQueue } = await import('./queue-sweep.mjs');
+  const { discoverTasks } = await import('../../../../engine/scheduler/discover.mjs');
+  const { tasks } = await discoverTasks(root, config);
+  await sweepQueue(makeGh(), repo, new Date(), { tasks, log });
+  // The slot dispatch-issue sweep still runs BESIDE the queue's: the slot scheduler
+  // is retired (#974) but the `[claudinite-task]` issues its last runs filed are
+  // still open in members, and nothing else closes them out.
   await sweep(makeGh(), repo, new Date());
 }
 
-// Run only when invoked directly (the scheduler's `node worker.mjs`), never on import.
+// Run only when invoked directly (prework's `node worker.mjs`), never on import.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((e) => { console.error(`task-janitor failed: ${e.message}`); process.exit(1); });
 }

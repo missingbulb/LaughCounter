@@ -1,5 +1,6 @@
 import { finding } from '../../engine/checks/helpers/findings.mjs';
-import { FREQUENCIES } from '../../engine/scheduler/slots.mjs';
+import { stripComments } from '../../engine/checks/helpers/code-scanning.mjs';
+import { FREQUENCIES } from '../../engine/scheduler/calendar.mjs';
 import { MODEL_FAMILIES } from '../../engine/scheduler/model-map.mjs';
 import { OUTCOMES, SIGNAL_NAMES } from '../../engine/scheduler/task-contract.mjs';
 
@@ -26,7 +27,7 @@ const rule = {
   severity: 'blocking',
   description: 'A tasks/<name>/task.mjs default-exports the full task contract (id, frequency, precondition_signals, agent_model, expected_outcome, agent_instructions, precondition) with legal enum values; an agentic task bounds its run with agent_execution_timeout, and any prework carries a timeout and stays task-local',
   doc: 'packs/core/scheduled-tasks.md',
-  why: 'the scheduler and executor read agent_model/expected_outcome/frequency from this file, not the dispatch issue — an illegal or missing value means a task never fires, fires wrong, or writes past its ceiling',
+  why: 'the tick and executor read agent_model/expected_outcome/frequency from this file, not the work item — an illegal or missing value means a task never fires, fires wrong, or writes past its ceiling',
 
   run(ctx) {
     const out = [];
@@ -78,6 +79,22 @@ const rule = {
         // yet — the 2026-08-06 migration note drives the rename; this finding
         // only keeps it visible until it lands.
         out.push(finding(rule, { file, severity: 'advisory', what: 'declares prework under the legacy name "agent_preprocessing"', fix: 'rename "agent_preprocessing" → "prework" and "agent_preprocessing_timeout" → "prework_timeout" (the phases of task execution are prework, then agentic work)' }));
+      }
+      // `session_scope` lost its last reader with the slot scheduler (#974): the
+      // queue routes a hand-off by `invocation_endpoint`, and nothing anywhere
+      // asks a task what its scope is. ADVISORY, like the prework rename above and
+      // for the same reason — the field still VALIDATES, so a member's vendor
+      // refresh must not turn its CI red over a declaration nobody has edited yet;
+      // this only keeps the dead field visible until it is dropped.
+      // Comments stripped: this rule's own remedy names the field, and so does any
+      // note explaining why a task stopped declaring one.
+      if (/\bsession_scope:\s*['"]/.test(stripComments(text))) {
+        out.push(finding(rule, {
+          file,
+          severity: 'advisory',
+          what: 'declares "session_scope", which nothing reads',
+          fix: 'drop it — reach is a property of which endpoint the hand-off calls, so a task needing wider access declares "invocation_endpoint": <a key in the repo\'s taskScheduler.endpoints> instead',
+        }));
       }
       if (model && MODEL_FAMILIES.includes(model) && model !== 'none' && !hasNum('agent_execution_timeout')) {
         flag('an agentic task (agent_model !== "none") declares no numeric "agent_execution_timeout"', 'add "agent_execution_timeout": seconds bounding the agentic run');

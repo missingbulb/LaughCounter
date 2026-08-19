@@ -10,13 +10,13 @@
 // repo with no local packs skips.
 //
 // The cadence is WEEKLY, not daily (#582). A member's mount moves most nights —
-// baselining converges it daily — so a daily slot fired this opus dispatch, and the
-// PR behind it, nearly every night. Pruning is not latency-sensitive: a
+// baselining converges it daily — so a daily anchor started this opus session, and
+// the PR behind it, nearly every night. Pruning is not latency-sensitive: a
 // local item the canon has already absorbed stays harmlessly correct until it goes,
-// so the daily slot bought noise rather than freshness. Nothing is missed by the
-// move — both signals below are WINDOW-scoped, and the collection window is the
-// widest due task's period, so the weekly run sees a full 7 days of canon and
-// local-pack movement batched into one dispatch.
+// so the daily anchor bought noise rather than freshness. Nothing is missed by the
+// move — both signals below are WINDOW-scoped, and an item's collection window is
+// its own task's period, so the weekly run sees a full 7 days of canon and
+// local-pack movement batched into one run.
 //
 // Self-contained (imports nothing): the whole contract is this default export.
 
@@ -33,8 +33,8 @@ export default {
   // lines and new checks alike — written into the task's tracker issue as the
   // brief the agentic phase starts from. Reading a diff is code work, and the
   // pack owns it: the `sharedMount` signal names the packs that moved and stops
-  // there, deliberately, because a signal is a cheap gate for every task in a
-  // slot, not one task's research. The hand-off is unconditional (worker.mjs) —
+  // there, deliberately, because a signal is a cheap gate any task may declare,
+  // not one task's research. The hand-off is unconditional (worker.mjs) —
   // the precondition below is the only place this run may be declined.
   prework: 'node worker.mjs',
   prework_timeout: 600,                     // one commit listing plus a read per window commit

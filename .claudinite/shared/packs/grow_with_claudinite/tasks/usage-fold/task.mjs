@@ -1,7 +1,7 @@
 // grow_with_claudinite task: usage-fold — the per-repo skill-usage aggregate
 // (skill-usage-metrics DESIGN §5). `agent_model: 'none'` with
 // `prework: 'node worker.mjs'`: the whole pass is deterministic code the
-// scheduler runs as a subprocess — no agent, no dispatch issue, seconds of runtime.
+// executor runs as prework — no agent phase, seconds of runtime.
 //
 // WHY: a skill is MOUNTED per repo, but mounting only puts a name and a one-line
 // description into the session prompt — actually LOADING it is model discretion, and

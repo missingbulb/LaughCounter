@@ -1,15 +1,13 @@
 // Anchors — when a task's occurrence falls (tasks-dispatch DESIGN §5).
 //
-// The queue keeps the slot machinery's SCHEDULE (the repo's `taskScheduler`
-// anchor: dailyHour, weeklyDay, monthlyDay) and drops its slot IDENTITY. So this
-// module reuses `mostRecentSlot`'s arithmetic for the instant and exposes exactly
-// the two questions the queue asks — "which occurrence is current" (the tick's
+// The arithmetic lives in `calendar.mjs`; this module exposes exactly the two
+// questions the queue asks of it — "which occurrence is current" (the tick's
 // instantiation guard) and "when does this item wake next" (the roll's stamped
-// `Not-before`) — with no slot id anywhere in the answer.
+// `Not-before`) — plus the period a frequency repeats on.
 //
 // Pure and stateless: `now` is always injected, every value is UTC.
 
-import { mostRecentSlot } from '../slots.mjs';
+import { anchorInstant } from '../calendar.mjs';
 
 const HOUR_MS = 3600e3;
 const DAY_MS = 24 * HOUR_MS;
@@ -26,10 +24,7 @@ export function periodMs(frequency) {
 
 // The most recent occurrence at or before `now`, as a Date. `manual` has none —
 // the tick never instantiates it (DESIGN §8), so null is the whole answer.
-export function mostRecentAnchor(frequency, schedule, now) {
-  if (frequency === 'manual') return null;
-  return mostRecentSlot(frequency, schedule, now).time;
-}
+export const mostRecentAnchor = anchorInstant;
 
 // The earliest occurrence strictly after `now` — what a rolled item is stamped
 // with. Derived by walking `mostRecentAnchor` forward rather than by adding a

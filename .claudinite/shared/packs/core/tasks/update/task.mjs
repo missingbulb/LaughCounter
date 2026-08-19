@@ -21,7 +21,7 @@ const OVERDUE_DAYS = 1;
 
 export default {
   id: 'update',
-  frequency: 'daily-2h',                 // the same 02:00 slot baselining holds: a repo's mount is converged before anything reads it
+  frequency: 'daily-2h',                 // the same 02:00 anchor baselining holds: a repo's mount is converged before anything reads it
   precondition_signals: ['stamp', 'sharedMount'],
   agent_model: 'sonnet',                 // the apply stage only — most runs are agentless
   expected_outcome: 'merged-pr',

@@ -18,7 +18,7 @@
   {
     "id": "scheduler-workflow-shape",
     "severity": "blocking",
-    "failureMessage": "the scheduler is the repo's only cron and its slot math anchors on the hour — a drifted cron or a missing guard silently breaks staggering, double-run safety, or manual runs",
+    "failureMessage": "the scheduler is the repo's only cron and its anchor arithmetic runs on the hour — a drifted cron or a missing guard silently breaks staggering, double-run safety, or manual runs",
     "scanFiles": ".github/workflows/claudinite-scheduler.yml",
     "countMatchingLines": [
       {
@@ -34,7 +34,7 @@
         "match": "/\\bcron:.*/",
         "unlessLineMatches": "/\\bcron:\\s*['\"]?(1[0-9]|[2-4][0-9]|50) \\* \\* \\* \\*['\"]?\\s*$/",
         "what": "{match} is not hourly on a fixed minute in :10\u2013:50",
-        "fix": "use \"<minute> * * * *\" with a minute from 10 to 50 (bootstrap assigns it) — other crons collide with the :00 stampede or break the hourly slot math"
+        "fix": "use \"<minute> * * * *\" with a minute from 10 to 50 (bootstrap assigns it) — other crons collide with the :00 stampede or break the hourly tick"
       }
     ],
     "checkEachFile": [
@@ -49,9 +49,9 @@
         "fix": "add a concurrency: group so overlapping runs serialize (double-run safety)"
       },
       {
-        "require": "/engine\\/scheduler\\/(run|queue\\/tick)\\.mjs/",
+        "require": "/engine\\/scheduler\\/queue\\/tick\\.mjs/",
         "what": "does not run the vendored engine entry",
-        "fix": "the job must run the vendored engine — node .claudinite/shared/engine/scheduler/run.mjs (slot dispatch) or .../queue/tick.mjs (queue dispatch); all logic lives in the engine, not the workflow"
+        "fix": "the job must run the vendored engine — node .claudinite/shared/engine/scheduler/queue/tick.mjs; all logic lives in the engine, not the workflow"
       },
       {
         "require": "/^\\s*contents:\\s*write\\b/m",
@@ -76,9 +76,9 @@
         "whenPathMatches": "/\\.md$/",
         "match": "/.*\\b([Ss]kip(s|ped|ping)?|stop( here)?|[Aa]bort|[Bb]ail( out)?|[Dd]o\\s+(\\*\\*?not\\*\\*?|not)\\s+(run|proceed|continue|stack)|[Ll]eav(e|ing)\\s+(it\\s+|this\\s+)?(cycle'?s?\\s+)?(converge\\s+)?undelivered)\\b.*/",
         "andLineMatches": "/\\b(if\\b|when\\b|unless\\b|already\\b|still\\s+(open|running|unreviewed)|(nothing|no\\s+new|not?\\s+\\w+)\\s+(changed|has\\s+changed)|before\\s+(anything|starting|researching)|unset\\s+means|absent\\b)\\b/i",
-        "unlessLineMatches": "/\\bContext\\b|\\bprecondition\\b/",
+        "unlessLineMatches": "/\\bContext\\b|\\bprecondition\\b|needs-human/",
         "what": "instructs a conditional skip after the precondition already passed: \"{match}\"",
-        "fix": "move the run/no-run decision into the task.mjs precondition — or, if the work ran and found nothing, reword it as an empty outcome, not a decision to skip"
+        "fix": "move the run/no-run decision into the task.mjs precondition, or reword an empty result as an empty outcome; a required input the dispatch lacks is a failure — converge to needs-human"
       },
       {
         "whenPathMatches": "/\\.mjs$/",

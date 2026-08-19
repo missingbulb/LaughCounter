@@ -139,6 +139,15 @@ GitHub **Actions** reports results as **check runs**, not the legacy **commit st
 
 A `push` or `workflow_dispatch` run isn't attached to a PR, so the PR-scoped check-run query above doesn't apply to it. Confirm such a run through the GitHub API/MCP tools: `get_job_logs(run_id, failed_only: true)` — "0 failed jobs" means green — or, for a release build, `get_release_by_tag`. `get_job_logs` needs more than a bare `run_id`: it rejects with "job_id is required when failed_only is false" unless you pass `failed_only: true` or fetch a `job_id` first (`list_workflow_jobs`), and it 404s for a job still `in_progress` — wait for the job to finish. Don't `curl` the run's status instead: in a sandboxed session `api.github.com` is proxy-blocked and returns an error body that never matches a success pattern, so a `curl`/`Monitor` poll silently reports "still running" until it times out.
 
+## A deleted workflow's old runs outlive it, and no session tool can clear them
+
+Removing a `.yml` from every branch does not remove its run history — the workflow stays listed in
+the Actions tab, a ghost registration attached only to runs that already happened. Clearing it
+needs `DELETE /repos/.../actions/runs/{run_id}`, an `actions: write` endpoint outside the read/
+list/get-logs/dispatch surface the GitHub MCP toolset exposes. Don't hunt for a session-side fix
+that doesn't exist — hand the cleanup to the owner (their own UI, or a one-time sanctioned
+workflow) instead.
+
 ## A green run is not evidence its job ran — read the job's own conclusion
 
 A workflow that gates a later job (an `if:` on changed paths, a mode flag, a preceding job's output) concludes **success** with that job **skipped** — so "the release workflow is green" is not evidence the publish step ever executed, and most green runs may never have reached it. Read the conclusion of the **job that does the thing**, never the run's. The corollary for closing an issue: the only closing evidence is a run that actually reached that job and went green, or the external system showing the effect. Fixing a repo-side defect that merely co-occurred with the failure verifies nothing, and a failure caused by state in an external service has no fix in the repo at all.

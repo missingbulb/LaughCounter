@@ -1,14 +1,20 @@
 // basics task: task-janitor — the THIRD responsibility of the scheduled-task
-// machinery (owner, 2026-08-06). The scheduler CREATES dispatch issues, the
-// executor EXECUTES exactly the one issue that triggered it, and this task —
-// alone — cleans up after both: it escalates stale dispatches, reclaims dead
-// `agent-running` claims, re-arms dispatches whose trigger event was lost, and
-// prints a health review of the open dispatch set. Neither the scheduler nor
-// the executor does any of that any more; a task execution cares only about
-// its own task, and recovery lives here, in code, once a day.
+// machinery (owner, 2026-08-06). The tick CREATES and readies work items, the
+// executor EXECUTES exactly the one item it picked, and this task — alone —
+// cleans up after both: items stuck ready past their period, items left wearing
+// no state label by a torn transition, and a health review of the open set.
+// Neither the tick nor the executor does any of that; a task execution cares only
+// about its own item, and recovery lives here, in code, once a day.
+//
+// It also sweeps what the retired slot mechanism left behind: the last slot runs
+// filed `[claudinite-task]` dispatch issues in members, and nothing else closes
+// them out. That half retires when the fleet's are gone, not before.
+//
+// The tick reclaims a dead executor claim itself, hourly — this task is the
+// slower backstop for what the tick's deterministic label mechanics cannot see.
 //
 // `agent_model: 'none'` + prework: the whole pass is deterministic code the
-// scheduler runs as a subprocess — no agent, no dispatch issue, fully automatic.
+// executor runs as prework — no agent phase, fully automatic.
 //
 // Self-contained (imports nothing): the whole contract is this default export.
 

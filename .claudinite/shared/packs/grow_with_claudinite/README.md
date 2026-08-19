@@ -15,13 +15,14 @@ scheduler (`engine/scheduler/discover.mjs`) wherever the pack is declared:
 
 | Task | Runs when | Where it lands |
 |---|---|---|
-| `growth-extract` ([tasks/growth-extract/task.md](tasks/growth-extract/task.md)) | the project changed in the window, or a log is past retention | the repo's own local packs, via a PR that auto-merges after CI, plus the prune on the logs branch |
+| `growth-extract` ([tasks/growth-extract/task.md](tasks/growth-extract/task.md)) | the project changed in the window | the repo's own local packs, via a PR that auto-merges after CI |
 | `growth-dedup` ([tasks/growth-dedup/task.md](tasks/growth-dedup/task.md)) | weekly, when the canon or the project's local packs moved in the week | the repo's own local packs, via a PR that auto-merges after CI |
 | `growth-discover-packs` ([tasks/growth-discover-packs/task.md](tasks/growth-discover-packs/task.md)) | weekly | a new **local** pack in the repo's own `.claudinite/local/packs/`, via a reviewed PR |
 | `prose-to-checks-sweep` ([tasks/prose-to-checks-sweep/task.md](tasks/prose-to-checks-sweep/task.md)) | weekly (no-ops cheaply on a quiet corpus) | a PR converting always-testable pack prose into checks |
 | `rule-revalidation` ([tasks/rule-revalidation/task.md](tasks/rule-revalidation/task.md)) | weekly | a reviewed PR correcting rules whose environment claim no longer probes true |
 
-(Plus [usage-fold](tasks/usage-fold/task.md), the agentless daily fold described below.)
+(Plus two agentless daily tasks over the conversation-logs branch: [usage-fold](tasks/usage-fold/task.md),
+described below, and `logs-prune` — retention, [tasks/logs-prune/worker.mjs](tasks/logs-prune/worker.mjs).)
 
 ## Extraction is one task over two sources
 
@@ -30,13 +31,13 @@ scheduler (`engine/scheduler/discover.mjs`) wherever the pack is declared:
 1. [extract-from-activity](skills/extract-from-activity/SKILL.md) over the window's commits, merged
    PRs and issue discussion;
 2. [extract-from-conversations](skills/extract-from-conversations/SKILL.md) over the logs captured
-   from working sessions (plus the retention prune);
+   from working sessions;
 3. [prose-to-checks](skills/prose-to-checks/SKILL.md) over the prose **that run just wrote**, to see
    whether any of it upgrades to a check before the PR opens.
 
 Everything lands in **one** PR, delivered to land where the repo's delivery settings allow
 (`engine/scheduler/deliver-pr.md`). The two extraction halves used to be two tasks firing in
-the same nightly slot against the same local packs; they share the lesson bar, the promotion ladder
+the same nightly anchor against the same local packs; they share the lesson bar, the promotion ladder
 and the dedup surface ([extracting-lessons.md](extracting-lessons.md)), so the split bought nothing
 and cost a second opus dispatch, a second PR, and two runs deduping against a corpus the other was
 concurrently writing.
@@ -91,12 +92,11 @@ GitHub MCP tools.
    **Unattended sessions capture through the same step, deliberately not through the hook.** A
    scheduled task's executor session ends by having its container reclaimed, which is exactly
    the ending no `SessionEnd` fires on — so the executor runs the engine's runner itself as its
-   last step and names its dispatch issue in `CLAUDINITE_SESSION_ISSUE`, which this step uses in
-   place of `0`. Those logs therefore file under the task that ran (the dispatch issue's title
+   last step and names its work item in `CLAUDINITE_SESSION_ISSUE`, which this step uses in
+   place of `0`. Those logs therefore file under the task that ran (the item's title
    names `pack/task`), and the work no human watched becomes as countable as the work one did.
-2. **Fresh pass — the conversation half of [growth-extract](tasks/growth-extract/task.md)**
-   (precondition: a substantive merge, or a log actually past retention so the age-based prune still
-   runs on a quiet repo; local git on the repo's working tree, MCP only for the issue comment). It
+2. **The pass — the conversation half of [growth-extract](tasks/growth-extract/task.md)**
+   (precondition: a substantive merge; local git on the repo's working tree, MCP only for the issue comment). It
    applies the [extract-from-conversations](skills/extract-from-conversations/SKILL.md) skill (the
    friction signals and the measured efficiency analysis, computable from the log's timestamps and
    token usage) over [extracting-lessons.md](extracting-lessons.md)'s shared bar, routes keepers into
@@ -105,14 +105,16 @@ GitHub MCP tools.
    never pasted there, it is far too verbose for an issue —
    **extraction is the only path to permanence**: a log that yields no rule gets no comment,
    and its conversation is gone once retention deletes it (a deliberate owner call).
-3. **Final pass and deletion** — once a log ages past `config.retention_days`, the same task
-   re-reads it with ~a week of hindsight (the rethink window), then deletes it (the age-based
-   precondition arm guarantees the prune runs even on a repo gone quiet). Every log gets exactly two
-   judgment passes. **Unset retention = the prune deletes nothing** (capture-only, fail-safe).
+3. **Deletion — the agentless `logs-prune` task**
+   ([tasks/logs-prune/worker.mjs](tasks/logs-prune/worker.mjs)), daily, over the same branch: every
+   capture past `config.retention_days` is removed, on the stamp in its filename alone. What makes
+   that safe without an agent is the reading window above — the extract run reads from the oldest end
+   of the branch on every run, so a capture reaches retention having been read. **Unset retention = the
+   prune deletes nothing** (capture-only, fail-safe).
 
 No adoption question over it — `retention_days` stays unset (hidden) by default, which is
 fail-safe (capture-only). A project that wants the prune active sets `config.retention_days`
-itself (10 is the recommended floor); nothing else to schedule, since extraction rides the
+itself (10 is the recommended floor); nothing else to schedule, since both tasks ride the
 fleet's one daily run like the other growth tasks.
 
 ## Skill-usage metrics — what the mounted skills actually do

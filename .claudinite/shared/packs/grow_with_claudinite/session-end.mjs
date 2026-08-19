@@ -33,7 +33,7 @@ const session = process.env.CLAUDINITE_SESSION_ID;
 // The issue this session was ABOUT, when its launcher knew one — the runner's
 // documented pass-through (engine/hooks/session-end-command.mjs). A hook firing
 // carries none and captures as issue 0; the scheduler's executor session runs the
-// runner explicitly at the end of its dispatch and names that dispatch issue, so an
+// runner explicitly at the end of its run and names its work item, so an
 // unattended run's log is filed under the task it ran instead of vanishing into the
 // issueless pile. Anything that is not a non-negative integer is ignored rather than
 // passed on — capture's argument validation is not the place to discover a typo.

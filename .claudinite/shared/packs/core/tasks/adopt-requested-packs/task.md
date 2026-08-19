@@ -32,11 +32,11 @@ Run **adopt-pack** for the confirmed and requested packs. Two things belong to y
 
 ## 3. Report
 
-Close out on your dispatch issue as usual: the packs adopted with the PR link, the packs declined with the reason, and anything left for a human — an adoption blocked on an unanswerable interview question is exactly that, and naming it is the whole handoff.
+Close out on your work item as usual: the packs adopted with the PR link, the packs declined with the reason, and anything left for a human — an adoption blocked on an unanswerable interview question is exactly that, and naming it is the whole handoff.
 
 ## What you must not do
 
 - **Never merge.** This task is ceilinged at `open-pr` and the executor enforces it in code (`verify-outcome.mjs`); merging fails the run.
 - **Never declare a pack you did not confirm** (suspected) **or that was not requested**, and never guess an interview answer — see adopt-pack's rule. If you believe a *requested* entry is wrong, say so on the issue and leave it for a human; never quietly adopt something else in its place.
 - **Never touch another repo.** The work list is this repo's; the fleet's sweep owns everything cross-repo.
-- **Never apply `ready-for-agent` or `ready-for-agent-fleet` to a work-list issue.** Both are scheduler triggers; the work list is not a dispatch.
+- **Never apply a `task:` label to the work-list issue.** They are the queue's state vocabulary, read by the tick and the executor; the work list is an ordinary issue, not a work item.

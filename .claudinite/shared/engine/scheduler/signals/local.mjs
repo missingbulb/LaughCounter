@@ -10,7 +10,7 @@
 // This deliberately sits BESIDE the collectors rather than inside them. The
 // collectors stay pure over an injected `ctx` (`ctx.X ?? null`), so the whole
 // signal layer still unit-tests against a fake `gh` with no repo on disk; this
-// module is the one place that touches the filesystem, and run.mjs folds its
+// module is the one place that touches the filesystem, and signals/context.mjs folds its
 // result into the ctx it hands the collectors.
 
 import { readFileSync, readdirSync } from 'node:fs';

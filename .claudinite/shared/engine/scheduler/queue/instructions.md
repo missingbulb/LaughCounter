@@ -32,8 +32,7 @@ instructions.
 
    ```
    task:       <pack>/<task>
-   item:       #<n>            ← the occurrence's identity (a slot id where the
-                                 dispatch has one; the queue has none)
+   item:       #<n>            ← the occurrence's identity; there is no other one
    parameters: <the title's qualifier, and any Context field that narrows the run>
    prework:    <branch/PR named under "Delivered by prework" — the artifacts this
                 run continues on, never duplicates>
@@ -46,7 +45,12 @@ instructions.
    - The issue's **Context** section is binding scope. The precondition decided it
      and you may not re-decide it, widen it, or skip the run because you disagree.
    - **Delivered by prework** names artifacts this run already created — a branch,
-     a PR. Work on those; never make your own duplicates of them.
+     a PR, an issue. Work on those; never make your own duplicates of them.
+   - **An input the task file calls required and the issue does not carry stops the
+     run.** Say which one was missing and converge this item to `needs-human`. Never
+     reconstruct it — searching for the issue by title, taking the newest branch, or
+     inferring the scope substitutes another run's inputs for this one's, and the run
+     then reports success on work nobody asked for.
    - If the work turns out empty, that is a legitimate result. "The work ran and
      produced nothing" is an outcome; deciding not to run is not yours to make.
 
@@ -62,18 +66,43 @@ instructions.
    | `outcome:delivered` | succeeded and left a live artifact the world must still act on: an open PR, an armed auto-merge, a store submission — close the issue |
    | `needs-human` | failed, or anomalous — leave the issue open |
 
-   Then print the `claudinite-task-exec` record and capture the session. The
-   record's bracketed field is the occurrence's identity, and under the queue
-   that is **this item's issue number** — write `[#<n>]`, not `[unknown]`,
-   because it is the only thing tying the record back to the work it describes:
+   Then print the `claudinite-task-exec` record, whichever way it went — a failed
+   run is the one most worth having a record of. The bracketed field is the
+   occurrence's identity, and under the queue that is **this item's issue number**
+   — write `[#<n>]`, not `[unknown]`, because it is the only thing tying the record
+   back to the work it describes:
 
+   ```bash
+   node <engine>/scheduler/record-exec.mjs <pack>/<task> '#<n>' <success|failed>
    ```
-   claudinite-task-exec v1 <pack>/<task> [#<n>] success
+
+   It prints the line into this session's transcript; it is a printed line, not a
+   GitHub write, so run it exactly once.
+
+7. **Capture this session before you end it.** Last step, after the item is
+   converged, and run it whichever way step 6 went:
+
+   ```bash
+   CLAUDINITE_SESSION_ISSUE=<n> node <engine>/hooks/session-end-command.mjs
    ```
+
+   That runner invokes whatever session-end steps this repo's declared packs
+   contribute; it knows nothing about what any of them do, and a repo that
+   contributes none does nothing. Nobody is sitting in front of this session, so it
+   ends by having its container reclaimed — precisely the ending that fires no
+   `SessionEnd` hook. Left to the hook, every unattended run would leave no record
+   of itself anywhere: not of the skills it loaded, not of the checks that caught
+   something, not of how the work actually went, and not of the record you just
+   printed. `CLAUDINITE_SESSION_ISSUE` is what files those logs under the item that
+   ran, rather than under nothing.
+
+   It cannot fail your run — the item is already converged and this changes nothing
+   on GitHub. If it reports an error, **say so plainly in your final message** and
+   end anyway.
 
 ## The one standing bound
 
 You execute **this one item and nothing else**. Never list other work items,
 never sweep the queue, never act on a second issue in this session — however
 obviously stuck another one looks. Recovery is code that runs elsewhere, and a
-session that helps out is how one dispatch becomes three duplicate PRs.
+session that helps out is how one item becomes three duplicate PRs.

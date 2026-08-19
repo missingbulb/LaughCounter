@@ -19,7 +19,7 @@ reports it.
 | Setting a project up on Claudinite | medium | complexity | prose: 15 words |
 | Deciding which pack owns a lesson | medium | complexity | prose: 59 words |
 | Judging whether Claudinite is current here | medium | correctness | prose: 43 words |
-| Writing or changing a scheduled task | high | correctness | prose: 26 words + checks (`task-declaration-shape`, `task-declaration-matches-folder`) |
+| Writing or changing a scheduled task | high | correctness | prose: 26 words + checks (`task-declaration-shape`, `task-declaration-matches-folder`, `task-prework-env`) |
 | Answering "why did the mount not update" | medium | correctness | prose: 39 words |
 
 ## Checks
@@ -34,9 +34,11 @@ not prose: the session that has lost its rules is the session least able to noti
 | `rules-index-current` | critical | correctness | check: blocking |
 | `claudinite-isolation` | high | complexity | check: blocking |
 | `conformance-workflow` | high | correctness | check: advisory |
+| `conformance-work-scope` | high | correctness | check: advisory |
 | `scheduler-workflow-shape` | high | correctness | check: blocking |
 | `task-declaration-shape` | high | correctness | check: blocking |
 | `task-declaration-matches-folder` | high | correctness | check: blocking |
+| `task-prework-env` | high | correctness | check: blocking |
 | `task-phase-discipline` | medium | complexity | check: advisory |
 
 What goes wrong when one fires:
@@ -45,9 +47,11 @@ What goes wrong when one fires:
 - `rules-index-current` — the generated index is missing, stale or unimported: the repo's packs contribute no prose to any session.
 - `claudinite-isolation` — the repo's own code reaches into `.claudinite/`, so the next canon refactor is a breaking migration for code the canon does not own (a declared `forbidReferences` [barrier](../barriers/README.md) edge).
 - `conformance-workflow` — nothing in CI runs the world sweep unfiltered on a pull request, so conformance is ungated and the maintenance PR never lands.
+- `conformance-work-scope` — CI gates the tree but not the change, so every commit-scoped rule is enforced only where a session's Stop hook happens to run.
 - `scheduler-workflow-shape` — the vendored scheduler's cron, concurrency or dispatch guard has drifted: staggering, double-run safety or manual runs break.
 - `task-declaration-shape` — a task declaration the scheduler reads is incomplete or illegal, so the task never fires or fires wrong.
 - `task-declaration-matches-folder` — a declaration disagrees with its folder: discovery drops it into `errors` and every run keeps reporting healthy without it.
+- `task-prework-env` — a task reads a `CLAUDINITE_*` variable prework never sets, so a parameter (a scope filter, a dry-run switch) silently never arrives and the run goes green in its most dangerous mode.
 - `task-phase-discipline` — a task decides not to run after its precondition already said run, hiding the decision from the run records.
 
 The scope cuts the other way too: a rule about how the **canon's own** content is maintained is not
@@ -75,7 +79,7 @@ against each declared pack's questions:
 
 | Task | frequency | Runs when |
 |---|---|---|
-| `update` | daily (02:00 slot) | the mount is behind the canon, or a declared pack moved |
+| `update` | daily (02:00 anchor) | the mount is behind the canon, or a declared pack moved |
 | `adopt-requested-packs` | daily | the repo carries an open pack-adoption request |
 
 `update` is the per-repo self-refresh — the task that converges a member's mount and stamps it. It

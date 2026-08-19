@@ -4,7 +4,7 @@
 // declare `fleet`; only the canon repo's scheduler builds it, over the fleet PAT
 // (`FLEET_GITHUB_TOKEN` — the census's existing credential, the one token that
 // can enumerate every repo the owner owns; the Action's default GITHUB_TOKEN sees
-// only this repo). run.mjs invokes this ONLY when a due task declares `fleet`, so
+// only this repo). queue/signals.mjs invokes this ONLY when the picked task declares `fleet`, so
 // an ordinary night pays nothing for the fleet enumeration.
 //
 // Pure over an injected `fleetGh` (the same `gh(path) -> { status, json }` shape
@@ -146,7 +146,7 @@ export async function readFleet(fleetGh, { owner, canonRepo, sinceIso }) {
 
 // The I/O edge: build a fleet `gh` from FLEET_GITHUB_TOKEN, or null when the
 // secret isn't set (a consumer, or the canon before the secret is provisioned) —
-// run.mjs then leaves ctx.fleet null and the fleet collector returns null, so the
+// the collector then leaves ctx.fleet null and returns null, so the
 // fleet tasks' preconditions skip rather than crash.
 export function makeFleetGh(env = process.env) {
   const token = env.FLEET_GITHUB_TOKEN;

@@ -15,8 +15,14 @@ function sh(root, cmd, args, { allowFail = false, input = undefined, timeout = u
 const git = (root, ...args) => sh(root, 'git', args);
 const gitTry = (root, ...args) => sh(root, 'git', args, { allowFail: true });
 
+// The base branch this repo's work is judged against, in preference order.
+// Exported because the CI entry point (../ci-work-scope.mjs) fetches these same
+// refs before a context is built at all — one list, so what CI fetches and what a
+// context resolves can never name different branches.
+export const BASE_REF_CANDIDATES = ['origin/main', 'origin/master', 'main', 'master'];
+
 function resolveBaseRef(root) {
-  for (const ref of ['origin/main', 'origin/master', 'main', 'master']) {
+  for (const ref of BASE_REF_CANDIDATES) {
     if (gitTry(root, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`) !== null) return ref;
   }
   return null;
@@ -123,8 +129,8 @@ export const CONFIG_KEYS = ['packs', 'rules', 'accept', 'sharedConstants', 'pack
 //
 // What dormancy means, exactly — it is narrow on purpose:
 //   - NO RECURRING WORK. The vendored scheduler stops before it evaluates
-//     anything (engine/scheduler/run.mjs), so no task is due, no dispatch issue
-//     is filed, no agent session is started, and no maintenance PR is opened.
+//     anything (engine/scheduler/queue/tick.mjs), so no work item is instantiated,
+//     no agent session is started, and no maintenance PR is opened.
 //     Nothing scheduled runs "for nothing" on a repo nobody is working on.
 //   - NO FLEET CEREMONY. Whatever looks at this repo from the OUTSIDE reads the
 //     same declaration and leaves it alone rather than reporting it as unhealthy —
@@ -144,17 +150,20 @@ export const CONFIG_KEYS = ['packs', 'rules', 'accept', 'sharedConstants', 'pack
 export const isDormant = (config) => config?.dormant === true;
 
 // The keys a `schedule` object may carry, and the canonical weekday vocabulary
-// (mirrored from engine/scheduler/slots.mjs WEEKDAYS — kept as a literal here so
+// (mirrored from engine/scheduler/calendar.mjs WEEKDAYS — kept as a literal here so
 // the checks layer does not import the scheduler engine).
 const SCHEDULE_KEYS = ['dailyHour', 'weeklyDay', 'monthlyDay', 'dispatch', 'endpoints'];
 
-// Which dispatch mechanism this repo runs (tasks-dispatch DESIGN §14). The two
-// coexist per-repo behind this one key, sharing the task contract and keeping
-// disjoint issue families (`[claudinite-task]` vs `[claudinite-work]`) — so a repo
-// can move either way with each mechanism's open items untouched by the other.
-// ABSENCE MEANS `queue`: the answer lives in `dispatchMode`, and `slots` is the
-// retired mechanism a repo must now ask for by name.
-export const DISPATCH_MODES = ['slots', 'queue'];
+// `taskScheduler.dispatch` chose between the slot scheduler and the work-item
+// queue while the two coexisted (tasks-dispatch DESIGN §14). The slot scheduler is
+// deleted (#974), so `queue` is the only mechanism and the key means nothing.
+//
+// It stays VALIDATED rather than merely ignored, and `"slots"` is now an error:
+// a parameter that has stopped being read must fail loudly, because the one thing
+// a member declaring `"slots"` must not get is the queue running silently under a
+// declaration that says otherwise. Declaring `"queue"` is still accepted — it says
+// what is true — and omitting it is the normal shape.
+export const DISPATCH_MODES = ['queue'];
 const SCHEDULE_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // The properties a `packs` entry object may carry: the pack's parameters
@@ -322,7 +331,10 @@ export function loadConfig(root) {
       }
       const { dispatch, endpoints } = raw.taskScheduler;
       if (dispatch !== undefined && !DISPATCH_MODES.includes(dispatch)) {
-        errors.push({ what: `"taskScheduler.dispatch" must be one of ${DISPATCH_MODES.join(', ')}, got ${JSON.stringify(dispatch)}`, fix: 'omit it for the work-item queue, or set "slots" to keep the retired slot scheduler' });
+        errors.push({
+          what: `"taskScheduler.dispatch" must be one of ${DISPATCH_MODES.join(', ')}, got ${JSON.stringify(dispatch)}`,
+          fix: 'omit the key — the work-item queue is the only dispatch mechanism; "slots" named the slot scheduler, which is deleted',
+        });
       }
       // The endpoint map (tasks-dispatch DESIGN §12): a name → { url, tokenSecret }.
       // `tokenSecret` is the NAME of a repo Actions secret and never a value —

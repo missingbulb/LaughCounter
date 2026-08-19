@@ -11,8 +11,9 @@
 // re-queue out of `needs-human`, which is no accident: "run this now" and "retry
 // this now" are the same operation on the same object. The executor still
 // evaluates the precondition at pick, so a force that finds no work SAYS so where
-// the operator reads it. `FORCE_TASKS`, the forced-verdict path, the `~f` marker
-// and the watermark exclusion all reduce to these two levers.
+// the operator reads it. The slot scheduler's whole forcing apparatus — its override
+// bag, the forced-verdict path, the `~f` slot marker and the watermark exclusion —
+// reduced to these two levers and was deleted (#974).
 //
 // FORCING AD-HOC WORK IS CREATING AN ITEM — a parameterized run, a `manual` task,
 // a fan-out target. It carries no `origin:schedule`, so it is invisible to the
