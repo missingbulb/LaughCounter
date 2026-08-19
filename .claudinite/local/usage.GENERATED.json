@@ -1,7 +1,7 @@
 {
   "version": 2,
   "foldedThrough": "2026-08-17",
-  "runsFoldedThrough": "2026-08-18T03:27:17Z",
+  "runsFoldedThrough": "2026-08-19T03:30:04Z",
   "fields": {
     "day": ["captures","merges","sessions","userMessages","userCommands"],
     "week": ["days","captures","merges","sessionDays","userMessages","userCommands"],
