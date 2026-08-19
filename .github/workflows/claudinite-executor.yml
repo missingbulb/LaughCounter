@@ -7,7 +7,7 @@
 # THIS IS THE ONLY PLACE SECRETS LIVE (DESIGN §14). The wiring converge stamps
 # every task's declared `required_secrets`, plus each configured invocation
 # endpoint's token secret, into the step env below by name — the tick and the
-# janitor get none, because they never execute task code. Prework is the only task
+# janitor get none, because they never execute task code. Code-work is the only task
 # code that ever sees a value; the agent hop carries nothing.
 #
 # MORE CAPACITY IS MORE EXECUTORS. Nothing enumerates them and each claim is
@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     # MUST stay ≤ the engine's executing leash (60m): a hung runner has to be
     # killed by the platform before its claim is reaped and the item re-picked, or
-    # a zombie's prework runs beside its replacement's (F17).
+    # a zombie's code-work runs beside its replacement's (F17).
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v5
