@@ -55,7 +55,7 @@ export const SCHEDULER_LABELS = [
 // docs/versioned-updates/DESIGN.md §7).
 //
 // DERIVED from the code the worker fired, never a list of codes kept here: the codes
-// live in the prework worker that raises them (a pack), the engine may not import a
+// live in the code-work worker that raises them (a pack), the engine may not import a
 // pack, and a hand-maintained copy of an enum on the other side of that barrier is
 // exactly the drift the corpus forbids. So the label is minted per code, and the
 // scheduler ensures it right before applying it — the same create-before-add
@@ -68,7 +68,7 @@ export function escalationLabel(code) {
   return {
     name: `${ESCALATION_LABEL_PREFIX}${code}`,
     color: '5319e7',
-    description: `Claudinite scheduler: prework escalated on "${code}"`,
+    description: `Claudinite scheduler: code_work escalated on "${code}"`,
   };
 }
 
@@ -101,16 +101,16 @@ export const isDispatchTitle = (title) => parseDispatchTitle(title) !== null;
 // only thing the executor reads to locate the worker; everything below is human
 // framing plus the precondition's binding Context. The Context block is emitted
 // only when the precondition produced lines (an empty scope has nothing to bind).
-// The `### Delivered` section — what this run's prework created, by identity. It is
+// The `### Delivered` section — what this run's code-work created, by identity. It is
 // the agent's only source for those artifacts.
 //
-// Absence is meaningful: no section means prework created nothing, so never write a
+// Absence is meaningful: no section means code-work created nothing, so never write a
 // placeholder here.
 export function deliveredLines(delivered) {
   const { branch = null, pr = null, merged = false } = delivered ?? {};
   if (!branch && !pr) return [];
   return [
-    '### Delivered by prework',
+    '### Delivered by code-work',
     'The artifacts this run created — the ones to work on.',
     '',
     ...(pr ? [`- PR: #${pr}${merged ? ' (already merged — open your own PR for further work)' : ' (open)'}`] : []),
@@ -118,10 +118,10 @@ export function deliveredLines(delivered) {
   ];
 }
 
-// The `### Why the agent is here` section — which of prework's escalation
+// The `### Why the agent is here` section — which of code-work's escalation
 // conditions fired. The worker knows it exactly; without this the agent re-derives it
 // from the repo, and a re-derivation that disagrees with the truth is how a run ends up
-// reporting "prework created nothing" about a cycle that just merged a PR
+// reporting "code-work created nothing" about a cycle that just merged a PR
 // (EdFringeAllocator#82).
 //
 // The condition and its counts, never the findings — those stay in the repo (DESIGN §3).
@@ -132,7 +132,7 @@ export function escalationLines(reason) {
   if (!code && !detail) return [];
   return [
     '### Why the agent is here',
-    'The condition prework escalated on. Start here; the findings themselves are in the repo, not this issue.',
+    'The condition code_work escalated on. Start here; the findings themselves are in the repo, not this issue.',
     '',
     `- ${detail || code}${detail && code ? ` (\`${code}\`)` : ''}`,
   ];

@@ -17,12 +17,14 @@
 export const TASK_RUN_OUTCOMES = Object.freeze([
   // A dispatch issue was filed: an agent session ran this task.
   'agent',
-  // The task ran with NO agent — an `agent_model: none` task (prework is the
-  // whole task), or an agentful one whose prework requested no agent phase.
-  'prework',
+  // The task ran with NO agent — an `agent_model: none` task (code-work is the
+  // whole task), or an agentful one whose code-work requested no agent phase.
+  // Kebab, not the declaration field's `code_work`: this word is a WIRE token,
+  // constrained to the line format's `[a-z-]+` charset.
+  'code-work',
   // Due, but its precondition said there was nothing to do.
   'skipped',
-  // Its prework failed; the run converged the task to a needs-human issue.
+  // Its code-work failed; the run converged the task to a needs-human issue.
   'failed',
   // Due and past its precondition, but no NEW agent run started: this slot was
   // already dispatched (exactly-once), an earlier dispatch is still open
@@ -51,13 +53,20 @@ const LINE_RE = new RegExp(
 // One line → `{ pack, task, slotId, outcome }`, or null for anything that is not a
 // record of this version. Deliberately strict: an unknown outcome word is NOT a
 // record, because counting it would mint a counter key nothing ever reads.
-// `preprocess` is the pre-rename word for the prework outcome (2026-08-06);
-// runs logged before the rename still parse, normalized to the canonical word.
+// The code phase has been renamed twice, and job logs outlive both renames:
+// `preprocess` (pre-2026-08-06) and `prework` (pre-2026-08-18) are the earlier
+// words for what is now `code-work`. Runs logged under either still parse, each
+// normalized straight to the canonical word.
+// Exported because the outcome words are also the usage aggregate's counter KEYS,
+// and that file holds rows written under the older words. Its decode renames them
+// by this same map, so a rename never silently drops a historical count.
+export const LEGACY_TASK_RUN_OUTCOMES = Object.freeze({ preprocess: 'code-work', prework: 'code-work' });
+
 export function parseTaskRun(line) {
   const m = LINE_RE.exec(line);
   if (!m) return null;
   const [, pack, task, slotId, word] = m;
-  const outcome = word === 'preprocess' ? 'prework' : word;
+  const outcome = LEGACY_TASK_RUN_OUTCOMES[word] ?? word;
   if (!TASK_RUN_OUTCOMES.includes(outcome)) return null;
   return { pack, task, slotId, outcome };
 }

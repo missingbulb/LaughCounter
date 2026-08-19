@@ -17,11 +17,11 @@
 // Self-contained (imports nothing): the whole contract is this default export.
 
 // Branches the tidy review must never assess. Beyond the default branch, the orphan
-// `conversation-logs` branch is a grow_with_claudinite artifact (the captured-transcript
+// `conversation-logs` branch is a claudinite-growth artifact (the captured-transcript
 // stream, not project work) — it shares no history with main, so single-branch-status
 // would flag it "orphaned" for a human on every run. It is infrastructure the tidy
 // sweep ignores altogether. Kept as a bare literal, not an import: the pack-independence
-// barrier forbids tidy-repo from reaching into grow_with_claudinite, and the name is a
+// barrier forbids tidy-repo from reaching into claudinite-growth, and the name is a
 // fixed, well-known one. The stable maintenance branch is likewise never a tidy target —
 // it is Claudinite's own standing delivery branch, not project work.
 const IGNORED_BRANCHES = new Set(['conversation-logs', 'claudinite/maintenance']);

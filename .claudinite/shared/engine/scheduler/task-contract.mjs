@@ -11,21 +11,32 @@ import { EXECUTING_LEASH_MS } from './queue/leases.mjs';
 // A declared timeout is always a whole number of seconds, > 0.
 const isPositiveInt = (n) => Number.isInteger(n) && n > 0;
 
-// A prework command must stay inside its own task directory — no absolute
+// A code-work command must stay inside its own task directory — no absolute
 // path and no `..` traversal in the command string — the same containment the
-// worker-file rule gives agent_instructions (task-prework DESIGN §2).
+// worker-file rule gives agent_instructions (task-code-work DESIGN §2).
 const escapesTaskDir = (cmd) => /(^|\s)\//.test(cmd) || cmd.includes('..');
 
-// The 2026-08-06 phase-language rename (owner): task execution is two similar,
-// consecutive phases — deterministic PREWORK, then AGENTIC WORK — and the field
-// names say so instead of framing the code phase as preparation for the agent.
-// Legacy names stay accepted here (consumer local packs rename on their own
-// clock, driven by a migration note), canonical names win when both are present.
-const LEGACY_FIELDS = { agent_preprocessing: 'prework', agent_preprocessing_timeout: 'prework_timeout' };
+// Task execution is two similar, consecutive phases — deterministic CODE-WORK,
+// then AGENTIC WORK — and the field names say so. Neither phase is named for
+// the other: the code phase is not preparation for the agent, it is the first
+// of two peers, and a task may declare only it.
+//
+// Two renames have reached these fields (2026-08-06 agent_preprocessing →
+// prework, 2026-08-18 prework → code-work); both legacy spellings stay accepted
+// here, since a consumer's own local packs rename on their own clock. Every
+// legacy key maps straight to today's canonical name rather than to its
+// immediate successor, so a declaration written for the oldest vocabulary
+// normalizes in one pass. Canonical names win when both are present.
+const LEGACY_FIELDS = {
+  agent_preprocessing: 'code_work',
+  agent_preprocessing_timeout: 'code_work_timeout',
+  prework: 'code_work',
+  prework_timeout: 'code_work_timeout',
+};
 
 // Return the declaration with canonical field names. Non-objects pass through
 // untouched so validateTaskDeclaration still reports them. Loaders (discover,
-// resolve-dispatch) normalize once; everything downstream sees only `prework`.
+// resolve-dispatch) normalize once; everything downstream sees only `code_work`.
 export function normalizeTaskDeclaration(decl) {
   if (decl === null || typeof decl !== 'object' || Array.isArray(decl)) return decl;
   const out = { ...decl };
@@ -121,26 +132,26 @@ export function validateTaskDeclaration(raw) {
     bad(`"session_scope" ${JSON.stringify(decl.session_scope)} is not a legal session scope`, `drop it — the field is read by nothing; name an "invocation_endpoint" if the task needs wider reach`);
   }
 
-  // Prework (task-prework DESIGN §2) — OPTIONAL. The deterministic first phase
+  // Code-work (task-code-work DESIGN §2) — OPTIONAL. The deterministic first phase
   // of task execution, a command the scheduler runs as a subprocess. When present
   // it must be a non-empty, task-local command AND carry a positive-integer
-  // prework_timeout — the hard kill that bounds the subprocess.
-  if (decl.prework !== undefined) {
-    if (typeof decl.prework !== 'string' || decl.prework.trim() === '') {
-      bad('"prework" is present but not a non-empty string', 'set it to a command whose executable is a script beside task.mjs, e.g. "node prepare.mjs"');
-    } else if (escapesTaskDir(decl.prework)) {
-      bad('"prework" reaches outside the task directory (absolute path or "..")', 'reference a sibling script only, e.g. "node prepare.mjs"');
+  // code_work_timeout — the hard kill that bounds the subprocess.
+  if (decl.code_work !== undefined) {
+    if (typeof decl.code_work !== 'string' || decl.code_work.trim() === '') {
+      bad('"code_work" is present but not a non-empty string', 'set it to a command whose executable is a script beside task.mjs, e.g. "node prepare.mjs"');
+    } else if (escapesTaskDir(decl.code_work)) {
+      bad('"code_work" reaches outside the task directory (absolute path or "..")', 'reference a sibling script only, e.g. "node prepare.mjs"');
     }
-    if (!isPositiveInt(decl.prework_timeout)) {
-      bad('"prework" is set but "prework_timeout" is not a positive integer', 'add "prework_timeout": the seconds after which the subprocess is killed and the task fails');
-    } else if (decl.prework_timeout * 1000 >= EXECUTING_LEASH_MS) {
-      // F17: a prework legally allowed to outlive the executing leash is reclaimed
+    if (!isPositiveInt(decl.code_work_timeout)) {
+      bad('"code_work" is set but "code_work_timeout" is not a positive integer', 'add "code_work_timeout": the seconds after which the subprocess is killed and the task fails');
+    } else if (decl.code_work_timeout * 1000 >= EXECUTING_LEASH_MS) {
+      // F17: a code-work legally allowed to outlive the executing leash is reclaimed
       // WHILE ALIVE, and the failure is not one duplicate run but a livelock —
-      // every tenure reclaimed before it can finish, prework re-executing each
+      // every tenure reclaimed before it can finish, code-work re-executing each
       // cycle, the occurrence never converging. The leash is the engine's, so the
       // comparison is made where a declaration is judged.
-      bad(`"prework_timeout" (${decl.prework_timeout}s) reaches the executor's ${EXECUTING_LEASH_MS / 60e3}-minute claim leash`,
-        `bound prework under ${EXECUTING_LEASH_MS / 60e3} minutes — a prework that can outlive the leash is reclaimed while still running, and the item livelocks`);
+      bad(`"code_work_timeout" (${decl.code_work_timeout}s) reaches the executor's ${EXECUTING_LEASH_MS / 60e3}-minute claim leash`,
+        `bound code_work under ${EXECUTING_LEASH_MS / 60e3} minutes — a code_work that can outlive the leash is reclaimed while still running, and the item livelocks`);
     }
   }
 
@@ -154,7 +165,7 @@ export function validateTaskDeclaration(raw) {
   // states, generically.
   if (decl.after !== undefined
       && !(Array.isArray(decl.after) && decl.after.every((s) => typeof s === 'string' && /^[^/\s]+\/[^/\s]+$/.test(s)))) {
-    bad('"after" is not an array of "<pack>/<task>" ids', 'e.g. "after": ["core/update"] — this task yields while those are live this cycle');
+    bad('"after" is not an array of "<pack>/<task>" ids', 'e.g. "after": ["claudinite-lifecycle/update"] — this task yields while those are live this cycle');
   }
 
   // `on_interrupt` — the ack-early/ack-late dial (DESIGN §6). Most of this fleet's
@@ -188,7 +199,7 @@ export function validateTaskDeclaration(raw) {
     bad('"required_secrets" is not an array of secret names', 'list the repo Actions secret names this task needs, e.g. ["SOME_API_KEY"]');
   }
 
-  // Execution bound (task-prework DESIGN §2, §6) — an agentic task MUST
+  // Execution bound (task-code-work DESIGN §2, §6) — an agentic task MUST
   // declare a positive-integer agent_execution_timeout. There is always a bound
   // on an agentic run; enforcement is best-effort (the executor surfaces the
   // value to the subagent). A `none` task runs no agent, so it needs none.
@@ -197,10 +208,10 @@ export function validateTaskDeclaration(raw) {
   }
 
   // An agentless task (agent_model: none) runs no agent, so its ONLY work is
-  // prework — a `none` task with no prework does nothing (DESIGN §4, retiring
+  // code-work — a `none` task with no code-work does nothing (DESIGN §4, retiring
   // the in-process inline path). Require the command.
-  if (decl.agent_model === 'none' && decl.prework === undefined) {
-    bad('an agentless task (agent_model: "none") declares no "prework"', 'add "prework" (a none task does its work in that subprocess) — or give the task an agent_model');
+  if (decl.agent_model === 'none' && decl.code_work === undefined) {
+    bad('an agentless task (agent_model: "none") declares no "code_work"', 'add "code_work" (a none task does its work in that subprocess) — or give the task an agent_model');
   }
 
   return problems;

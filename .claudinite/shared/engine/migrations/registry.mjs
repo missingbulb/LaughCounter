@@ -1,6 +1,7 @@
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { MIGRATION_FILE, migrationDirs, migrationActive, recordName, flowOf } from '../checks/helpers/active-migrations.mjs';
+import { RENAMED_PACKS } from '../pack_loader/renamed-packs.mjs';
 
 // <corpus>/engine/migrations/ — records are addressed corpus-relative, because they
 // no longer share one directory with this module: an engine record sits beside it,
@@ -263,6 +264,49 @@ export async function applyLocalDeclarationNormalization(migration, { read, writ
 const LOCAL_DECL = 'local/';
 const LEGACY_LOCAL_DECL = 'local_packs/';
 
+// Write side — "the packs this repo declares have been renamed": rewrite each
+// `packs` entry whose id is a legacy spelling to the id that pack carries today.
+// The ids come from the engine's own rename map, never from the record, so a future
+// rename needs no new op and no record restating what the loader already knows.
+//
+// STRUCTURAL, NOT TEXTUAL, and that is the whole point of it. The first attempt at
+// this was a regex over the declaration, anchored on `"packs": [` so it could not
+// wander into a member's own `{ "from": "core" }` barrier rule. It could not wander
+// anywhere at all: a real packs array holds entry objects with nested arrays
+// (`{ "id": "barriers", "via": ["basics"] }`), the anchor could not cross a nested
+// `]`, and every element after the first such object was invisible to it. Parsing
+// removes both failures at once — the `packs` array is the only thing read, so a
+// same-named key anywhere else in the file is never even seen (#1041).
+//
+// SEEDS NOTHING AND DROPS NOTHING, like the local-declaration normalization beside
+// it: entry objects keep their config, answers, `via` and order; only the id token
+// changes. A LOCAL declaration is skipped — that namespace is the repo's, so a local
+// pack sharing a canon pack's old name is not this op's business. Idempotent, so a
+// repo already converged is a no-op, and it patches the parsed declaration back with
+// the same 2-space shape every other declaration writer here uses.
+export async function applyPackRenames(migration, { read, write }) {
+  if (!migration.renameDeclaredPacks) return [];
+  if (migration.appliesTo && !(await migration.appliesTo(read))) return [];
+  const raw = await read(DECLARATION);
+  if (raw == null) return [];
+  let config;
+  try { config = JSON.parse(raw); } catch { return []; }
+  if (config === null || typeof config !== 'object' || Array.isArray(config)) return [];
+  if (!Array.isArray(config.packs)) return [];
+
+  const done = [];
+  const packs = config.packs.map((entry) => {
+    const id = typeof entry === 'string' ? entry : entry?.id;
+    if (typeof id !== 'string' || id.startsWith(LOCAL_DECL) || id.startsWith(LEGACY_LOCAL_DECL)) return entry;
+    const to = RENAMED_PACKS[id];
+    if (to === undefined) return entry;
+    done.push(`${DECLARATION}: ${id} -> ${to}`);
+    return typeof entry === 'string' ? to : { ...entry, id: to };
+  });
+  if (done.length) await write(DECLARATION, `${JSON.stringify({ ...config, packs }, null, 2)}\n`);
+  return done;
+}
+
 // EVERY write op a record can carry, in the order a run applies them, over one
 // injected io. Both callers — the standalone applier and the engine update flow —
 // go through this, so an op added to the vocabulary cannot reach one and miss the
@@ -275,12 +319,13 @@ export async function applyMigration(migration, io) {
   applied.push(...(await applyRewrites(migration, io)));
   applied.push(...(await applyPackDeclarations(migration, io)));
   applied.push(...(await applyLocalDeclarationNormalization(migration, io)));
+  applied.push(...(await applyPackRenames(migration, io)));
   return applied;
 }
 
 // THE `agentic` FIELD IS RETIRED (#768 Phase 5), and its successor is `applyStage`
 // below. A record used to carry `agentic: { model, instructions }` — member-side
-// adaptation no script could do — and baselining's prework read it to decide whether
+// adaptation no script could do — and baselining's code-work read it to decide whether
 // a pending note needed an agent stage, holding the member's stamp until one ran.
 //
 // What the successor drops is the MODEL knob. Which model runs a session is the

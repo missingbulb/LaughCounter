@@ -7,7 +7,7 @@
 // instead, from the one ledger that cannot be argued with — the Actions run
 // history — and keeps a standing record of it.
 //
-// CONDITIONAL HANDOFF. Prework does the measuring, which is pure code: read the
+// CONDITIONAL HANDOFF. Code-work does the measuring, which is pure code: read the
 // runs, take each workflow's median over this window and the one before, compare.
 // A quiet week ends there — the record is refreshed and no agent is spent. Only a
 // real regression requests the agent, which then has something worth its time: a
@@ -31,10 +31,10 @@ export default {
   agent_model: 'sonnet',
   expected_outcome: 'open-pr',
   agent_instructions: 'task.md',
-  prework: 'node worker.mjs',
+  code_work: 'node worker.mjs',
   // A couple of hundred run records plus one job breakdown, against this repo's own
   // API. Seconds in practice; the bound is for a rate-limited or wedged read.
-  prework_timeout: 300,
+  code_work_timeout: 300,
   // Profiling a suite means running it, more than once, in both arms of an A/B.
   agent_execution_timeout: 3600,
 

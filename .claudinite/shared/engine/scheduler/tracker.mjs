@@ -1,9 +1,9 @@
 // A STANDING TRACKER — the one issue a recurring task logs every run to. This is a
 // LIBRARY, not a phase: nothing in the scheduler knows a task has a tracker, no
 // declaration carries one, and no task is expected to want one. A task that keeps
-// an aggregated record calls these from its OWN prework and passes the number to
+// an aggregated record calls these from its OWN code-work and passes the number to
 // its agentic phase through the ordinary hand-off payload (`delivered.issue`,
-// rendered into the work item by queue/prework-run.mjs).
+// rendered into the work item by queue/code-work-run.mjs).
 //
 // It exists because two tasks had each grown a private copy of the same search, and
 // the copies had already diverged in a way that matters — one filtered `is:open`,

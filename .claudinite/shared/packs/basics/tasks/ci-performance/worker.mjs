@@ -1,4 +1,4 @@
-// The ci-performance prework: measure, record, and hand off only if something moved.
+// The ci-performance code_work: measure, record, and hand off only if something moved.
 //
 // The measurement is the Actions run ledger — the same source the
 // ci-performance-evaluation skill's first step names, and the only account of CI

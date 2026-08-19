@@ -10,6 +10,10 @@
 // additive change is the strongly preferred shape and a rename needs a migration.
 //
 // Parse/serialize of the two fields lives here and nowhere else (DESIGN §9).
+//
+// The one import, and a frozen constant at that: the pack-rename map, which this
+// module needs to keep reading titles written before a rename (see parseWorkItemTitle).
+import { canonicalPackId } from '../../pack_loader/renamed-packs.mjs';
 
 // The title prefix. Disjoint from the slot mechanism's `[claudinite-task]` on
 // purpose: the two mechanisms coexist per-repo behind `taskScheduler.dispatch`,
@@ -66,9 +70,14 @@ export const workItemTitle = ({ pack, task, qualifier = null }) =>
 // pack and task ids are single path segments; the qualifier is whatever follows.
 const TITLE_RE = /^\[claudinite-work\]\s+([^/\s]+)\/([^/\s]+)(?:\s+(\S.*))?$/;
 
+// The pack half is canonicalized on the way out. A work item's title is STORED
+// DATA — it sits on an open GitHub issue that outlives any one converge — so items
+// filed before a pack was renamed still carry the old spelling. Read literally, the
+// tick would not recognise its own live item, would file a second one beside it, and
+// would leave the first orphaned in the queue with nothing ever draining it.
 export function parseWorkItemTitle(title) {
   const m = TITLE_RE.exec(String(title ?? '').trim());
-  return m ? { pack: m[1], task: m[2], qualifier: m[3]?.trim() || null } : null;
+  return m ? { pack: canonicalPackId(m[1]), task: m[2], qualifier: m[3]?.trim() || null } : null;
 }
 
 export const isWorkItemTitle = (title) => parseWorkItemTitle(title) !== null;
@@ -94,12 +103,25 @@ export const EPISODE_MARKER = '<!-- claudinite-episode -->';
 export const NOT_BEFORE_FIELD = 'Not-before';
 export const BLOCKED_BY_FIELD = 'Blocked-by';
 
+// The heading the delivered-artifacts section carries in a work item body. One
+// home, because it is written in three places and MATCHED when a re-entrant run
+// updates the section it already wrote.
+export const DELIVERED_HEADING = 'Delivered by code-work';
+
+// The same heading as earlier renames spelled it. A live item's body still carries
+// whichever word was current when its section was first written, and matching only
+// today's would append a SECOND section rather than updating that one.
+export const LEGACY_DELIVERED_HEADINGS = Object.freeze([
+  'Delivered by prework',
+  'Delivered by code_work',
+]);
+
 const NOT_BEFORE_RE = /^Not-before:[ \t]*(.*)$/m;
 const BLOCKED_BY_RE = /^Blocked-by:[ \t]*(.*)$/m;
 
 // Build a work item body. The first line is the task path — the only thing an
 // executor reads to locate the worker, validated in code before anything trusts
-// it. Everything behavior-defining (model, ceiling, worker content, prework
+// it. Everything behavior-defining (model, ceiling, worker content, code-work
 // command) is read from the tracked task files at HEAD, never from here.
 export function workItemBody({
   taskPath, notBefore = null, blockedBy = [], context = [], delivered = [], reason = null,
@@ -119,7 +141,7 @@ export function workItemBody({
     );
   }
   if (reason) lines.push('', '### Why the agent is here', '', `- ${reason}`);
-  if (delivered.length) lines.push('', '### Delivered by prework', '', ...delivered.map((d) => `- ${d}`));
+  if (delivered.length) lines.push('', `### ${DELIVERED_HEADING}`, '', ...delivered.map((d) => `- ${d}`));
   return lines.join('\n') + '\n';
 }
 
@@ -139,7 +161,7 @@ export function parseWorkItemBody(body) {
 // item was born with. Read back rather than kept only for the agent to read,
 // because an operator's PARAMETERS ride here: `create-work-item --context
 // "REPOS=Alpha Beta"` is how a forced run says what it is running on, and the
-// executor hands these lines to prework as `CLAUDINITE_CONTEXT`.
+// executor hands these lines to code-work as `CLAUDINITE_CONTEXT`.
 //
 // A section runs to the next `### ` heading or to the end of the body — the same
 // bounds `withSection` writes to — and only `- ` bullets count, so the prose
@@ -166,7 +188,7 @@ export const mergeContext = (...groups) => [...new Set(groups.flat().filter((l) 
 // Stamp (or clear) `Not-before` on an existing body, in place where the field is
 // already present and directly under the task path otherwise. Text surgery rather
 // than a rebuild: the body also carries the creating precondition's Context and
-// prework's Delivered section, which belong to whoever wrote them.
+// code-work's Delivered section, which belong to whoever wrote them.
 export function withNotBefore(body, iso) {
   const text = String(body ?? '');
   if (NOT_BEFORE_RE.test(text)) {
@@ -182,7 +204,7 @@ export function withNotBefore(body, iso) {
   return lines.join('\n');
 }
 
-// Set a section of an item body (the Context, prework's Delivered, the agent's Why)
+// Set a section of an item body (the Context, code-work's Delivered, the agent's Why)
 // — replacing one of the same heading if it is already there, appending otherwise.
 //
 // REPLACING IS THE WHOLE POINT, and appending was a live bug (#879). Every standing
@@ -196,12 +218,16 @@ export function withNotBefore(body, iso) {
 // A section runs to the next `### ` heading or to the end of the body, so a replaced
 // section keeps its position rather than migrating to the bottom — the body stays in
 // the order a reader learned it.
-export function withSection(body, heading, lines) {
+// `aliases` are older spellings of the SAME heading. The section is rewritten under
+// `heading`, but located by any of them, so a body written before a rename is updated
+// in place instead of gaining a second section.
+export function withSection(body, heading, lines, aliases = []) {
   if (!lines.length) return body;
   const text = String(body ?? '').replace(/\s*$/, '');
   const section = [`### ${heading}`, '', ...lines.map((l) => `- ${l}`)];
   const existing = text.split('\n');
-  const at = existing.findIndex((l) => l.trim() === `### ${heading}`);
+  const wanted = new Set([heading, ...aliases].map((h) => `### ${h}`));
+  const at = existing.findIndex((l) => wanted.has(l.trim()));
   if (at === -1) return `${text}\n\n${section.join('\n')}\n`;
   const after = existing.findIndex((l, i) => i > at && l.startsWith('### '));
   const tail = after === -1 ? [] : ['', ...existing.slice(after)];

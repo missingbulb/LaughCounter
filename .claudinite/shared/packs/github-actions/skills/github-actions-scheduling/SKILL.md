@@ -52,4 +52,4 @@ after 60 days without repository activity.
 Claudinite's own scheduler is built to this: a repo-hashed `:10–:50` minute, and an hourly tick
 that reconciles a queue of issues rather than replaying a ledger — a missed fire leaves the queue
 exactly as it was, so the next one catches up by looking at it. See
-[scheduled-tasks.md](../../../core/scheduled-tasks.md) for the task-authoring side.
+[scheduled-tasks.md](../../../claudinite-growth/scheduled-tasks.md) for the task-authoring side.

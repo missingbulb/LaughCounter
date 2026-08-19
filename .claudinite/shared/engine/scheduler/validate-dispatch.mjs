@@ -73,7 +73,7 @@ export function validateDispatchBody(body, { exists, isPackDeclared, loadTask })
     model: decl.agent_model,
     resolvedModel: resolveModel(decl.agent_model),
     outcome: decl.expected_outcome,
-    // The best-effort run bound (task-prework DESIGN §6): the executor
+    // The best-effort run bound (task-code-work DESIGN §6): the executor
     // surfaces it into the subagent's brief as "fail after N minutes". Always set
     // for an agentic task (the contract requires it); null for an agentless one.
     executionTimeout: decl.agent_execution_timeout ?? null,

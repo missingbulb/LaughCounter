@@ -1,13 +1,13 @@
 # Find out why CI got slower, and fix it if it is worth fixing
 
-You are here because prework measured this repo's CI and found at least one workflow whose median
+You are here because code-work measured this repo's CI and found at least one workflow whose median
 duration this week is materially above the week before. The dispatch names the workflow and the
-before/after; the standing tracker — the issue the work item's **Delivered by prework** section names
+before/after; the standing tracker — the issue the work item's **Delivered by code-work** section names
 (`Issue: #<n>`) — carries the full table and the step breakdown of the slowest run, written there by
-prework before you started.
+code-work before you started.
 
 **That number is a required input.** A work item that does not carry it is a failed run, not a lighter one: converge to `needs-human` naming the missing input.
-Do not search for the tracker by title and do not open one — prework already wrote this run's
+Do not search for the tracker by title and do not open one — code-work already wrote this run's
 measurements to a specific issue, and any issue you find yourself is a different one.
 
 The whole of *how* is the [ci-performance-evaluation](../../skills/ci-performance-evaluation/SKILL.md)
@@ -16,7 +16,7 @@ Don't re-derive it here.
 
 ## What is yours in particular
 
-- **The regression is a claim to test, not a fact to act on.** Prework compared two medians; it did
+- **The regression is a claim to test, not a fact to act on.** Code-work compared two medians; it did
   not establish a cause, and runner weather, a new test suite, or a genuinely bigger repo all move
   a median. Confirm the change is real and attributable before optimizing anything, and if it is
   not, say so on the tracker and stop — that is a complete outcome.

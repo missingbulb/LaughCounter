@@ -140,7 +140,7 @@
         "whenFileMatches": "/uses:\\s*\\S*\\/Claudinite\\/\\.github\\/workflows\\//i",
         "forbid": "/^\\s*schedule:/m",
         "what": "a Claudinite executor (it calls a canon reusable workflow) carries a `schedule:` trigger",
-        "fix": "remove the schedule: trigger — make it workflow_dispatch only, and adopt the vendored claudinite-scheduler.yml, which owns every recurring Claudinite job (packs/core/scheduled-tasks.md)"
+        "fix": "remove the schedule: trigger — make it workflow_dispatch only, and adopt the vendored claudinite-scheduler.yml, which owns every recurring Claudinite job (packs/claudinite-growth/scheduled-tasks.md)"
       }
     ]
   },

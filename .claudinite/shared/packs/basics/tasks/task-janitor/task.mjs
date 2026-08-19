@@ -13,8 +13,8 @@
 // The tick reclaims a dead executor claim itself, hourly — this task is the
 // slower backstop for what the tick's deterministic label mechanics cannot see.
 //
-// `agent_model: 'none'` + prework: the whole pass is deterministic code the
-// executor runs as prework — no agent phase, fully automatic.
+// `agent_model: 'none'` + code_work: the whole pass is deterministic code the
+// executor runs as code-work — no agent phase, fully automatic.
 //
 // Self-contained (imports nothing): the whole contract is this default export.
 
@@ -24,9 +24,9 @@ export default {
   precondition_signals: [],
   agent_model: 'none',                   // pure code — cleanup needs no judgment
   expected_outcome: 'none',              // labels and comments only, never a PR
-  prework: 'node worker.mjs',
+  code_work: 'node worker.mjs',
   // One repo-wide issue search plus a handful of label/comment writes — seconds.
-  prework_timeout: 300,
+  code_work_timeout: 300,
 
   // Unconditional, and honestly so: the sweep itself is the cheap way to learn
   // whether anything needs cleaning, and a quiet repo costs one search. The

@@ -34,17 +34,17 @@ instructions.
    task:       <pack>/<task>
    item:       #<n>            ← the occurrence's identity; there is no other one
    parameters: <the title's qualifier, and any Context field that narrows the run>
-   prework:    <branch/PR named under "Delivered by prework" — the artifacts this
+   code-work:    <branch/PR named under "Delivered by code-work" — the artifacts this
                 run continues on, never duplicates>
    ```
 
    Omit a line that has nothing to say rather than filling it with a placeholder:
-   most items carry no qualifier and most tasks deliver no prework artifact.
+   most items carry no qualifier and most tasks deliver no code-work artifact.
 
 4. **Run the task file** at its declared model.
    - The issue's **Context** section is binding scope. The precondition decided it
      and you may not re-decide it, widen it, or skip the run because you disagree.
-   - **Delivered by prework** names artifacts this run already created — a branch,
+   - **Delivered by code-work** names artifacts this run already created — a branch,
      a PR, an issue. Work on those; never make your own duplicates of them.
    - **An input the task file calls required and the issue does not carry stops the
      run.** Say which one was missing and converge this item to `needs-human`. Never

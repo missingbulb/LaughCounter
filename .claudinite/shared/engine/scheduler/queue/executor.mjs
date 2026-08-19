@@ -1,6 +1,6 @@
 // The executor (tasks-dispatch DESIGN §6) — a pull worker over the queue. Each
 // iteration: pick the next ready item, claim it by a verified lease, evaluate the
-// precondition (THE only place it is ever evaluated), then on a go run prework and
+// precondition (THE only place it is ever evaluated), then on a go run code-work and
 // either converge (agentless) or hand off to an agent session; on a no-go roll a
 // scheduled item to its next anchor with the reason on record.
 //
@@ -11,7 +11,7 @@
 // enumerates executors; identity is self-declared in the claim comment.
 //
 // The pure decisions live at the top and test with fixtures; the shell below is
-// the GitHub/prework/invocation I/O around them.
+// the GitHub/code-work/invocation I/O around them.
 
 import { pathToFileURL } from 'node:url';
 import { nextAnchor } from './anchors.mjs';
@@ -19,8 +19,7 @@ import {
   READY, URGENT, EXECUTING, AGENT, BLOCKED, NEEDS_HUMAN, ORIGIN_SCHEDULE,
   OUTCOME_DONE, OUTCOME_DELIVERED, OUTCOME_OBSOLETE, QUEUE_LABELS,
   CLAIM_MARKER, HANDOFF_MARKER, EPISODE_MARKER,
-  parseWorkItemTitle, parseWorkItemBody, parseContextLines, mergeContext, withNotBefore, withSection, hasLabel,
-} from './work-item.mjs';
+  parseWorkItemTitle, parseWorkItemBody, parseContextLines, mergeContext, withNotBefore, withSection, hasLabel, DELIVERED_HEADING, LEGACY_DELIVERED_HEADINGS } from './work-item.mjs';
 
 // How many items one executor run may take before it stops. Small on purpose: an
 // executor is code iterating a queue, and more capacity is more executors, not a
@@ -135,11 +134,11 @@ export function noGoPlan(item, task, schedule, now, reason) {
 const nowIso = () => new Date().toISOString();
 
 // One executor run. Injected seams keep the loop testable end to end without
-// GitHub, prework subprocesses or an invocation endpoint.
+// GitHub, code-work subprocesses or an invocation endpoint.
 export async function runExecutor({
   gh, repo, root, config, tasks, executorId, runUrl = null,
   maxItems = DEFAULT_MAX_ITEMS, now = () => new Date(),
-  collectSignalsFor, runTaskPrework, invokeAgent, log = console.log,
+  collectSignalsFor, runTaskCodeWork, invokeAgent, log = console.log,
 }) {
   const api = await import('../github.mjs');
   const { listOpenWorkItems } = await import('./read.mjs');
@@ -187,7 +186,7 @@ export async function runExecutor({
 
     const outcome = await executeItem({
       api, gh, repo, root, config, schedule, byId, item: candidate, executorId,
-      claim: winner, now, collectSignalsFor, runTaskPrework, invokeAgent, log,
+      claim: winner, now, collectSignalsFor, runTaskCodeWork, invokeAgent, log,
     });
     done.push({ issue: candidate.number, outcome });
   }
@@ -209,7 +208,7 @@ async function withClaimIds(api, gh, repo, items, selfNumber) {
 // One claimed item, from validation through to a terminal state (or a hand-off).
 async function executeItem({
   api, gh, repo, root, config, schedule, byId, item, executorId, claim,
-  now, collectSignalsFor, runTaskPrework, invokeAgent, log,
+  now, collectSignalsFor, runTaskCodeWork, invokeAgent, log,
 }) {
   const parsed = parseWorkItemTitle(item.title);
   const { taskPath } = parseWorkItemBody(item.body);
@@ -258,18 +257,18 @@ async function executeItem({
     return 'rolled';
   }
 
-  // --- prework (unchanged contract), then converge or hand off -------------
+  // --- code-work (unchanged contract), then converge or hand off -------------
   // The item's OWN Context is scope too, not decoration: an operator's parameters
   // (`create-work-item --context "REPOS=Alpha Beta"`) live there and nowhere else,
-  // so prework sees the union of what the item was created with and what this
+  // so code-work sees the union of what the item was created with and what this
   // occurrence's precondition added. Passing only the verdict's half is what made
   // a hand-created item's parameters unreachable (#974).
   const context = mergeContext(parseContextLines(item.body), verdict.context ?? []);
-  if (task.decl.prework) {
-    const result = await runTaskPrework(task, { item, context });
+  if (task.decl.code_work) {
+    const result = await runTaskCodeWork(task, { item, context });
     if (!result.ok) {
       await converge(api, gh, repo, item.number, EXECUTING, NEEDS_HUMAN, claim,
-        `Prework failed: ${result.why}${result.detail ? `\n\n\`\`\`\n${result.detail}\n\`\`\`` : ''}`);
+        `Code-work failed: ${result.why}${result.detail ? `\n\n\`\`\`\n${result.detail}\n\`\`\`` : ''}`);
       return 'needs-human';
     }
     if (result.missingSecrets?.length) {
@@ -281,17 +280,17 @@ async function executeItem({
       const outcome = result.delivered?.length ? OUTCOME_DELIVERED : OUTCOME_DONE;
       await close(api, gh, repo, item.number, EXECUTING, outcome, 'completed',
         result.delivered?.length
-          ? `Prework did this run's work and left a live artifact:\n${result.delivered.map((d) => `- ${d}`).join('\n')}`
-          : 'Prework did this run\'s work; no agent was needed.');
+          ? `Code-work did this run's work and left a live artifact:\n${result.delivered.map((d) => `- ${d}`).join('\n')}`
+          : 'Code-work did this run\'s work; no agent was needed.');
       return outcome;
     }
     return handOff({ api, gh, repo, item, task, id, context, result, executorId, claim, invokeAgent, config, log });
   }
 
-  // An agentless task with no prework does nothing (the contract forbids it).
+  // An agentless task with no code-work does nothing (the contract forbids it).
   if (task.decl.agent_model === 'none') {
     await converge(api, gh, repo, item.number, EXECUTING, NEEDS_HUMAN, claim,
-      'This task is agentless but declares no prework, so there is nothing to run — a contract-forbidden shape that reached the queue.');
+      'This task is agentless but declares no code_work, so there is nothing to run — a contract-forbidden shape that reached the queue.');
     return 'needs-human';
   }
   return handOff({ api, gh, repo, item, task, id, context, result: {}, executorId, claim, invokeAgent, config, log });
@@ -331,7 +330,7 @@ async function handOff({ api, gh, repo, item, task, id, context, result, executo
   const nonce = `${item.number}-${Math.random().toString(36).slice(2, 10)}`;
   let body = item.body;
   if (context.length) body = withSection(body, 'Context', context);
-  if (result.delivered?.length) body = withSection(body, 'Delivered by prework', result.delivered);
+  if (result.delivered?.length) body = withSection(body, DELIVERED_HEADING, result.delivered, LEGACY_DELIVERED_HEADINGS);
   if (result.reason) body = withSection(body, 'Why the agent is here', [result.reason]);
   await gh(`/repos/${repo}/issues/${item.number}`, { method: 'PATCH', body: { body } });
 
@@ -414,7 +413,7 @@ async function main() {
   const { loadConfig, isDormant } = await import('../../checks/helpers/repo-context.mjs');
   const { ensureLabels } = await import('../github.mjs');
   const { collectSignalsForTask } = await import('./signals.mjs');
-  const { preworkRunner } = await import('./prework-run.mjs');
+  const { codeWorkRunner } = await import('./code-work-run.mjs');
   const { agentInvoker } = await import('./invoke.mjs');
 
   const root = process.cwd();
@@ -443,7 +442,7 @@ async function main() {
     runUrl,
     maxItems: Number(process.env.CLAUDINITE_MAX_ITEMS) || DEFAULT_MAX_ITEMS,
     collectSignalsFor: collectSignalsForTask({ gh, repo, root, config, defaultBranch }),
-    runTaskPrework: preworkRunner({ root, repo, defaultBranch }),
+    runTaskCodeWork: codeWorkRunner({ root, repo, defaultBranch }),
     invokeAgent: agentInvoker({ repo, config }),
   });
 
