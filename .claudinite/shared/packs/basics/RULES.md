@@ -51,9 +51,9 @@ change, independent of any one project.
 - **Finishing a change** — watch it work **now**; never park it on "check tomorrow". What a task
   costs is its shelf-life, the time from starting it until everyone can forget about it.
 
-- **Changing scheduled or unattended machinery** — force a run now (the scheduler's `FORCE_TASKS`
-  lever, a `workflow_dispatch`, the fleet-wide force sweep) and watch it to a terminal state rather
-  than wait for its next natural run.
+- **Changing scheduled or unattended machinery** — force a run now (the scheduler's wake lever, a
+  `workflow_dispatch`, the fleet-wide force sweep) and watch it to a terminal state rather than wait
+  for its next natural run.
 
 - **Planning a migration** — prefer the design that converges in one forced pass to the one that
   trickles across nightly cycles, accept legacy input at the door so nothing has to wait for

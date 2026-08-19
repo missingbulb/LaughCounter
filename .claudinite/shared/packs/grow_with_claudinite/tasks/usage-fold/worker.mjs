@@ -1,6 +1,6 @@
-// The usage-fold preprocessing entry point — the script the scheduler runs as
+// The usage-fold prework entry point — the script the executor runs as prework,
 // `node worker.mjs` (cwd = this task dir, bounded by prework_timeout).
-// The whole task: no agent, no dispatch issue.
+// The whole task: no agent phase.
 //
 // It holds NO counting logic. The counting and folding are `fold-usage.mjs`, its
 // SIBLING in this task folder — nothing outside this task uses them, so that is
@@ -36,8 +36,8 @@ const BRANCH = 'conversation-logs';
 export const USAGE_PATH = '.claudinite/local/usage.GENERATED.json';
 const PR_BRANCH_PREFIX = 'claudinite/usage-fold';
 
-const slotId = process.env.CLAUDINITE_SLOT_ID || '';
-const log = (s) => console.log(`usage-fold${slotId ? ` [${slotId}]` : ''}: ${s}`);
+const item = process.env.CLAUDINITE_ITEM || '';
+const log = (s) => console.log(`usage-fold${item ? ` [#${item}]` : ''}: ${s}`);
 
 const git = (root, args) => execFileSync('git', ['-C', root, ...args], {
   encoding: 'utf8',
@@ -163,7 +163,7 @@ export async function main() {
       'Day rows are recomputed from scratch every run from the logs still inside the',
       'retention window; week rows are appended once, past the `foldedThrough` watermark.',
       'Task-invocation rows are appended once past the `runsFoldedThrough` watermark —',
-      'the scheduler runs they come from are a rate-limited REST read, not a local branch.',
+      'the workflow runs they come from are a rate-limited REST read, not a local branch.',
       'A byte-identical recompute opens no PR at all. Machine-written — never hand-edit it.',
     ].join('\n'),
   });
@@ -172,7 +172,7 @@ export async function main() {
     + `${pr.merged ? ' (landed)' : pr.delivery === 'review' ? ' (left for review)' : ''}`);
 }
 
-// Run only when invoked directly (the scheduler's `node worker.mjs`), never on import.
+// Run only when invoked directly (prework's `node worker.mjs`), never on import.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((e) => { console.error(`usage-fold failed: ${e.message}`); process.exit(1); });
 }

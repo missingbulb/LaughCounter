@@ -29,7 +29,7 @@ Your task's declared `expected_outcome` is a **ceiling, not a plan**:
   materializing it is the update converge's job, not yours.
 - **Anything else** — someone stated an intent you cannot honour, and guessing could
   deliver its opposite. Leave the PR open (the posture that merges nothing) and name the
-  unrecognized value in your wrap-up comment on the dispatch issue.
+  unrecognized value in your wrap-up comment on the work item.
 
 ## 2. Arm auto-merge
 

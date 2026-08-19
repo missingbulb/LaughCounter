@@ -168,8 +168,8 @@ that owns the work). Each local pack is a real pack:
   finding objects rather than importing the engine's helpers.
 - **Skills** (`skills/<name>/SKILL.md`) — the project's activity-scoped procedures, bundled in the pack;
   a local pack may also *require* a canon skill by name.
-- **Scheduled tasks** (`tasks/<name>/task.mjs` + its `task.md`) — first-class like every other slot:
-  the repo's own scheduler discovers a local pack's tasks in the same scan that finds a canon pack's,
+- **Scheduled tasks** (`tasks/<name>/task.mjs` + its `task.md`) — first-class like every other kind of
+  pack content: the repo's own scheduler discovers a local pack's tasks in the same scan that finds a canon pack's,
   gated by the project's declaration exactly the same way. So project-specific scheduled work belongs
   in a local task declaration (a self-contained module honoring the task contract, with its
   co-located worker doc), not an out-of-repo routine and not a cron of its own.

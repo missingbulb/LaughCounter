@@ -9,7 +9,7 @@
 // is a HARD kill: a manual timer SIGKILLs an overrun and the run is reported
 // failed. Its cwd is the TASK directory, so a declared `node worker.mjs` resolves
 // to the script beside task.mjs (the containment the contract enforces); the repo
-// root and slot context are handed in via CLAUDINITE_* env so the worker can act
+// root and item context are handed in via CLAUDINITE_* env so the worker can act
 // on the whole repo. Nothing the subprocess prints is threaded into the agent —
 // prework communicates only through the repository (DESIGN §3).
 //
@@ -19,7 +19,7 @@
 // log, and §3's "communicate only through the repository" is untouched. It is echoed
 // LIVE rather than dumped at exit for the case that needs it most — a worker SIGKILLed
 // at its timeout, whose buffered output would otherwise die with it. Before this,
-// a failed worker surfaced as a bare `preprocessing exited 1` plus a three-line
+// a failed worker surfaced as a bare `prework exited 1` plus a three-line
 // stderr tail in an issue, and diagnosing one meant reproducing it by hand.
 
 import { spawn } from 'node:child_process';
@@ -77,7 +77,7 @@ export function runPrework(command, {
 // BOTH prework AND a non-`none` agent_model hands off to the agent
 // ONLY when its worker requests it — so a task can absorb its work into
 // prework and be AGENTLESS on the quiet nights. The scheduler hands the
-// worker this path via CLAUDINITE_REQUEST_AGENT and files `ready-for-agent` iff
+// worker this path via CLAUDINITE_REQUEST_AGENT and hands off to an agent iff
 // the worker created it. It is a pure control signal: the worker communicates
 // DATA to the agent only through the repository, never through this file (DESIGN
 // §3, "no code→agent data channel"). The hand-off condition must name work
@@ -91,7 +91,7 @@ export function agentRequested(path) { return existsSync(path); }
 
 // …AND the artifacts that request refers to, plus why it was made. A worker writes
 // JSON `{ delivered: { branch, pr, merged }, reason: { code, detail } }`, and the
-// scheduler records both in the dispatch issue, which is where the agent reads them.
+// executor records both on the work item, which is where the agent reads them.
 //
 // This is the one thing that crosses the code→agent boundary as data (§3's named
 // exception): identifiers for what this run created — a PR number, a branch ref — and

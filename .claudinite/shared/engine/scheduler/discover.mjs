@@ -7,8 +7,8 @@
 // (each pack carries its own resolved `dir`).
 //
 // Frequency filtering is deliberately NOT done here — discover returns every
-// active, well-formed task; the run entrypoint intersects them with the due
-// slots (slots.mjs). Keeping the two apart keeps each pure and separately
+// active, well-formed task; the tick intersects them with the current anchors
+// (queue/anchors.mjs). Keeping the two apart keeps each pure and separately
 // testable. A task whose task.mjs fails to import or violates the declaration
 // contract is dropped into `errors` (fail-soft, per-task), never sinking the
 // scan.
@@ -22,7 +22,7 @@ import { normalizeTaskDeclaration, validateTaskDeclaration } from './task-contra
 // Discover every task the repo's active packs contribute. Returns
 // `{ tasks, errors }` where each task is
 // `{ pack, id, taskDir, taskPath, decl }` — `taskPath` is the repo-relative
-// path to the worker file's directory's task.md (the dispatch issue's first
+// path to the worker file's directory's task.md (the work item's first
 // line), `decl` the validated declaration.
 export async function discoverTasks(root, config) {
   const errors = [];

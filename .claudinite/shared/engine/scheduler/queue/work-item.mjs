@@ -135,6 +135,34 @@ export function parseWorkItemBody(body) {
   return { taskPath, notBefore: nb, blockedBy };
 }
 
+// The item's own `### Context` bullets, in order — the binding scope a hand-created
+// item was born with. Read back rather than kept only for the agent to read,
+// because an operator's PARAMETERS ride here: `create-work-item --context
+// "REPOS=Alpha Beta"` is how a forced run says what it is running on, and the
+// executor hands these lines to prework as `CLAUDINITE_CONTEXT`.
+//
+// A section runs to the next `### ` heading or to the end of the body — the same
+// bounds `withSection` writes to — and only `- ` bullets count, so the prose
+// framing around a section contributes nothing.
+export function parseContextLines(body) {
+  const lines = String(body ?? '').split('\n');
+  const at = lines.findIndex((l) => l.trim() === '### Context');
+  if (at === -1) return [];
+  const out = [];
+  for (const line of lines.slice(at + 1)) {
+    if (line.startsWith('### ')) break;
+    const m = /^-[ \t]+(.*)$/.exec(line);
+    if (m) out.push(m[1].trim());
+  }
+  return out;
+}
+
+// Fold a second set of Context lines into the first, keeping order and dropping
+// exact duplicates. Both sides are real scope — the item carries what its creator
+// bound it to, the precondition adds what this occurrence found — and a set-write
+// from either side would drop the other's.
+export const mergeContext = (...groups) => [...new Set(groups.flat().filter((l) => l && l.trim()))];
+
 // Stamp (or clear) `Not-before` on an existing body, in place where the field is
 // already present and directly under the task path otherwise. Text surgery rather
 // than a rebuild: the body also carries the creating precondition's Context and

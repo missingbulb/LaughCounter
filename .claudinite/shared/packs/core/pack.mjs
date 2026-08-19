@@ -1,7 +1,9 @@
 import rulesIndexCurrent from './rules-index-current.mjs';
 import conformanceWorkflow from './conformance-workflow.mjs';
+import conformanceWorkScope from './conformance-work-scope.mjs';
 import taskDeclarationShape from './task-declaration-shape.mjs';
 import taskDeclarationMatchesFolder from './task-declaration-matches-folder.mjs';
+import taskPreworkEnv from './task-prework-env.mjs';
 
 // Claudinite's own surface in a repo that runs it: the vendored mount, the
 // declaration that activates a pack, adopting Claudinite and adopting a pack,
@@ -20,7 +22,7 @@ import taskDeclarationMatchesFolder from './task-declaration-matches-folder.mjs'
 // what puts it there.
 export default {
   id: 'core',
-  version: 3,
+  version: 6,
   minEngineVersion: 1,
   ruleRoutingGuidance: {
     belongs: 'using Claudinite itself — the vendored mount, the pack declaration, bootstrapping, adopting packs, the self-refresh update, the scheduled-task contract',
@@ -45,11 +47,18 @@ export default {
     // scheduler workflow's shape rule (scheduler-workflow-shape) is a declared
     // check in this pack's declared-checks.json.
     conformanceWorkflow,
+    // …and the change gated beside it: the work scope's CI step, which the tree
+    // sweep cannot stand in for (a version number is always present; only the
+    // diff says whether this change moved it).
+    conformanceWorkScope,
     // The scheduled-task contract (scheduled-tasks.md), likewise inert until the
     // repo carries a tasks/<name>/task.mjs of its own; its third rule
     // (task-phase-discipline) is a declared check in declared-checks.json.
     taskDeclarationShape,
     taskDeclarationMatchesFolder,
+    // …and the environment that contract hands a task's prework, which is the half
+    // no declaration states and nothing else can catch.
+    taskPreworkEnv,
   ],
   workRules: [],
   // Bootstrapping a repo, and adding a pack to one already bootstrapped. Both

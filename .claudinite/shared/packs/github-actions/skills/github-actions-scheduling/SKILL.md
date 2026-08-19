@@ -49,6 +49,7 @@ after 60 days without repository activity.
   days? Only after both does the code become a suspect. A single missed slot is expected
   behaviour.
 
-Claudinite's own scheduler is built to this: a repo-hashed `:10–:50` minute, due-slot math
-against the Actions run ledger rather than the clock, and most-recent-slot-only catch-up — see
+Claudinite's own scheduler is built to this: a repo-hashed `:10–:50` minute, and an hourly tick
+that reconciles a queue of issues rather than replaying a ledger — a missed fire leaves the queue
+exactly as it was, so the next one catches up by looking at it. See
 [scheduled-tasks.md](../../../core/scheduled-tasks.md) for the task-authoring side.

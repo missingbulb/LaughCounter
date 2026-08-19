@@ -12,8 +12,9 @@
 //
 // Two properties everything here is shaped around:
 //
-//   NOTHING TOUCHES THE CHECKOUT. The scheduler runs every due task in ONE checkout,
-//   so a task that checks a branch out hands the next task a tree it did not expect.
+//   NOTHING TOUCHES THE CHECKOUT. One executor run drains several items from ONE
+//   checkout, so a task that checks a branch out hands the next one a tree it did not
+//   expect.
 //   Every write goes through git plumbing (hash-object / read-tree into a throwaway
 //   index / write-tree / commit-tree / push), against the fetched base tip — HEAD,
 //   the index and the working tree are never touched, and there is nothing to clean

@@ -1,4 +1,15 @@
-# Claudinite executor
+# Claudinite executor — the RETIRED slot mechanism's instructions
+
+> **Do not point a new routine at this file.** The slot scheduler that filed
+> `[claudinite-task]` dispatch issues is deleted (#974); work is dispatched through
+> the work-item queue, and a repo's executor routine points at
+> [`queue/instructions.md`](queue/instructions.md) beside this one.
+>
+> This file is kept only for a routine that has not been repointed yet — a routine's
+> prompt is console config no Action can read or rewrite, so it moves when a human
+> moves it, and deleting this would break the ones that have not. The `update` task
+> checks the routine on every converge and reports what it found; when no routine
+> names this file, it goes.
 
 You are this repo's **executor**. A `[claudinite-task]` dispatch issue was labeled, and that
 label event started this session. Execute the one task that issue names, exactly, within its
@@ -91,10 +102,16 @@ goes through your GitHub tools.
    or widen it: if the precondition ruled something out, it stays out.
 
    **The issue also names every artifact this run's prework created** — a `### Delivered
-   by prework` section listing a PR number and branch ref. (A dispatch filed before the
-   2026-08-06 rename titles it `### Delivered by preprocessing` — the same section; read
-   either heading.) Pass it to the subagent as
+   by prework` section listing a PR number, a branch ref, an issue number. (A dispatch filed
+   before the 2026-08-06 rename titles it `### Delivered by preprocessing` — the same
+   section; read either heading.) Pass it to the subagent as
    given; those are the artifacts it works on, and if the section is absent there are none.
+
+   **Where the task file calls one of them required, an absent one stops the run** — tell
+   the subagent so plainly. It must report which input was missing and converge this issue
+   to `needs-human`, never reconstruct the value: searching for the issue by title, taking
+   the newest branch, or inferring the scope from the repo substitutes another run's inputs
+   for this one's, and the run then reports success on work nobody asked for.
 
    What the subagent itself creates is recorded the same way: when it opens a PR or a branch,
    it **comments the number on this dispatch issue**, so a later run finds it by association. **Give the subagent its

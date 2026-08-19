@@ -3,7 +3,7 @@
 The deterministic half already ran. Preprocessing converged this repo's mount to the
 canon's current engine and pack versions, ran the version-ranged migrations, gated the
 result on the converged tree's own `selftest --strict`, and opened the update PR. The
-dispatch issue names the branch and says which packs moved.
+work item names the branch and says which packs moved.
 
 **You are here for one of two reasons**, and the issue says which:
 
@@ -14,7 +14,7 @@ dispatch issue names the branch and says which packs moved.
 
 ## 1. Read why you are here
 
-The dispatch issue's **Why the agent is here** section names the terminal and the packs
+The item's **Why the agent is here** section names the terminal and the packs
 whose versions moved. That is binding scope — do not widen it.
 
 ## 2. Deliver any withheld workflow files
@@ -59,10 +59,13 @@ Then, on that branch:
 
 ## 4. Verify the executor routine
 
-The one check no Action can make. This repo's executor routine fires on the
-`ready-for-agent` label, and it is not a GitHub artifact — only a session can see it.
-Confirm it exists and that its prompt points at the mounted executor instructions
-(`.claudinite/shared/engine/scheduler/executor.md`). Report what you found either way.
+The one check no Action can make. This repo's executor routine is fired by an API
+call to the endpoint its config names, and it is not a GitHub artifact — only a
+session can see it. Confirm it exists and that its whole stored prompt is the one
+line pointing at the mounted queue instructions
+(`.claudinite/shared/engine/scheduler/queue/instructions.md`): everything a task
+session does comes from that file, so a prompt carrying instructions of its own is
+behavior nobody reviews. Report what you found either way.
 
 ## 5. End green, or end at `needs-human`
 

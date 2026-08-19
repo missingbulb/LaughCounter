@@ -23,30 +23,46 @@ import { runPrework, preworkFailure, agentRequestPath, clearAgentRequest, agentR
 export const missingSecrets = (names = [], env = process.env) =>
   names.filter((n) => env[n] === undefined);
 
+// The CLAUDINITE_* variables prework is handed, and the whole of them: a worker
+// reading any other one is reading something nobody sets, which is silent and
+// permanent (a `CLAUDINITE_OVERRIDES` left over from the slot scheduler read as an
+// empty bag, so a fleet sweep's REPOS filter and DRY_RUN switch were inert and
+// every run was unscoped and live — #974).
+//
+// Built as one object so the NAMES cannot drift from what is actually passed:
+// `PREWORK_ENV_VARS` below is this function's own key set, and the check that
+// polices task workers reads it rather than a hand-kept list.
+export const preworkEnv = ({ root, repo, defaultBranch, task, item, context = [], requestPath }) => ({
+  CLAUDINITE_REPO_ROOT: root,
+  CLAUDINITE_REPO: repo,
+  CLAUDINITE_DEFAULT_BRANCH: defaultBranch ?? '',
+  // The item's identity where the slot id used to be: the queue has no slot, and
+  // the issue number IS the occurrence (§3).
+  CLAUDINITE_ITEM: String(item.number),
+  CLAUDINITE_PACK: task.pack,
+  CLAUDINITE_TASK: task.id,
+  // The item's binding scope, one line per Context bullet — and the channel an
+  // operator's parameters ride (§8).
+  CLAUDINITE_CONTEXT: context.join('\n'),
+  CLAUDINITE_REQUEST_AGENT: requestPath,
+});
+
+export const PREWORK_ENV_VARS = Object.freeze(
+  Object.keys(preworkEnv({ task: { pack: '', id: '' }, item: { number: 0 }, requestPath: '' })),
+);
+
 export function preworkRunner({ root, repo, defaultBranch, env = process.env }) {
   return async function runFor(task, { item, context = [] }) {
     const missing = missingSecrets(task.decl.required_secrets ?? [], env);
     if (missing.length) return { ok: true, agentRequested: false, missingSecrets: missing };
 
-    // The item's identity where the slot id used to be: the queue has no slot, and
-    // the issue number IS the occurrence (§3). Workers read CLAUDINITE_ITEM.
     const requestPath = agentRequestPath({ pack: task.pack, task: task.id, slotId: `item-${item.number}` });
     clearAgentRequest(requestPath);
 
     console.log(`::group::prework ${task.pack}/${task.id} [#${item.number}]`);
     const result = await runPrework(task.decl.prework, {
       taskDir: task.taskDir,
-      env: {
-        ...env,
-        CLAUDINITE_REPO_ROOT: root,
-        CLAUDINITE_REPO: repo,
-        CLAUDINITE_DEFAULT_BRANCH: defaultBranch ?? '',
-        CLAUDINITE_ITEM: String(item.number),
-        CLAUDINITE_PACK: task.pack,
-        CLAUDINITE_TASK: task.id,
-        CLAUDINITE_CONTEXT: context.join('\n'),
-        CLAUDINITE_REQUEST_AGENT: requestPath,
-      },
+      env: { ...env, ...preworkEnv({ root, repo, defaultBranch, task, item, context, requestPath }) },
       timeoutSeconds: task.decl.prework_timeout,
     });
     console.log('::endgroup::');
@@ -78,9 +94,14 @@ export function preworkRunner({ root, repo, defaultBranch, env = process.env }) 
 // `delivered`, and the item then says nothing about artifacts rather than
 // asserting something false.
 export function deliveredLines(delivered) {
-  const { branch = null, pr = null, merged = false } = delivered ?? {};
+  const { branch = null, pr = null, merged = false, issue = null } = delivered ?? {};
   const out = [];
   if (pr) out.push(`PR: #${pr}${merged ? ' (already merged — open your own PR for further work)' : ' (open)'}`);
   if (branch) out.push(`Branch: \`${branch}\``);
+  // An ISSUE this run resolved for the agent to write to — a task's standing
+  // tracker, typically, found or created by its own prework. Rendered for the same
+  // reason a PR number is: the agent's only source for it is this line, and without
+  // it a worker that took the trouble to resolve one hands over nothing.
+  if (issue) out.push(`Issue: #${issue} — write this run's record there.`);
   return out;
 }

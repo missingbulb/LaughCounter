@@ -25,7 +25,7 @@ it usefully and let promotion lift whatever turns out to travel.
 
 ## Read the window — and read merged PRs properly
 
-Work only the window you were handed (a scheduled run gets it as binding scope in the dispatch issue's
+Work only the window you were handed (a scheduled run gets it as binding scope in the work item's
 Context; an owner's ask names it in words). Never widen it.
 
 1. **The commits** — full bodies, and the diff wherever a fix is non-obvious.

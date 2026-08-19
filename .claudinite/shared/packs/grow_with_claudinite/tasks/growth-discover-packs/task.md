@@ -2,7 +2,7 @@
 
 A weekly reflection on **this repo's own** captured knowledge: knowing the Claudinite packs already available to it, notice when project-specific knowledge is worth organizing into a **new local pack** — and author it. A local operation: it writes only the repo's **own** `.claudinite/local/packs/`, landing through a PR **a human reviews** (unlike [growth-extract](../growth-extract/task.md), which lands unreviewed where the repo's delivery settings allow; the shared canon stays human-gated too — lifting a local pack up is the central promote task's job). Finding nothing new worth a pack is a perfectly good, common outcome.
 
-You run under the executor, dispatched by a `ready-for-agent` issue. There is no windowed Context to bind — the opportunity is standing (knowledge that was never organized into a pack, not a recent change), so examine the repo as it is.
+You run from a work item the executor handed off. There is no windowed Context to bind — the opportunity is standing (knowledge that was never organized into a pack, not a recent change), so examine the repo as it is.
 
 The task's declared outcome ceiling is **`open-pr`**: it opens a PR and **never arms auto-merge**. Extract may land unreviewed because it adds prose or a rule to territory a local pack already owns; a **new pack** ships new `.mjs` conformance checks that run at every Stop and in CI the moment it merges — a check can break CI, so it's reviewed, exactly as the sibling [prose-to-checks-sweep](../prose-to-checks-sweep/task.md) is.
 

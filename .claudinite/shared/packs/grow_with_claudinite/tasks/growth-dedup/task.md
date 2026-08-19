@@ -3,7 +3,7 @@
 The growth lifecycle's pruning stage: reconcile this repo's **local packs** against the shared **canon** it
 consumes (Claudinite, vendored read-only), pruning local items — a pack's prose line, or a whole local check —
 the canon now covers. It lands the run's prunes through a single PR against the repo's default branch,
-**delivered to land** per the repo's own delivery settings. Often there's nothing to prune, and that's fine. You run under the executor, dispatched by a `ready-for-agent` issue, whose
+**delivered to land** per the repo's own delivery settings. Often there's nothing to prune, and that's fine. You run from a work item the executor handed off, whose
 **Context** is **binding scope — not a hint** (the executor will not let you re-decide or widen it).
 
 > This task only prunes local packs against the canon; lifting local items up into the canon is the central
@@ -83,13 +83,14 @@ worker only frames the unattended run around it.
 
 ## Tracking
 
-The task's standing log is the issue titled exactly, in this repo:
+The task's standing log is the issue the work item's **Delivered by prework** section names (`Issue: #<n>`).
+Prework found or opened it and has already rewritten its body with this run's brief.
 
-> **Claudinite tracker: Growth Dedup**
-
-Find it **by that exact title, never a fuzzy match or a hard-coded number** — prework creates it (closed) when
-no issue carries that title. **Never open, close, or reopen it** — its state carries no meaning, only the log
-does.
+**That number is a required input.** A work item that does not carry it is a failed run, not a lighter one: converge to `needs-human` naming the missing input.
+Never search for a tracker by title and never create one — the brief
+you are working from lives on a specific issue, and any issue you find yourself is a different one. Never
+re-write the body prework just wrote, and **never open, close, or reopen it**: its state carries no meaning,
+only the log does.
 
 Its **body** is prework's, rewritten every run: this window's canon diff, the brief you started from. Leave it
 alone. The **comments** are yours: log each run that changed a doc as a **dated comment** — naming what was

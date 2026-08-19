@@ -9,7 +9,7 @@
 
 export default {
   id: 'tidy-issues',
-  frequency: 'daily',                       // the 04:00 slot (DESIGN §2) — the one tidy dimension that ACTS, so latency matters
+  frequency: 'daily',                       // the 04:00 anchor (DESIGN §2) — the one tidy dimension that ACTS, so latency matters
   precondition_signals: ['issues', 'commits'],
   agent_model: 'sonnet',                    // "implemented in main" is a judgment call against main's current content
   expected_outcome: 'none',                 // writes ISSUES only (the triage actions + its own tracker) — never a PR
@@ -20,6 +20,11 @@ export default {
   // filed, commented on, labelled, or reopened in the window, this task does not
   // run — the existing pile got the same triage last time it moved, and re-deriving
   // it costs an agent run per day to rewrite the tracker with itself.
+  //
+  // The task's own triage comments are the one write that lands on the issues this
+  // gate watches, so re-announcing a standing verdict would arm tomorrow's run
+  // forever (#988). single-issue-triage does not make that write; nothing here
+  // filters it out after the fact.
   //
   // A substantive default-branch move WIDENS an already-triggered run to every open
   // issue, because a real commit can implement an issue the issue itself never
@@ -33,9 +38,9 @@ export default {
     const open = (signals.issues?.open ?? []).map((i) => i.number);
     const touched = signals.issues?.touched ?? [];
 
-    // The scheduler's issues signal already hides the dispatch issues and the
-    // standing trackers, so neither can ever be triaged as project work — nor can
-    // either of them count as the touch that triggers a run.
+    // The issues signal already hides Claudinite's own issues — the queue's work
+    // items and the standing trackers — so none can ever be triaged as project
+    // work, nor count as the touch that triggers a run.
     if (!touched.length) return { run: false, reason: 'no issues touched in the window' };
 
     const scope = substantive ? open : touched;

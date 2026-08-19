@@ -19,7 +19,7 @@ import {
   READY, URGENT, EXECUTING, AGENT, BLOCKED, NEEDS_HUMAN, ORIGIN_SCHEDULE,
   OUTCOME_DONE, OUTCOME_DELIVERED, OUTCOME_OBSOLETE, QUEUE_LABELS,
   CLAIM_MARKER, HANDOFF_MARKER, EPISODE_MARKER,
-  parseWorkItemTitle, parseWorkItemBody, withNotBefore, withSection, hasLabel,
+  parseWorkItemTitle, parseWorkItemBody, parseContextLines, mergeContext, withNotBefore, withSection, hasLabel,
 } from './work-item.mjs';
 
 // How many items one executor run may take before it stops. Small on purpose: an
@@ -236,12 +236,7 @@ async function executeItem({
   // --- the single precondition evaluation (DESIGN §6.4) --------------------
   const at = now();
   const signals = await collectSignalsFor(task, at);
-  let verdict;
-  try {
-    verdict = task.decl.precondition(signals, config.packConfig?.[task.pack] ?? {}) ?? {};
-  } catch (e) {
-    verdict = { run: false, reason: `precondition threw: ${e.message}` };
-  }
+  const verdict = evaluatePrecondition(task, signals, config.packConfig?.[task.pack] ?? {});
   if (verdict.run !== true) {
     const plan = noGoPlan(item, task, schedule, at, verdict.reason || 'no work');
     if (plan.kind === 'close') {
@@ -264,8 +259,14 @@ async function executeItem({
   }
 
   // --- prework (unchanged contract), then converge or hand off -------------
+  // The item's OWN Context is scope too, not decoration: an operator's parameters
+  // (`create-work-item --context "REPOS=Alpha Beta"`) live there and nowhere else,
+  // so prework sees the union of what the item was created with and what this
+  // occurrence's precondition added. Passing only the verdict's half is what made
+  // a hand-created item's parameters unreachable (#974).
+  const context = mergeContext(parseContextLines(item.body), verdict.context ?? []);
   if (task.decl.prework) {
-    const result = await runTaskPrework(task, { item, context: verdict.context ?? [] });
+    const result = await runTaskPrework(task, { item, context });
     if (!result.ok) {
       await converge(api, gh, repo, item.number, EXECUTING, NEEDS_HUMAN, claim,
         `Prework failed: ${result.why}${result.detail ? `\n\n\`\`\`\n${result.detail}\n\`\`\`` : ''}`);
@@ -284,7 +285,7 @@ async function executeItem({
           : 'Prework did this run\'s work; no agent was needed.');
       return outcome;
     }
-    return handOff({ api, gh, repo, item, task, id, verdict, result, executorId, claim, invokeAgent, config, log });
+    return handOff({ api, gh, repo, item, task, id, context, result, executorId, claim, invokeAgent, config, log });
   }
 
   // An agentless task with no prework does nothing (the contract forbids it).
@@ -293,12 +294,27 @@ async function executeItem({
       'This task is agentless but declares no prework, so there is nothing to run — a contract-forbidden shape that reached the queue.');
     return 'needs-human';
   }
-  return handOff({ api, gh, repo, item, task, id, verdict, result: {}, executorId, claim, invokeAgent, config, log });
+  return handOff({ api, gh, repo, item, task, id, context, result: {}, executorId, claim, invokeAgent, config, log });
 }
 
 // The roll's body edit: stamp the next anchor and keep the last reason where an
 // operator reads it. The reason REPLACES the previous one — the item is a status
 // line, not a log; its timeline carries the history.
+// Run one task's precondition. THE only place a precondition is ever called, so a
+// test that drives this drives what production drives — a precondition first
+// written to take `{ signals }` passed its own direct-call test and threw on every
+// real run, which is the failure this seam exists to make impossible.
+//
+// A throwing precondition converges to a no-go with the error as its reason: one
+// task's bad verdict is that item's problem, never the executor's.
+export function evaluatePrecondition(task, signals, packConfig = {}) {
+  try {
+    return task.decl.precondition(signals, packConfig) ?? {};
+  } catch (e) {
+    return { run: false, reason: `precondition threw: ${e.message}` };
+  }
+}
+
 export function rollBody(body, until, reason, at) {
   const stamped = withNotBefore(body, until);
   return withSection(stamped, 'Last verdict', [
@@ -311,10 +327,10 @@ export function rollBody(body, until, reason, at) {
 // what lets this be as short as it is. The nonce goes on the item before the call
 // and travels in the payload, so the session can prove the fire it arrived on is
 // the hand-off this item recorded and stop if it is not.
-async function handOff({ api, gh, repo, item, task, id, verdict, result, executorId, claim, invokeAgent, config, log }) {
+async function handOff({ api, gh, repo, item, task, id, context, result, executorId, claim, invokeAgent, config, log }) {
   const nonce = `${item.number}-${Math.random().toString(36).slice(2, 10)}`;
   let body = item.body;
-  if (verdict.context?.length) body = withSection(body, 'Context', verdict.context);
+  if (context.length) body = withSection(body, 'Context', context);
   if (result.delivered?.length) body = withSection(body, 'Delivered by prework', result.delivered);
   if (result.reason) body = withSection(body, 'Why the agent is here', [result.reason]);
   await gh(`/repos/${repo}/issues/${item.number}`, { method: 'PATCH', body: { body } });

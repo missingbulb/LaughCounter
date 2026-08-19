@@ -1,13 +1,13 @@
 // The signal collectors (per-project-scheduling DESIGN §3.3). Each reads a
 // bounded, cheap slice of the repo's GitHub state (or local disk) for one signal
-// name; `collectSignals` gathers only the union the due tasks declared, so a
-// non-daily slot never pays for daily tasks' signals. Every collector takes the
+// name; `collectSignals` gathers only the union the PICKED task declared, so an
+// hourly task never pays for a daily task's signals. Every collector takes the
 // shared `(gh, ctx)` and returns a plain data object a precondition reads.
 //
 // Pure over the injected `gh` reader and a `ctx` of already-resolved facts, so
 // the whole layer tests against a fake `gh` with no live GitHub. The ctx facts a
 // collector cannot fetch for itself (manifest version, local-pack presence,
-// retention) are read off the checkout by run.mjs — see signals/local.mjs.
+// retention) are read off the checkout by signals/context.mjs — see signals/local.mjs.
 
 import { LOCAL_PACK_ROOTS } from './local.mjs';
 
@@ -149,7 +149,7 @@ const COLLECTORS = {
     const open = await paged(gh, `/repos/${ctx.repo}/issues?state=open&sort=updated&direction=desc`);
     const since = new Date(ctx.sinceIso);
     // Exclude PRs (the issues endpoint returns both) and the scheduler's own
-    // dispatch issues / standing trackers — invisible to signals (DESIGN §3.3).
+    // work items / standing trackers — invisible to signals (DESIGN §3.3).
     const real = open.filter((i) => !i.pull_request
       && !/^\[claudinite-(task|work)\]/.test(i.title ?? '')
       && !/^(claudinite tracker:|auto-improvements tracker\b|repo tidy tracker$)/i.test((i.title ?? '').trim()));

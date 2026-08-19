@@ -2,7 +2,7 @@
 // (per-project-scheduling DESIGN §3). The per-repo scheduler workflow runs hourly
 // on a repo-hashed minute constrained to :10–:50 — spreading the fleet across the
 // band, dodging GitHub's :00 stampede, and staying clear of the hour boundary the
-// slot math anchors on.
+// anchor arithmetic works from.
 //
 // This is the minute the stub's placeholder (`cron: '10 * * * *'`) is rewritten to
 // when the workflow lands in a repo: bootstrap assigns it, and the update flows'

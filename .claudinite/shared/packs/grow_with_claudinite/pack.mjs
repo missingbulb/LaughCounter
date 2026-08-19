@@ -17,7 +17,7 @@ import growthWriteScope from './growth-write-scope.mjs';
 // extract-from-conversations skill over the captured logs, then the prose-to-checks
 // skill over the prose it just wrote, and lands all of it in one PR delivered
 // per the repo's delivery settings.
-// The halves were two tasks firing in the same nightly slot against the same local
+// The halves were two tasks firing at the same nightly anchor against the same local
 // packs; they shared the bar, the ladder and the dedup surface, so the split bought
 // nothing and cost a second opus dispatch, a second PR, and two runs deduping
 // against a corpus the other was concurrently writing.
@@ -31,9 +31,14 @@ import growthWriteScope from './growth-write-scope.mjs';
 // the ones that do; it is safe to double-write because capture deltas on the session
 // id. growth-extract's conversation half then mines those pushed logs on its own
 // access model — the logs branch is in the repo, so reading it, committing lessons to
-// local packs, and pruning aged logs are plain local git; only posting the short
-// summary behind each extracted rule on its issue uses the GitHub MCP tools —
-// pruning logs past config.retention_days.
+// local packs are plain local git (the logs branch itself is read-only to it); only
+// posting the short summary behind each extracted rule on its issue uses the GitHub
+// MCP tools. RETENTION IS A SEPARATE, AGENTLESS TASK (tasks/logs-prune/): deleting a
+// capture past config.retention_days is arithmetic on dates, and keeping it inside
+// the opus run also kept a precondition arm alive whose only job was to dispatch
+// that run on a quiet repo. Age is enough because of the extract run's reading
+// window — it reads from the oldest end of the branch every run — not because the
+// two tasks hand anything to each other.
 //
 // And it owns the SKILL-USAGE metric the promotion ladder's skill-vs-prose call was
 // missing: usage-fold (tasks/usage-fold/) counts skill loads and their activity
@@ -67,7 +72,7 @@ import growthWriteScope from './growth-write-scope.mjs';
 // active sets retention_days itself.
 export default {
   id: 'grow_with_claudinite',
-  version: 2,
+  version: 6,
   minEngineVersion: 1,
   ruleRoutingGuidance: {
     belongs: 'rules and tasks for capturing and maintaining lessons in local packs — extraction, dedup, revalidation, conversation logs, skill-usage folding',

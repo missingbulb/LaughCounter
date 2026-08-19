@@ -19,7 +19,7 @@ export default {
   // against the stamped version, and what gets stamped is this manifest's number — so
   // a record declaring a version above it would re-apply every cycle, forever,
   // draining never.
-  version: 3,
+  version: 5,
   minEngineVersion: 1,
   ruleRoutingGuidance: {
     belongs: 'cross-project working discipline, issue-branch-PR lifecycle, repo hygiene, doc/reference integrity and the baseline engineering, testing and debugging skills',

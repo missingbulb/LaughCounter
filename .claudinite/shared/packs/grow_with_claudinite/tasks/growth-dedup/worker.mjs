@@ -24,15 +24,14 @@ import { writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { makeGh } from '../../../../engine/scheduler/signals/gh.mjs';
 import { loadConfig } from '../../../../engine/checks/helpers/repo-context.mjs';
+import { findOrCreateTracker, writeTracker } from '../../../../engine/scheduler/tracker.mjs';
 
 const log = (s) => console.log(`growth-dedup prework: ${s}`);
 
 // The window this task's own cadence covers — `frequency: 'weekly'` in task.mjs.
 export const WINDOW_DAYS = 7;
 
-// The standing log task.md finds by this exact title, never a fuzzy match or a
-// hard-coded number. Prework and the agentic phase address the same issue, so the
-// string lives once, here, and task.md quotes it as the title to look for.
+// The standing log this task keeps. Its own, named here and nowhere else.
 export const TRACKER_TITLE = 'Claudinite tracker: Growth Dedup';
 
 // A canon pack's file, in the two-root form: the mount prefix is optional because
@@ -194,7 +193,7 @@ export function renderBrief(summary, { sinceIso }) {
   return `${body.slice(0, MAX_BRIEF_BYTES)}\n\n_**Truncated at ${MAX_BRIEF_BYTES} bytes** — this window moved more of the canon than one issue body holds._\n`;
 }
 
-/** The one line the dispatch issue shows for why the agent is here. */
+/** The one line the work item shows for why the agent is here. */
 export function handoffDetail(summary) {
   const packs = Object.keys(summary.packs);
   if (!packs.length) return 'no canon pack moved in the window — comparing against the mounted canon as a whole';
@@ -219,24 +218,6 @@ async function windowCommits(gh, repo, branch, sinceIso) {
   return out;
 }
 
-// The tracker, found by exact title in ANY state — task.md keeps it CLOSED, so a
-// state-filtered search would miss it and open a second one every run.
-async function upsertTracker(gh, repo, body) {
-  const q = encodeURIComponent(`repo:${repo} is:issue in:title "${TRACKER_TITLE}"`);
-  const found = await gh(`/search/issues?q=${q}`);
-  const existing = (found.json?.items ?? []).find((i) => i.title === TRACKER_TITLE);
-  if (existing) {
-    const patched = await gh(`/repos/${repo}/issues/${existing.number}`, { method: 'PATCH', body: { body } });
-    if (patched.status >= 300) throw new Error(`could not refresh the tracker: PATCH issue returned ${patched.status}`);
-    return existing.number;
-  }
-  const made = await gh(`/repos/${repo}/issues`, { method: 'POST', body: { title: TRACKER_TITLE, body } });
-  if (made.status >= 300) throw new Error(`could not open the tracker: POST issues returned ${made.status}`);
-  // Its state carries no meaning, only the log does — task.md keeps it closed.
-  await gh(`/repos/${repo}/issues/${made.json.number}`, { method: 'PATCH', body: { state: 'closed' } });
-  return made.json.number;
-}
-
 async function main() {
   const repo = process.env.GITHUB_REPOSITORY || process.env.CLAUDINITE_REPO;
   if (!repo || !repo.includes('/')) throw new Error('GITHUB_REPOSITORY is not set (owner/repo)');
@@ -254,7 +235,11 @@ async function main() {
   const declared = loadConfig(root).packs ?? [];
   const summary = summarizeCanonWindow(await windowCommits(gh, repo, branch, sinceIso), declared);
 
-  const tracker = await upsertTracker(gh, repo, renderBrief(summary, { sinceIso }));
+  // THIS TASK's tracker, resolved by this task. Every run rewrites the body with
+  // the window's brief — that brief IS what the agentic phase works from — so it
+  // is found or created here, and the number is handed on below.
+  const { number: tracker } = await findOrCreateTracker(gh, repo, TRACKER_TITLE);
+  await writeTracker(gh, repo, tracker, { body: renderBrief(summary, { sinceIso }) });
   const detail = handoffDetail(summary);
   log(`tracker #${tracker} carries the brief — ${detail}`);
 
@@ -264,6 +249,9 @@ async function main() {
   // judging whether an added canon line genuinely covers a local item.
   const requestPath = process.env.CLAUDINITE_REQUEST_AGENT;
   if (!requestPath) throw new Error('CLAUDINITE_REQUEST_AGENT is not set — cannot hand off to the agentic phase');
+  // The brief is ON the tracker, so the number is the one thing the agentic phase
+  // cannot do without: it travels in the hand-off payload's `delivered`, which the
+  // dispatch renders as an `Issue:` line.
   writeFileSync(requestPath, JSON.stringify({
     delivered: { issue: tracker },
     reason: { code: 'canon-window-diff', detail },

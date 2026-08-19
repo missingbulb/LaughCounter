@@ -8,8 +8,9 @@ vendored mount it is: fetch the canon once (the one network moment), `--init` th
 declaration + run the adoption interview, vendor the snapshot into tracked
 `.claudinite/shared/` (`vendoring/apply-vendor-set.mjs` — whole-set + stamp), track it, register the
 single SessionStart orchestrator plus the Stop/PreToolUse hooks at their `shared/` paths, wire the
-world-scope sweep into the project's test/CI flow (its own `check_the_world.mjs` step — adding a
-minimal flow if the repo has none; the Stop hook carries only the work-scope checks), open the
+world- and work-scope sweeps into the project's test/CI flow (a `check_the_world.mjs` step for the
+tree and a `ci-work-scope.mjs` step for the change — adding a minimal flow if the repo has none;
+the Stop hook runs the work scope too, but only where a session runs), open the
 maintenance-enrollment issue, categorize the project, and land the sweep green.
 
 Bootstrap is the one place `apply-vendor-set.mjs` is the right tool, and only because the repo is at
@@ -25,14 +26,13 @@ the surface a session actually has (an unattended or web session carries no `gh`
 actions_run_trigger(method: "run_workflow", owner: …, repo: …,
                     workflow_id: "claudinite-scheduler.yml",
                     ref: "main",                                  # see below
-                    inputs: { overrides: "FORCE_TASKS=update" })
+                    inputs: { wake: "update" })
 ```
 
 `ref` is the **default branch**, not whatever branch you are on: a `workflow_dispatch` always runs the
 workflow definition from the default branch, so dispatching against a feature branch neither picks up
 a workflow you only added there nor changes which definition runs. In a local session with `gh`
-authenticated, `gh workflow run claudinite-scheduler.yml -f overrides=FORCE_TASKS=update` is the same
-call.
+authenticated, `gh workflow run claudinite-scheduler.yml -f wake=update` is the same call.
 
 Then **watch it to a terminal state** — a forced run is how you see a change to scheduled machinery
 work *now*, and parking it on "check tomorrow" is the failure this lever exists to prevent. A

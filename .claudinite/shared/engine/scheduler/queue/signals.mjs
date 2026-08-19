@@ -17,7 +17,7 @@ export const windowStart = (task, now) =>
 export function collectSignalsForTask({ gh, repo, root, config, defaultBranch }) {
   return async function collectFor(task, now) {
     const { collectSignals } = await import('../signals/index.mjs');
-    const { buildSignalContext } = await import('../run.mjs');
+    const { buildSignalContext } = await import('../signals/context.mjs');
     const names = task.decl.precondition_signals ?? [];
     const packConfigFor = (packId) => config.packConfig?.[packId] ?? {};
     const sinceIso = windowStart(task, now);

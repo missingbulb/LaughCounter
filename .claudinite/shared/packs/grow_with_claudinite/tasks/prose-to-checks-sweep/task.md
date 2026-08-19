@@ -4,7 +4,7 @@ Mine the **existing** prose of this repo's packs — each pack's `RULES.md` / `S
 
 **Weekly, deliberately.** Fresh prose is handled the night it is written, so what reaches this sweep is a slow-moving corpus; a daily re-read of it spent an opus dispatch and an owner-gated PR on a backlog that had not changed.
 
-You run under the executor, dispatched by a `ready-for-agent` issue whose **Context section is binding scope**: it names the **pack paths** to sweep. Work only those paths — a consuming repo's own local packs by default; Claudinite also its core `packs/`. **Never** edit a read-only mounted canon pack under `.claudinite/shared/`.
+You run from a work item the executor handed off whose **Context section is binding scope**: it names the **pack paths** to sweep. Work only those paths — a consuming repo's own local packs by default; Claudinite also its core `packs/`. **Never** edit a read-only mounted canon pack under `.claudinite/shared/`.
 
 The task's declared outcome ceiling is **`open-pr`**: convert prose to checks in a single owner-approved PR (a check can break CI or misfire, so it is reviewed, not auto-merged).
 

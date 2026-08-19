@@ -1,8 +1,14 @@
-// The usage fold's SECOND source: the scheduler's own Actions runs
-// (skill-usage-metrics DESIGN §4.2). Every scheduler run prints one machine-readable
-// record per due task saying what it did with it — dispatched an agent, ran it as
-// deterministic preprocessing only, skipped it on its precondition, failed it, or
+// The usage fold's SECOND source, and a HISTORICAL one: the retired slot scheduler's
+// own Actions runs (skill-usage-metrics DESIGN §4.2). Each of its runs printed one
+// machine-readable record per due task saying what it did with it — dispatched an
+// agent, ran it as prework only, skipped it on its precondition, failed it, or
 // deferred it. This module reads those records back out of the run logs.
+//
+// NOTHING WRITES THEM ANY MORE (#974). The reader stays because the logs it reads are
+// still inside Actions retention and are still real; when they age out it returns
+// nothing, which is the correct answer rather than a fault. The queue keeps each
+// occurrence's outcome as a label on its own work item instead — a better record and
+// a different read, tracked as #994.
 //
 // It lives in this task's folder because nothing else uses it, and it holds no
 // counting logic: it turns "runs since the watermark" into `[{ date, pack, task,
@@ -68,7 +74,7 @@ export function makeReader({ token = process.env.GITHUB_TOKEN, api = API, fetchI
 export const lookbackFrom = (nowIso, days = FIRST_FOLD_LOOKBACK_DAYS) =>
   new Date(new Date(nowIso).getTime() - days * 86400000).toISOString();
 
-// The scheduler runs to read this fold: completed runs started strictly after the
+// The scheduler-workflow runs to read this fold: completed runs started strictly after the
 // watermark, oldest first.
 //
 // Only COMPLETED runs — an in-progress run's log is still being written, and the
