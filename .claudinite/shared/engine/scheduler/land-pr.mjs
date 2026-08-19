@@ -336,8 +336,18 @@ export function mergeReason(runs) {
 // Why a PR was left (or closed) rather than merged — the same visibility
 // argument, for the case that matters more: a member whose CI is genuinely red.
 export function failureSummary(runs) {
-  const failed = (runs ?? []).filter((r) => REAL_FAILURES.includes(r?.conclusion));
+  const list = (runs ?? []).filter(Boolean);
+  const failed = list.filter((r) => REAL_FAILURES.includes(r?.conclusion));
   if (failed.length) return `failing CI: ${failed.map((r) => `${r.name} ${r.conclusion}`).join(', ')}`;
+  // A run still going at the bound is a statement about the CLOCK, not a verdict
+  // on the runs, and conflating the two sent a reader to a repository-settings
+  // diagnosis for a repo where nothing was misconfigured (#1026). Name what is
+  // still moving, so a member whose CI outruns the budget is visible as itself.
+  const inFlight = list.filter((r) => r?.status && r.status !== 'completed');
+  if (inFlight.length) {
+    return 'still running at the landing bound: '
+      + `${inFlight.map((r) => `${r.name} ${r.status}`).join(', ')} — it lands next cycle`;
+  }
   return 'no successful run on its head sha';
 }
 
@@ -417,13 +427,30 @@ export async function disposeOpenPull({ token, repo, pr, delivery, log = console
 // On a member whose pull_request run is gated, EVERY arm fails; deferring to the
 // next cycle's disposal put a standing ~24h offset between a task's output and
 // that member's main. The evidence that settles it does not take a day to
-// arrive: the dispatched run this delivery just started finishes in seconds. So
-// we wait for it, once, and merge on exactly the reasoning disposal uses. Same
-// decision, made now.
+// arrive: the dispatched run this delivery just started concludes in minutes at
+// worst. So we wait for it, once, and merge on exactly the reasoning disposal
+// uses. Same decision, made now.
 //
 // Bounded and cheap because it only runs where the arm ALREADY failed (or was
 // skipped as doomed): a healthy member arms and returns without waiting at all.
+//
+// TWO BOUNDS, because the poll waits on two different things and one number
+// answered both wrongly (#1026). Nothing VISIBLE is the short case: a dispatch
+// that has registered no run is a dispatch that may never register one, so
+// waiting long buys nothing. A run we can see EXECUTING is the opposite — the
+// evidence is on its way and the only question is whether the prework budget
+// outlasts it. Collapsed into one 180s bound, a member whose slowest check took
+// 3m29s had its green PR abandoned 26s short every cycle and landed a day late
+// by the next cycle's disposal, which is exactly the offset #649 closed.
+//
+// The in-flight bound is ceilinged by the PREWORK budget it spends, not by what
+// CI might take: the shortest `prework_timeout` among the merged-pr tasks is
+// 600s, and the poll is the tail of a prework that has already converged a tree
+// and opened a PR. 300s leaves that preamble its room. A member whose CI outruns
+// even this still lands next cycle — but now it SAYS so (failureSummary below),
+// where before the give-up was indistinguishable from a red repo.
 export const LAND_TIMEOUT_MS = 180_000;
+export const LAND_INFLIGHT_TIMEOUT_MS = 300_000;
 export const LAND_POLL_MS = 5_000;
 
 // What one poll of the head sha's runs says to do: `merge`, `poll` again, or
@@ -438,11 +465,16 @@ export const LAND_POLL_MS = 5_000;
 // a POLL, never a verdict. Without it, the first read 0.3s after the dispatch
 // found an empty list and judged "nothing will ever verify this", stranding
 // seven members' green PRs in one forced fleet pass (2026-08-07).
-export function landAttempt({ delivery, runs, expected = 0, elapsedMs = 0, timeoutMs = LAND_TIMEOUT_MS }) {
+export function landAttempt({
+  delivery, runs, expected = 0, elapsedMs = 0,
+  timeoutMs = LAND_TIMEOUT_MS, inflightTimeoutMs = LAND_INFLIGHT_TIMEOUT_MS,
+}) {
   if ((runs ?? []).length < expected) return elapsedMs >= timeoutMs ? 'give-up' : 'poll';
   const disposition = pullDisposition({ delivery, runs });
   if (disposition === 'merge') return 'merge';
-  if (disposition === 'wait') return elapsedMs >= timeoutMs ? 'give-up' : 'poll';
+  // `wait` is precisely "a run is not `completed`" — the seen-it-executing case,
+  // which gets the longer budget.
+  if (disposition === 'wait') return elapsedMs >= inflightTimeoutMs ? 'give-up' : 'poll';
   return 'give-up';
 }
 

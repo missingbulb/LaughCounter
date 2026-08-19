@@ -73,7 +73,7 @@ goes through your GitHub tools.
    and it says `invalid` on a zero exit.
 
    **Announce your dispatch before you act**: quote the printed `brief:` line prominently in
-   chat — bold, on its own line, e.g. **`Task: grow_with_claudinite/growth-dedup (slot
+   chat — bold, on its own line, e.g. **`Task: claudinite-growth/growth-dedup (slot
    d2026-07-29) — issue #546, model opus, outcome ceiling open-pr, timeout 1800s`** — so
    everything after this has one unambiguous subject a human skimming the session sees at a
    glance. Run that issue and nothing else — every other dispatch in the queue already has
@@ -101,8 +101,8 @@ goes through your GitHub tools.
    follows it exactly. The issue's **Context** section is **binding scope** — never re-decide
    or widen it: if the precondition ruled something out, it stays out.
 
-   **The issue also names every artifact this run's prework created** — a `### Delivered
-   by prework` section listing a PR number, a branch ref, an issue number. (A dispatch filed
+   **The issue also names every artifact this run's code-work created** — a `### Delivered
+   by code-work` section listing a PR number, a branch ref, an issue number. (A dispatch filed
    before the 2026-08-06 rename titles it `### Delivered by preprocessing` — the same
    section; read either heading.) Pass it to the subagent as
    given; those are the artifacts it works on, and if the section is absent there are none.

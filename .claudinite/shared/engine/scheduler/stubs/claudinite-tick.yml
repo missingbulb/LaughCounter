@@ -44,9 +44,9 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write        # read the repo + vendored engine; a task's prework pushes its delivery branch
+  contents: write        # read the repo + vendored engine; a task's code_work pushes its delivery branch
   issues: write          # create / label / comment / close work items — the queue itself
-  pull-requests: write   # a task's prework opens its PR and arms auto-merge
+  pull-requests: write   # a task's code_work opens its PR and arms auto-merge
   actions: write         # dispatch a workflow a task drives (creating a workflow_dispatch event needs write; `read` silently 403s the POST)
 
 jobs:
@@ -65,7 +65,7 @@ jobs:
 
   # The post-tick drain. `timeout-minutes` MUST stay ≤ the engine's executing
   # leash (60m): a hung runner has to be killed by the platform before its claim
-  # is reaped and the item re-picked, or a zombie's prework runs beside its
+  # is reaped and the item re-picked, or a zombie's code-work runs beside its
   # replacement's.
   drain:
     needs: tick

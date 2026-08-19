@@ -801,7 +801,7 @@ const fieldAt = (doc, path) =>
 // requireValueInArray, coveredByValueInArrayAtField): a missing or non-array
 // field holds nothing, and an entry that is an object counts by the field
 // matchingEntryObjectsByField names — the shape a raw `packs` declaration
-// carries, where "core" and { "id": "core" } declare the same pack.
+// carries, where a bare id and { "id": … } declare the same pack.
 function arrayHoldsValue(values, matcher, sought) {
   if (!Array.isArray(values)) return false;
   const norm = (v) => (matcher.ignoreCase ? String(v).toLowerCase() : String(v));

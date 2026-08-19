@@ -47,7 +47,7 @@ export async function discoverTasks(root, config) {
       if (!existsSync(mjs)) continue;
       let decl;
       try {
-        // Canonical field names from here on (legacy prework names accepted at
+        // Canonical field names from here on (legacy code-work names accepted at
         // the door, never re-checked downstream).
         decl = normalizeTaskDeclaration((await import(pathToFileURL(mjs).href)).default);
       } catch (e) {

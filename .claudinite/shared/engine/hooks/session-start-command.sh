@@ -117,7 +117,7 @@ run_step env-check          node "$corpus/engine/pack_loader/env-requirements.mj
 # The interview machinery is the adoption skill's, bundled in the
 # Claudinite-lifecycle pack — absent when the tree doesn't carry it, and then
 # there is no interview.
-interview="$corpus/packs/core/skills/adopt-claudinite/interview.mjs"
+interview="$corpus/packs/claudinite-lifecycle/skills/adopt-claudinite/interview.mjs"
 [ -f "$interview" ] && run_step interview-check node "$interview" check
 # LAST, and about the session rather than the machinery: the one line stating what
 # loaded — the packs, their checks, the token weight of their prose, the skills, and

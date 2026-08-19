@@ -32,7 +32,7 @@ const value = (flag) => (args.includes(flag) ? args[args.indexOf(flag) + 1] : nu
 // The repo to sweep. `--root` first, then CLAUDE_PROJECT_DIR, and only then the cwd.
 // The env var is not a convenience: the callers that run this from inside a converge
 // (the update runner) have a cwd that no longer exists — the vendor step deletes
-// `.claudinite/shared/`, which is where prework's cwd lives — and `process.cwd()` then
+// `.claudinite/shared/`, which is where code-work's cwd lives — and `process.cwd()` then
 // throws `ENOENT … uv_cwd` before a single check runs, which reads from the outside as
 // "this mount has no checks" (#689). engine/selftest.mjs has always resolved its root
 // this way; this closes the disagreement for every caller, not just that one.

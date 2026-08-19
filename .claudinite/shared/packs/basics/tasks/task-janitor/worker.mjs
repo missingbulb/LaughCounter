@@ -1,4 +1,4 @@
-// The task-janitor's prework — the whole task (agent_model: none). The ONE
+// The task-janitor's code-work — the whole task (agent_model: none). The ONE
 // home of dispatch-issue recovery and health review, moved out of the
 // scheduler's hourly run (owner, 2026-08-06: scheduler creates, executor
 // executes its one issue, janitor cleans up). This file is the I/O shell; the
@@ -125,7 +125,7 @@ export async function main() {
   await sweep(makeGh(), repo, new Date());
 }
 
-// Run only when invoked directly (prework's `node worker.mjs`), never on import.
+// Run only when invoked directly (code-work's `node worker.mjs`), never on import.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((e) => { console.error(`task-janitor failed: ${e.message}`); process.exit(1); });
 }

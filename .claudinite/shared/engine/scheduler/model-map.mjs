@@ -20,7 +20,7 @@ export const MODEL_MAP = {
 };
 
 // `none` means "pure code, no agent" (DESIGN §1) — the scheduler runs the
-// worker .mjs as prework rather than handing off to an agent session.
+// worker .mjs as code-work rather than handing off to an agent session.
 export const isAgentless = (family) => family === 'none';
 
 // Resolve a family to its concrete model, or throw on an unknown family (the

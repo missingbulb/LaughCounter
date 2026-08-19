@@ -52,7 +52,7 @@ signing service, a network, a real git remote; anything with a timeout.
 **A test that waits is often reporting a bug, not just being slow.** A test that sets a 0.3s
 timeout and takes 10s is telling you the timeout does not work — the mechanism under test is
 failing to kill what it claims to kill, and the 10s is the real lifetime leaking through. Chase
-that reading before optimizing the test away: the same discipline found a `prework_timeout` that
+that reading before optimizing the test away: the same discipline found a `code_work_timeout` that
 had never killed anything. Make a retry backoff injectable so tests scale the real timings down
 rather than skip the path.
 

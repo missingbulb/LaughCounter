@@ -1,0 +1,25 @@
+[
+  {
+    "id": "task-phase-discipline",
+    "severity": "advisory",
+    "failureMessage": "the precondition is the ONLY decision point — a later-phase skip hides work from the run records and re-litigates a verdict already given",
+    "scanFiles": "/(^|\\/)tasks\\/[^/]+\\/(task\\.md|[^/]+\\.mjs)$/",
+    "excludeFiles": "/(^|\\/)tasks\\/[^/]+\\/task\\.mjs$/",
+    "matchLines": [
+      {
+        "whenPathMatches": "/\\.md$/",
+        "match": "/.*\\b([Ss]kip(s|ped|ping)?|stop( here)?|[Aa]bort|[Bb]ail( out)?|[Dd]o\\s+(\\*\\*?not\\*\\*?|not)\\s+(run|proceed|continue|stack)|[Ll]eav(e|ing)\\s+(it\\s+|this\\s+)?(cycle'?s?\\s+)?(converge\\s+)?undelivered)\\b.*/",
+        "andLineMatches": "/\\b(if\\b|when\\b|unless\\b|already\\b|still\\s+(open|running|unreviewed)|(nothing|no\\s+new|not?\\s+\\w+)\\s+(changed|has\\s+changed)|before\\s+(anything|starting|researching)|unset\\s+means|absent\\b)\\b/i",
+        "unlessLineMatches": "/\\bContext\\b|\\bprecondition\\b|needs-human/",
+        "what": "instructs a conditional skip after the precondition already passed: \"{match}\"",
+        "fix": "move the run/no-run decision into the task.mjs precondition, or reword an empty result as an empty outcome; a required input the dispatch lacks is a failure — converge to needs-human"
+      },
+      {
+        "whenPathMatches": "/\\.mjs$/",
+        "match": "/.*(skip(ping)?\\s+this\\s+(cycle|run)|leaving\\s+this\\s+cycle|cycle\\s+skips|nothing\\s+to\\s+self-refresh).*/i",
+        "what": "code-work announces a discretionary cycle skip: \"{match}\"",
+        "fix": "let the precondition make that call, or complete the work and report an empty outcome; only a genuine failure may stop a run past the precondition"
+      }
+    ]
+  }
+]
