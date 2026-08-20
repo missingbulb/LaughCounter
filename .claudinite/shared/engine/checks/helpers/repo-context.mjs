@@ -129,7 +129,7 @@ export const CONFIG_KEYS = ['packs', 'rules', 'accept', 'sharedConstants', 'pack
 //
 // What dormancy means, exactly — it is narrow on purpose:
 //   - NO RECURRING WORK. The vendored scheduler stops before it evaluates
-//     anything (engine/scheduler/queue/tick.mjs), so no work item is instantiated,
+//     anything (engine/scheduler/queue/scheduler-run.mjs), so no work item is instantiated,
 //     no agent session is started, and no maintenance PR is opened.
 //     Nothing scheduled runs "for nothing" on a repo nobody is working on.
 //   - NO FLEET CEREMONY. Whatever looks at this repo from the OUTSIDE reads the

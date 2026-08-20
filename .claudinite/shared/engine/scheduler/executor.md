@@ -59,11 +59,11 @@ goes through your GitHub tools.
    | `valid` | a legal dispatch, yours | Quote the printed `brief:` line in chat (see below), then go to step 2. The printed block is your brief: issue, label, task path, pack, task, slot, model, outcome ceiling, `executionTimeout`. |
    | `needs-issue` | issue named, body needed | Fetch **the printed issue and only it** over MCP, save the raw response JSON **verbatim** to a file, and re-run with `--issue-json <path>` — the shell extracts body, labels, and title itself, and refuses a response for the wrong issue. Act on *that* run's `dispatch:` field. |
    | `task-gone` | task gone | The dispatch is well-formed but this repo no longer carries the task it names (file removed, pack undeclared). It never runs and needs no human: comment the printed `reason`, **CLOSE the issue** (as not planned), end the session. Do **not** add `needs-human` — an obsolete dispatch is not an anomaly to triage. |
-   | `invalid` | invalid dispatch | It never runs. Comment the printed `reason`, remove the ready label, add `needs-human`, end the session. |
+   | `invalid` | invalid dispatch | It never runs. Comment the printed `reason`, remove the ready label, add `needs-human` + `task:needs-human-failure`, end the session. |
    | `not-mine` | not yours | The issue carries no ready label, or no longer carries one because another session has already claimed it. **Stop**: change nothing, comment nothing, end the session. |
    | `scope-mismatch` | misconfigured routine | The label is the **other** scope's (the printed `labelScope`). Each routine fires on its own ready label, so this is not a dispatch that wandered in — this session's launcher prompt is wrong, most often the fleet routine missing the word `fleet`. **Stop**: change nothing, comment nothing — but say plainly in your final message that the routine looks misconfigured. Nothing on GitHub records this; the janitor re-arms the dispatch and it will decline forever until a human reads it here. |
    | `no-trigger` | no trigger at all | **Stop**: run nothing, change nothing, comment nothing. There is no fallback — do not list the queue, do not take the oldest, do not take *any*. Say plainly in your final message that no trigger reached the shell; that is a defect worth a human seeing. |
-   | *(no block printed)* | bad invocation, internal fault | The shell exited `2` or `1` with only an error on stderr. Comment what you saw, add `needs-human` if you know the issue, end the session. Do not proceed on a guess. |
+   | *(no block printed)* | bad invocation, internal fault | The shell exited `2` or `1` with only an error on stderr. Comment what you saw, add `needs-human` + `task:needs-human-failure` if you know the issue, end the session. Do not proceed on a guess. |
 
    **The exit code answers a different, narrower question**: zero whenever the routine goes on —
    including when going on means stopping on purpose, as `not-mine`, `invalid` and `task-gone`
@@ -108,16 +108,17 @@ goes through your GitHub tools.
    given; those are the artifacts it works on, and if the section is absent there are none.
 
    **Where the task file calls one of them required, an absent one stops the run** — tell
-   the subagent so plainly. It must report which input was missing and converge this issue
-   to `needs-human`, never reconstruct the value: searching for the issue by title, taking
+   the subagent so plainly. It must report which input was missing and park this issue
+   (`needs-human` + `task:needs-human-action`), never reconstruct the value: searching for
+   the issue by title, taking
    the newest branch, or inferring the scope from the repo substitutes another run's inputs
    for this one's, and the run then reports success on work nobody asked for.
 
    What the subagent itself creates is recorded the same way: when it opens a PR or a branch,
    it **comments the number on this dispatch issue**, so a later run finds it by association. **Give the subagent its
    run bound**, from step 1's `executionTimeout` and never from the issue body: *"you have N
-   minutes; if you exceed it, stop, comment what's done, and converge this issue to
-   `needs-human` rather than pressing on."* Nothing enforces that bound but the subagent
+   minutes; if you exceed it, stop, comment what's done, and park this issue at
+   `needs-human` + `task:needs-human-decision` rather than pressing on."* Nothing enforces that bound but the subagent
    itself, so state it plainly.
 
 4. **Verify the outcome in code, then converge — then stop.** The declared `expected_outcome`
@@ -128,8 +129,20 @@ goes through your GitHub tools.
    that merged one, **fails the run**. Then:
    - Success within ceiling → comment the result, remove `agent-running`, and **close** the
      issue.
-   - Failure (task failed, or ceiling violated) → comment naming what failed, remove
-     `agent-running`, add `needs-human`. Do not close.
+   - Failure → comment naming what failed, remove `agent-running`, add `needs-human`
+     **and one sub-label saying what you are asking a person for**. Do not close.
+     - `task:needs-human-action` — something outside the code must change first (a
+       secret, a scope, a routine's wiring, an input this issue never carried).
+     - `task:needs-human-decision` — you stopped mid-flight and the next step is a
+       choice: you ran out of time, or you exceeded the ceiling and someone must say
+       whether that stands.
+     - `task:needs-human-failure` — the run broke and someone has to read the trace.
+       Use this when you are unsure.
+     - `task:needs-human-approval` is the one park that is not a failure: you
+       succeeded and deliberately left an unmerged PR. Name it in the comment.
+
+     Only `task:needs-human-failure` and a park with no sub-label hold the task's
+     lane; the other three let it keep running on schedule.
 
    Then **record the execution in code** — one command, whichever way it went:
 

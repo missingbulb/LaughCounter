@@ -32,7 +32,7 @@ export const REQUIRED_HOOKS = [
 
 export const SCHEDULER_WORKFLOW = '.github/workflows/claudinite-scheduler.yml';
 // The queue's second workflow (tasks-dispatch DESIGN §14). The first one keeps the
-// path above: `claudinite-scheduler.yml` holds the tick and its drain, so the repo
+// path above: `claudinite-scheduler.yml` holds the scheduler run and its drain, so the repo
 // still has exactly one cron at one well-known path.
 export const EXECUTOR_WORKFLOW = '.github/workflows/claudinite-executor.yml';
 export const SETTINGS_PATH = '.claude/settings.json';
@@ -95,7 +95,7 @@ export async function declaredSecrets(root, config) {
 // `process.env.<NAME>` like any other environment variable. No bundle, no parsing,
 // no engine-side selection. Regenerated from the stub each converge, so the list
 // tracks the declarations rather than accumulating.
-// A stub says WHERE with the `# claudinite:secrets` marker, and the tick stub needs
+// A stub says WHERE with the `# claudinite:secrets` marker, and the scheduler run stub needs
 // that: it has two jobs carrying GITHUB_TOKEN and only the executing one may see a
 // secret. The fallback under the GITHUB_TOKEN line covers a stub that declares no
 // marker.
@@ -103,8 +103,14 @@ const SECRETS_MARKER = /^[ \t]*# claudinite:secrets\b.*$/m;
 export function withDeclaredSecrets(stubText, names = []) {
   if (!names.length) return stubText;
   const lines = names.map((n) => `          ${n}: \${{ secrets.${n} }}`).join('\n');
-  if (SECRETS_MARKER.test(stubText)) return stubText.replace(SECRETS_MARKER, (m) => `${m}\n${lines}`);
-  return stubText.replace(/^(\s*GITHUB_TOKEN: \$\{\{ github\.token \}\})$/m, `$1\n${lines}`);
+  // MARKER OR NOTHING. The fallback this used to carry — stamp under the first
+  // `GITHUB_TOKEN` line — was safe only while every stub that reached here ran task
+  // code. The scheduler run stub no longer does (its drain dispatches the executor rather
+  // than running one, §15.16), and a fallback would stamp every task secret into
+  // the one job the design says must never hold one.
+  return SECRETS_MARKER.test(stubText)
+    ? stubText.replace(SECRETS_MARKER, (m) => `${m}\n${lines}`)
+    : stubText;
 }
 
 // Re-converge the scheduler workflow to the vendored stub, with the cron minute set
@@ -131,7 +137,7 @@ export function convergeSchedulerWorkflow(root, fullName, stubText, secretNames 
 }
 
 // The queue's second workflow — the label-event executor. No cron of its own (the
-// tick's drain is the poll), so nothing about it is hashed; it only needs its
+// scheduler run's drain is the poll), so nothing about it is hashed; it only needs its
 // secrets stamped.
 export function convergeExecutorWorkflow(root, stubText, secretNames = []) {
   return writeWorkflow(root, EXECUTOR_WORKFLOW, withDeclaredSecrets(stubText, secretNames));
@@ -415,7 +421,7 @@ export function convergeBadgeRow(root, entries) {
 export async function convergeWiring(root, fullName, stubText, secretNames = [], { badges = false, workflows = true, seedLocalPack = false, executorStub = null } = {}) {
   const changed = [];
   if (workflows && convergeSchedulerWorkflow(root, fullName, stubText, secretNames)) changed.push(SCHEDULER_WORKFLOW);
-  // In queue mode `stubText` IS the tick stub (the CLI picks it by dispatch mode),
+  // In queue mode `stubText` IS the scheduler run stub (the CLI picks it by dispatch mode),
   // and the executor is its second workflow. Nothing removes the executor when a
   // repo flips back: rolling back is a config edit, and an executor workflow whose
   // repo runs no queue simply never sees a `task:ready` label event.
@@ -456,11 +462,11 @@ async function main() {
   if (!fullName) { console.error('converge-wiring: need owner/repo (argv or GITHUB_REPOSITORY)'); process.exit(1); }
   const root = process.env.CLAUDINITE_REPO_ROOT || process.cwd();
   const config = await repoConfig(root);
-  // The repo's one cron workflow is the queue's tick and its drain, at the path the
+  // The repo's one cron workflow is the queue's scheduler run and its drain, at the path the
   // slot scheduler used to hold — so the one-cron rule and every reader that knows
   // this workflow by name keep holding across the retirement.
   const stubs = join(root, '.claudinite/shared/engine/scheduler/stubs');
-  const stubPath = join(stubs, 'claudinite-tick.yml');
+  const stubPath = join(stubs, 'claudinite-scheduler.yml');
   if (!existsSync(stubPath)) { console.error(`converge-wiring: vendored stub not found at ${stubPath}`); process.exit(1); }
   const executorStub = existsSync(join(stubs, 'claudinite-executor.yml'))
     ? readFileSync(join(stubs, 'claudinite-executor.yml'), 'utf8') : null;

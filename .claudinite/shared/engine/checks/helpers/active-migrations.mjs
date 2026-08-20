@@ -2,6 +2,7 @@ import { readdirSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { canonicalPackVersions } from '../../pack_loader/renamed-packs.mjs';
+import { VERSION_SOURCE, versionFromLiteral, isVersion, versionAbove } from '../../version.mjs';
 
 // The synchronous migration-registry surface for the CHECK layer. It lives in
 // the engine lib because pack checks consult it (`migrationActive` gates an
@@ -102,12 +103,12 @@ export function flowOf(dirPath) {
 // paid by one drift-guard test which imports every real record and asserts the
 // regex agrees with the module (engine-tests/migrations.test.mjs), so the two
 // readings of the same fact cannot diverge unnoticed.
-const VERSION_FIELD = /^\s*version:\s*(\d+)\s*,\s*$/m;
+const VERSION_FIELD = new RegExp(String.raw`^\s*version:\s*'?(${VERSION_SOURCE})'?\s*,\s*$`, 'm');
 export function recordVersion(dirPath) {
   let src;
   try { src = readFileSync(join(corpusRoot, dirPath, MIGRATION_FILE), 'utf8'); } catch { return null; }
   const m = VERSION_FIELD.exec(src);
-  return m ? Number(m[1]) : null;
+  return m ? versionFromLiteral(m[1]) : null;
 }
 
 // The repo the corpus is mounted in: the canon IS its own repo root, while a
@@ -144,7 +145,7 @@ export function installedFor(dirPath, installed) {
   if (!installed) return undefined;
   const of = flowOf(dirPath);
   const v = of.flow === 'engine' ? installed.engineVersion : installed.packVersions?.[of.pack];
-  return typeof v === 'number' ? v : undefined;
+  return isVersion(v) ? v : undefined;
 }
 
 // THE ONE PREDICATE: does this record still apply to a repo in this state?
@@ -163,7 +164,7 @@ export function migrationApplies(dirPath, { installed = null, today = todayIso()
   const have = installedFor(dirPath, installed);
   const want = recordVersion(dirPath);
   if (have === undefined || want === null) return recordDirIsRecent(dirPath, today);
-  return want > have;
+  return versionAbove(want, have);
 }
 
 // True while a migration whose folder name carries `slug` still applies to THIS
