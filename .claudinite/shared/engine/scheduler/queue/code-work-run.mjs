@@ -16,7 +16,7 @@
 //    one place that can tell "unset" from "empty", and the item converges to
 //    triage naming exactly which one is missing.
 
-import { runCodeWork, codeWorkFailure, agentRequestPath, clearAgentRequest, agentRequested, readAgentRequest } from '../code-work.mjs';
+import { runCodeWork, codeWorkFailure, agentRequestPath, clearAgentRequest, agentRequested, readAgentRequest, readTriageMarker } from '../code-work.mjs';
 
 // The declared secrets this environment does not carry. An unset variable is
 // missing; a set-but-empty one is the repo's own choice and is passed through.
@@ -73,7 +73,10 @@ export function codeWorkRunner({ root, repo, defaultBranch, env = process.env })
       // Repeated OUTSIDE the group: Actions renders a group collapsed, so a failure
       // whose only evidence sits inside one still reads as unexplained.
       if (tail) console.log(tail);
-      return { ok: false, why: codeWorkFailure(result), detail: tail };
+      // The worker's own verdict on its failure, if it left one — read over BOTH
+      // streams, since a marker is a diagnosis and workers print those wherever
+      // they print everything else.
+      return { ok: false, why: codeWorkFailure(result), detail: tail, triage: readTriageMarker(`${result.stdout}\n${result.stderr}`) };
     }
 
     const requested = agentRequested(requestPath);
@@ -83,6 +86,10 @@ export function codeWorkRunner({ root, repo, defaultBranch, env = process.env })
       ok: true,
       agentRequested: requested,
       delivered: deliveredLines(payload?.delivered),
+      // The unmerged PR, structured, beside its rendered line: an item whose run
+      // left one parks for approval instead of closing, and that decision cannot
+      // be made off a prose line.
+      openPr: payload?.delivered?.pr && !payload.delivered.merged ? payload.delivered.pr : null,
       reason: payload?.reason ? (payload.reason.detail || payload.reason.code) : null,
     };
   };

@@ -2,7 +2,7 @@
 // an agentless task whose whole output is a regenerated file.
 //
 // It exists because two tasks need exactly this and must not each grow their own
-// copy: the per-repo skill-usage fold and the sheepdog's fleet aggregate both
+// copy: the per-repo skill-usage fold and the fleet-enforcer's cross-repo aggregate both
 // recompute a `*.GENERATED.json` from scratch and want it landed without a human in
 // the loop. (the update runner's own delivery is deliberately NOT folded in here: it
 // commits a whole working tree and re-cuts a dated family branch each cycle — a

@@ -284,6 +284,42 @@ const LEGACY_LOCAL_DECL = 'local_packs/';
 // pack sharing a canon pack's old name is not this op's business. Idempotent, so a
 // repo already converged is a no-op, and it patches the parsed declaration back with
 // the same 2-space shape every other declaration writer here uses.
+// Two entries that were different packs and are now the same one. A rename can
+// merge two ids into one (a pack absorbed into another), and every member carrying
+// the absorbed pack carries the absorbing one too when the first `requires` the
+// second — so the collision is not an edge case there, it is every member.
+//
+// Dropping either side would drop what a member wrote: `config` answers it gave at
+// adoption, `rules` severities it chose, `accept` entries standing against findings
+// that would otherwise come back. So the two are MERGED. The survivor is the entry
+// that appeared first, and its own values win a key conflict — the absorbed entry
+// fills only what the survivor does not say. Arrays (`accept`, `rules`, `via`)
+// concatenate, dropping an element the survivor already carries verbatim. An object
+// absorbed into a plain-string entry promotes the survivor to an object: a string
+// entry carries an id and nothing else, so keeping the string would be the one shape
+// that silently discards the other side.
+export function mergeDeclarationEntries(survivor, absorbed) {
+  if (typeof absorbed === 'string') return survivor;
+  const base = typeof survivor === 'string' ? { id: survivor } : { ...survivor };
+  for (const [key, value] of Object.entries(absorbed)) {
+    if (key === 'id') continue;
+    const have = base[key];
+    if (have === undefined) { base[key] = value; continue; }
+    if (Array.isArray(have) && Array.isArray(value)) {
+      const seen = new Set(have.map((v) => JSON.stringify(v)));
+      base[key] = [...have, ...value.filter((v) => !seen.has(JSON.stringify(v)))];
+      continue;
+    }
+    if (have && value && typeof have === 'object' && typeof value === 'object'
+      && !Array.isArray(have) && !Array.isArray(value)) {
+      base[key] = { ...value, ...have };
+    }
+    // Two scalars that disagree: the survivor's stands. It is the entry the member
+    // wrote for the pack that still exists under its own name.
+  }
+  return base;
+}
+
 export async function applyPackRenames(migration, { read, write }) {
   if (!migration.renameDeclaredPacks) return [];
   if (migration.appliesTo && !(await migration.appliesTo(read))) return [];
@@ -295,7 +331,7 @@ export async function applyPackRenames(migration, { read, write }) {
   if (!Array.isArray(config.packs)) return [];
 
   const done = [];
-  const packs = config.packs.map((entry) => {
+  const renamed = config.packs.map((entry) => {
     const id = typeof entry === 'string' ? entry : entry?.id;
     if (typeof id !== 'string' || id.startsWith(LOCAL_DECL) || id.startsWith(LEGACY_LOCAL_DECL)) return entry;
     const to = RENAMED_PACKS[id];
@@ -303,6 +339,24 @@ export async function applyPackRenames(migration, { read, write }) {
     done.push(`${DECLARATION}: ${id} -> ${to}`);
     return typeof entry === 'string' ? to : { ...entry, id: to };
   });
+
+  // Collapse what the rename made duplicates. Position is the first occurrence's,
+  // so an id already in the array keeps its place rather than moving to where the
+  // absorbed entry sat.
+  const at = new Map();
+  const packs = [];
+  for (const entry of renamed) {
+    const id = typeof entry === 'string' ? entry : entry?.id;
+    if (typeof id !== 'string' || !at.has(id)) {
+      if (typeof id === 'string') at.set(id, packs.length);
+      packs.push(entry);
+      continue;
+    }
+    const i = at.get(id);
+    packs[i] = mergeDeclarationEntries(packs[i], entry);
+    done.push(`${DECLARATION}: merged a second "${id}" entry into the first`);
+  }
+
   if (done.length) await write(DECLARATION, `${JSON.stringify({ ...config, packs }, null, 2)}\n`);
   return done;
 }

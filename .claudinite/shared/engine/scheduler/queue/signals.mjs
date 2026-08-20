@@ -8,6 +8,7 @@
 // scheduler's window did for the widest due task.
 
 import { periodMs } from './anchors.mjs';
+import { parseWorkItemBody } from './work-item.mjs';
 
 export const windowStart = (task, now) =>
   new Date(new Date(now).getTime() - (periodMs(task.decl.frequency) ?? 86400e3) - 3600e3).toISOString();
@@ -15,7 +16,7 @@ export const windowStart = (task, now) =>
 // A collector factory bound to this run's repo context; the returned function is
 // the `collectSignalsFor` seam the executor calls.
 export function collectSignalsForTask({ gh, repo, root, config, defaultBranch }) {
-  return async function collectFor(task, now) {
+  return async function collectFor(task, now, item = null) {
     const { collectSignals } = await import('../signals/index.mjs');
     const { buildSignalContext } = await import('../signals/context.mjs');
     const names = task.decl.precondition_signals ?? [];
@@ -40,6 +41,9 @@ export function collectSignalsForTask({ gh, repo, root, config, defaultBranch })
 
     const ctx = buildSignalContext({
       root, repo, defaultBranch, now: new Date(now).toISOString(), sinceIso, config, fleet, packConfigFor,
+      // The occurrence's own facts, for the collector that reads one named object
+      // rather than a window (the request read, DESIGN §16.4).
+      item: item ? parseWorkItemBody(item.body) : null,
     });
     return collectSignals(gh, ctx, names);
   };

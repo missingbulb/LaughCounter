@@ -10,6 +10,8 @@
 // retention) are read off the checkout by signals/context.mjs — see signals/local.mjs.
 
 import { LOCAL_PACK_ROOTS } from './local.mjs';
+import { QUEUED_LABEL } from '../queue/work-item.mjs';
+import { APPROVAL_RE } from '../built-in-tasks.mjs';
 
 // A default-branch commit is genuine project work unless it is bot/CI
 // housekeeping or one of Claudinite's own automated writes — the same exclusions
@@ -193,7 +195,7 @@ const COLLECTORS = {
   async release(gh, ctx) {
     const { status, json } = await gh(`/repos/${ctx.repo}/releases/latest`);
     const latestTag = status === 200 ? (json?.tag_name ?? null) : null; // 404 → no release yet
-    return { latestTag, manifestVersion: ctx.manifestVersion ?? null };
+    return { latestTag, manifestVersion: ctx.manifestVersion ?? null, shipsPipeline: ctx.shipsReleasePipeline ?? null };
   },
 
   // Whether the repo carries local packs, and whether a window commit touched
@@ -266,7 +268,75 @@ const COLLECTORS = {
 
   // Fleet aggregate — canon-only, over the fleet PAT (DESIGN §3.3). A consumer
   // cannot declare it; the collector returns null unless the caller supplied a
-  // fleet reader (wired on the canon/sheepdog repos in Phase 2).
+  // fleet reader (wired on the canon and fleet-enforcer repos in Phase 2).
+  // THE REQUEST READ (tasks-dispatch DESIGN §16.4). Unlike every collector beside
+  // it, this one reads a single named object rather than a window: the issue THIS
+  // item was created for, off `ctx.item.request`. That is what the precondition's
+  // third argument buys — a verdict about one issue, which no window of repo
+  // activity can single out.
+  //
+  // It reads facts and forms no judgment: who asked, who blessed it with the
+  // approval phrase, and what PERMISSION each of them holds — never whether that is
+  // enough. The rule lives in the task's precondition, where every other verdict is.
+  //
+  // Three shapes of answer, and the difference between the last two is the whole of
+  // F27: `gone` (the API says it does not exist) is a fact a precondition can
+  // decline on, while `unreadable` (a rate limit, a 500) is one it must NOT — a
+  // decline's write-back cannot reach an issue it cannot read.
+  async request(gh, ctx) {
+    const number = ctx.item?.request ?? null;
+    if (!number) return null;
+    const { status, json } = await gh(`/repos/${ctx.repo}/issues/${number}`);
+    if (status === 404 || status === 410) return { number, gone: true };
+    if (status !== 200 || !json) return { number, unreadable: true, error: `the issues API answered ${status}` };
+
+    // The permission API is the authority, never the payload's `author_association`:
+    // `MEMBER` is any org member whatever their repo permission, and `COLLABORATOR`
+    // includes read-only collaborators — both broader than push (F30). A read that
+    // fails is unreadable, not "no permission": guessing downward here would refuse
+    // a legitimate request over a rate limit.
+    const permissions = new Map();
+    let failed = null;
+    const permissionOf = async (login) => {
+      if (!login) return 'none';
+      if (permissions.has(login)) return permissions.get(login);
+      const res = await gh(`/repos/${ctx.repo}/collaborators/${encodeURIComponent(login)}/permission`);
+      // A 403/404 here is a real answer: the caller may not read collaborators, or
+      // this login is not one. The first is a repo-configuration fault and the
+      // second is the ordinary "a stranger opened it" case, and only the API can
+      // tell them apart — so a 404 is `none` and anything else stops the read.
+      let value;
+      if (res.status === 200) value = res.json?.role_name ?? res.json?.permission ?? 'none';
+      else if (res.status === 404) value = 'none';
+      else { failed = `the permission API answered ${res.status} for @${login}`; value = 'none'; }
+      permissions.set(login, value);
+      return value;
+    };
+
+    const author = json.user?.login ?? null;
+    const authorPermission = await permissionOf(author);
+    // The approval phrase is only worth a permission read on the comments that
+    // carry it, so an issue with a long thread costs one read per distinct blesser.
+    const comments = await paged(gh, `/repos/${ctx.repo}/issues/${number}/comments`);
+    const approvals = [];
+    for (const c of comments) {
+      const login = c.user?.login ?? null;
+      if (!login || !APPROVAL_RE.test(c.body ?? '')) continue;
+      approvals.push({ login, permission: await permissionOf(login) });
+    }
+    if (failed) return { number, unreadable: true, error: failed };
+
+    return {
+      number,
+      state: json.state,
+      labels: (json.labels ?? []).map((l) => l.name ?? l),
+      queued: (json.labels ?? []).map((l) => l.name ?? l).includes(QUEUED_LABEL),
+      author,
+      authorPermission,
+      approvals,
+    };
+  },
+
   async fleet(gh, ctx) {
     return ctx.fleet ?? null;
   },

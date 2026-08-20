@@ -14,12 +14,17 @@
 
 import { localSignalContext } from './local.mjs';
 
-export function buildSignalContext({ root, repo, defaultBranch, now, sinceIso, config, fleet = null, packConfigFor = () => ({}) }) {
+// `item` is the OCCURRENCE the signals are being collected for, where the caller
+// has one — the executor always does. Almost every collector reads a window of repo
+// activity and ignores it; the `request` collector reads the single issue this item
+// names, which is a fact no window can single out.
+export function buildSignalContext({ root, repo, defaultBranch, now, sinceIso, config, fleet = null, item = null, packConfigFor = () => ({}) }) {
   const local = localSignalContext(root, { packIds: config.packs ?? [], packConfigFor });
   return {
-    repo, defaultBranch, now, sinceIso, config,
+    repo, defaultBranch, now, sinceIso, config, item,
     activePacks: config.packs, fleet,
     manifestVersion: local.manifestVersion,
+    shipsReleasePipeline: local.shipsReleasePipeline,
     hasLocalPacks: local.hasLocalPacks,
     retentionDays: local.retentionDays,
   };
