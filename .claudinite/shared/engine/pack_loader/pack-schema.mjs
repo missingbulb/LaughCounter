@@ -69,7 +69,7 @@ const isAdoptionHandover = (v) => Array.isArray(v) && v.every((o) => o !== null
 // `local/packs/` are repo-owned and distributed to nobody, so they carry no version
 // and no update flow (docs/versioned-updates/DESIGN.md §8). Requiring the field would
 // invalidate every local pack in the fleet at once, with nothing to carry the fix.
-// Every CANON pack does declare both — asserted by packs-tests/pack-versions.test.mjs,
+// Every CANON pack does declare both — asserted by engine-tests/pack-versions.test.mjs,
 // which is a canon-side test rather than a conformance rule precisely because it is
 // true of this tree only.
 export const PACK_FIELDS = {

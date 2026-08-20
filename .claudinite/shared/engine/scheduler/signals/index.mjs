@@ -10,6 +10,8 @@
 // retention) are read off the checkout by signals/context.mjs — see signals/local.mjs.
 
 import { LOCAL_PACK_ROOTS } from './local.mjs';
+import { QUEUED_LABEL } from '../queue/work-item.mjs';
+import { APPROVAL_RE } from '../built-in-tasks.mjs';
 
 // A default-branch commit is genuine project work unless it is bot/CI
 // housekeeping or one of Claudinite's own automated writes — the same exclusions
@@ -20,9 +22,26 @@ import { LOCAL_PACK_ROOTS } from './local.mjs';
 // repo activity to every precondition watching issues, so a collector that had
 // not learned the new title would wake tasks on the queue's own churn.
 const HOUSEKEEPING = /\[skip ci\]|(^|\n)\s*baselin(e|ing)\b|claudinite[ -](baselin|maintenance|growth|task|work)|seed default-on/i;
-const isSubstantive = (c) => {
+
+// …and a THIRD exclusion the message cannot express: a commit that touched
+// nothing outside `.claudinite/` moved the repo's own working rules, not the
+// project. Every consumer of `substantiveChange` means "genuine project work" by
+// it — an issue was implemented (tidy-issues), something shippable changed
+// (store-release), there is a lesson to extract (growth-extract) — and none of
+// those is true of a corpus edit. Message and author cannot catch it: a human
+// landing a lesson PR writes an ordinary message under their own login, so the
+// growth lifecycle's own landed output re-armed it the next night and a repo
+// could never go quiet (TLDR #319).
+//
+// `files` is `[]` when the commit's detail read failed, which is UNKNOWN, not
+// "touched only .claudinite/" — a bare `every` is vacuously true on it and would
+// silently retire the trigger for every commit the API would not detail. Require
+// at least one known path before the exclusion can apply.
+const CORPUS_ONLY = (files) => files.length > 0 && files.every((f) => f.startsWith('.claudinite/'));
+const isSubstantive = (c, files) => {
   const login = c.author?.login ?? '';
   if (login.endsWith('[bot]')) return false;
+  if (CORPUS_ONLY(files)) return false;
   return !HOUSEKEEPING.test(c.commit?.message ?? '');
 };
 
@@ -77,8 +96,12 @@ async function pagedWindow(gh, path, inWindow) {
 }
 
 // A merged PR is mineable unless it is bot work or one of Claudinite's own
-// automated writes — the SAME two exclusions `isSubstantive` and the `issues`
-// collector apply, kept together on purpose. The housekeeping regex already covers
+// automated writes — the same author/message exclusions `isSubstantive` and the
+// `issues` collector apply, kept together on purpose. It does NOT carry the
+// corpus-only exclusion: the PR listing has no file list, and resolving one per
+// PR would cost a read per PR across the whole window. It does not need to —
+// a corpus-only PR's merge commit is already non-substantive, so no task with a
+// `commits`-gated precondition ever reaches this listing on its account. The housekeeping regex already covers
 // the growth tasks' own `Claudinite growth: …` PRs and the scheduler's
 // `[claudinite-task]` titles, so the self-trigger guards survive the widening.
 const isMinablePr = (p) => {
@@ -94,7 +117,7 @@ async function windowCommits(gh, repo, branch, sinceIso) {
   for (const c of list) {
     const d = await gh(`/repos/${repo}/commits/${c.sha}`);
     const files = d.status === 200 ? (d.json?.files ?? []).map((f) => f.filename).filter(Boolean) : [];
-    detailed.push({ sha: c.sha, message: c.commit?.message ?? '', author: c.author?.login ?? null, substantive: isSubstantive(c), files });
+    detailed.push({ sha: c.sha, message: c.commit?.message ?? '', author: c.author?.login ?? null, substantive: isSubstantive(c, files), files });
   }
   return detailed;
 }
@@ -193,7 +216,7 @@ const COLLECTORS = {
   async release(gh, ctx) {
     const { status, json } = await gh(`/repos/${ctx.repo}/releases/latest`);
     const latestTag = status === 200 ? (json?.tag_name ?? null) : null; // 404 → no release yet
-    return { latestTag, manifestVersion: ctx.manifestVersion ?? null };
+    return { latestTag, manifestVersion: ctx.manifestVersion ?? null, shipsPipeline: ctx.shipsReleasePipeline ?? null };
   },
 
   // Whether the repo carries local packs, and whether a window commit touched
@@ -266,7 +289,75 @@ const COLLECTORS = {
 
   // Fleet aggregate — canon-only, over the fleet PAT (DESIGN §3.3). A consumer
   // cannot declare it; the collector returns null unless the caller supplied a
-  // fleet reader (wired on the canon/sheepdog repos in Phase 2).
+  // fleet reader (wired on the canon and fleet-enforcer repos in Phase 2).
+  // THE REQUEST READ (tasks-dispatch DESIGN §16.4). Unlike every collector beside
+  // it, this one reads a single named object rather than a window: the issue THIS
+  // item was created for, off `ctx.item.request`. That is what the precondition's
+  // third argument buys — a verdict about one issue, which no window of repo
+  // activity can single out.
+  //
+  // It reads facts and forms no judgment: who asked, who blessed it with the
+  // approval phrase, and what PERMISSION each of them holds — never whether that is
+  // enough. The rule lives in the task's precondition, where every other verdict is.
+  //
+  // Three shapes of answer, and the difference between the last two is the whole of
+  // F27: `gone` (the API says it does not exist) is a fact a precondition can
+  // decline on, while `unreadable` (a rate limit, a 500) is one it must NOT — a
+  // decline's write-back cannot reach an issue it cannot read.
+  async request(gh, ctx) {
+    const number = ctx.item?.request ?? null;
+    if (!number) return null;
+    const { status, json } = await gh(`/repos/${ctx.repo}/issues/${number}`);
+    if (status === 404 || status === 410) return { number, gone: true };
+    if (status !== 200 || !json) return { number, unreadable: true, error: `the issues API answered ${status}` };
+
+    // The permission API is the authority, never the payload's `author_association`:
+    // `MEMBER` is any org member whatever their repo permission, and `COLLABORATOR`
+    // includes read-only collaborators — both broader than push (F30). A read that
+    // fails is unreadable, not "no permission": guessing downward here would refuse
+    // a legitimate request over a rate limit.
+    const permissions = new Map();
+    let failed = null;
+    const permissionOf = async (login) => {
+      if (!login) return 'none';
+      if (permissions.has(login)) return permissions.get(login);
+      const res = await gh(`/repos/${ctx.repo}/collaborators/${encodeURIComponent(login)}/permission`);
+      // A 403/404 here is a real answer: the caller may not read collaborators, or
+      // this login is not one. The first is a repo-configuration fault and the
+      // second is the ordinary "a stranger opened it" case, and only the API can
+      // tell them apart — so a 404 is `none` and anything else stops the read.
+      let value;
+      if (res.status === 200) value = res.json?.role_name ?? res.json?.permission ?? 'none';
+      else if (res.status === 404) value = 'none';
+      else { failed = `the permission API answered ${res.status} for @${login}`; value = 'none'; }
+      permissions.set(login, value);
+      return value;
+    };
+
+    const author = json.user?.login ?? null;
+    const authorPermission = await permissionOf(author);
+    // The approval phrase is only worth a permission read on the comments that
+    // carry it, so an issue with a long thread costs one read per distinct blesser.
+    const comments = await paged(gh, `/repos/${ctx.repo}/issues/${number}/comments`);
+    const approvals = [];
+    for (const c of comments) {
+      const login = c.user?.login ?? null;
+      if (!login || !APPROVAL_RE.test(c.body ?? '')) continue;
+      approvals.push({ login, permission: await permissionOf(login) });
+    }
+    if (failed) return { number, unreadable: true, error: failed };
+
+    return {
+      number,
+      state: json.state,
+      labels: (json.labels ?? []).map((l) => l.name ?? l),
+      queued: (json.labels ?? []).map((l) => l.name ?? l).includes(QUEUED_LABEL),
+      author,
+      authorPermission,
+      approvals,
+    };
+  },
+
   async fleet(gh, ctx) {
     return ctx.fleet ?? null;
   },

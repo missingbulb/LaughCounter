@@ -7,7 +7,7 @@
 // (each pack carries its own resolved `dir`).
 //
 // Frequency filtering is deliberately NOT done here — discover returns every
-// active, well-formed task; the tick intersects them with the current anchors
+// active, well-formed task; the scheduler run intersects them with the current anchors
 // (queue/anchors.mjs). Keeping the two apart keeps each pure and separately
 // testable. A task whose task.mjs fails to import or violates the declaration
 // contract is dropped into `errors` (fail-soft, per-task), never sinking the
@@ -18,6 +18,7 @@ import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadPacks, isActive } from '../pack_loader/pack-registry.mjs';
 import { normalizeTaskDeclaration, validateTaskDeclaration } from './task-contract.mjs';
+import { BUILT_IN_PACK, builtInTasksRoot } from './built-in-tasks.mjs';
 
 // Discover every task the repo's active packs contribute. Returns
 // `{ tasks, errors }` where each task is
@@ -29,9 +30,18 @@ export async function discoverTasks(root, config) {
   const packs = await loadPacks({ localRoot: root });
   const active = packs.filter((p) => isActive(p, config));
 
+  // The BUILT-IN root beside the pack scan (DESIGN §16.2). The engine ships one
+  // task of its own — the request implementer — so a marked issue is an ordinary
+  // run rather than a special item shape. It is not a pack and declares nothing:
+  // wherever the queue runs, it is active, which is also what stops any pack
+  // opting itself into the fields only it may declare.
+  const roots = [...active.map((p) => ({ id: p.id, dir: join(p.dir, 'tasks') }))];
+  const builtIn = builtInTasksRoot(root);
+  if (builtIn) roots.push({ id: BUILT_IN_PACK, dir: builtIn });
+
   const tasks = [];
-  for (const pack of active) {
-    const tasksRoot = join(pack.dir, 'tasks');
+  for (const pack of roots) {
+    const tasksRoot = pack.dir;
     if (!existsSync(tasksRoot)) continue;
     let names;
     try {

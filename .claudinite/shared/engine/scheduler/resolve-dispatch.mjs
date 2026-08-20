@@ -59,7 +59,8 @@
 //                 Fetch THAT issue over MCP and re-invoke with them. The routine
 //                 is mid-handshake, not stopped.
 //   invalid     — a forged or mangled dispatch. Comment the printed `reason`,
-//                 remove the ready label, add `needs-human`, end the session.
+//                 remove the ready label, add `needs-human` + `task:needs-human-failure`,
+//                 end the session.
 //                 It never runs. Prescribed work, so: zero.
 //   task-gone   — a well-formed dispatch naming a task this repo no longer
 //                 carries (file removed, pack undeclared). CLOSE the issue
@@ -411,7 +412,7 @@ async function main() {
       dispatch: 'invalid', issue: number, scope, label, reason: verdict.reason,
       ...(record ? { record } : {}),
     },
-      `issue #${number} is not a valid dispatch: ${verdict.reason}. It must not run — comment naming what failed, remove the "${label}" label, add "needs-human", and end the session.`);
+      `issue #${number} is not a valid dispatch: ${verdict.reason}. It must not run — comment naming what failed, remove the "${label}" label, add "needs-human" and "task:needs-human-failure", and end the session.`);
   }
 
   // `brief` is the one line the executor quotes prominently in chat before it

@@ -16,13 +16,16 @@
 // reduced to these two levers and was deleted (#974).
 //
 // FORCING AD-HOC WORK IS CREATING AN ITEM — a parameterized run, a `manual` task,
-// a fan-out target. It carries no `origin:schedule`, so it is invisible to the
-// tick's guards in both directions: it neither suppresses tomorrow's occurrence
-// nor consumes it.
+// a fan-out target. Ad-hoc is STRUCTURAL (DESIGN §15.26): a `manual` task has no
+// anchor to stand for, and a qualified title is a different title from the standing
+// one — so such an item is invisible to the scheduler run's guards in both directions,
+// neither suppressing tomorrow's occurrence nor consuming it. Which is why an
+// UNQUALIFIED item for a scheduled task is refused below: it would BE that task's
+// standing item, and the scheduler run's dedupe would close one of the two.
 
 import { pathToFileURL } from 'node:url';
 import {
-  READY, BLOCKED, URGENT, NEEDS_HUMAN, OUTCOME_OBSOLETE, QUEUE_LABELS,
+  READY, BLOCKED, URGENT, NEEDS_HUMAN, TASK_OBSOLETE, QUEUE_LABELS,
   EPISODE_MARKER, workItemTitle, workItemBody, withNotBefore, hasLabel,
 } from './work-item.mjs';
 
@@ -69,10 +72,18 @@ export async function wakeItem(gh, repo, number, { urgent = false } = {}) {
   return { ok: true, number };
 }
 
-export async function createWorkItem(gh, repo, { pack, task, taskPath, opts, log = console.log }) {
+export async function createWorkItem(gh, repo, { pack, task, taskPath, frequency = null, opts, log = console.log }) {
   const api = await import('../github.mjs');
   const { listOpenWorkItems } = await import('./read.mjs');
   const title = workItemTitle({ pack, task, qualifier: opts.qualifier });
+
+  // An unqualified item for a SCHEDULED task is that task's standing item by
+  // construction, not a run beside it — the scheduler run would treat the pair as duplicate
+  // standing items and close the younger. The two levers that do what the operator
+  // meant are named rather than guessed at.
+  if (frequency !== null && frequency !== 'manual' && !opts.qualifier) {
+    return { ok: false, error: `${pack}/${task} runs on a \`${frequency}\` schedule, so an unqualified item for it IS its standing item — the scheduler run would close one of the two as a duplicate. To run it now, wake its standing item (\`--wake #N\`, or the scheduler workflow's \`wake\` input); to run it beside the schedule, give this item a \`--qualifier\` naming what makes it a different run.` };
+  }
 
   // The pick-time mutex means a new item QUEUES behind an open twin rather than
   // running beside it, and the operator should know they are queueing, not jumping.
@@ -95,7 +106,7 @@ export async function createWorkItem(gh, repo, { pack, task, taskPath, opts, log
 
   if (opts.supersedes) {
     await api.comment(gh, repo, opts.supersedes, `Superseded by #${res.number}, a retry of this work created by hand.`);
-    await api.addLabel(gh, repo, opts.supersedes, OUTCOME_OBSOLETE);
+    await api.addLabel(gh, repo, opts.supersedes, TASK_OBSOLETE);
     await api.closeIssue(gh, repo, opts.supersedes, 'not_planned');
   }
   return { ok: true, number: res.number };
@@ -127,7 +138,7 @@ async function main() {
   const found = tasks.find((t) => t.pack === pack && t.id === task);
   if (!found) { console.error(`no task "${opts.target}" in this repo's declared packs`); process.exit(1); }
 
-  const res = await createWorkItem(gh, repo, { pack, task, taskPath: found.taskPath, opts });
+  const res = await createWorkItem(gh, repo, { pack, task, taskPath: found.taskPath, frequency: found.decl.frequency, opts });
   if (!res.ok) { console.error(res.error); process.exit(1); }
   console.log(`created #${res.number} ${opts.target}${opts.urgent ? ' (urgent)' : ''}`);
 }
