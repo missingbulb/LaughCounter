@@ -6,7 +6,7 @@
 // LABEL WRITES ARE GRANULAR, ALWAYS (tasks-dispatch DESIGN §4, RESEARCH §2): add
 // and remove NAMED labels (POST/DELETE), never write the label SET (PUT). A
 // set-write replaces from a stale snapshot and clobbers concurrent transitions —
-// a bug class GitHub's own CLI shipped (cli/cli#4861) — and with a tick and
+// a bug class GitHub's own CLI shipped (cli/cli#4861) — and with a scheduler run and
 // several executors all moving labels at once, that is a correctness rule rather
 // than a style preference.
 
@@ -86,6 +86,22 @@ export async function createIssue(gh, repo, { title, body, labels = [] }) {
   // should be, and a body-only destructure turns that refusal into a plausible
   // object whose `.number` is simply undefined.
   return { status, number: status >= 200 && status < 300 ? json?.number ?? null : null, json };
+}
+
+// The one write here that is not an issue mutation: fire a `workflow_dispatch`.
+// It is how the queue CHAINS (DESIGN §10) — a run that settled its item starts a
+// fresh one rather than leaving the remainder for the cron — and `workflow_dispatch`
+// is one of the two events the default `GITHUB_TOKEN` may fire, the explicit
+// exemption in the same recursion guard that suppresses its label events, so no
+// wider credential is involved.
+//
+// Judged by STATUS, never by the body: a token without `actions: write` 403s this
+// POST with a plausible JSON body, and a body-only check would log it as sent.
+export async function dispatchWorkflow(gh, repo, file, ref) {
+  const { status } = await gh(`/repos/${repo}/actions/workflows/${file}/dispatches`, {
+    method: 'POST', body: { ref },
+  });
+  return { ok: status === 204, status };
 }
 
 export const readIssue = async (gh, repo, number) => {

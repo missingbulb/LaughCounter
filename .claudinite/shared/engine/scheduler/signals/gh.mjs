@@ -34,10 +34,15 @@ export function makeGh({ token = process.env.GITHUB_TOKEN, api = API, fetchImpl 
 
 // The scheduler workflow's file name — the vendored shim's, identical in every
 // member (the workflow is core, not pack content) and unchanged by the move to the
-// work-item queue, which put the tick at this same path. Named here rather than
+// work-item queue, which put the scheduler run at this same path. Named here rather than
 // restated: the usage fold finds a repo's scheduler runs by it, to read their logs
 // for the task-invocation records.
 export const SCHEDULER_WORKFLOW_FILE = 'claudinite-scheduler.yml';
+
+// The executor workflow's file name, same contract: identical in every member,
+// and the target of every `workflow_dispatch` in the queue's chain (DESIGN §10) —
+// the close-time drain, a run's own re-dispatch, and the failure continuation.
+export const EXECUTOR_WORKFLOW_FILE = 'claudinite-executor.yml';
 
 // The repo slug (owner/name) and default branch the workflow runs against, from
 // the Actions environment. `GITHUB_REPOSITORY` is always set in a workflow;

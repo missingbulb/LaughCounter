@@ -25,9 +25,28 @@
 // no member's declaration and no member's stamped `packVersions` still carries that
 // spelling. Until then it is load-bearing for exactly the repos that have not
 // converged, which are the repos least able to complain.
+//
+// A pack ABSORBED into another is the same map entry: its id resolves to the pack
+// that now carries its rules, so a member declaring the absorbed one activates the
+// survivor instead of activating nothing. The declaration then holds two ids that
+// resolve to one, which is what `applyPackRenames` merges (registry.mjs).
 export const RENAMED_PACKS = Object.freeze({
   core: 'claudinite-lifecycle',
   grow_with_claudinite: 'claudinite-growth',
+  // Absorbed, not renamed: the release standard collapsed into the coding pack,
+  // and the release rules gate on the repo shipping the pipeline rather than on a
+  // second declaration (#1057).
+  'chrome-extension-release': 'chrome-extension',
+  // Absorbed too (#1079): the workflow-YAML rules moved in beside the git/GitHub
+  // procedure they were always the platform half of.
+  'github-actions': 'git-github',
+  // Absorbed too (#1079): the Firebase release standard became a skill in the pack
+  // that owns the technology, so shipping stops being a second thing to declare.
+  'firebase-release': 'firebase',
+  // Renamed (#1079): a pack whose subject is a Claudinite feature carries the prefix
+  // that says so.
+  'canary-probe': 'claudinite-canary-repo',
+  sheepdog: 'claudinite-fleet-sheepdog',
 });
 
 // The canon id a spelling resolves to. Canon packs only — a LOCAL pack lives in the

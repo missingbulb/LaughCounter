@@ -13,9 +13,10 @@
 // system from inside one of its members. The spec is upstream of every pack, so
 // there is nothing to declare and nothing to parse.
 //
-// Dependency-free by the engine's module rule: no imports, no filesystem. The
+// No filesystem, and its one import is the engine's own pure version module: the
 // caller supplies the facts from disk (the `skills/` directory listing), so this
 // module is pure and testable standalone.
+import { isDeclaredVersion } from '../version.mjs';
 
 // The routing budget. Both sides of `ruleRoutingGuidance` become one row of the
 // pack catalog (packs/directory.GENERATED.md), which a session reads when deciding
@@ -33,12 +34,11 @@ const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArr
 const isStringArray = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string');
 const isRuleArray = (v) => Array.isArray(v) && v.every((x) => isPlainObject(x) && typeof x.id === 'string' && typeof x.run === 'function');
 
-// A version — engine or pack — is a positive integer (engine/version.mjs states why
-// the corpus versions this way rather than in semver). Shared by both version fields
-// below, and the only judgment either gets: `minEngineVersion` is validated for SHAPE
-// here and enforced by the pack updater, which is the only caller that knows what
-// engine version the target repo actually runs.
-const isVersion = (v) => Number.isInteger(v) && v > 0;
+// A version — engine or pack — is date-anchored `<day>.<n>`, or a legacy positive
+// integer while the tolerance lasts (engine/version.mjs owns both). Shared by
+// both version fields below, and the only judgment either gets: `minEngineVersion` is
+// validated for SHAPE here and enforced by the pack updater, which is the only caller
+// that knows what engine version the target repo actually runs.
 
 // A seed op names a template in the pack and where a fresh install puts it. SEEDED,
 // NOT CONVERGED: the file becomes the repo's from that moment, and no update ever
@@ -69,17 +69,18 @@ const isAdoptionHandover = (v) => Array.isArray(v) && v.every((o) => o !== null
 // `local/packs/` are repo-owned and distributed to nobody, so they carry no version
 // and no update flow (docs/versioned-updates/DESIGN.md §8). Requiring the field would
 // invalidate every local pack in the fleet at once, with nothing to carry the fix.
-// Every CANON pack does declare both — asserted by packs-tests/pack-versions.test.mjs,
+// Every CANON pack does declare both — asserted by engine-tests/pack-versions.test.mjs,
 // which is a canon-side test rather than a conformance rule precisely because it is
 // true of this tree only.
 export const PACK_FIELDS = {
   id: { required: true, describe: 'the pack id, matching its directory name', valid: (v) => typeof v === 'string' && v.length > 0 },
-  version: { describe: 'the pack version — a positive integer, advanced by a pack release', valid: isVersion },
-  minEngineVersion: { describe: 'the lowest engine version this pack version runs on — a positive integer', valid: isVersion },
+  version: { describe: 'the pack version — date-anchored <day>.<n>, advanced by a pack release', valid: isDeclaredVersion },
+  minEngineVersion: { describe: 'the lowest engine version this pack version runs on', valid: isDeclaredVersion },
   seedOps: { describe: 'files seeded ONCE at install and owned by the repo thereafter, as { template, dest } pairs', valid: isSeedOps },
   adoptionHandover: { describe: 'steps only a human can do after adoption, as { step, breaks, done } — printed by the install flow and filed as a tracking issue', valid: isAdoptionHandover },
   ruleRoutingGuidance: { required: true, describe: 'what belongs in this pack and what does not, each at most 20 words', valid: isPlainObject },
   badge: { describe: 'the pack badge filename, resolved off the pack directory', valid: (v) => typeof v === 'string' },
+  hidden: { describe: 'whether the pack is withheld from the adoptable-pack catalog (packs/directory.GENERATED.md) — for a pack that exists to serve the corpus itself rather than to be adopted', valid: (v) => typeof v === 'boolean' },
   detect: { describe: 'a fingerprint predicate over the repo context, or null', valid: (v) => v === null || typeof v === 'function' },
   marker: { describe: 'a human-readable glob naming what detect looks for, or null', valid: (v) => v === null || typeof v === 'string' },
   prose: { describe: 'the RULES.md filename injected at session start, or null', valid: (v) => v === null || typeof v === 'string' },
