@@ -1,4 +1,3 @@
-import commentClassification from './comment-classification.mjs';
 import referenceIntegrity from './reference-integrity.mjs';
 import markdownLinkLabels from './markdown-link-labels.mjs';
 import filePlacement from './file-placement.mjs';
@@ -12,18 +11,16 @@ import declaredCheckMessages from './declared-check-messages.mjs';
 // authoritative — dropping it is a deliberate choice).
 export default {
   id: 'basics',
-  // 2 — the mechanism rename (migrations/2026-08-13-mechanism-versioned). The FIRST
-  // bump this pack has taken, and the invariant it establishes: a record's declared
-  // `version` must be ≤ this number, and this number must MOVE for that record to
-  // reach a member already at the previous one. `migrationApplies` is `want > have`
-  // against the stamped version, and what gets stamped is this manifest's number — so
-  // a record declaring a version above it would re-apply every cycle, forever,
-  // draining never.
-  version: 7,
+  // A migration record's declared `version` must be ≤ this number, and this number must
+  // MOVE for that record to reach a member already at the previous one:
+  // `migrationApplies` is `want > have` against the stamped version, and what gets
+  // stamped is this manifest's number — so a record declaring a version above it would
+  // re-apply every cycle, forever, draining never.
+  version: '60821.4',
   minEngineVersion: 1,
   ruleRoutingGuidance: {
     belongs: 'cross-project working discipline, issue-branch-PR lifecycle, repo hygiene, doc/reference integrity and the baseline engineering, testing and debugging skills',
-    excludes: 'technology-specific content — its own tech pack; GitHub Actions workflow or platform behaviour — github-actions; git procedure — git-github',
+    excludes: 'technology-specific content — its own tech pack; git procedure and GitHub Actions workflow or platform behaviour — git-github',
   },
   badge: 'badge.svg',
   detect: null,
@@ -49,7 +46,6 @@ export default {
   // are declared checks carrying scope: "work", discovered structurally beside
   // these.
   workRules: [
-    commentClassification,
     referenceIntegrity,
   ],
   // The baseline skills — general engineering practice every project's work
@@ -65,10 +61,11 @@ export default {
   skills: [
     'authoring-agent-docs',
     'bug-investigation',
-    'bump-version',
+    'do-later',
     'ci-performance-evaluation',
     'file-placement',
     'repo-text-sweeps',
+    'verify-in-production',
     'writing-migration-plans',
     'writing-tests',
   ],

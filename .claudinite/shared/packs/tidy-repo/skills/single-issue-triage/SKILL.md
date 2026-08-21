@@ -15,6 +15,14 @@ defaults to the reversible option when the check is inconclusive.
 - **Small and quick to do** → label `quick-win` + a comment scoping it.
 - **Else** → leave it.
 
+**Every checkbox in the issue body ticked** is the author's own claim that the work is done — the
+strongest completion signal an issue can carry, and the one thing that puts an otherwise quiet issue
+into the first rung. It is **a claim, not proof**: read it as a reason to run the implemented-in-`main`
+check, never as the answer. Verified ⇒ close; not ⇒ comment naming what is still missing. A
+partially-ticked list is not a completion signal at all — triage the issue as if it carried no boxes.
+Where the ask has **no repo-side artifact** (a console setting, a routine only a human can touch), those
+ticks by the issue's own author are the closing condition — say so and close.
+
 **"Implemented in `main`" means the issue's actual ask is true of `main`'s content _now_** — confirm
 it there and cite it. **Never** infer it from a linked PR merging or the issue merely looking done. If
 you can't point to it, **comment, don't close.** Create a label if it's missing. Return `{ action,

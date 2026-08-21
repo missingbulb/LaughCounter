@@ -40,21 +40,20 @@ What goes wrong when one fires:
 
 - `claudinite-lifecycle-declared` — this pack's entry is gone from `.claudinite-checks.json`, so none of the rules above run and the session cannot tell.
 - `rules-index-current` — the generated index is missing, stale or unimported: the repo's packs contribute no prose to any session.
-- `claudinite-isolation` — the repo's own code reaches into `.claudinite/`, so the next canon refactor is a breaking migration for code the canon does not own (a declared `forbidReferences` [barrier](../barriers/README.md) edge).
+- `claudinite-isolation` — the repo's own code reaches into `.claudinite/`, so the next canon refactor is a breaking migration for code the canon does not own (a declared `forbidReferences` barrier edge).
 - `conformance-workflow` — nothing in CI runs the world sweep unfiltered on a pull request, so conformance is ungated and the maintenance PR never lands.
 - `conformance-work-scope` — CI gates the tree but not the change, so every commit-scoped rule is enforced only where a session's Stop hook happens to run.
 - `scheduler-workflow-shape` — the vendored scheduler's cron, concurrency or dispatch guard has drifted: staggering, double-run safety or manual runs break.
 
-The **scheduled-task contract** — `scheduled-tasks.md` and its four checks — is deliberately NOT
-here. Those ask whether a task is *written* correctly, which is authoring; every check above asks
-whether Claudinite is *working* in this repo. They live in
-[claudinite-growth](../claudinite-growth/README.md) with the rest of the authoring surface.
+The **task contract** and its checks are deliberately NOT here. Those ask whether a task is
+*written* correctly, which is authoring; every check above asks whether Claudinite is *working* in
+this repo. They live with the rest of the authoring surface.
 
 The scope cuts the other way too: a rule about how the **canon's own** content is maintained is not
 this pack's, however much it looks like one. `catalog-completeness` — `packs/README.md` lists every
 `packs/<name>/` — reads as Claudinite machinery and is not: it can only fire in the corpus repo, and
-what it guards is a hand-maintained index, not a member's status. It stays in
-[basics](../basics/README.md) with the other doc-integrity rules.
+what it guards is a hand-maintained index, not a member's status. It stays with the other
+doc-integrity rules.
 
 ## Skills
 

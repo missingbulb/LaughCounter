@@ -4,9 +4,9 @@ Most of a pack's prose is judgment: how to approach a change, what to do first, 
 
 This task re-runs the probe behind each such claim, weekly, and corrects what no longer holds.
 
-You run from a work item the executor handed off whose **Context section is binding scope**: it names the **pack paths** to revalidate and the two probe rules below. Work those paths — a consuming repo's own local packs by default; Claudinite also its core `packs/`. A canon pack a repo only mounts is revalidated in the repo that owns it, on this same task.
+The run's **Context section is binding scope**: it names the **pack paths** to revalidate and the two probe rules below. Work those paths — a consuming repo's own local packs by default; Claudinite also its core `packs/`. A canon pack a repo only mounts is revalidated in the repo that owns it, on this same task.
 
-The declared outcome ceiling is **`open-pr`**. This task rewrites the rules sessions obey, on evidence a reviewer cannot re-derive from the diff, so every run's changes go in front of the owner.
+Open a PR and leave it for review. This task rewrites the rules sessions obey, on evidence a reviewer cannot re-derive from the diff, so every run's changes go in front of the owner.
 
 ## What counts as a revalidatable claim
 
@@ -27,7 +27,7 @@ A claim is revalidated by **executing the smallest thing that would distinguish 
 Two rules bound it, both binding scope from the dispatch:
 
 1. **Read-only.** Probe by doing the harmless half: call the tool and read its schema, request the resource, run the command that reports rather than acts. A claim whose probe would **write, delete, merge, publish, notify, or spend a credential** is not probed — verify it against authoritative documentation and say in the log that documentation, not a run, is the evidence.
-2. **A probe you cannot run is `unprobed`, not disproven.** An executor session carries the reach its repo's routine was provisioned with, which is not the reach every rule was written under. A tool that is absent *here*, a permission denied *to this session*, a network path the sandbox blocks — none of that is evidence the claim is stale. Leave the rule exactly as it stands, log it as unprobed, and move on. Rewriting a rule into "you cannot do X" because *this* session could not is the single worst outcome available to this task: it is unfalsifiable afterwards, and it removes a capability from every future session.
+2. **A probe you cannot run is `unprobed`, not disproven.** This session carries the reach its repo was provisioned with, which is not the reach every rule was written under. A tool that is absent *here*, a permission denied *to this session*, a network path the sandbox blocks — none of that is evidence the claim is stale. Leave the rule exactly as it stands, log it as unprobed, and move on. Rewriting a rule into "you cannot do X" because *this* session could not is the single worst outcome available to this task: it is unfalsifiable afterwards, and it removes a capability from every future session.
 
 ## What a run does
 

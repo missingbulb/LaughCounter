@@ -29,7 +29,7 @@ const rule = {
   id: 'task-code-work-env',
   severity: 'blocking',
   description: 'A task\'s code reads only the CLAUDINITE_* environment variables code_work is handed (CLAUDINITE_REPO_ROOT, CLAUDINITE_REPO, CLAUDINITE_DEFAULT_BRANCH, CLAUDINITE_ITEM, CLAUDINITE_PACK, CLAUDINITE_TASK, CLAUDINITE_CONTEXT, CLAUDINITE_REQUEST_AGENT)',
-  doc: 'packs/claudinite-growth/scheduled-tasks.md',
+  doc: 'packs/claudinite-growth/skills/writing-tasks/SKILL.md',
   why: 'a variable nothing sets reads as undefined and the run still goes green — a parameter channel that has stopped being delivered leaves the operation in its unscoped, unguarded mode with no signal at all',
 
   run(ctx) {

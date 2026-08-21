@@ -1,4 +1,4 @@
-// claudinite-growth task: usage-fold — the per-repo skill-usage aggregate
+// claudinite-growth task: usage-fold — the per-repo usage aggregate
 // (skill-usage-metrics DESIGN §5). `agent_model: 'none'` with
 // `code_work: 'node worker.mjs'`: the whole pass is deterministic code the
 // executor runs as code-work — no agent phase, seconds of runtime.
@@ -12,39 +12,65 @@
 // loads — and the DENOMINATORS that make a count mean something — out of the logs
 // this repo already captures, into a small tracked aggregate.
 //
-// It also counts what the SCHEDULER did: per task, how many runs dispatched an agent,
-// how many were deterministic preprocessing only, how many its precondition skipped,
-// how many failed, how many were deferred. Those come from the scheduler's own run
-// records in its Actions logs — a census of scheduled work, beside the sample of
-// captured sessions everything else here is drawn from.
+// It also counts what the MACHINERY did: how often the scheduler and the executor
+// ran, how many of those hours a session actually opened, what each closed work item
+// came to, and what landed in git. That half exists in a repo whose sessions are all
+// unattended and captured nothing at all.
+//
+// WHY HOURLY. The file is the whole past-data plane the dashboard renders from
+// (claudinite-dashboard) — every panel that reaches further back than one page of live
+// reads comes from here, so its freshness is what the page's freshness IS. Its own
+// sources are cheap enough for that cadence: the capture files are local git, and the
+// REST reads are four calls in total, all watermarked so an hour that read nothing new
+// costs nothing. The precondition is what keeps a quiet repo quiet.
 //
 // Self-contained (imports nothing): the whole contract is this default export.
 
+// The signal window an hourly task is judged over: its own period plus the scheduler's
+// hour of slack. A log stamped inside it is a session that ran since the last fold.
+const WINDOW_DAYS = 2 / 24;
+
 export default {
   id: 'usage-fold',
-  frequency: 'daily',                    // day rows are the unit; a day closes once
-  precondition_signals: ['conversationLogs'],
+  frequency: 'hourly',                   // the dashboard's past-data plane; see the header
+  precondition_signals: ['commits', 'conversationLogs'],
   agent_model: 'none',                   // pure code — no agent (task-code-work DESIGN §4)
   expected_outcome: 'merged-pr',         // the regenerated GENERATED aggregate rides a PR landed per the repo's delivery settings
   code_work: 'node worker.mjs',
   // One tree read plus one blob read per capture file in the ~10-day window, all
-  // local git, then one PR. A busy repo captures a few files a day, so this is
-  // seconds; 600s is ~100x that, generous enough that a huge backlog on a first fold
-  // still completes while a hung run is killed well inside the hourly cadence.
+  // local git, then four REST reads and one PR. A busy repo captures a few files a
+  // day, so this is seconds; 600s is ~100x that, generous enough that a huge backlog
+  // on a first fold still completes while a hung run is killed well inside the hourly
+  // cadence.
   code_work_timeout: 600,
 
-  // Always runs. Deliberately NOT gated on fresh captures, nor on the logs branch
-  // existing at all: the fold has two sources, and the second one — the scheduler's
-  // own task-run records — exists in any repo that has a scheduler, including one
-  // whose sessions are all unattended and captured nothing. Its job also includes
-  // advancing the week watermark past days that have closed, which is true on a
-  // quiet repo too. A run with nothing new recomputes to a byte-identical file and
-  // opens no PR, so a wasted run costs seconds and produces no noise.
+  // Gated on the repo having MOVED this hour, which is the whole difference between an
+  // hourly fold and an hourly PR. Two movements are visible to a collector and both
+  // change the numbers: a commit on the default branch (the git series, and whatever
+  // landed with it), and a conversation log stamped inside the window (a session ran).
+  //
+  // Deliberately NOT gated on the scheduler having run: it runs every hour by
+  // definition, so that gate would be no gate at all. Its runs are not lost by
+  // declining — they sit past the watermark and the next fold that does run reads
+  // them, and the dashboard tops up the freshest hours from the live run listing it
+  // already fetches.
   precondition(signals) {
+    const commits = signals.commits ?? {};
     const logs = signals.conversationLogs ?? {};
-    const captured = logs.present === true
-      ? `${logs.logCount ?? 0} captured log(s)`
-      : 'no conversation-logs branch yet (task-run records only)';
-    return { run: true, reason: `fold ${captured} into the usage aggregate (day rows recomputed, closed days folded into their week)` };
+    const moved = [];
+    if (commits.count > 0) moved.push(`${commits.count} commit(s) on the default branch`);
+    // `newestLogAgeDays` is null when the branch does not exist or carries no readable
+    // stamp — unknown, which is not movement.
+    if (logs.newestLogAgeDays !== null && logs.newestLogAgeDays !== undefined && logs.newestLogAgeDays <= WINDOW_DAYS) {
+      moved.push('a session captured');
+    }
+    if (!moved.length) {
+      return {
+        run: false,
+        reason: 'nothing moved this hour — no commit on the default branch and no new conversation log; '
+          + 'the run and queue reads stay past their watermarks for the next fold that has something to do',
+      };
+    }
+    return { run: true, reason: `fold ${moved.join(' and ')} into the usage aggregate` };
   },
 };

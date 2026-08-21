@@ -9,7 +9,7 @@
     },
     "claudinite-growth",
     "tidy-repo",
-    "github-actions",
+    "git-github",
     "local/on-device-privacy",
     "local/macos-audio",
     "local/laughcounter",
@@ -40,18 +40,15 @@
   "claudinite": {
     "updated": "2026-08-10T00:00:00.000Z",
     "ref": "631a067f5a0413e154a0d4c1a66275f18b255af9",
-    "engineVersion": 6,
+    "engineVersion": "60820.1",
     "packVersions": {
-      "basics": 7,
-      "barriers": 2,
-      "git-github": 4,
-      "grow_with_claudinite": 6,
-      "tidy-repo": 5,
-      "github-actions": 4,
-      "claude-code-web-users-support": 2,
-      "core": 6,
-      "claudinite-lifecycle": 8,
-      "claudinite-growth": 7
+      "basics": "60821.4",
+      "barriers": "60820.1",
+      "git-github": "60821.1",
+      "tidy-repo": "60820.1",
+      "claude-code-web-users-support": "60821.2",
+      "claudinite-lifecycle": "60821.3",
+      "claudinite-growth": "60821.2"
     }
   }
 }

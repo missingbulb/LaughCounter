@@ -97,9 +97,14 @@ try {
     } catch { /* one unreadable channel is not the session's problem */ }
   }
 
+  // The directive comes FIRST and the line it names comes last, quoted by the colon:
+  // a reader picking the nearest line then picks the summary. Said the other way round,
+  // with the summary above and a "repeat that line" below it, the nearest line is the
+  // directive itself — and sessions duly opened their replies by reciting it.
   process.stdout.write(
-    `Claudinite loaded, ${facets.join(', ')}.\n\n`
-    + 'SESSION-START SUMMARY: open your first reply of this session with that line, verbatim, before anything else you say.\n',
+    'SESSION-START SUMMARY — an instruction to you, not text to repeat. '
+    + 'Open your first reply of this session with exactly this line, and nothing before it:\n\n'
+    + `Claudinite loaded, ${facets.join(', ')}.\n`,
   );
 } catch {
   // fail soft — a broken summary must never block a session

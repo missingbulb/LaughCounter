@@ -3,8 +3,8 @@
 The growth lifecycle's pruning stage: reconcile this repo's **local packs** against the shared **canon** it
 consumes (Claudinite, vendored read-only), pruning local items — a pack's prose line, or a whole local check —
 the canon now covers. It lands the run's prunes through a single PR against the repo's default branch,
-**delivered to land** per the repo's own delivery settings. Often there's nothing to prune, and that's fine. You run from a work item the executor handed off, whose
-**Context** is **binding scope — not a hint** (the executor will not let you re-decide or widen it).
+**delivered to land** per the repo's own delivery settings. Often there's nothing to prune, and that's fine. The run's
+**Context** is **binding scope — not a hint**: do not re-decide or widen it.
 
 > This task only prunes local packs against the canon; lifting local items up into the canon is the central
 > promote task's job (canon-side).
@@ -96,12 +96,12 @@ Its **body** is code-work's, rewritten every run: this window's canon diff, the 
 alone. The **comments** are yours: log each run that changed a doc as a **dated comment** — naming what was
 pruned and the canon line that now covers it. A run that prunes nothing logs nothing.
 
-## Run on a capable model
+## Nothing downstream catches a wrong prune
 
 Proving the mounted canon genuinely covers a local item before pruning it — and telling "the canon now owns
-this" from "the canon states this too generally, keep the local cut" — is a **judgment call**. A downgraded
-model prunes a real lesson, and on the default delivery settings the PR carrying it lands once CI passes —
-there is no reviewer downstream to catch what the run got wrong. This task declares `agent_model: opus`; the executor dispatches its subagent there.
+this" from "the canon states this too generally, keep the local cut" — is a **judgment call**. On the default
+delivery settings the PR carrying a prune lands once CI passes, so there is no reviewer downstream to catch
+what the run got wrong: a real lesson pruned on a claim the canon does not actually make is gone.
 
 ## What this task must never do
 

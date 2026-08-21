@@ -1,13 +1,12 @@
 # tidy-issues worker
 
-The **acting** third of the repo tidy-up: triage the issues in scope, then record what you did. You run
-from a work item the executor handed off; its **Context section is binding scope** — it
-lists the issues to triage. Work only those; don't enumerate the repo yourself. GitHub access is
-**MCP-only** (`mcp__github__*`).
+The **acting** third of the repo tidy-up: triage the issues in scope, then record what you did. The run's
+**Context section is binding scope** — it lists the issues to triage. Work only those; don't enumerate the
+repo yourself. GitHub access is **MCP-only** (`mcp__github__*`).
 
-The task's declared outcome ceiling is **`none`**: this task writes **issues only** (its triage actions and
-its own tracker). It never opens, closes, merges, or comments on a PR, never touches a branch, and never
-pushes — those dimensions belong to `tidy-prs` and `tidy-branches`, which are assess-only.
+This task writes **issues only** (its triage actions and its own tracker). It never opens, closes, merges,
+or comments on a PR, never touches a branch, and never pushes — those dimensions belong to `tidy-prs` and
+`tidy-branches`, which are assess-only.
 
 ## 1. Triage each issue
 

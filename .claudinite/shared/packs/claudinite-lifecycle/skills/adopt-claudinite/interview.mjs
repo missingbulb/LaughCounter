@@ -23,7 +23,7 @@
 //                              never a conformance finding: a nightly run must
 //                              not be blocked on a question nobody is present
 //                              to answer. Strictness lives only in the
-//                              bootstrap adoption flow (bootstrap.md Part 6),
+//                              bootstrap adoption flow (bootstrap.md Part 2),
 //                              where the owner is present by construction.
 import { pathToFileURL } from 'node:url';
 import { loadPacks, isActive, packQuestions } from '../../../../engine/pack_loader/pack-registry.mjs';

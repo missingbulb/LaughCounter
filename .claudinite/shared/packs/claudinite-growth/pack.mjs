@@ -3,6 +3,7 @@ import taskDeclarationMatchesFolder from './task-declaration-matches-folder.mjs'
 import taskCodeWorkEnv from './task-code-work-env.mjs';
 import dedupIntegrity from './dedup-integrity.mjs';
 import growthWriteScope from './growth-write-scope.mjs';
+import taskMdOnlyWhenAgentic from './task-md-only-when-agentic.mjs';
 
 // Opt into the growth lifecycle: a repo declaring claudinite-growth contributes its
 // hard-won lessons up to the Claudinite canon and prunes them back out once the canon
@@ -47,7 +48,7 @@ import growthWriteScope from './growth-write-scope.mjs';
 // missing: usage-fold (tasks/usage-fold/) counts skill loads and their activity
 // denominators out of those same captured logs into a small tracked aggregate.
 // Fleet-wide aggregation is NOT here — the canon knows mechanisms, never repos; that
-// is the sheepdog pack's job, in the fleet-enforcer repo.
+// is the claudinite-fleet-sheepdog pack's job, in the fleet-enforcer repo.
 //
 // ADOPTION IS NOT HERE. `adopt-claudinite`, `adopt-pack` and the
 // adopt-requested-packs task were bundled in this pack for want of a better home;
@@ -75,11 +76,11 @@ import growthWriteScope from './growth-write-scope.mjs';
 // active sets retention_days itself.
 export default {
   id: 'claudinite-growth',
-  version: 7,
+  version: '60821.2',
   minEngineVersion: 1,
   ruleRoutingGuidance: {
-    belongs: 'authoring Claudinite content here — lesson extraction, dedup, revalidation, conversation logs, skill-usage folding, the scheduled-task contract',
-    excludes: 'this repo\'s Claudinite status — mount, declaration, adoption, update — claudinite-lifecycle; issue/PR housekeeping — tidy-repo; fleet sweeps — sheepdog',
+    belongs: 'authoring Claudinite content here — lesson extraction, dedup, revalidation, conversation logs, skill-usage folding, the task contract',
+    excludes: 'this repo\'s Claudinite status — mount, declaration, adoption, update — claudinite-lifecycle; issue/PR housekeeping — tidy-repo; fleet sweeps — claudinite-fleet-sheepdog',
   },
   badge: 'badge.svg',
   detect: null,
@@ -90,7 +91,7 @@ export default {
   // pack catalog and landed by adopting or authoring a pack — so `core` is a
   // prerequisite rather than an ambient assumption.
   requires: ['claudinite-lifecycle'],
-  // The scheduled-task contract (scheduled-tasks.md). Relevance-first — inert until
+  // The task contract (the writing-tasks skill). Relevance-first — inert until
   // the repo carries a tasks/<name>/task.mjs of its own — and here rather than in
   // claudinite-lifecycle because these judge whether a task is WRITTEN correctly,
   // which is authoring, not whether Claudinite is working in this repo. The
@@ -99,6 +100,7 @@ export default {
   worldRules: [
     taskDeclarationShape,
     taskDeclarationMatchesFolder,
+    taskMdOnlyWhenAgentic,
     // …and the environment that contract hands a task's code-work, which is the half
     // no declaration states and nothing else can catch.
     taskCodeWorkEnv,
@@ -111,5 +113,6 @@ export default {
     'growth-dedup',
     'prose-to-checks',
     'unattended-agents',
+    'writing-tasks',
   ],
 };

@@ -120,3 +120,25 @@ export function codeWorkFailure(result) {
   if (result.code !== null) return `code-work exited ${result.code}`;
   return `code_work could not run: ${result.stderr.trim().split('\n').pop() || 'unknown error'}`;
 }
+
+// THE WORKER'S OWN TRIAGE VERDICT. A failed worker is the only thing that knows
+// why it failed — a 403 from a token without the scope it needs is a person's
+// five-second fix, and an exception in its own code is a bug — and the executor,
+// reading an exit code, cannot tell those apart. So a worker may say, on either
+// stream, before it exits non-zero:
+//
+//     claudinite-needs-human: action — FLEET_GITHUB_TOKEN lacks Actions: write
+//
+// The kind is one of the triage kinds (`action`, `decision`, `approval`,
+// `failure`); anything else, or no marker at all, leaves the park a `failure`.
+// The LAST marker wins, so a worker that sweeps many targets may revise its
+// verdict as it goes. Read from the worker's output rather than from a file
+// because it must survive the SIGKILL at `code_work_timeout` — output is echoed
+// live, a file written at exit is not written at all.
+const TRIAGE_MARKER = /^claudinite-needs-human:[ \t]*([a-z]+)\b[ \t]*(.*)$/gm;
+export function readTriageMarker(text) {
+  let last = null;
+  for (const m of String(text ?? '').matchAll(TRIAGE_MARKER)) last = m;
+  if (!last) return null;
+  return { kind: last[1], detail: last[2].replace(/^[—\-:\s]+/, '').trim() || null };
+}

@@ -1,7 +1,7 @@
 // Anchors — when a task's occurrence falls (tasks-dispatch DESIGN §5).
 //
 // The arithmetic lives in `calendar.mjs`; this module exposes exactly the two
-// questions the queue asks of it — "which occurrence is current" (the tick's
+// questions the queue asks of it — "which occurrence is current" (the scheduler run's
 // instantiation guard) and "when does this item wake next" (the roll's stamped
 // `Not-before`) — plus the period a frequency repeats on.
 //
@@ -23,7 +23,7 @@ export function periodMs(frequency) {
 }
 
 // The most recent occurrence at or before `now`, as a Date. `manual` has none —
-// the tick never instantiates it (DESIGN §8), so null is the whole answer.
+// the scheduler run never instantiates it (DESIGN §8), so null is the whole answer.
 export const mostRecentAnchor = anchorInstant;
 
 // The earliest occurrence strictly after `now` — what a rolled item is stamped

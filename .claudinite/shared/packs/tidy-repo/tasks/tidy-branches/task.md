@@ -1,14 +1,12 @@
 # tidy-branches worker
 
 The **assess-only** branch third of the repo tidy-up: a weekly pass over the repo's open branches — run
-only when a branch was actually created or pushed in the window — then record the picture. You run from a
-work item the executor handed off; its **Context section is binding scope** — it lists
-the branches to assess. Work only those; don't enumerate the repo yourself. GitHub access is **MCP-only**
-(`mcp__github__*`).
+only when a branch was actually created or pushed in the window — then record the picture. The run's
+**Context section is binding scope** — it lists the branches to assess. Work only those; don't enumerate
+the repo yourself. GitHub access is **MCP-only** (`mcp__github__*`).
 
-The task's declared outcome ceiling is **`none`**, and this dimension is read-only besides: **never delete,
-push, or merge a branch**, and never open or merge a PR. You recommend; a human acts. The only thing you
-write is this task's own tracker issue.
+This dimension is read-only: **never delete, push, or merge a branch**, and never open or merge a PR. You
+recommend; a human acts. The only thing you write is this task's own tracker issue.
 
 **Never assess the repo's own default branch.** The Context already excludes the known infra branches (the
 orphan `conversation-logs` log stream and the `claudinite/maintenance` delivery branch) and the conventional

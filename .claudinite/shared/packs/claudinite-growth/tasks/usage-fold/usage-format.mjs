@@ -28,32 +28,81 @@
 // one was retired still decodes to what it meant. Version 1 — the original
 // fully-spelled objects — decodes as itself, which is what lets a fold read back the
 // weeks it froze under earlier code without any rollout ordering.
+//
+// THREE TIERS. Hours (a rolling ~72h of scheduler, executor and agent activity), days
+// (recomputed while their raw sources live) and weeks (frozen once). They answer
+// different questions on different clocks; see the task's README.
 
 import { TASK_RUN_OUTCOMES, TASK_EXEC_STATUSES, LEGACY_TASK_RUN_OUTCOMES } from '../../../../engine/scheduler/run-record.mjs';
 
-export const USAGE_VERSION = 2;
+export const USAGE_VERSION = 3;
+
+// The queue's own outcome words — what `outcomeOf`
+// (engine/scheduler/queue/work-item.mjs) decodes a closed work item to, plus `none`
+// for one that closed wearing no outcome label at all.
+//
+// Spelled here rather than imported from the engine, unlike the two task
+// vocabularies above it: those symbols are long fielded, while a NEW engine export
+// would not be — the engine and this pack land in separate PRs on separate cycles,
+// so every member spends a window holding an older engine beside this pack, and a
+// pack that fails to load fails the whole mount's self-test. The drift guard is a
+// test instead: `fold-usage.test.mjs` drives the real `outcomeOf` over every outcome
+// label and fails if this list stops matching what it can return.
+export const QUEUE_OUTCOMES = Object.freeze(['done', 'delivered', 'obsolete', 'none']);
 
 // The counter vocabularies, each in the order its tuple spells them. This is the
 // single home for those orders: the fold's empty-row builders derive from it, the
 // `fields` header is written from it, and appending a field here is the whole change
 // (existing rows read short, so they carry `null` for it until they are recomputed).
 export const USAGE_FIELDS = Object.freeze({
-  // A day row's own scalars.
-  day: Object.freeze(['captures', 'merges', 'sessions', 'userMessages', 'userCommands']),
+  // A day row's own scalars. The first five are counted off the capture files and are
+  // always present; the rest come from sources that can be absent — see
+  // CAPTURE_DAY_FIELDS.
+  day: Object.freeze([
+    'captures', 'merges', 'sessions', 'userMessages', 'userCommands',
+    'ruleTokens', 'ruleTokenSessions',
+    'tokensIn', 'tokensOut', 'tokenSessions',
+    'commits', 'linesAdded', 'linesRemoved', 'releases',
+  ]),
   // A week row's — `days` is how many day rows it absorbed, and `sessionDays` is the
   // sum of the day-level distinct-session counts, which is not a distinct count.
-  week: Object.freeze(['days', 'captures', 'merges', 'sessionDays', 'userMessages', 'userCommands']),
+  week: Object.freeze([
+    'days', 'captures', 'merges', 'sessionDays', 'userMessages', 'userCommands',
+    'ruleTokens', 'ruleTokenSessions',
+    'tokensIn', 'tokensOut', 'tokenSessions',
+    'commits', 'linesAdded', 'linesRemoved', 'releases',
+  ]),
+  // An hour row's. `scheduler` and `executor` are workflow runs STARTED in the hour,
+  // `agentic` the sessions that captured in it, and `failed` the subset of the two
+  // run counts that concluded in failure.
+  hour: Object.freeze(['scheduler', 'executor', 'agentic', 'failed']),
   checks: Object.freeze(['runs', 'failures', 'errors', 'blocking', 'advisory', 'ciRuns', 'ciFailures']),
   checkFindings: Object.freeze(['blocking', 'advisory']),
   // Owned by the scheduler, imported rather than re-spelled: the counter keys cannot
   // drift from the outcome words the runs actually emit.
   tasks: TASK_RUN_OUTCOMES,
   taskExec: TASK_EXEC_STATUSES,
+  queue: QUEUE_OUTCOMES,
 });
+
+// The day fields the capture files themselves answer, and therefore the ones a day row
+// always carries a real number for — zero included, because "no session loaded a rule
+// that day" is a fact the captures state. Every OTHER day field comes from a source
+// that can be absent (a shallow checkout with no history that far back, a releases
+// listing that could not be read, a transcript shape carrying no token usage), and an
+// absent source must leave NO KEY rather than a zero: `unknown` is a state of its own,
+// and a fold that wrote 0 for it would report a busy day as an idle one.
+export const CAPTURE_DAY_FIELDS = Object.freeze([
+  'captures', 'merges', 'sessions', 'userMessages', 'userCommands', 'ruleTokens', 'ruleTokenSessions',
+]);
+
+// The week field each day field folds into. Same name throughout except the two the
+// week spells differently, and `days`, which counts rows rather than summing one.
+export const WEEK_FROM_DAY = Object.freeze({ sessionDays: 'sessions' });
 
 // The row's sub-maps that carry a counter TUPLE per key. `skillLoads` is deliberately
 // not among them — its values are bare numbers, so it needs no vocabulary.
-export const COUNTER_GROUPS = Object.freeze(['checks', 'checkFindings', 'tasks', 'taskExec']);
+export const COUNTER_GROUPS = Object.freeze(['checks', 'checkFindings', 'tasks', 'taskExec', 'queue']);
 
 const sortKeys = (obj) => Object.fromEntries(Object.keys(obj ?? {}).sort().map((k) => [k, obj[k]]));
 const nonEmpty = (obj) => obj !== undefined && obj !== null && Object.keys(obj).length > 0;
@@ -142,19 +191,34 @@ export function fieldsOf(file) {
 }
 
 // --- the file as a whole ---------------------------------------------------------
-// Two watermarks and two tiers of rows. Both directions live here because the fold
+// Three watermarks and three tiers of rows. Both directions live here because the fold
 // reads back its OWN prior state every run — the decode is not a compatibility shim,
 // it is half of how the task works.
 
+// The key an hour row is filed under: the UTC hour, `YYYY-MM-DDTHH`. Sorts
+// chronologically as text, like the day and week keys beside it.
+export const hourKey = (iso) => String(iso ?? '').slice(0, 13);
+
 // Named rows → the on-disk file.
-export function encodeUsageFile({ foldedThrough = null, runsFoldedThrough = null, days = {}, weeks = {} }) {
+export function encodeUsageFile({
+  generated = null, foldedThrough = null, runsFoldedThrough = null, queueFoldedThrough = null,
+  hours = {}, days = {}, weeks = {},
+} = {}) {
   return {
     version: USAGE_VERSION,
+    // WHEN THE DATA LAST MOVED, which is not when the file last landed: a quiet repo
+    // recomputes to the same numbers and opens no PR, so the commit date can be days
+    // older than the last fold that confirmed them. Deliberately excluded from the
+    // worker's unchanged-compare for exactly that reason — a stamp that forced a PR
+    // every hour would be a stamp nobody could afford.
+    generated,
     foldedThrough,
     runsFoldedThrough,
+    queueFoldedThrough,
     // The vocabularies this file's tuples are spelled in, written per file so a reader
     // never has to guess which code wrote it.
     fields: usageFieldsHeader(),
+    hours: Object.fromEntries(Object.entries(hours).map(([k, v]) => [k, encodeRow(v, USAGE_FIELDS.hour)])),
     days: Object.fromEntries(Object.entries(days).map(([k, v]) => [k, encodeRow(v, USAGE_FIELDS.day)])),
     weeks: Object.fromEntries(Object.entries(weeks).map(([k, v]) => [k, encodeRow(v, USAGE_FIELDS.week)])),
   };
@@ -173,9 +237,12 @@ export function renderUsageFile(file) {
   return [
     '{',
     `  "version": ${JSON.stringify(file.version)},`,
+    `  "generated": ${JSON.stringify(file.generated ?? null)},`,
     `  "foldedThrough": ${JSON.stringify(file.foldedThrough ?? null)},`,
     `  "runsFoldedThrough": ${JSON.stringify(file.runsFoldedThrough ?? null)},`,
+    `  "queueFoldedThrough": ${JSON.stringify(file.queueFoldedThrough ?? null)},`,
     ...block('fields', file.fields, ','),
+    ...block('hours', file.hours, ','),
     ...block('days', file.days, ','),
     ...block('weeks', file.weeks, ''),
     '}',
@@ -183,26 +250,44 @@ export function renderUsageFile(file) {
   ].join('\n');
 }
 
+// The one line the unchanged-compare ignores. The stamp moves every run by
+// construction, so comparing the rendered text as-is would open a PR an hour on a
+// repo where nothing happened — the exact noise the byte-identical check exists to
+// prevent. Named here, beside the writer, so the two cannot disagree about which line
+// it is.
+export const withoutStamp = (text) => String(text ?? '')
+  .split('\n').filter((l) => !/^\s*"generated":/.test(l)).join('\n');
+
 // …and back. A version-1 file is already in the named shape and passes through, which
 // is what lets a fold read back weeks it froze before this format existed and lets the
 // fleet sweep lead its members' upgrades.
 export function decodeUsageFile(file) {
-  if (!file || typeof file !== 'object') return { foldedThrough: null, runsFoldedThrough: null, days: {}, weeks: {} };
+  const empty = {
+    generated: null, foldedThrough: null, runsFoldedThrough: null, queueFoldedThrough: null,
+    hours: {}, days: {}, weeks: {},
+  };
+  if (!file || typeof file !== 'object') return empty;
+  const marks = {
+    generated: file.generated ?? null,
+    foldedThrough: file.foldedThrough ?? null,
+    runsFoldedThrough: file.runsFoldedThrough ?? null,
+    // A file written before the queue read existed carries no mark, which reads as
+    // "never folded" — the first fold under this code then starts the series from its
+    // own lookback rather than claiming to have covered history it never read.
+    queueFoldedThrough: file.queueFoldedThrough ?? null,
+  };
   if (!isTupleFormat(file)) {
-    return {
-      foldedThrough: file.foldedThrough ?? null,
-      runsFoldedThrough: file.runsFoldedThrough ?? null,
-      days: file.days ?? {},
-      weeks: file.weeks ?? {},
-    };
+    return { ...marks, hours: {}, days: file.days ?? {}, weeks: file.weeks ?? {} };
   }
   const fields = fieldsOf(file);
   const rows = (map, totals) => Object.fromEntries(
     Object.entries(map ?? {}).map(([k, v]) => [k, decodeRow(v, totals, fields)]),
   );
   return {
-    foldedThrough: file.foldedThrough ?? null,
-    runsFoldedThrough: file.runsFoldedThrough ?? null,
+    ...marks,
+    // A version-2 file has no hours at all; the tier starts empty and fills from the
+    // first fold that reads a run listing.
+    hours: rows(file.hours, fields.hour),
     days: rows(file.days, fields.day),
     weeks: rows(file.weeks, fields.week),
   };

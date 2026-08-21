@@ -66,12 +66,22 @@ export const REHEARSAL_MARKER = 'claudinite-rehearsal: converged';
 // The PR title and body for a terminal. The body is what a human reads when the run
 // stopped, so it says WHICH terminal fired and why in its first line — a PR that only
 // says "an update ran" makes every reader re-derive the thing the run already knew.
+//
+// THE TITLE IS A SUMMARY, THE BODY IS THE DETAIL. A title that names every moved pack
+// grows with the number a member declares, and a PR list is where that is least
+// readable — so the packs collapse to a count and only the engine keeps its versions.
 export function updatePullText(terminal, { engine, packs }) {
+  const engineMoved = engine?.from !== engine?.to;
+  const movedPacks = (packs?.plan ?? []).filter((p) => p.from !== p.to);
   const moved = [
-    ...(engine?.from !== engine?.to ? [`engine ${engine?.from ?? 'unstamped'} → ${engine?.to}`] : []),
-    ...(packs?.plan ?? []).filter((p) => p.from !== p.to).map((p) => `${p.id} ${p.from ?? 'unstamped'} → ${p.to}`),
+    ...(engineMoved ? [`engine ${engine?.from ?? 'unstamped'} → ${engine?.to}`] : []),
+    ...movedPacks.map((p) => `${p.id} ${p.from ?? 'unstamped'} → ${p.to}`),
   ];
-  const title = moved.length ? `Claudinite update: ${moved.join(', ')}` : 'Claudinite update';
+  const summary = [
+    ...(engineMoved ? [`engine ${engine?.from == null ? 'unstamped' : `v${engine.from}`} → v${engine?.to}`] : []),
+    ...(movedPacks.length ? [`${movedPacks.length} pack${movedPacks.length === 1 ? '' : 's'} upgraded`] : []),
+  ];
+  const title = summary.length ? `Claudinite update: ${summary.join(' and ')}` : 'Claudinite update';
   const lines = [`**${terminal.action}** — ${terminal.why}`, ''];
   if (moved.length) lines.push('Versions moved by this run:', ...moved.map((m) => `- ${m}`), '');
   else lines.push('No version moved; this run converged the mount and changed nothing else.', '');
@@ -230,10 +240,10 @@ export async function main() {
       await gh(token, `/repos/${repo}/issues/${pr.number}/labels`, { method: 'POST', body: { labels: [terminal.label] } });
       console.error(`update: left PR #${pr.number} open and labelled ${terminal.label} — ${terminal.why}`);
       // NON-ZERO, so the work item lands in `needs-human` rather than closing
-      // `outcome:done`. This terminal means the converge DID NOT DELIVER — the PR
+      // `task:done`. This terminal means the converge DID NOT DELIVER — the PR
       // is parked awaiting a person — and a run that delivered nothing must not
       // report success. Exiting 0 here is what hid #939 for five days: every
-      // member's nightly update closed `outcome:done` while its PR sat parked, so
+      // member's nightly update closed `task:done` while its PR sat parked, so
       // the whole fleet was frozen and every signal said healthy. This is the
       // "reserve non-zero for genuine breakage" rule's genuine breakage: the
       // member is not converging and nothing else will say so.

@@ -1,13 +1,12 @@
 # tidy-prs worker
 
 The **assess-only** PR third of the repo tidy-up: a weekly pass over every open PR — run only when a PR
-actually moved in the window — then record the picture. You run from a work item the executor handed
-off; its **Context section is binding scope** — it lists the PRs to assess. Work only
+actually moved in the window — then record the picture. The run's **Context section is binding scope**
+— it lists the PRs to assess. Work only
 those; don't enumerate the repo yourself. GitHub access is **MCP-only** (`mcp__github__*`).
 
-The task's declared outcome ceiling is **`none`**, and this dimension is read-only besides: **never close,
-merge, comment on, or push to a PR.** You recommend; a human acts. The only thing you write is this task's
-own tracker issue.
+This dimension is read-only: **never close, merge, comment on, or push to a PR.** You recommend; a human
+acts. The only thing you write is this task's own tracker issue.
 
 ## 1. Assess each PR
 
