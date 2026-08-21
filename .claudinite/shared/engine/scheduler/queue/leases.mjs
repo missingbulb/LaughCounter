@@ -1,16 +1,20 @@
 // The queue's leases and bounds, in one place because three surfaces must agree
-// on them (tasks-dispatch DESIGN §11): the tick reclaims on the executing leash,
+// on them (tasks-dispatch DESIGN §11): the scheduler run reclaims on the executing leash,
 // the janitor sweeps on the agent leash and the stale bounds, and the task
 // contract rejects at author time any code-work whose declared timeout reaches the
 // executing leash (F17 — a code-work reclaimed while alive livelocks its item).
 //
-// The vendored workflows carry the fourth agreement: the executor job's
-// `timeout-minutes` must be ≤ the executing leash, so a hung runner is killed by
-// the platform before its claim is reaped and re-picked — otherwise a zombie's
-// code-work runs beside its replacement's.
+// The vendored workflows carry the fourth agreement, and the heartbeat reframed
+// it (§15.15): what must hold is HEARTBEAT INTERVAL < EXECUTING LEASH, so a
+// holder that is alive is never reclaimed, rather than a run cap short enough to
+// kill a hung runner before its claim is reaped. The cap bought the guarantee
+// that a zombie's code-work never ran beside its replacement's; what carries that
+// now is code-work's own re-entrancy requirement, since a partitioned runner can
+// keep working while its beats fail to post.
 
-// A dead executor claim is reclaimed after this much silence. An executor
-// iteration is minutes, not hours.
+// A dead executor claim is reclaimed after this much silence — the holder's own
+// silence, measured from its last claim or heartbeat (#924), never the issue's
+// `updated_at`. Long work is legal; a holder that stops beating is not alive.
 export const EXECUTING_LEASH_MS = 60 * 60e3;
 
 // An agent session silent this long is declared dead. A legitimately longer run

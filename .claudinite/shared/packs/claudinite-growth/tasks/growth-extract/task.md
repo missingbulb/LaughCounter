@@ -8,9 +8,8 @@ edits through a single PR **delivered to land** (on the default delivery setting
 checks pass, with no human review — daily capture never piles up as review requests); finding nothing to add
 on a given run is a perfectly good outcome.
 
-You run from a work item the executor handed off whose **Context section is binding
-scope**: it names the substantive commit shas and the PRs/issues touched in the window. That is the work;
-do not widen it.
+The run's **Context section is binding scope**: it names the substantive commit shas and the
+PRs/issues touched in the window. That is the work; do not widen it.
 
 > This is the **unattended daily** capture. It writes only the repo's *own* local packs, so — **unlike** an
 > owner-requested, in-session retrospective (which delivers a PR for a human to review) — it opens a PR and
@@ -92,13 +91,13 @@ accumulates a scrollable history, each entry naming **what happened and where**.
 logs nothing. (A repo that still carries a closed `Claudinite tracker: Conversation Extract` issue from when
 the halves were two tasks keeps it as history — never post to it, never reopen it.)
 
-## Run on a capable model
+## Nothing downstream catches a bad lesson
 
 Deciding whether a lesson is genuinely new and durable — and deduping it against what's already documented —
-is a **judgment call**, not mechanical extraction. A downgraded model adds noise or restates what's there,
-and **on the default delivery no human reviews the PR before it lands** — CI gates correctness, not whether a
-"lesson" earns its keep — so the capable-model requirement matters all the more. This task declares
-`agent_model: opus`; the executor dispatches its subagent there.
+is a **judgment call**, not mechanical extraction. Restating what the corpus already says, or promoting a
+one-off into a rule, is the characteristic failure. **On the default delivery no human reviews the PR before
+it lands** — CI gates correctness, not whether a "lesson" earns its keep — so this run is the only judgment
+in the loop.
 
 ## What this task must never do
 

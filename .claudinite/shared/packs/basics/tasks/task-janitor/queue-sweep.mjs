@@ -2,9 +2,9 @@
 // half of this task that runs where `taskScheduler.dispatch` is `"queue"`.
 //
 // It shrinks twice over against the slot-mechanism sweep beside it. The re-arm and
-// its grace window are GONE: an executor polls on the tick's cron, so a lost label
+// its grace window are GONE: an executor polls on the scheduler run's cron, so a lost label
 // event is latency and never the only delivery. And the executing-leash reclaim
-// moved to the TICK — a deterministic label rule, serialized and hourly, which
+// moved to the SCHEDULER RUN — a deterministic label rule, serialized and hourly, which
 // recovers a dead executor's item in ~2h instead of ~25h.
 //
 // What is left is everything needing judgment or a longer horizon: the dead agent
@@ -21,11 +21,15 @@ import {
   periodForTasks,
 } from '../../../../engine/scheduler/queue/janitor-rules.mjs';
 import {
-  READY, AGENT, EXECUTING, BLOCKED, NEEDS_HUMAN, QUEUE_LABELS, HANDOFF_MARKER,
-  parseWorkItemBody, hasLabel,
+  NEEDS_HUMAN, QUEUE_LABELS, HANDOFF_MARKER,
+  NEEDS_HUMAN_ACTION, NEEDS_HUMAN_DECISION,
+  STATUS_BLOCKED, STATUS_READY, STATUS_RUNNING_EXECUTOR, STATUS_RUNNING_AGENT,
+  isStatus, isParked,
+  parseWorkItemBody,
 } from '../../../../engine/scheduler/queue/work-item.mjs';
 import { listOpenWorkItems } from '../../../../engine/scheduler/queue/read.mjs';
-import { ensureLabels, addLabel, removeLabel, comment, listComments } from '../../../../engine/scheduler/github.mjs';
+import { ensureLabels, addLabel, removeLabel, comment, listComments, readIssue } from '../../../../engine/scheduler/github.mjs';
+import { clearStatus } from '../../../../engine/scheduler/queue/apply-status.mjs';
 
 export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log } = {}) {
   const open = await listOpenWorkItems(gh, repo);
@@ -48,19 +52,25 @@ export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log 
 
   if (stale.length || deadAgents.length || stateless.length) await ensureLabels(gh, repo, QUEUE_LABELS);
 
-  const escalate = async (item, body, dropLabel) => {
+  // Both labels, as everywhere: the state the machine reads plus what the human is
+  // being asked for.
+  const escalate = async (item, body, from, triage) => {
     await comment(gh, repo, item.number, body);
-    if (dropLabel) await removeLabel(gh, repo, item.number, dropLabel);
+    // Every spelling of the status being left goes: the item may have been filed by
+    // an engine older than this one, and a swap that named one spelling would leave
+    // the other standing (`apply-status`).
+    if (from) await clearStatus({ removeLabel }, gh, repo, item, from);
     await addLabel(gh, repo, item.number, NEEDS_HUMAN);
+    await addLabel(gh, repo, item.number, triage);
   };
 
   for (const item of stale) {
-    await escalate(item, staleReadyComment(item), READY);
+    await escalate(item, staleReadyComment(item), STATUS_READY, NEEDS_HUMAN_ACTION);
     log(`escalated stale-ready #${item.number} → ${NEEDS_HUMAN}`);
     result.staleReady.push(item.number);
   }
   for (const item of deadAgents) {
-    await escalate(item, deadAgentComment(item, await sessionNote(gh, repo, item)), AGENT);
+    await escalate(item, deadAgentComment(item, await sessionNote(gh, repo, item)), STATUS_RUNNING_AGENT, NEEDS_HUMAN_DECISION);
     log(`reclaimed a dead agent claim on #${item.number} → ${NEEDS_HUMAN}`);
     result.deadAgents.push(item.number);
   }
@@ -73,18 +83,30 @@ export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log 
     log(`surfaced stuck dependency on #${item.number} (blocked by ${unresolved.map((n) => `#${n}`).join(', ')})`);
     result.stuck.push(item.number);
   }
+  // CONFIRM BEFORE ACTING, and only here. This rule's premise is that the state it
+  // is reading is TORN — but a swap in flight is indistinguishable from one that
+  // tore, and `open` is a snapshot taken seconds earlier. An executor that settles
+  // an item inside that window gets its finished work parked `needs-human`, which
+  // is a false triage signal a person then has to read (#1104: #1101 closed
+  // `task:done` at 12:50:13Z and was escalated at 12:50:21Z). The other three rules
+  // turn on a clock rather than on a transient, so they need no second read.
   for (const item of stateless) {
-    await escalate(item, statelessComment(), null);
+    const fresh = await readIssue(gh, repo, item.number);
+    if (!fresh || fresh.state !== 'open' || statelessItems([fresh]).length === 0) {
+      log(`- #${item.number} settled between this sweep's read and its write — left alone`);
+      continue;
+    }
+    await escalate(item, statelessComment(), null, NEEDS_HUMAN_DECISION);
     log(`repaired stateless #${item.number} → ${NEEDS_HUMAN}`);
     result.stateless.push(item.number);
   }
 
   // The health review — the queue as its subject, computable entirely from issues.
   const converged = new Set([...result.staleReady, ...result.deadAgents, ...result.stateless]);
-  const count = (label) => open.filter((i) => hasLabel(i, label) && !converged.has(i.number)).length;
-  log(`health: ${result.open} open work item(s) — ${count(BLOCKED)} blocked, ${count(READY)} ready, `
-    + `${count(EXECUTING)} executing, ${count(AGENT)} with an agent, `
-    + `${open.filter((i) => hasLabel(i, NEEDS_HUMAN)).length + converged.size} needs-human; `
+  const count = (status) => open.filter((i) => isStatus(i, status) && !converged.has(i.number)).length;
+  log(`health: ${result.open} open work item(s) — ${count(STATUS_BLOCKED)} blocked, ${count(STATUS_READY)} ready, `
+    + `${count(STATUS_RUNNING_EXECUTOR)} executing, ${count(STATUS_RUNNING_AGENT)} with an agent, `
+    + `${open.filter(isParked).length + converged.size} needs-human; `
     + `this run escalated ${result.staleReady.length} stale, reclaimed ${result.deadAgents.length} dead agent claim(s), `
     + `surfaced ${result.stuck.length} stuck dependency(ies), repaired ${result.stateless.length} stateless item(s)`);
   return result;

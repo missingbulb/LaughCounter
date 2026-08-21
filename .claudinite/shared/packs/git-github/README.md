@@ -2,10 +2,29 @@
 
 The git/GitHub side of the task lifecycle, bundled as skills: the advanced procedures
 ([git-github-advanced](skills/git-github-advanced/SKILL.md) — commit layering, squash-merge
-recovery, CI-trigger rules, merge-relocation traps) and the owner's merge command
-([merge-to-main](skills/merge-to-main/SKILL.md) — "LGTM").
+recovery, CI-trigger rules, merge-relocation traps), the owner's merge command
+([merge-to-main](skills/merge-to-main/SKILL.md) — "LGTM"), and the scheduling behaviour that is
+judgment rather than shape — what a `schedule:` trigger actually guarantees
+([github-actions-scheduling](skills/github-actions-scheduling/SKILL.md)).
 
-No prose and no checks of its own — the lifecycle checks (`task-lifecycle`,
-`squash-merge-history`) stay in `basics`. Every repo gets this pack through `basics`'s
-`requires` closure (materialized into declarations at `--init` and the baselining backfill),
-never by direct seeding.
+No prose of its own — the lifecycle checks (`task-lifecycle`, `squash-merge-history`) stay in
+`basics`. Every repo gets this pack through `basics`'s `requires` closure (materialized into
+declarations at `--init` and the baselining backfill), never by direct seeding.
+
+## Checks
+
+The workflow-YAML and Actions-runner behaviours a repo cannot get wrong. Each rides a check whose
+failure message *is* the rule, and each selects its inputs from `.github/workflows/` — so a repo
+that ships no workflows hears from none of them.
+
+| Check | Severity | Reason | Enforcement |
+|---|---|---|---|
+| `gha/secrets-in-job-if` | high | correctness | check: blocking |
+| `gha/run-pipefail` | high | correctness | check: blocking |
+| `gha/checkout-submodules` | high | correctness | check: blocking |
+| `gha/pages-artifact-symlinks` | high | correctness | check: blocking |
+| `gha/no-scheduled-fleet-executor` | medium | correctness | check: blocking |
+| `gha/scheduled-failure-escalation` | high | correctness | check: advisory |
+| `gha/label-create-before-add` | medium | correctness | check: advisory |
+| `gha/unique-automation-branch` | medium | correctness | check: advisory |
+| `gha/cron-minute-off-the-hour` | medium | correctness | check: advisory |

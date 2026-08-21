@@ -1,6 +1,7 @@
 // The LOCAL-DISK half of the signal collectors' `ctx` (per-project-scheduling
 // DESIGN §3.3). Three collectors read facts off `ctx` that no GitHub read can
-// supply — the shipped manifest version (`release.manifestVersion`), whether the
+// supply — the shipped manifest version and whether this repo publishes at all
+// (`release.manifestVersion`, `release.shipsPipeline`), whether the
 // repo tracks local packs (`localPacks.present`), and the configured log
 // retention (`conversationLogs.retentionDays`). The scheduler runs Action-side
 // INSIDE the repo checkout, so all three are readable from the checkout itself:
@@ -39,6 +40,29 @@ function readManifestVersion(root) {
   return null;
 }
 
+// Does this repo PUBLISH — does it carry the release orchestrator (by `name:`, since
+// a repo may host the pipeline's own reusable workflows at the same paths without
+// being a publisher, as Claudinite's core tree does) or a release config? Either is
+// enough, and the pair is the release standard's own test.
+//
+// The spelling lives here rather than being imported because the engine depends on no
+// pack; the release pack's own SHIPS_PIPELINE_* regexes are the other copy, and the
+// drift test beside them fails if the two disagree.
+const SHIPS_PIPELINE_TEXT = /^(?:name:\s*['"]?(?:Release to Chrome Store|Release)['"]?\s*|manifest_path=.*)$/m;
+
+function readShipsReleasePipeline(root) {
+  const candidates = [];
+  try {
+    for (const e of readdirSync(join(root, '.github/workflows'), { withFileTypes: true })) {
+      if (e.isFile() && /\.ya?ml$/.test(e.name)) candidates.push(join('.github/workflows', e.name));
+    }
+  } catch { /* no workflows directory — the release config may still say it ships */ }
+  candidates.push('.github/release.config');
+  return candidates.some((rel) => {
+    try { return SHIPS_PIPELINE_TEXT.test(readFileSync(join(root, rel), 'utf8')); } catch { return false; }
+  });
+}
+
 // Does the checkout carry any local pack? A pack is a DIRECTORY under a local
 // root; an absent or empty root is "none". Explicit `false` (not null) is the
 // point — the consuming precondition self-skips only on a definite no.
@@ -64,12 +88,13 @@ function readRetentionDays(packIds, packConfigFor) {
   return null;
 }
 
-// The three ctx facts, read off the checkout at `root`. Every probe degrades to
+// The ctx facts, read off the checkout at `root`. Every probe degrades to
 // null/false rather than throwing: a missing file, an unreadable directory, and
 // malformed JSON are all "nothing to judge", never a failed scheduler run.
 export function localSignalContext(root, { packIds = [], packConfigFor = () => ({}) } = {}) {
   return {
     manifestVersion: readManifestVersion(root),
+    shipsReleasePipeline: readShipsReleasePipeline(root),
     hasLocalPacks: readHasLocalPacks(root),
     retentionDays: readRetentionDays(packIds, packConfigFor),
   };

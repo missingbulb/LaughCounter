@@ -14,6 +14,8 @@
 
 import { normalizeTaskDeclaration, validateTaskDeclaration } from './task-contract.mjs';
 import { resolveModel } from './model-map.mjs';
+import { BUILT_IN_PACK, BUILT_IN_PATH_RE } from './built-in-tasks.mjs';
+import { parseWorkItemBody } from './queue/work-item.mjs';
 
 // The only shape a dispatch first line may take (DESIGN §5.2). Anchored end to
 // end — no query strings, no trailing junk, exactly one pack and one task
@@ -44,7 +46,12 @@ const reject = (reason, extra = {}) => ({ ok: false, reason, ...extra });
 // needs-human convergence since it may be forgery or a broken task.
 export function validateDispatchBody(body, { exists, isPackDeclared, loadTask }) {
   const firstLine = dispatchFirstLine(body);
-  const m = DISPATCH_PATH_RE.exec(firstLine);
+  // Two legal shapes: a pack task, and the engine's own built-in root (DESIGN
+  // §16.2). The built-in one is not a pack and is never declared — wherever the
+  // queue runs it is active — so it skips the declaration check rather than failing
+  // it, and nothing else about validation differs.
+  const builtIn = BUILT_IN_PATH_RE.exec(firstLine);
+  const m = builtIn ? [firstLine, BUILT_IN_PACK, builtIn[1]] : DISPATCH_PATH_RE.exec(firstLine);
   if (!m) return reject(`first line "${firstLine}" is not a valid task path (${DISPATCH_PATH_RE})`);
 
   const [, pack, task] = m;
@@ -54,7 +61,7 @@ export function validateDispatchBody(body, { exists, isPackDeclared, loadTask })
   const gone = (reason) => reject(reason, { gone: true, pack, task });
   if (!exists(taskPath)) return gone(`task file ${taskPath} does not exist at HEAD — the repo no longer carries this task`);
   if (!exists(mjsPath)) return gone(`the task.mjs sibling ${mjsPath} is missing — the repo no longer carries this task`);
-  if (!isPackDeclared(pack)) return gone(`pack "${pack}" is not declared in .claudinite-checks.json — this task is not active here`);
+  if (!builtIn && !isPackDeclared(pack)) return gone(`pack "${pack}" is not declared in .claudinite-checks.json — this task is not active here`);
 
   let decl;
   try {
@@ -65,13 +72,19 @@ export function validateDispatchBody(body, { exists, isPackDeclared, loadTask })
   const problems = validateTaskDeclaration(decl);
   if (problems.length) return reject(`${mjsPath} is not a valid task declaration: ${problems.map((p) => p.what).join('; ')}`, { pack, task });
 
+  // The model a task that reads its item's choice runs at (DESIGN §16.7). The field
+  // is written by the scheduler run from a write-gated label and validated on the way out of
+  // the parser, so an unrecognised family has already become absent here and the
+  // declared default stands — a request nobody can run would look accepted forever.
+  const model = (decl.model_from_request && parseWorkItemBody(body).model) || decl.agent_model;
+
   return {
     ok: true,
     pack,
     task,
     taskPath,
-    model: decl.agent_model,
-    resolvedModel: resolveModel(decl.agent_model),
+    model,
+    resolvedModel: resolveModel(model),
     outcome: decl.expected_outcome,
     // The best-effort run bound (task-code-work DESIGN §6): the executor
     // surfaces it into the subagent's brief as "fail after N minutes". Always set

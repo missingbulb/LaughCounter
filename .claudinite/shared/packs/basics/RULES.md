@@ -58,12 +58,22 @@ change, independent of any one project.
 - **Planning a migration** — prefer the design that converges in one forced pass to the one that
   trickles across nightly cycles, accept legacy input at the door so nothing has to wait for
   stragglers, and drive the stragglers with a standing mechanism rather than a phase someone must
-  remember to close. Order the plan's phases by what blocks rather than by subject —
-  [writing-migration-plans](skills/writing-migration-plans/SKILL.md) owns that sort.
+  remember to close. Write every phase's code — the cleanup and the destructive tail included —
+  before asking for approval, and chain each execution step to the verification of the one before
+  it rather than to anyone's memory;
+  [writing-migration-plans](skills/writing-migration-plans/SKILL.md) owns that ordering and the
+  chain's mechanics.
 
 - **When verifying now is genuinely impossible** (an external release window, an upstream fix in
-  flight) — make the follow-up a mechanism that comes to you: a scheduled task, a watched PR, an
-  issue something converges. Never a human's memory.
+  flight, an effect that only appears once the change is deployed, converged or loaded by a later
+  session) — the follow-up is a mechanism that comes to you, never a human's memory and never an
+  offer to the owner to go and check later. File it with
+  [verify-in-production](skills/verify-in-production/SKILL.md), unasked, **once the PR has
+  merged** and never before — a PR can be rejected, and a still-open branch can be rewritten
+  under you, either of which strands a verification whose premise never reached `main`. The
+  skill owns both halves — whether this change needs one at all (most don't; a test that ran is
+  already the mechanism), and the issue that states what puts the change in production and what
+  proves it works there.
 
 - **Receiving feedback that flags a misunderstanding** — check whether the artifact is already
   correct before expanding it; if it is, say so and push back rather than edit.
@@ -155,7 +165,22 @@ For every new task:
 1. Create a GitHub issue describing the task before starting work.
 2. Develop on a branch; reference that issue number in commit messages (e.g. `Refs #123`,
    `Fixes #123`, or `Closes #123`).
-3. Update the issue's status (comments / close) as work progresses and when it's done.
+3. Open the PR with a closing keyword for that issue on its own line in the **body** —
+   `Closes #123`. That is what fills GitHub's *Development* panel, the link between PR and issue
+   that anyone browsing either one follows; `Refs #123` is a cross-reference and links nothing
+   there. A PR that must not close its issue — one slice of a longer plan, one of several against
+   a tracker — still links: give the slice its own issue and close that one.
+4. Update the issue's status (comments / close) as work progresses and when it's done.
+
+- **Spotting a change that should wait until the work in flight lands** — file it as work that
+  comes back on its own rather than doing it now or trusting anyone to remember it: the
+  [do-later](skills/do-later/SKILL.md) skill, which queues it behind what it waits on.
+
+- **Filing an issue that belongs under another** — a phase of a plan, a verification of a change,
+  a follow-up its parent tracks — attach it as a **sub-issue** (`mcp__github__sub_issue_write`,
+  method `add`, `sub_issue_id` the **id** the create call returned, not its number), never only a
+  number named in the body. The parent then carries what is still open under it, in the place a
+  reader is already looking.
 
 - **Handing over a step only a human can perform** (flipping a repository or console setting,
   granting a permission, adding a secret) — first confirm you genuinely can't do it yourself, then

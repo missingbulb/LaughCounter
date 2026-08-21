@@ -3,26 +3,26 @@ name: merge-to-main
 description: Merge the change in front of the owner into main. Use when the owner says "LGTM" or asks to merge/land the current branch or PR into main.
 ---
 
+# Merge to main
 
-The portable recipe for landing the change in front of the owner on `main` — the *mechanics* behind the owner's merge-to-main command (the owner's preferences own the trigger *phrase*; this file owns the *how*). Invoked through the `merge-to-main` skill (this skill); this doc stays the canonical recipe.
+If the project's own `CLAUDE.md` names a merge-policy file, that file overrides the divergent
+points below (merge method, CI gating). Don't go hunting for one it doesn't name.
 
-**A project's bespoke merge policy overrides this default.** Most projects need nothing here — this default is the whole story. A project that genuinely diverges (a different merge method, a CI/twice-green gate, an extra approval) **states so by naming its merge-policy file explicitly in its own `CLAUDE.md`**. When that declaration is present, read that file first and let it override the divergent points below; when it's absent, follow this default as-is. Don't go hunting for a policy file that the project's `CLAUDE.md` doesn't name.
-
-## Recipe (~4 calls)
-
-1. Load both GitHub tools in **one** `ToolSearch`: `create_pull_request` + `merge_pull_request`.
-2. No PR open for the branch yet? `create_pull_request` (base `main`); end the body with `Closes #<issue>`, and take the PR number from the returned URL.
-3. Gate on CI **only if the repo has it** — a workflow that actually runs on PRs/pushes. `workflow_call`-only reusable workflows (this repo hosts some) are *not* CI: they never run here, so a non-empty `.github/workflows/` alone proves nothing; check the PR for check runs instead. No CI → no gate; don't wait for checks that will never come.
-4. `merge_pull_request`, `merge_method: squash`, title `<subject> (#<pr>)`. Merge directly — don't pre-read status; the call fails loudly if it isn't mergeable.
+1. Load `create_pull_request` + `merge_pull_request` in one `ToolSearch`.
+2. No PR open for the branch? `create_pull_request` (base `main`), body ending `Closes #<issue>`.
+3. If the PR has check runs, wait for them to pass. None — merge without waiting.
+4. `merge_pull_request`, `merge_method: squash`, title `<subject> (#<pr>)`. Don't pre-read
+   mergeability; the call fails loudly.
 5. Sync local `main`: `git checkout main && git pull origin main`.
+6. Capture the conversation:
+   `node .claudinite/shared/packs/claudinite-growth/capture-log.mjs --issue <n>`
+   (in the canon repo: `node packs/claudinite-growth/capture-log.mjs --issue <n>`). Skip only if
+   the repo doesn't declare `claudinite-growth`. A later merge in the same session runs it again.
+7. Run the basics pack's
+   [verify-in-production](../../../basics/skills/verify-in-production/SKILL.md) skill, unasked.
+   This step is that skill's **only** trigger — it files against what the squash actually landed,
+   which is why it runs here and not when the code was written or the PR opened. It decides
+   whether this change needs a production check at all — most don't — and files the issue that
+   comes back once the change is live. Never offer the owner to check later instead.
 
-The two divergent points — **`squash`** as the method and **CI gating** — are exactly what a bespoke policy file changes.
-
-## After the merge: capture the conversation (every session, every user)
-
-Once the merge has landed and local `main` is synced, run the growth pack's capture step:
-`node .claudinite/shared/packs/claudinite-growth/capture-log.mjs --issue <n>` (from the canon repo itself: `node packs/claudinite-growth/capture-log.mjs --issue <n>`), `<n>` being the issue your `Closes #<issue>` named. Deterministic, seconds-long; it pushes the conversation to the orphan `conversation-logs` branch. It runs **here, in-session, because it needs the live transcript** — the lessons extraction then happens later, in the conversation half of the repo's scheduled `growth-extract` task (MCP-native, with a rethink window), so there is nothing to schedule and no in-session lessons pass ([the pack README](../../../../packs/claudinite-growth/README.md) owns the standard). A later merge in the same session just runs capture again — it captures the delta. In the rare repo that removed the `claudinite-growth` pack from `.claudinite-checks.json`, skip this step.
-
-## Don't
-
-- **Don't** re-read the issue to confirm it closed — `Closes #<issue>` does that on merge; trust it.
+Don't re-read the issue to confirm it closed — `Closes #<issue>` does that on merge.

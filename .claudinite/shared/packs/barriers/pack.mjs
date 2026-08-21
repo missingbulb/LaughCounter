@@ -16,7 +16,7 @@ import { contributedBarrierRules } from './contributed.mjs';
 // running empty and guessing separations from existing state.
 export default {
   id: 'barriers',
-  version: 2,
+  version: '60820.1',
   minEngineVersion: 1,
   ruleRoutingGuidance: {
     belongs: 'directed folder-access graph rules — which directories may never reference which, plus the exceptions each rule allows',

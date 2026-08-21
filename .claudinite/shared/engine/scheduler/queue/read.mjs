@@ -3,7 +3,16 @@
 // consistent (S6/F11), and a family list that misses a just-created item is
 // exactly how a second standing item — a double execution — gets minted.
 
-import { WORK_PREFIX, labelNames } from './work-item.mjs';
+import { WORK_PREFIX, ORIGIN_AD_HOC, labelNames, statusOf } from './work-item.mjs';
+
+// IS THIS ISSUE AN ITEM? Two shapes, and the second is what the one-issue request
+// model added (DESIGN §16.1): a filed `[claudinite-work]` issue, or an ordinary
+// issue somebody marked `task:origin:ad-hoc` that has been ADOPTED — the mark alone
+// is a request awaiting adoption, not yet an item, and reading it as one would have
+// the janitor's stateless-repair rule park the person's issue for having no status.
+export const isQueueItem = (issue) =>
+  String(issue?.title ?? '').startsWith(WORK_PREFIX)
+  || (labelNames(issue).includes(ORIGIN_AD_HOC) && statusOf(issue) !== null);
 
 const project = (i) => ({
   number: i.number,
@@ -25,7 +34,7 @@ export async function listOpenWorkItems(gh, repo) {
     if (status !== 200 || !Array.isArray(json) || json.length === 0) break;
     for (const i of json) {
       if (i.pull_request) continue;
-      if (!(i.title ?? '').startsWith(WORK_PREFIX)) continue;
+      if (!isQueueItem(i)) continue;
       out.push(project(i));
     }
     if (json.length < 100) break;

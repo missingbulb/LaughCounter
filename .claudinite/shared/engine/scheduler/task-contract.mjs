@@ -80,7 +80,7 @@ export const INTERRUPT_POLICIES = ['requeue', 'needs-human'];
 // shape check only asserts a declared name is a real collector.
 export const SIGNAL_NAMES = [
   'commits', 'prs', 'issues', 'branches', 'release',
-  'localPacks', 'sharedMount', 'conversationLogs', 'stamp', 'fleet',
+  'localPacks', 'sharedMount', 'conversationLogs', 'stamp', 'fleet', 'request',
 ];
 
 // Validate one task declaration. Returns an array of `{ what, fix }` problems —
@@ -115,8 +115,32 @@ export function validateTaskDeclaration(raw) {
   if (decl.agent_model !== 'none' && (typeof decl.agent_instructions !== 'string' || decl.agent_instructions.trim() === '')) {
     bad('an agentic task (agent_model !== "none") declares no string "agent_instructions"', 'point "agent_instructions" at the worker file beside task.mjs (e.g. "task.md")');
   }
+  // precondition(signals, config, item). The third argument is THIS occurrence's own
+  // facts — its `Request`, its `Model`, its `Not-before` — for a verdict that is
+  // about one target rather than about the repo: a request item's verdict is about
+  // the issue it names, which no signal bundle can single out. Backwards compatible
+  // by construction, since a precondition simply does not declare an argument it
+  // does not read.
+  //
+  // Three answers, not two: `{ run: true }`, `{ run: false, reason }`, and
+  // `{ error }` — the precondition COULD NOT ANSWER. The third is a run failure
+  // rather than a verdict (F27): a decline is a decision about the world, and one
+  // taken on an API that would not answer is a guess whose write-backs cannot land.
   if (typeof decl.precondition !== 'function') {
-    bad('"precondition" is not a function', 'export a precondition(signals, config) that returns { run, reason, context? }');
+    bad('"precondition" is not a function', 'export a precondition(signals, config, item) that returns { run, reason, context? } — or { error } when it could not answer');
+  }
+
+  /**
+   * model_from_request — OPTIONAL, and reserved to the engine's own built-in task.
+   * A task that declares it runs at the model the ITEM names (`Model:`, written by
+   * the scheduler run from a write-gated label), falling back to `agent_model` when the item
+   * names none. It is the only field that lets anything on an item define behaviour,
+   * so it is fenced rather than waved through (DESIGN §16.7): the shape check accepts
+   * only `true`, and discovery gives pack tasks no way to be the built-in one.
+   */
+  if (decl.model_from_request !== undefined && decl.model_from_request !== true) {
+    bad(`"model_from_request" ${JSON.stringify(decl.model_from_request)} is not \`true\``,
+      'drop the field — only the engine\'s built-in request task reads a model off its item, and every other task names its own agent_model');
   }
 
   /**

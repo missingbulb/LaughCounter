@@ -1,6 +1,6 @@
 import { finding } from '../../engine/checks/helpers/findings.mjs';
 
-// The other half of the scheduled-task contract (scheduled-tasks.md, "Every task
+// The other half of the task contract (the writing-tasks skill, "Every task
 // declaration carries the full contract" + "The task folder"): the declaration
 // and the folder it sits in must AGREE. `task-declaration-shape` asserts the
 // declaration's own shape — that `id` and `agent_instructions` are present and
@@ -33,7 +33,7 @@ const rule = {
   id: 'task-declaration-matches-folder',
   severity: 'blocking',
   description: "A tasks/<name>/task.mjs declares the id of its own directory, and its agent_instructions names a worker file that exists beside it",
-  doc: 'packs/claudinite-growth/scheduled-tasks.md',
+  doc: 'packs/claudinite-growth/skills/writing-tasks/SKILL.md',
   why: 'task discovery is fail-soft per task — a declaration that disagrees with its folder is dropped into errors and the task silently never runs, while every scheduler run keeps reporting healthy',
 
   run(ctx) {

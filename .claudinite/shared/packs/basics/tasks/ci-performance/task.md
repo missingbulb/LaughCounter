@@ -40,7 +40,7 @@ that concludes "this is the correct cost" is the point of taking the measurement
 
 ## What you must not do
 
-- **Never merge.** This task is ceilinged at `open-pr` and the executor enforces it in code.
+- **Never merge.** Open the PR and leave it for review.
 - **Never make a test weaker to make it faster** — deleting coverage, dropping a case, loosening an
   assertion, or excluding a suite from the run. If a test genuinely costs more than it is worth,
   that is an argument to put to the owner on the tracker, not a change to land here.

@@ -34,7 +34,7 @@
         "match": "/\\bcron:.*/",
         "unlessLineMatches": "/\\bcron:\\s*['\"]?(1[0-9]|[2-4][0-9]|50) \\* \\* \\* \\*['\"]?\\s*$/",
         "what": "{match} is not hourly on a fixed minute in :10\u2013:50",
-        "fix": "use \"<minute> * * * *\" with a minute from 10 to 50 (bootstrap assigns it) — other crons collide with the :00 stampede or break the hourly tick"
+        "fix": "use \"<minute> * * * *\" with a minute from 10 to 50 (bootstrap assigns it) — other crons collide with the :00 stampede or break the hourly scheduler run"
       }
     ],
     "checkEachFile": [
@@ -49,9 +49,9 @@
         "fix": "add a concurrency: group so overlapping runs serialize (double-run safety)"
       },
       {
-        "require": "/engine\\/scheduler\\/queue\\/tick\\.mjs/",
+        "require": "/engine\\/scheduler\\/queue\\/(scheduler-run|tick)\\.mjs/",
         "what": "does not run the vendored engine entry",
-        "fix": "the job must run the vendored engine — node .claudinite/shared/engine/scheduler/queue/tick.mjs; all logic lives in the engine, not the workflow"
+        "fix": "run the vendored engine entry — node .claudinite/shared/engine/scheduler/queue/scheduler-run.mjs, or the retired `tick.mjs` beside it until this repo's workflow pull request lands"
       },
       {
         "require": "/^\\s*contents:\\s*write\\b/m",

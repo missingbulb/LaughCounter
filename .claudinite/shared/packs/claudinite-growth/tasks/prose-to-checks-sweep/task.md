@@ -4,9 +4,9 @@ Mine the **existing** prose of this repo's packs — each pack's `RULES.md` / `S
 
 **Weekly, deliberately.** Fresh prose is handled the night it is written, so what reaches this sweep is a slow-moving corpus; a daily re-read of it spent an opus dispatch and an owner-gated PR on a backlog that had not changed.
 
-You run from a work item the executor handed off whose **Context section is binding scope**: it names the **pack paths** to sweep. Work only those paths — a consuming repo's own local packs by default; Claudinite also its core `packs/`. **Never** edit a read-only mounted canon pack under `.claudinite/shared/`.
+The run's **Context section is binding scope**: it names the **pack paths** to sweep. Work only those paths — a consuming repo's own local packs by default; Claudinite also its core `packs/`. **Never** edit a read-only mounted canon pack under `.claudinite/shared/`.
 
-The task's declared outcome ceiling is **`open-pr`**: convert prose to checks in a single owner-approved PR (a check can break CI or misfire, so it is reviewed, not auto-merged).
+Convert prose to checks in a single owner-approved PR (a check can break CI or misfire, so it is reviewed, not auto-merged).
 
 ## The method lives in the skill
 
@@ -25,4 +25,4 @@ The conversion method — how to spot an always-testable rule in prose, judge co
 - **Never convert a rule an existing check already covers** — dedupe against the check set first.
 - **Never convert a statement of what the product does** — a rule asserting which entities exist, what a surface renders, or that a feature's parts are wired together is a **requirement**, and belongs in the project's executable spec and the suite that proves it. Such a rule is testable, so it passes the check-the-world test on its own; the skill's first gate is what stops it. Found in pack prose it is already mis-homed — leave it and log it, never cement it as a check.
 - **Never touch a pack path outside the Context**, and **never edit a mounted canon pack** under `.claudinite/shared/` — a consumer improves only its own local packs.
-- **Run on `opus`** — judging convertibility and authoring checks + fixtures is heavy judgment; this task declares `agent_model: opus`.
+- **Judging convertibility and authoring checks + fixtures is heavy judgment** — a check that reds on correct work costs every session in the repo, so convert only what you can prove.

@@ -2,9 +2,9 @@
 
 A weekly reflection on **this repo's own** captured knowledge: knowing the Claudinite packs already available to it, notice when project-specific knowledge is worth organizing into a **new local pack** — and author it. A local operation: it writes only the repo's **own** `.claudinite/local/packs/`, landing through a PR **a human reviews** (unlike [growth-extract](../growth-extract/task.md), which lands unreviewed where the repo's delivery settings allow; the shared canon stays human-gated too — lifting a local pack up is the central promote task's job). Finding nothing new worth a pack is a perfectly good, common outcome.
 
-You run from a work item the executor handed off. There is no windowed Context to bind — the opportunity is standing (knowledge that was never organized into a pack, not a recent change), so examine the repo as it is.
+There is no windowed Context to bind — the opportunity is standing (knowledge that was never organized into a pack, not a recent change), so examine the repo as it is.
 
-The task's declared outcome ceiling is **`open-pr`**: it opens a PR and **never arms auto-merge**. Extract may land unreviewed because it adds prose or a rule to territory a local pack already owns; a **new pack** ships new `.mjs` conformance checks that run at every Stop and in CI the moment it merges — a check can break CI, so it's reviewed, exactly as the sibling [prose-to-checks-sweep](../prose-to-checks-sweep/task.md) is.
+This run opens a PR and **never arms auto-merge**. Extract may land unreviewed because it adds prose or a rule to territory a local pack already owns; a **new pack** ships new `.mjs` conformance checks that run at every Stop and in CI the moment it merges — a check can break CI, so it's reviewed, exactly as the sibling [prose-to-checks-sweep](../prose-to-checks-sweep/task.md) is.
 
 ## Conventions used in this doc
 
@@ -58,4 +58,4 @@ The standing log is the issue titled exactly **`Claudinite tracker: Discover Loc
 - **Never add a rule to a territory an existing local pack already owns** — that is growth-extract's job; this task is for *new* packs.
 - **Never conflate steps 1 and 2** — the manifest step catalogues and never consults the pack shelf; the gap step is where the shelf and the pack decision come in.
 - **Never arm auto-merge** — a new pack's checks reach every session and every CI run in this repo; the reviewer is what stands between a wrong check and a red repo.
-- **Run on `opus`** — judging pack-worthiness and authoring a pack (checks and fixtures included) is heavy judgment; a reviewer is a backstop, not a substitute for getting it right. This task declares `agent_model: opus`.
+- **Treat the reviewer as a backstop, not a substitute** — judging pack-worthiness and authoring a pack (checks and fixtures included) is heavy judgment; get it right rather than leaning on the review.

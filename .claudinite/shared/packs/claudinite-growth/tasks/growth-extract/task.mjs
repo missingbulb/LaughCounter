@@ -32,10 +32,12 @@ export default {
   agent_execution_timeout: 2700,            // two source passes plus the prose-to-checks upgrade — generous bound, extreme protection
 
   // ONE reason to run: a SUBSTANTIVE default-branch change. A bot bump / [skip ci] /
-  // nightly-baselining commit advancing main is not a lesson to extract, so
-  // `commits.substantiveChange` already applies that classification. It arms the
-  // activity half AND means a fresh capture now sits on the logs branch, so the
-  // conversation half runs too.
+  // nightly-baselining commit advancing main is not a lesson to extract, and neither
+  // is a commit that touched nothing outside `.claudinite/` — this lifecycle's own
+  // landed output, which would otherwise re-arm it every night and keep a quiet repo
+  // firing forever. `commits.substantiveChange` already applies that classification.
+  // It arms the activity half AND means a fresh capture now sits on the logs branch,
+  // so the conversation half runs too.
   //
   // There WAS a second arm — a log actually past retention, which existed only so
   // the retention prune still fired on a repo gone quiet. The prune is its own

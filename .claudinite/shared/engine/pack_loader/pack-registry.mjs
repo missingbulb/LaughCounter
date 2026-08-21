@@ -2,7 +2,7 @@ import { readdirSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validateManifest, normalizeManifest } from './pack-schema.mjs';
-import { canonicalPackId } from './renamed-packs.mjs';
+import { canonicalPackId, canonicalPackIdAmong } from './renamed-packs.mjs';
 
 // This module lives at <canon>/engine/pack_loader/; the packs it scans at <canon>/packs/.
 const canonRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
@@ -188,8 +188,13 @@ async function scanPackDir(dir, { local, subdir }, errors) {
     // one that repo has. Read literally, that pack announces an id nothing declares
     // and goes inert, taking its checks, prose and tasks with it silently. A local
     // pack keeps its own id: that namespace is the repo's.
+    //
+    // The raw id rides along because that canonicalization is only safe once the
+    // WHOLE tree is known — an absorbed pack's leftover directory maps onto a
+    // survivor that is itself present, and discoverPacks below undoes the map for
+    // exactly that case (#1186).
     const pack = { ...normalizeManifest({ ...mod,
-      ...(local ? {} : { id: canonicalPackId(mod.id) }),
+      ...(local ? {} : { id: canonicalPackId(mod.id), rawId: mod.id }),
       worldRules: [...(mod.worldRules ?? []), ...declared.filter((r) => r.scope !== 'work')],
       workRules: [...(mod.workRules ?? []), ...declared.filter((r) => r.scope === 'work')],
     }), dir: packDir, local };
@@ -256,6 +261,12 @@ async function scanSkillChecks(packDir, errors) {
 export async function discoverPacks({ localRoot } = {}) {
   const errors = [];
   const canon = await scanPackDir(packsDir, { local: false }, errors);
+  // Re-resolve each canon id now the whole tree is known, so an ABSORBED pack's
+  // leftover directory keeps its own id instead of colliding with the survivor
+  // sitting beside it (#1186). scanPackDir cannot make this call alone: it sees
+  // one directory at a time, and the map reads the same for a rename.
+  const rawCanonIds = new Set(canon.map((p) => p.rawId));
+  for (const pack of canon) pack.id = canonicalPackIdAmong(pack.rawId, rawCanonIds);
   // Scan BOTH local roots (canonical .claudinite/local/packs and the legacy
   // .claudinite/local_packs) so a repo mid-rename still loads; a pack present in
   // both would trip the id-collision guard below, which is the desired signal.

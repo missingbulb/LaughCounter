@@ -73,7 +73,7 @@ const rule = {
   id: 'conformance-workflow',
   severity: 'advisory',
   description: 'A member has a workflow running check_the_world on every pull request, with no path filter',
-  doc: 'packs/claudinite-growth/scheduled-tasks.md',
+  doc: 'packs/claudinite-growth/skills/writing-tasks/SKILL.md',
   why: 'auto-merge is a queue for checks — a path-filtered conformance flow arms successfully and then never runs, so the nightly delivery waits forever and the repo silently stops updating',
 
   run(ctx) {

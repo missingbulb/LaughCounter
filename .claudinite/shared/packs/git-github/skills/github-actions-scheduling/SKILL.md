@@ -22,8 +22,8 @@ after 60 days without repository activity.
   world the job inspects — never from "this fired, so it must be time". Wall-clock equality with
   the cron minute is not a test any real run passes.
 - **Idempotent and self-catching.** A scheduled job does whatever is outstanding *now*, so a
-  missed firing costs latency rather than data. Per-tick bookkeeping — counters, "the last hour's
-  changes", a queue advanced one step per run — loses information the first time a tick vanishes.
+  missed firing costs latency rather than data. Per-scheduler run bookkeeping — counters, "the last hour's
+  changes", a queue advanced one step per run — loses information the first time a scheduler run vanishes.
   If a job cannot catch up, say so where it is declared and design the miss as an accepted loss.
 - **Catch up the most recent slot only.** A job that backfills every missed slot turns an outage
   into a storm on recovery; one catch-up evaluation per frequency is the shape that survives a
@@ -49,7 +49,7 @@ after 60 days without repository activity.
   days? Only after both does the code become a suspect. A single missed slot is expected
   behaviour.
 
-Claudinite's own scheduler is built to this: a repo-hashed `:10–:50` minute, and an hourly tick
+Claudinite's own scheduler is built to this: a repo-hashed `:10–:50` minute, and an hourly scheduler run
 that reconciles a queue of issues rather than replaying a ledger — a missed fire leaves the queue
 exactly as it was, so the next one catches up by looking at it. See
-[scheduled-tasks.md](../../../claudinite-growth/scheduled-tasks.md) for the task-authoring side.
+[the writing-tasks skill](../../../claudinite-growth/skills/writing-tasks/SKILL.md) for the task-authoring side.

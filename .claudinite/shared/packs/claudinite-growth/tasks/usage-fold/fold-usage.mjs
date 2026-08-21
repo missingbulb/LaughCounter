@@ -24,11 +24,14 @@
 // has exactly one home too: the scheduler that prints those records, so the counter
 // keys here cannot drift from the words the runs actually emit.
 import { loadPacks, isActive, bundledSkillSources } from '../../../../engine/pack_loader/pack-registry.mjs';
-import { TASK_RUN_OUTCOMES, TASK_EXEC_STATUSES, emptyTaskRun, parseTaskExecs } from '../../../../engine/scheduler/run-record.mjs';
+import { TASK_EXEC_STATUSES, parseTaskExecs } from '../../../../engine/scheduler/run-record.mjs';
 // The file's on-disk shape is its SIBLING here (usage-format.mjs). Everything below
 // works in the NAMED counter shape and meets the tuples only at the two boundary
 // functions at the foot of this file.
-import { USAGE_FIELDS, USAGE_VERSION, encodeUsageFile, decodeUsageFile } from './usage-format.mjs';
+import {
+  USAGE_FIELDS, USAGE_VERSION, CAPTURE_DAY_FIELDS, WEEK_FROM_DAY, QUEUE_OUTCOMES,
+  hourKey, encodeUsageFile, decodeUsageFile,
+} from './usage-format.mjs';
 
 // --- entry classification -----------------------------------------------------
 // Every shape below was verified against real captured transcripts on a
@@ -412,10 +415,57 @@ export function countTaskExecs(entries) {
   return taskExec;
 }
 
+// --- what Claudinite put into the session, and what the session cost --------------
+
+// The session-start summary line the mount prints into every session — the one place
+// the corpus states its own size in the terms a session actually pays: how many rule
+// tokens the prompt carried before the first turn. It is a SENTENCE the hook writes,
+// so it is read from the whole entry text (the hook's own output, or the assistant
+// echoing it back — either is the same session, and only the first match counts).
+//
+// Numbers are grouped for a human reader, so the separators are stripped before
+// parsing. No match is `null` — no opinion — and never zero: a repo whose mount does
+// not print the line has an unknown figure, not a corpus of nothing.
+const RULE_TOKENS_RE = /Claudinite loaded[^\n]*?([\d,]+)\s+rule tokens/;
+
+export function ruleTokensIn(text) {
+  const m = RULE_TOKENS_RE.exec(String(text ?? ''));
+  if (!m) return null;
+  const n = Number(m[1].replace(/,/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+// What the session spent, from the usage records the transcript's own assistant
+// entries carry. ASPIRATIONAL AND PROBED, never assumed: a transcript shape that
+// records no usage returns null, and the consumer states the series as absent rather
+// than drawing a zero line that would read as a free session.
+//
+// Cache reads and cache writes are counted into `in` because they are input tokens the
+// turn was billed for; a consumer wanting the uncached share cannot have it from here
+// and is not offered a number that looks like it.
+export function tokensIn(entries) {
+  let input = 0;
+  let output = 0;
+  let seen = false;
+  for (const entry of entries) {
+    const u = entry?.type === 'assistant' ? entry?.message?.usage : null;
+    if (!u || typeof u !== 'object') continue;
+    const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+    const i = n(u.input_tokens) + n(u.cache_read_input_tokens) + n(u.cache_creation_input_tokens);
+    const o = n(u.output_tokens);
+    if (i === 0 && o === 0) continue;
+    seen = true;
+    input += i;
+    output += o;
+  }
+  return seen ? { input, output } : null;
+}
+
 export function countEntries(entries, mounted = new Set()) {
   const skillLoads = {};
   let userMessages = 0;
   let userCommands = 0;
+  let ruleTokens = null;
   const load = (name) => { skillLoads[name] = (skillLoads[name] ?? 0) + 1; };
 
   for (const entry of entries) {
@@ -426,19 +476,35 @@ export function countEntries(entries, mounted = new Set()) {
       userCommands += 1;
       if (mounted.has(command)) load(command);
     }
+    if (ruleTokens === null) ruleTokens = ruleTokensIn(entryText(entry).join('\n'));
   }
-  return { userMessages, userCommands, skillLoads, taskExec: countTaskExecs(entries), ...countChecks(entries) };
+  return {
+    userMessages,
+    userCommands,
+    skillLoads,
+    ruleTokens,
+    tokens: tokensIn(entries),
+    taskExec: countTaskExecs(entries),
+    ...countChecks(entries),
+  };
 }
 
 // --- day buckets ---------------------------------------------------------------
 
-// An empty day row — the shape every counter folds through. Its scalars come from the
-// file format's own day vocabulary, so the row and the header it is written under
-// cannot drift apart.
+// An empty day row — the shape every counter folds through. Only the CAPTURE-derived
+// scalars are zeroed: those are answered by files this fold reads in full every run,
+// so zero is a fact about the day. Every other day field is left ABSENT until a source
+// that can answer it does, because a source that could not be read is unknown and a
+// zero written for it would read as a quiet day.
 const emptyDay = () => ({
-  ...Object.fromEntries(USAGE_FIELDS.day.map((f) => [f, 0])),
-  skillLoads: {}, checks: {}, checkFindings: {}, tasks: {}, taskExec: {},
+  ...Object.fromEntries(CAPTURE_DAY_FIELDS.map((f) => [f, 0])),
+  skillLoads: {}, checks: {}, checkFindings: {}, tasks: {}, taskExec: {}, queue: {},
 });
+
+// An empty hour row. All four counters are zeroed: an hour inside the window with no
+// runs in it genuinely had none — the run listing covers the whole window or the fold
+// does not advance its watermark at all.
+const emptyHour = () => ({ ...Object.fromEntries(USAGE_FIELDS.hour.map((f) => [f, 0])), taskExec: {} });
 
 function addLoads(into, from) {
   for (const [name, n] of Object.entries(from)) into[name] = (into[name] ?? 0) + n;
@@ -463,6 +529,15 @@ function addCounters(into, from) {
 export function foldDays(files) {
   const days = {};
   const sessionsByDay = {};
+  // The two PER-SESSION figures, which must not be summed over capture files: a
+  // session that captured twice (a merge, then the session-end tail) writes the same
+  // facts into both files, and the second is usually a superset of the first. So they
+  // are collected per (day, session) and reduced at the end — the rule tokens the
+  // session started with, and the largest token spend any of its captures attests.
+  const perSession = {};
+  const session = (date, id) => ((perSession[date] ??= new Map()).get(id)
+    ?? (perSession[date].set(id, { ruleTokens: null, tokens: null }), perSession[date].get(id)));
+
   for (const file of files) {
     const day = (days[file.date] ??= emptyDay());
     day.captures += 1;
@@ -474,11 +549,137 @@ export function foldDays(files) {
     addCounters(day.checkFindings, file.counts.checkFindings);
     addCounters(day.taskExec, file.counts.taskExec);
     (sessionsByDay[file.date] ??= new Set()).add(file.sessionId);
+
+    const s = session(file.date, file.sessionId);
+    if (s.ruleTokens === null && file.counts.ruleTokens !== null && file.counts.ruleTokens !== undefined) {
+      s.ruleTokens = file.counts.ruleTokens;
+    }
+    const t = file.counts.tokens;
+    if (t && (s.tokens === null || t.input + t.output > s.tokens.input + s.tokens.output)) s.tokens = t;
   }
+
   // Distinct sessions, not capture count: one session can capture more than once
   // (a merge, then the session-end tail).
   for (const [date, set] of Object.entries(sessionsByDay)) days[date].sessions = set.size;
+
+  for (const [date, bySession] of Object.entries(perSession)) {
+    const day = days[date];
+    for (const { ruleTokens, tokens } of bySession.values()) {
+      if (ruleTokens !== null) { day.ruleTokens += ruleTokens; day.ruleTokenSessions += 1; }
+      // Absent until one session on this day attested a spend — the fields stay off
+      // the row entirely on a day whose transcripts carried no usage records, which is
+      // what makes "this shape does not record it" distinguishable from "it was free".
+      if (tokens) {
+        day.tokensIn = (day.tokensIn ?? 0) + tokens.input;
+        day.tokensOut = (day.tokensOut ?? 0) + tokens.output;
+        day.tokenSessions = (day.tokenSessions ?? 0) + 1;
+      }
+    }
+  }
   return days;
+}
+
+// --- the sources outside the capture files ----------------------------------------
+
+// Merge a day-keyed map of already-computed fields into the day rows — the shape both
+// the local-git series (commits and lines) and the releases listing arrive in. A day
+// the source could not speak for is simply absent from `bySource` and keeps no key,
+// which is the whole point of doing this outside `emptyDay`.
+export function foldDayFields(days, bySource = {}) {
+  for (const [date, fields] of Object.entries(bySource)) {
+    const day = (days[date] ??= emptyDay());
+    for (const [field, value] of Object.entries(fields)) {
+      if (typeof value === 'number' && Number.isFinite(value)) day[field] = value;
+    }
+  }
+  return days;
+}
+
+// The queue's own record of what each occurrence came to: closed work items, per task,
+// per outcome word. APPEND-ONCE past `queueFoldedThrough`, for the same reason the run
+// ledger is — the items are a paged REST read where the capture files are local git —
+// and safe to append because a closed item is settled: its outcome label is written at
+// convergence and nothing later moves it.
+//
+// `records` is `[{ date, pack, task, outcome }]`, already filtered by the reader to
+// items that closed past the mark.
+export function foldQueueOutcomes(days, priorDays = {}, records = [], today) {
+  for (const [date, row] of Object.entries(priorDays)) {
+    const queue = row?.queue;
+    if (!queue || !Object.keys(queue).length || !withinTaskWindow(date, today, DAY_WINDOW_DAYS)) continue;
+    (days[date] ??= emptyDay()).queue = structuredClone(queue);
+  }
+  for (const { date, pack, task, outcome } of records) {
+    if (!QUEUE_OUTCOMES.includes(outcome)) continue;
+    const day = (days[date] ??= emptyDay());
+    const row = (day.queue[`${pack}/${task}`] ??= Object.fromEntries(QUEUE_OUTCOMES.map((o) => [o, 0])));
+    row[outcome] += 1;
+  }
+  return days;
+}
+
+// --- the hour tier ----------------------------------------------------------------
+
+// How long an hour row lives. Three days: long enough for the two-day view the
+// dashboard draws plus a fold outage, short enough that the tier stays a few dozen
+// rows rather than a log.
+export const HOUR_WINDOW_HOURS = 72;
+
+export const withinHourWindow = (key, nowIso, hours = HOUR_WINDOW_HOURS) => {
+  const age = (new Date(`${String(nowIso).slice(0, 13)}:00:00Z`) - new Date(`${key}:00:00Z`)) / 3600000;
+  return Number.isFinite(age) && age >= 0 && age < hours;
+};
+
+// The hour rows for this run. Two sources meeting in one row, and they are kept in
+// separate FIELDS rather than merged, because they are trued up on different clocks:
+//
+//   - the run counts (`scheduler`, `executor`, `failed`) are APPENDED from the runs
+//     read past the watermark, so prior rows carry forward and are added to;
+//   - the capture-derived counts (`agentic`, and the per-task executions behind the
+//     hover) are RECOMPUTED from the capture files every run, so they overwrite.
+//
+// Merging them into one counter would make the second source's recompute silently
+// double the first's appended total.
+export function foldHours({ prior = {}, runs = [], captureHours = {}, now }) {
+  const hours = {};
+  for (const [key, row] of Object.entries(prior)) {
+    if (!withinHourWindow(key, now)) continue;
+    hours[key] = { ...emptyHour(), ...structuredClone(row), taskExec: {} };
+  }
+  for (const run of runs) {
+    const key = hourKey(run.startedAt);
+    if (!withinHourWindow(key, now)) continue;
+    const row = (hours[key] ??= emptyHour());
+    if (run.workflow === 'scheduler') row.scheduler += 1;
+    else if (run.workflow === 'executor') row.executor += 1;
+    if (run.conclusion === 'failure' || run.conclusion === 'timed_out' || run.conclusion === 'startup_failure') {
+      row.failed += 1;
+    }
+  }
+  for (const [key, capture] of Object.entries(captureHours)) {
+    if (!withinHourWindow(key, now)) continue;
+    const row = (hours[key] ??= emptyHour());
+    row.agentic = capture.agentic;
+    row.taskExec = structuredClone(capture.taskExec ?? {});
+  }
+  return hours;
+}
+
+// The capture files' own view of an hour: how many distinct sessions captured in it,
+// and what they executed. The filename stamp is the clock — the same stamp the logs
+// branch's retention rules read, machine-written by the capture step.
+export function captureHours(files) {
+  const out = {};
+  const sessions = {};
+  for (const file of files) {
+    if (!file.stamp) continue;
+    const key = hourKey(file.stamp);
+    const row = (out[key] ??= { agentic: 0, taskExec: {} });
+    (sessions[key] ??= new Set()).add(file.sessionId);
+    addCounters(row.taskExec, file.counts.taskExec);
+  }
+  for (const [key, set] of Object.entries(sessions)) out[key].agentic = set.size;
+  return out;
 }
 
 // --- task invocations -----------------------------------------------------------
@@ -491,37 +692,34 @@ export function foldDays(files) {
 // days do.
 export const TASK_DAY_WINDOW_DAYS = 14;
 
+// How long a day row lives at all. Wider than the task rows and wider than the capture
+// retention, because the local-git and queue series reach further back than either and
+// the growth panels read a month of them. A day past this drops out of the tier; its
+// week row keeps what it held.
+export const DAY_WINDOW_DAYS = 30;
+
 export function withinTaskWindow(date, today, days = TASK_DAY_WINDOW_DAYS) {
   const age = (new Date(`${today}T00:00:00Z`) - new Date(`${date}T00:00:00Z`)) / 86400000;
   return Number.isFinite(age) && age >= 0 && age < days;
 }
 
-// Accumulate this run's new task-run records into the day rows, on top of what
-// earlier folds already counted.
+// Carry the slot scheduler's task-invocation rows forward while they are still inside
+// the day window.
 //
-// APPEND-ONCE, not recomputed — the one place this file departs from "days are a
-// pure function of their sources", and deliberately. The capture files are a local
-// git branch this fold can re-read for free; the scheduler's run logs are a paged
-// REST resource with a rate budget, and re-reading the whole window every night
-// would cost ~20x the API calls for an identical answer. So the caller reads only
-// the runs past the `runsFoldedThrough` watermark and hands them here, and the
-// watermark is the entire exactly-once mechanism — the same trade the week rows
-// already make, with the same consequence stated in the same place: a counting bug
-// fixed later does NOT heal these rows, it applies from the fix forward.
+// HISTORY ONLY, WITH NO WRITER LEFT. These rows counted what the retired slot
+// scheduler printed into its own Actions log about each due task; that writer is gone
+// (#974) and its logs have aged out of retention, so nothing appends to them any more
+// and the reader that did was retired with them rather than left to spend two API
+// calls a run finding nothing. What each occurrence came to is read from the queue's
+// own closed items now (`foldQueueOutcomes`), which is the record that replaced it.
 //
-// `records` is `[{ date, pack, task, outcome }]`; `priorDays` is the previous file's
-// day rows, whose task counts are carried forward while they are inside the window.
-export function foldTaskRuns(days, priorDays = {}, records = [], today) {
+// So this only ages them out: a day row keeps its `tasks` counts until it leaves the
+// window, and the week rows that already froze them keep them forever.
+export function carryTaskRuns(days, priorDays = {}, today) {
   for (const [date, row] of Object.entries(priorDays)) {
     const tasks = row?.tasks;
     if (!tasks || !Object.keys(tasks).length || !withinTaskWindow(date, today)) continue;
     (days[date] ??= emptyDay()).tasks = structuredClone(tasks);
-  }
-  for (const { date, pack, task, outcome } of records) {
-    if (!TASK_RUN_OUTCOMES.includes(outcome)) continue;   // an outcome word this fold does not know
-    const day = (days[date] ??= emptyDay());
-    const row = (day.tasks[`${pack}/${task}`] ??= emptyTaskRun());
-    row[outcome] += 1;
   }
   return days;
 }
@@ -567,17 +765,22 @@ export function daysToFold(days, foldedThrough, today) {
 // for it, and the field must start accumulating from the first day that has it instead
 // of wedging the watermark or reading back as NaN.
 export function addDayToWeek(week, day) {
-  const w = week ?? {
-    ...Object.fromEntries(USAGE_FIELDS.week.map((f) => [f, 0])),
-    skillLoads: {}, checks: {}, checkFindings: {},
-  };
+  const w = week ?? { skillLoads: {}, checks: {}, checkFindings: {} };
   const add = (field, n) => { w[field] = (w[field] ?? 0) + n; };
   add('days', 1);
-  add('captures', day.captures);
-  add('merges', day.merges);
-  add('sessionDays', day.sessions);
-  add('userMessages', day.userMessages);
-  add('userCommands', day.userCommands);
+  // Every other week scalar is the sum of the day field of the same name — the two
+  // exceptions are spelled once, in WEEK_FROM_DAY. Driven off the vocabulary rather
+  // than a hand-written list so a field appended to both rows folds without a third
+  // edit here, which is where a new counter would otherwise be silently dropped.
+  //
+  // A day with NO opinion on a field adds nothing rather than zero: a week that
+  // absorbed five days of unreadable git history and two of readable must report the
+  // two, not seven days' worth of understated lines.
+  for (const field of USAGE_FIELDS.week) {
+    if (field === 'days') continue;
+    const value = day[WEEK_FROM_DAY[field] ?? field];
+    if (typeof value === 'number' && Number.isFinite(value)) add(field, value);
+  }
   addLoads(w.skillLoads, day.skillLoads);
   // A week folded before the checks were counted has no `checks` key at all —
   // default rather than crash, so the first fold after this shipped extends the
@@ -590,6 +793,8 @@ export function addDayToWeek(week, day) {
   addCounters((w.tasks ??= {}), day.tasks);
   // …and for the executor-side execution statuses (the conversation-log census).
   addCounters((w.taskExec ??= {}), day.taskExec);
+  // …and for the queue's own outcome record, which arrived later still.
+  addCounters((w.queue ??= {}), day.queue);
   return w;
 }
 
@@ -603,23 +808,30 @@ function sortKeys(obj) {
   return Object.fromEntries(Object.keys(obj).sort().map((k) => [k, obj[k]]));
 }
 
-// Fold one run: day rows recomputed from `files` (the live raw window), week rows
-// carried forward from `prior` and advanced by every day that closed since the
-// watermark. Pure — the caller supplies today's UTC date and the prior file.
+// Fold one run: hour rows over the last three days, day rows recomputed from `files`
+// (the live raw window), week rows carried forward from `prior` and advanced by every
+// day that closed since the watermark. Pure — the caller supplies today's UTC date,
+// the prior file, and whatever the outside sources answered.
 //
-// The two tiers answer different questions and are kept honest by different
-// mechanisms: days are cheap to be wrong about (recomputed every run, so a fix
-// heals them), weeks are not (frozen once folded — re-freezing would need raw data
-// the retention TTL deliberately destroyed), so weeks only ever absorb days that
-// have closed and can no longer change.
-export function foldUsage({ files, prior = {}, today, taskRuns = [], runsFoldedThrough = null }) {
+// The three tiers answer different questions and are kept honest by different
+// mechanisms: hours are for what is happening right now and expire in three days;
+// days are cheap to be wrong about (recomputed every run, so a fix heals them); weeks
+// are not (frozen once folded — re-freezing would need raw data the retention TTL
+// deliberately destroyed), so weeks only ever absorb days that have closed and can no
+// longer change.
+export function foldUsage({
+  files, prior = {}, today, now = null, runsFoldedThrough = null,
+  queueRecords = [], queueFoldedThrough = null, runs = [], dayFields = {}, generated = null,
+}) {
   const days = foldDays(files);
-  // Task rows are accumulated BEFORE the week fold, so a day that closed since the
-  // last run carries its scheduler invocations into its week in the same pass that
-  // freezes it. (A day whose week is already frozen still shows its late-arriving
-  // task counts in the day tier — visible there, absent from the week: the same
-  // boundary every new counter has, and the same one weeks state for themselves.)
-  foldTaskRuns(days, prior.days ?? {}, taskRuns, today);
+  // The appended rows are accumulated BEFORE the week fold, so a day that closed since
+  // the last run carries them into its week in the same pass that freezes it. (A day
+  // whose week is already frozen still shows a late arrival in the day tier — visible
+  // there, absent from the week: the same boundary every new counter has, and the same
+  // one weeks state for themselves.)
+  carryTaskRuns(days, prior.days ?? {}, today);
+  foldQueueOutcomes(days, prior.days ?? {}, queueRecords, today);
+  foldDayFields(days, dayFields);
   const weeks = structuredClone(prior.weeks ?? {});
   let foldedThrough = prior.foldedThrough ?? null;
 
@@ -629,8 +841,20 @@ export function foldUsage({ files, prior = {}, today, taskRuns = [], runsFoldedT
     foldedThrough = date;
   }
 
+  for (const date of Object.keys(days)) {
+    if (!withinTaskWindow(date, today, DAY_WINDOW_DAYS)) delete days[date];
+  }
+
   return {
+    generated,
     foldedThrough,
+    // How far the queue's own closed items have been read. Its own mark for the same
+    // reason the run ledger has one: a different source on a different clock, and one
+    // outage must not read as the other's.
+    queueFoldedThrough: queueFoldedThrough ?? prior.queueFoldedThrough ?? null,
+    hours: sortKeys(foldHours({
+      prior: prior.hours ?? {}, runs, captureHours: captureHours(files), now: now ?? `${today}T23:59:59Z`,
+    })),
     // The second watermark: how far the scheduler's own run ledger has been read.
     // Separate from `foldedThrough` because it advances on a different clock (runs,
     // not closed days) over a different source, and conflating them would make an

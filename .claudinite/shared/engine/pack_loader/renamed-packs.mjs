@@ -25,9 +25,28 @@
 // no member's declaration and no member's stamped `packVersions` still carries that
 // spelling. Until then it is load-bearing for exactly the repos that have not
 // converged, which are the repos least able to complain.
+//
+// A pack ABSORBED into another is the same map entry: its id resolves to the pack
+// that now carries its rules, so a member declaring the absorbed one activates the
+// survivor instead of activating nothing. The declaration then holds two ids that
+// resolve to one, which is what `applyPackRenames` merges (registry.mjs).
 export const RENAMED_PACKS = Object.freeze({
   core: 'claudinite-lifecycle',
   grow_with_claudinite: 'claudinite-growth',
+  // Absorbed, not renamed: the release standard collapsed into the coding pack,
+  // and the release rules gate on the repo shipping the pipeline rather than on a
+  // second declaration (#1057).
+  'chrome-extension-release': 'chrome-extension',
+  // Absorbed too (#1079): the workflow-YAML rules moved in beside the git/GitHub
+  // procedure they were always the platform half of.
+  'github-actions': 'git-github',
+  // Absorbed too (#1079): the Firebase release standard became a skill in the pack
+  // that owns the technology, so shipping stops being a second thing to declare.
+  'firebase-release': 'firebase',
+  // Renamed (#1079): a pack whose subject is a Claudinite feature carries the prefix
+  // that says so.
+  'canary-probe': 'claudinite-canary-repo',
+  sheepdog: 'claudinite-fleet-sheepdog',
 });
 
 // The canon id a spelling resolves to. Canon packs only — a LOCAL pack lives in the
@@ -35,6 +54,27 @@ export const RENAMED_PACKS = Object.freeze({
 // to be called `core` is a different pack than the canon one and must not be renamed
 // out from under its owner.
 export const canonicalPackId = (id) => RENAMED_PACKS[id] ?? id;
+
+// The id a CANON pack DIRECTORY contributes, given every raw id the same tree
+// carries. The map cannot tell its two shapes apart, but the tree can:
+//
+//   RENAME    — one directory, whose `pack.mjs` may still carry the old id until
+//               the mount is rewritten. Nothing else claims the new id, so the id
+//               maps forward and the pack stays live.
+//   ABSORPTION — the absorbed directory sits BESIDE its survivor's until a
+//               converge lands. Mapping it forward would put two live
+//               directories on one id, and the collision guard drops BOTH —
+//               failing the converged tree's self-test, which parks the very
+//               converge that would have removed the leftover (#1186).
+//
+// So an absorbed leftover keeps its own id and goes inert, which is what an id
+// nothing declares is supposed to do. A member still declaring the absorbed
+// spelling is unaffected: `canonicalPackId` resolves the DECLARATION onto the
+// survivor, which is present and live.
+export const canonicalPackIdAmong = (id, idsPresent) => {
+  const to = canonicalPackId(id);
+  return to !== id && idsPresent.has(to) ? id : to;
+};
 
 // The same map over the keys of a stamp's `packVersions`. A renamed pack whose
 // stamped version still sits under the old key reads as version-ABSENT, which is not

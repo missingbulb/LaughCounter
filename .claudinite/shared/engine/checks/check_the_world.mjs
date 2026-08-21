@@ -14,10 +14,8 @@
 //   --base REF  override the base ref
 //   --list      machine-readable catalog of every rule, both scopes (id, severity, description, doc)
 //   --init      write .claudinite-checks.json — basics plus the fingerprinted packs
-import { writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { buildContext } from './helpers/repo-context.mjs';
-import { discoverPacks, resolveDeclaredPacks } from '../pack_loader/pack-registry.mjs';
+import { discoverPacks, packEntryId } from '../pack_loader/pack-registry.mjs';
 import { runActivePackRules, packRules } from './run-active-pack-rules.mjs';
 import { reportFindings } from './report-findings.mjs';
 
@@ -50,35 +48,14 @@ if (has('--list')) {
 }
 
 if (has('--init')) {
-  const path = join(root, '.claudinite-checks.json');
-  if (existsSync(path)) {
+  const { seedDeclaration } = await import('./helpers/seed-declaration.mjs');
+  const { packs } = await discoverPacks({ localRoot: root });
+  const { path, existed, declared } = seedDeclaration(root, packs);
+  if (existed) {
     console.log(`${path} already exists — leaving it as-is.`);
     process.exit(0);
   }
-  const { packs } = await discoverPacks({ localRoot: root });
-  const ctx = buildContext({ root, mode: 'all' });
-  // No pack is active by default, so the baseline is seeded as an explicit
-  // declaration alongside the fingerprinted packs: every pack that flags
-  // `seededByDefault` is written in (discovered structurally — the engine names
-  // no pack), plus the ones a fingerprint detects. A seeded pack is still
-  // opt-out-able where its own policy allows (the update flows re-add only the packs
-  // whose absence it treats as drift), so removing a seeded declaration can
-  // stick; each seeded pack ships its own one-time seed migration for the fleet.
-  // Local packs are declared by hand, never fingerprinted or seeded — exclude
-  // them from --init's seeding so a repo that already carries local packs (but
-  // no config yet) doesn't auto-declare them.
-  const seeded = packs.filter((p) => p.seededByDefault && !p.local).map((p) => p.id);
-  const detected = [...seeded, ...packs.filter((p) => p.detect && !p.local && p.detect(ctx)).map((p) => p.id)];
-  // A pack can't be imported without its dependencies — pull each declared pack's
-  // `requires` closure into the declaration so it's complete and visible.
-  const declared = resolveDeclaredPacks(detected, packs);
-  // maintenance.delivery is deliberately materialized, not defaulted — the selection
-  // must be visible in the file where a project would change it (see engine/checks/README.md).
-  // Only what carries a decision: the declaration and the always-explicit
-  // delivery. Empty rules/accept boilerplate is noise, not settings (#385);
-  // loadConfig defaults absent keys.
-  writeFileSync(path, `${JSON.stringify({ packs: declared, maintenance: { delivery: 'auto-merge' } }, null, 2)}\n`);
-  console.log(`Wrote ${path} (packs: ${declared.join(', ')}).`);
+  console.log(`Wrote ${path} (packs: ${declared.map(packEntryId).join(', ')}).`);
   // The adoption interview (surfacing each declared pack's pending questions) is
   // driven by the adopt-claudinite skill / bootstrap.md, and nudged every session
   // by the SessionStart interview-check step — not printed here, so this runner

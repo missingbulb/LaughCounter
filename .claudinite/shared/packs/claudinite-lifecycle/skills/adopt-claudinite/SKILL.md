@@ -3,15 +3,26 @@ name: adopt-claudinite
 description: Bootstrap Claudinite into a consuming repo — mount, hooks, checks, skills. Use when asked to bootstrap, adopt, or set up Claudinite, or to baseline a repo to pick up updates.
 ---
 
-Follow [bootstrap.md](../../../../bootstrap.md) — canonical there, and idempotent by design. Under the
-vendored mount it is: fetch the canon once (the one network moment), `--init` the pack
-declaration + run the adoption interview, vendor the snapshot into tracked
-`.claudinite/shared/` (`vendoring/apply-vendor-set.mjs` — whole-set + stamp), track it, register the
-single SessionStart orchestrator plus the Stop/PreToolUse hooks at their `shared/` paths, wire the
-world- and work-scope sweeps into the project's test/CI flow (a `check_the_world.mjs` step for the
-tree and a `ci-work-scope.mjs` step for the change — adding a minimal flow if the repo has none;
-the Stop hook runs the work scope too, but only where a session runs), open the
-maintenance-enrollment issue, categorize the project, and land the sweep green.
+Follow [bootstrap.md](../../../../bootstrap.md)'s **fast path** — canonical there, and idempotent
+by design. Everything mechanical is one `bootstrap.mjs` invocation from the fetched canon, so the
+adoption is seven steps: open the adoption issue **first** (the work-scope sweep blocks a commit
+that references no issue), fetch the canon and run the script, ask **every** pending interview
+question it reports in one batched `AskUserQuestion` pass (up to 4 per call, the project-class
+question folded in) and record the answers via `--answer` re-runs, **create the executor routine
+and write its endpoint into the declaration** (Part 6 — this session's work, and before the
+commit so it lands in the same PR), land the adoption as one commit referencing the issue,
+capture the adoption session itself once the PR lands (the fast path's capture step — no
+SessionEnd hook was loaded when this session started, so nothing else will), then file **one
+issue** carrying the script's HANDOVER block, a checkbox per step. Never re-enact the doc's parts
+step by step — they document what the script converges.
+
+Two things the fast path spells out and a session keeps getting wrong. A fresh project's
+interview takes **two** passes, because declaring the project-class pack pulls in a `requires`
+closure whose questions cannot exist until it is declared — and never more, because an answer is
+stored verbatim, so an open-ended one needs no clarifying popup. And the executor routine is
+**unfinished, not human-only**: `create_trigger` makes it, the SETUP block in its own prompt
+carries the model and repo binding the API cannot set, and only the `CCR_ROUTINE_TOKEN` secret is
+a step the hand-over issue takes (#1167).
 
 Bootstrap is the one place `apply-vendor-set.mjs` is the right tool, and only because the repo is at
 version zero: it stamps every declared pack at the newest version, and with no older state there is

@@ -1,17 +1,19 @@
 # Adopt the packs this repo's work list asks for
 
-You are here because code-work found at least one open **`add-packs`** issue in **this** repo — the work list a fleet enforcer placed here (its sheepdog `fleet-add-missing-packs` task) before firing this scheduler. Your job: turn that work list into **one reviewed PR on this repo**. The whole of *how* is the [adopt-pack](../../skills/adopt-pack/SKILL.md) skill — declaring, the interview, re-vendoring, scaffolding, getting the checks green, landing. Don't re-derive it here.
+**Your work item IS the work list** — an `add-packs` issue a fleet enforcer placed in **this** repo (its claudinite-fleet-sheepdog `fleet-add-missing-packs` task) and marked for the queue, which this repo's own scheduler run then adopted. Its body is the ask; the machine block at the bottom is the machinery's and not part of it. Your job: turn that work list into **one reviewed PR on this repo**. The whole of *how* is the [adopt-pack](../../skills/adopt-pack/SKILL.md) skill — declaring, the interview, re-vendoring, scaffolding, getting the checks green, landing. Don't re-derive it here.
 
 ## The work list
 
-The open issues labelled `add-packs` in this repo ([`protocol.mjs`](protocol.mjs) is the contract). There are at most two, and the title says what each is:
+The issue you are on ([`protocol.mjs`](protocol.mjs) is the contract). There are two kinds, and the title says which you have:
 
 | title | what it is | what you owe it |
 |---|---|---|
 | `Add packs: requested for this repo` | a **decision** — the fleet owner named the packs, and the issue's JSON block is the exact declaration entries to write, `config` and `answers` included (the answers are the owner's interview answers, already given) | adopt it verbatim (§2) — never re-litigate whether it was wanted |
 | `Add packs: suspected from this repo’s shape` | a **suspicion** — the weekly fleet scan fingerprinted file shapes against packs this repo does not declare | confirm each pack first (§1), adopt what survives, decline the rest with a reason |
 
-An empty work list never reaches you — code-work requests no agent for one. If both issues are open, they are one adoption: one PR covers both.
+If your item is a `[claudinite-work]` issue rather than a work list itself, it was filed before this fold: the work lists are then this repo's open `add-packs` issues, all of them, in one PR. Everything below reads the same either way.
+
+An empty work list never reaches you: an item exists only because an issue was marked. A repo with **both** kinds open gets **two runs**, one per issue, and the second waits on the first (the enforcer names it in `Blocked-by:`) — so adopt what your own issue asks for and leave the other list to its own run.
 
 ## 1. Confirm a *suspicion* before acting on it
 
@@ -28,15 +30,16 @@ A suspected pack that asks interview questions the repo cannot answer from its o
 Run **adopt-pack** for the confirmed and requested packs. Two things belong to you rather than the skill:
 
 - **On a requested issue, merge the rendered entries verbatim** into `.claudinite-checks.json`'s `packs` — into an entry this repo already carries where one exists, never replacing a `config` this repo already chose. The `answers` are recorded answers; transcribe them, don't re-ask.
-- **One PR for the whole work list**, and **link both ways**: the PR body names the issue(s), and you comment the PR link on each. The fleet's weekly sweep closes them on its own once the declaration carries the packs; your comment is what makes the intervening week legible.
+- **One PR for this work list**, and **link both ways**: the PR body names this issue, and you comment the PR link on it. The fleet's weekly sweep closes it on its own once the declaration carries the packs; your comment is what makes the intervening week legible.
 
 ## 3. Report
 
-Close out on your work item as usual: the packs adopted with the PR link, the packs declined with the reason, and anything left for a human — an adoption blocked on an unanswerable interview question is exactly that, and naming it is the whole handoff.
+Converge as usual — and note that your item is somebody's issue, so the converge command leaves it **open** with its terminal status: the packs adopted with the PR link, the packs declined with the reason, and anything left for a human. An adoption blocked on an unanswerable interview question is exactly that, and naming it is the whole handoff.
 
 ## What you must not do
 
-- **Never merge.** This task is ceilinged at `open-pr` and the executor enforces it in code (`verify-outcome.mjs`); merging fails the run.
+- **Never merge.** Open the PR and leave it for review.
 - **Never declare a pack you did not confirm** (suspected) **or that was not requested**, and never guess an interview answer — see adopt-pack's rule. If you believe a *requested* entry is wrong, say so on the issue and leave it for a human; never quietly adopt something else in its place.
 - **Never touch another repo.** The work list is this repo's; the fleet's sweep owns everything cross-repo.
-- **Never apply a `task:` label to the work-list issue.** They are the queue's state vocabulary, read by the tick and the executor; the work list is an ordinary issue, not a work item.
+- **Never apply a `task:` label by hand.** The work list *is* a work item now, so it wears the queue's own status — but only the converge command writes it. A status applied by hand is a state nobody's run is in.
+- **Never close the issue.** It is somebody's, and its terminal status stands on it open; the fleet's weekly sweep closes it once the declaration carries the packs.
