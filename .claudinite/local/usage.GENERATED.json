@@ -1,9 +1,9 @@
 {
   "version": 3,
-  "generated": "2026-08-21T23:01:42.840Z",
-  "foldedThrough": "2026-08-20",
-  "runsFoldedThrough": "2026-08-21T23:00:48Z",
-  "queueFoldedThrough": "2026-08-21T22:01:10Z",
+  "generated": "2026-08-22T03:26:38.729Z",
+  "foldedThrough": "2026-08-21",
+  "runsFoldedThrough": "2026-08-22T03:25:40Z",
+  "queueFoldedThrough": "2026-08-22T02:06:11Z",
   "fields": {
     "day": ["captures","merges","sessions","userMessages","userCommands","ruleTokens","ruleTokenSessions","tokensIn","tokensOut","tokenSessions","commits","linesAdded","linesRemoved","releases"],
     "week": ["days","captures","merges","sessionDays","userMessages","userCommands","ruleTokens","ruleTokenSessions","tokensIn","tokensOut","tokenSessions","commits","linesAdded","linesRemoved","releases"],
@@ -34,10 +34,11 @@
     "2026-08-21T20": {"totals":[1,2,0,0]},
     "2026-08-21T21": {"totals":[2,1,0,0]},
     "2026-08-21T22": {"totals":[0,1,0,0]},
-    "2026-08-21T23": {"totals":[1,0,0,0]}
+    "2026-08-21T23": {"totals":[2,2,0,0]},
+    "2026-08-22T02": {"totals":[1,1,0,0]},
+    "2026-08-22T03": {"totals":[1,0,0,0]}
   },
   "days": {
-    "2026-07-23": {"totals":[0,0,0,0,0,0,0,null,null,null,null,null,null,0]},
     "2026-07-24": {"totals":[0,0,0,0,0,0,0,null,null,null,null,null,null,0]},
     "2026-07-25": {"totals":[0,0,0,0,0,0,0,null,null,null,null,null,null,0]},
     "2026-07-26": {"totals":[0,0,0,0,0,0,0,null,null,null,null,null,null,0]},
@@ -53,7 +54,7 @@
     "2026-08-05": {"totals":[1,1,1,0,0,0,0,3960758,14642,1,null,null,null,0],"checks":{"work":[1,1,0,1,0,0,0],"world":[2,0,0,0,0,0,0]},"checkFindings":{"comment-classification":[1,0]}},
     "2026-08-06": {"totals":[1,1,1,0,0,0,0,5646238,26025,1,null,null,null,0],"checks":{"work":[1,1,0,1,0,0,0],"world":[3,0,0,0,0,0,0]},"checkFindings":{"comment-classification":[1,0]}},
     "2026-08-07": {"totals":[2,2,2,0,0,0,0,15262771,78389,2,null,null,null,0],"checks":{"world":[5,0,0,0,0,0,0]},"taskExec":{"basics/baselining":[0,1,0,0]}},
-    "2026-08-08": {"totals":[1,1,1,0,0,0,0,9448177,29841,1,null,null,null,0],"checks":{"work":[1,1,0,1,0,0,0],"world":[1,0,0,0,0,0,0]},"checkFindings":{"comment-classification":[1,0]},"tasks":{"basics/baselining":[0,0,0,0,3],"basics/task-janitor":[0,1,0,0,0],"grow_with_claudinite/growth-extract":[1,0,0,0,0],"grow_with_claudinite/usage-fold":[0,1,0,0,0],"tidy-repo/tidy-issues":[0,0,1,0,0]},"taskExec":{"grow_with_claudinite/growth-extract":[1,0,0,0]}},
+    "2026-08-08": {"totals":[1,1,1,0,0,0,0,9448177,29841,1,null,null,null,0],"checks":{"work":[1,1,0,1,0,0,0],"world":[1,0,0,0,0,0,0]},"checkFindings":{"comment-classification":[1,0]},"taskExec":{"grow_with_claudinite/growth-extract":[1,0,0,0]}},
     "2026-08-09": {"totals":[6,6,6,0,0,0,0,54741675,181810,6,null,null,null,0],"skillLoads":{"extract-from-activity":1,"extract-from-conversations":1,"generate-project-instructions":1,"prose-to-checks":1},"checks":{"work":[9,6,0,6,0,0,0],"world":[15,1,0,2,0,0,0]},"checkFindings":{"comment-classification":[6,0],"config":[2,0]},"tasks":{"basics/baselining":[0,0,0,0,2],"basics/task-janitor":[0,1,0,0,0],"grow_with_claudinite/growth-dedup":[1,0,0,0,0],"grow_with_claudinite/growth-discover-packs":[1,0,0,0,0],"grow_with_claudinite/growth-extract":[1,0,0,0,0],"grow_with_claudinite/prose-to-checks-sweep":[1,0,0,0,0],"grow_with_claudinite/usage-fold":[0,1,0,0,0],"tidy-repo/tidy-branches":[1,0,0,0,0],"tidy-repo/tidy-issues":[0,0,1,0,0],"tidy-repo/tidy-prs":[1,0,0,0,0]},"taskExec":{"grow_with_claudinite/growth-dedup":[1,0,0,0],"grow_with_claudinite/growth-discover-packs":[1,0,0,0],"grow_with_claudinite/growth-extract":[2,0,0,0],"grow_with_claudinite/prose-to-checks-sweep":[1,0,0,0],"tidy-repo/tidy-branches":[1,0,0,0],"tidy-repo/tidy-prs":[1,0,0,0]}},
     "2026-08-10": {"totals":[1,1,1,0,0,0,0,11022795,32232,1,null,null,null,0],"checks":{"work":[2,1,0,1,0,0,0],"world":[1,0,0,0,0,0,0]},"checkFindings":{"comment-classification":[1,0]},"tasks":{"basics/baselining":[0,0,0,0,1],"basics/task-janitor":[0,1,0,0,0],"grow_with_claudinite/growth-extract":[1,0,0,0,0],"grow_with_claudinite/usage-fold":[0,1,0,0,0],"tidy-repo/tidy-issues":[0,0,1,0,0]},"taskExec":{"grow_with_claudinite/growth-extract":[1,0,0,0],"tidy-repo/tidy-prs":[1,0,0,0]}},
     "2026-08-11": {"totals":[0,0,0,0,0,0,0,null,null,null,null,null,null,0],"tasks":{"basics/baselining":[0,0,0,0,2],"basics/task-janitor":[0,1,0,0,0],"grow_with_claudinite/growth-extract":[0,0,1,0,0],"grow_with_claudinite/usage-fold":[0,1,0,0,0],"tidy-repo/tidy-issues":[0,0,1,0,0]}},
@@ -66,12 +67,13 @@
     "2026-08-18": {"totals":[0,0,0,0,0,0,0,null,null,null,null,null,null,0],"queue":{"basics/task-janitor":[1,0,0,0],"claudinite-growth/growth-extract":[0,0,0,1],"claudinite-growth/usage-fold":[1,0,0,0],"claudinite-lifecycle/update":[2,0,0,0],"tidy-repo/tidy-issues":[1,0,0,0]}},
     "2026-08-19": {"totals":[1,1,1,0,0,10500,1,6578725,32556,1,null,null,null,0],"taskExec":{"core/update":[1,0,0,0]},"queue":{"basics/task-janitor":[1,0,0,0],"claudinite-growth/usage-fold":[1,0,0,0],"claudinite-lifecycle/update":[2,0,0,0]}},
     "2026-08-20": {"totals":[0,0,0,0,0,0,0,null,null,null,null,null,null,0],"queue":{"basics/task-janitor":[1,0,0,0],"claudinite-growth/usage-fold":[1,0,0,0]}},
-    "2026-08-21": {"totals":[1,1,1,0,0,10500,1,9930521,37378,1,1,33405,0,0],"checks":{"world":[2,0,0,0,2,0,0]},"checkFindings":{"rules-line-length":[0,2]},"taskExec":{"claudinite-lifecycle/update":[1,0,0,0]},"queue":{"basics/task-janitor":[1,0,0,0],"claudinite-growth/growth-extract":[0,0,1,0],"claudinite-growth/logs-prune":[0,0,1,0],"claudinite-growth/usage-fold":[6,0,0,0],"claudinite-lifecycle/update":[0,0,0,1],"tidy-repo/tidy-issues":[0,0,1,0],"tidy-repo/tidy-prs":[0,0,1,0]}}
+    "2026-08-21": {"totals":[1,1,1,0,0,10500,1,9930521,37378,1,null,null,null,0],"checks":{"world":[2,0,0,0,2,0,0]},"checkFindings":{"rules-line-length":[0,2]},"taskExec":{"claudinite-lifecycle/update":[1,0,0,0]},"queue":{"basics/task-janitor":[1,0,0,0],"claudinite-growth/growth-extract":[0,0,1,0],"claudinite-growth/logs-prune":[0,0,1,0],"claudinite-growth/usage-fold":[7,0,0,0],"claudinite-lifecycle/update":[0,0,0,1],"tidy-repo/tidy-issues":[0,0,1,0],"tidy-repo/tidy-prs":[0,0,1,0]}},
+    "2026-08-22": {"totals":[0,0,0,0,0,0,0,null,null,null,1,33386,0,0],"queue":{"claudinite-lifecycle/update":[1,0,0,0]}}
   },
   "weeks": {
     "2026-W31": {"totals":[6,33,27,22,49,2,null,null,null,null,null,null,null,null,null],"skillLoads":{"bug-investigation":1,"bump-version":3,"merge-to-main":5,"prose-to-checks":2,"single-issue-triage":1,"unattended-agents":1},"checks":{"work":[99,26,0,28,0,0,0],"world":[46,5,0,7,0,0,0]},"checkFindings":{"comment-classification":[24,0],"config":[4,0],"reference-integrity":[1,0],"task-lifecycle":[4,0]}},
     "2026-W32": {"totals":[6,13,12,12,0,0,null,null,null,null,null,null,null,null,null],"skillLoads":{"extract-from-activity":1,"extract-from-conversations":1,"generate-project-instructions":1,"prose-to-checks":1},"checks":{"work":[12,9,0,9,0,0,0],"world":[26,1,0,2,0,0,0]},"checkFindings":{"comment-classification":[9,0],"config":[2,0]},"tasks":{"basics/baselining":[3,0,0,0,11],"basics/task-janitor":[0,2,0,0,0],"grow_with_claudinite/growth-dedup":[1,0,0,0,0],"grow_with_claudinite/growth-discover-packs":[1,0,0,0,0],"grow_with_claudinite/growth-extract":[2,0,2,0,0],"grow_with_claudinite/prose-to-checks-sweep":[1,0,0,0,0],"grow_with_claudinite/usage-fold":[0,3,0,0,1],"tidy-repo/tidy-branches":[1,0,0,0,0],"tidy-repo/tidy-issues":[0,0,4,0,0],"tidy-repo/tidy-prs":[1,0,0,0,0]},"taskExec":{"basics/baselining":[0,1,0,0],"grow_with_claudinite/growth-dedup":[1,0,0,0],"grow_with_claudinite/growth-discover-packs":[1,0,0,0],"grow_with_claudinite/growth-extract":[3,0,0,0],"grow_with_claudinite/prose-to-checks-sweep":[1,0,0,0],"tidy-repo/tidy-branches":[1,0,0,0],"tidy-repo/tidy-prs":[1,0,0,0]}},
     "2026-W33": {"totals":[7,12,12,12,3,0,null,null,null,null,null,null,null,null,null],"skillLoads":{"extract-from-activity":1,"extract-from-conversations":1,"git-github-advanced":1,"growth-dedup":1,"single-issue-triage":2},"checks":{"work":[4,2,0,2,0,0,0],"world":[13,1,0,23,7,0,0]},"checkFindings":{"comment-classification":[2,0],"declared-check-messages":[3,0],"rules-line-length":[0,4]},"tasks":{"basics/baselining":[0,1,0,0,5],"basics/task-janitor":[0,6,0,0,0],"basics/update":[2,4,0,0,0],"core/update":[1,2,0,0,0],"grow_with_claudinite/growth-extract":[2,0,4,0,0],"grow_with_claudinite/usage-fold":[0,6,0,0,0],"tidy-repo/tidy-issues":[2,0,4,0,0]},"taskExec":{"basics/update":[2,0,0,0],"core/update":[1,0,0,0],"grow_with_claudinite/growth-extract":[3,0,0,0],"tidy-repo/tidy-issues":[2,0,0,0],"tidy-repo/tidy-prs":[1,0,0,0]}},
-    "2026-W34": {"totals":[3,2,2,2,0,0,0,0,null,null,null,null,null,null,0],"checks":{"world":[3,0,0,0,2,0,0]},"checkFindings":{"rules-line-length":[0,3]},"taskExec":{"<pack>/<task>":[1,0,0,0],"core/update":[2,0,0,0]},"queue":{"basics/task-janitor":[1,0,0,0],"claudinite-growth/usage-fold":[1,0,0,0]}}
+    "2026-W34": {"totals":[4,3,3,3,0,0,10500,1,9930521,37378,1,null,null,null,0],"checks":{"world":[5,0,0,0,4,0,0]},"checkFindings":{"rules-line-length":[0,5]},"taskExec":{"<pack>/<task>":[1,0,0,0],"claudinite-lifecycle/update":[1,0,0,0],"core/update":[2,0,0,0]},"queue":{"basics/task-janitor":[2,0,0,0],"claudinite-growth/growth-extract":[0,0,1,0],"claudinite-growth/logs-prune":[0,0,1,0],"claudinite-growth/usage-fold":[8,0,0,0],"claudinite-lifecycle/update":[0,0,0,1],"tidy-repo/tidy-issues":[0,0,1,0],"tidy-repo/tidy-prs":[0,0,1,0]}}
   }
 }
