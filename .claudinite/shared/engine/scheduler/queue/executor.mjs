@@ -16,7 +16,7 @@
 // the GitHub/code-work/invocation I/O around them.
 
 import { pathToFileURL } from 'node:url';
-import { isSuspended, suspendedNotice } from './suspend.mjs';
+import { isSuspended, readSuspendedNow, suspendedNotice, SUSPEND_ALL_VAR } from './suspend.mjs';
 import { readyDependents } from './readiness.mjs';
 import { HEARTBEAT_MS, heartbeatComment, withHeartbeat } from './heartbeat.mjs';
 import { renderTaskExec } from '../run-record.mjs';
@@ -161,32 +161,46 @@ export function noGoPlan(item, task, schedule, now, reason) {
 
 const nowIso = () => new Date().toISOString();
 
-// ONE EXECUTOR RUN PERFORMS ONE ITEM (DESIGN §6, §10, decision §15.22). Not a
-// configured maximum — the essence of an executor: it claims one item, sees it to
-// its settle, and ends. Capacity is executor width, and the queue drains as a
-// CHAIN of runs, each cause on the record (§10): the scheduler run's own drain job, a
-// label event, the close-time drain, this run's own `redispatch`, and the
-// workflow's failure-continuation job when a run dies before reaching it.
+// ONE EXECUTOR RUN DRAINS THE QUEUE (DESIGN §6, §10, decision §15.30, reversing
+// §15.22's one-item run). Actions bills each job's runtime rounded UP to the next
+// minute, so a day's cost is the RUN count: a run that performed one item paid a
+// whole invocation — checkout, setup, rounding — per item. So a run claims an
+// item, sees it to its settle, then picks the next, and ends when nothing is
+// pickable. Items still settle ONE AT A TIME: this moved the run boundary, not
+// the occupancy model, and capacity is still executor width.
 //
-// A run that never gets its item — nothing pickable, or another executor holds
-// this episode's earlier claim — ends without dispatching anything. Retrying a
-// lost race here would be a second pick attempt racing the very executor that
-// won, and re-dispatching over a claim we just reverted is a two-executor
-// dispatch loop; in both cases the winner's own chain (or the scheduler run behind it)
-// carries the queue.
+// What still starts a run is the enumerable list of §10, each cause on the
+// record: the scheduler run's drain job (dispatched only when that run leaves
+// something pickable), a label event, an agent session's close-time drain, and
+// the workflow's failure-continuation job when a run dies mid-drain. Self-
+// re-dispatch retired with the one-item run — the remainder is this run's own.
+//
+// AN ITEM THIS RUN LET GO OF IS NEVER RE-ATTEMPTED BY IT. Losing a claim race
+// leaves the item running under its winner, so the next pick simply does not see
+// it — but a post-claim REVERT puts the item back to ready, and re-picking what
+// this run just returned to the queue is an unbounded loop, not a retry. Both
+// exits are therefore recorded in `standDown` and skipped for the rest of the
+// run; the executor that won, and the scheduler run behind it, carry those.
+//
+// The loop terminates because every iteration either settles an item (which
+// leaves the ready state) or stands down from one — and the only items that
+// newly become pickable are the dependents a close releases, which is the
+// chaining this exists to do. Its outer bound is the workflow's own timeout.
 //
 // Injected seams keep the run testable end to end without GitHub, code-work
-// subprocesses or an invocation endpoint.
+// subprocesses or an invocation endpoint. `heldNow` is the operator hold, asked
+// between items (§15.30): `vars.*` reaches the env at start only, so a drain that
+// outlives the hold's arrival can only see it by asking.
 export async function runExecutor({
   gh, repo, root, config, tasks, executorId, runUrl = null,
   now = () => new Date(), random = Math.random, heartbeatMs = HEARTBEAT_MS,
-  collectSignalsFor, runTaskCodeWork, invokeAgent, redispatch = null, log = console.log,
+  collectSignalsFor, runTaskCodeWork, invokeAgent, heldNow = null, log = console.log,
 }) {
   const api = await import('../github.mjs');
   const { listOpenWorkItems } = await import('./read.mjs');
   const schedule = config.taskScheduler;
   const byId = new Map(tasks.map((t) => [`${t.pack}/${t.id}`, t]));
-  const taskAfter = (id) => byId.get(id)?.decl?.after ?? [];
+  const taskAfter = (id) => byId.get(id)?.decl?.schedule_after ?? [];
   const frequencyOf = (id) => byId.get(id)?.decl?.frequency ?? null;
   // A marked issue names its task by worker path, so the run needs the inverse of
   // the id map — built from the same task set, so a path this repo does not carry
@@ -194,59 +208,64 @@ export async function runExecutor({
   const byPath = new Map(tasks.map((t) => [t.taskPath, `${t.pack}/${t.id}`]));
   const pathTo = (p) => byPath.get(p) ?? null;
   const done = [];
+  // Items this run has let go of — a lost race, a reverted claim — and must not
+  // pick again. Without it a revert re-picks what it just returned to the queue.
+  const standDown = new Set();
 
-  const open = await listOpenWorkItems(gh, repo);
-  const candidate = pickOrder(open, { taskAfter, frequencyOf, random, pathTo })[0];
-  if (!candidate) return done;
+  for (;;) {
+    // Read live every time: the settle just made may have readied a dependent,
+    // and another executor may have taken what was pickable a moment ago.
+    const open = await listOpenWorkItems(gh, repo);
+    const candidate = pickOrder(open, { taskAfter, frequencyOf, random, pathTo })
+      .find((i) => !standDown.has(i.number));
+    if (!candidate) break;
 
-  // --- claim: the verified lease --------------------------------------------
-  await swapStatus(api, gh, repo, candidate, STATUS_READY, EXECUTING);
-  await api.comment(gh, repo, candidate.number, claimComment({
-    executor: executorId, runUrl, at: nowIso(),
-  }));
-  const comments = await api.listComments(gh, repo, candidate.number);
-  const winner = claimWinner(comments);
-  const mine = [...comments]
-    .sort((a, b) => a.id - b.id)
-    .filter((c) => (c.body ?? '').includes(CLAIM_MARKER) && (c.body ?? '').includes(`executor \`${executorId}\``))
-    .at(-1);
-  if (!winner || winner.id !== mine?.id) {
-    // The loser reverts nothing — the winner's labels already stand. It does
-    // strike its own claim (F24): letting go covers losing too, and a claim left
-    // behind here outlives the winner's episode and becomes the earliest of the
-    // NEXT one, moving the livelock one episode along.
-    await strikeClaim(api, gh, repo, mine);
-    log(`- #${candidate.number}: another executor holds this episode's earliest claim — this run stands down`);
-    return done;
-  }
+    // --- claim: the verified lease ------------------------------------------
+    await swapStatus(api, gh, repo, candidate, STATUS_READY, EXECUTING);
+    await api.comment(gh, repo, candidate.number, claimComment({
+      executor: executorId, runUrl, at: nowIso(),
+    }));
+    const comments = await api.listComments(gh, repo, candidate.number);
+    const winner = claimWinner(comments);
+    const mine = [...comments]
+      .sort((a, b) => a.id - b.id)
+      .filter((c) => (c.body ?? '').includes(CLAIM_MARKER) && (c.body ?? '').includes(`executor \`${executorId}\``))
+      .at(-1);
+    if (!winner || winner.id !== mine?.id) {
+      // The loser reverts nothing — the winner's labels already stand. It does
+      // strike its own claim (F24): letting go covers losing too, and a claim left
+      // behind here outlives the winner's episode and becomes the earliest of the
+      // NEXT one, moving the livelock one episode along.
+      await strikeClaim(api, gh, repo, mine);
+      standDown.add(candidate.number);
+      log(`- #${candidate.number}: another executor holds this episode's earliest claim — leaving it to them`);
+      continue;
+    }
 
-  // --- post-claim re-verify (F15) -------------------------------------------
-  const others = await withClaimIds(api, gh, repo, await listOpenWorkItems(gh, repo), candidate.number);
-  if (conflictsWithEarlierClaim(candidate, winner.id, others, { taskAfter, frequencyOf, pathTo })) {
-    await api.comment(gh, repo, candidate.number,
-      `${EPISODE_MARKER}\nReverting this claim: a conflicting item holds an earlier claim this cycle. Returning the item to the queue.`);
-    await swapStatus(api, gh, repo, candidate, STATUS_RUNNING_EXECUTOR, READY);
-    log(`- #${candidate.number}: reverted — a conflicting item claimed earlier`);
-    return done;
-  }
+    // --- post-claim re-verify (F15) -----------------------------------------
+    const others = await withClaimIds(api, gh, repo, await listOpenWorkItems(gh, repo), candidate.number);
+    if (conflictsWithEarlierClaim(candidate, winner.id, others, { taskAfter, frequencyOf, pathTo })) {
+      await api.comment(gh, repo, candidate.number,
+        `${EPISODE_MARKER}\nReverting this claim: a conflicting item holds an earlier claim this cycle. Returning the item to the queue.`);
+      await swapStatus(api, gh, repo, candidate, STATUS_RUNNING_EXECUTOR, READY);
+      standDown.add(candidate.number);
+      log(`- #${candidate.number}: reverted — a conflicting item claimed earlier`);
+      continue;
+    }
 
-  const outcome = await executeItem({
-    api, gh, repo, root, config, schedule, byId, pathTo, item: candidate, executorId,
-    claim: winner, now, heartbeatMs, collectSignalsFor, runTaskCodeWork, invokeAgent, log,
-  });
-  done.push({ issue: candidate.number, outcome });
+    const outcome = await executeItem({
+      api, gh, repo, root, config, schedule, byId, pathTo, item: candidate, executorId,
+      claim: winner, now, heartbeatMs, collectSignalsFor, runTaskCodeWork, invokeAgent, log,
+    });
+    done.push({ issue: candidate.number, outcome });
 
-  // --- the chain: hand the remainder to a fresh run -------------------------
-  // Read live, after the settle: this item's convergence may have readied a
-  // dependent, and another executor may have taken what was pickable when this
-  // run started.
-  if (redispatch) {
-    const left = pickOrder(await listOpenWorkItems(gh, repo), { taskAfter, frequencyOf, random, pathTo });
-    if (left.length) {
-      const res = await redispatch();
-      log(res?.ok
-        ? `- ${left.length} item(s) still pickable — dispatched a fresh executor run`
-        : `! ${left.length} item(s) still pickable but the re-dispatch failed (${res?.status ?? 'no status'}) — the scheduler run's drain is the backstop`);
+    // --- the hold, between items (§15.30) -----------------------------------
+    // Asked after the settle rather than before the pick that follows it, so a
+    // run that had nothing more to do never spends the read. The item just
+    // finished is untouched: suspension stops picking, never running work.
+    if (heldNow && await heldNow()) {
+      log(`- ${SUSPEND_ALL_VAR} is set: this drain stops here, holding nothing. Items stay exactly as they are.`);
+      break;
     }
   }
   return done;
@@ -551,8 +570,8 @@ async function converge(api, gh, repo, item, from, triage, claim, body, status =
 }
 
 // A close is also the moment a dependent may become due (§15.19): whoever closes
-// an item releases what it was holding, in code, and the run's own re-dispatch
-// then finds it. The scheduler run stays the backstop for every close this code never
+// an item releases what it was holding, in code, and this run's next pick then
+// finds it. The scheduler run stays the backstop for every close this code never
 // performs — a human's, or a session that stopped early.
 async function close(api, gh, repo, item, from, outcome, stateReason, body, status, ctx = {}) {
   await api.comment(gh, repo, item.number, body + recordFor(item, status));
@@ -574,10 +593,10 @@ async function main() {
   // first API call, so a held queue reads nothing and writes nothing rather than
   // deriving the world and then declining to act on it.
   if (isSuspended()) { console.log('## Claudinite executor\n'); console.log(suspendedNotice()); return; }
-  const { makeGh, actionRepoContext, EXECUTOR_WORKFLOW_FILE } = await import('../signals/gh.mjs');
+  const { makeGh, actionRepoContext } = await import('../signals/gh.mjs');
   const { discoverTasks } = await import('../discover.mjs');
   const { loadConfig, isDormant } = await import('../../checks/helpers/repo-context.mjs');
-  const { ensureLabels, dispatchWorkflow } = await import('../github.mjs');
+  const { ensureLabels } = await import('../github.mjs');
   const { collectSignalsForTask } = await import('./signals.mjs');
   const { codeWorkRunner } = await import('./code-work-run.mjs');
   const { agentInvoker } = await import('./invoke.mjs');
@@ -609,7 +628,7 @@ async function main() {
     collectSignalsFor: collectSignalsForTask({ gh, repo, root, config, defaultBranch }),
     runTaskCodeWork: codeWorkRunner({ root, repo, defaultBranch }),
     invokeAgent: agentInvoker({ repo, config }),
-    redispatch: () => dispatchWorkflow(gh, repo, EXECUTOR_WORKFLOW_FILE, defaultBranch),
+    heldNow: () => readSuspendedNow(gh, repo, { log: console.log }),
   });
 
   console.log(done.length

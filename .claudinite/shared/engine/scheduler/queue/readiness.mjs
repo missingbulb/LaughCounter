@@ -35,7 +35,7 @@ export function releasedBy(closedIssue, open = [], { stateOf = () => null, nowMs
 
 // The shell: read the queue, release what this close freed, and say so. Returns
 // the numbers readied, so the caller can decide whether the chain needs a run —
-// this function starts none itself, because the executor's own re-dispatch (§10)
+// this function starts none itself, because the executor's own drain (§10)
 // already re-reads the queue after every settle and covers exactly this.
 //
 // The blocker states come from the issue endpoint one at a time, and only for the

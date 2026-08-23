@@ -178,7 +178,7 @@ Where such a fact carries a constraint the run must obey, state the **constraint
 and drop the mechanism: not "you run from a work item the executor handed off whose
 Context is binding scope", but "the Context section is binding scope"; not "never
 merge — the executor enforces it in code", but "never merge". The declaration is
-where the mechanics belong: `agent_model`, `after` and `expected_outcome` live in
+where the mechanics belong: `agent_model`, `schedule_after` and `expected_outcome` live in
 `task.mjs`, and `task.md` never repeats them.
 
 This is the task-folder shape of the unattended-agents routine-folder convention; the
@@ -190,7 +190,7 @@ skill's agent practices.
 
 Declare one only when its rule applies.
 
-- **`after: ['<pack>/<task>']`** — this task yields while a named upstream's item is live
+- **`schedule_after: ['<pack>/<task>']`** — this task yields while a named upstream's item is live
   *this cycle*, and picks up the moment it converges. Declare it when your task
   reads what another task produces; never as a general priority hint. It is not a
   `Blocked-by` edge and must not be described as one.
@@ -259,9 +259,9 @@ The `task-phase-discipline` world check (advisory, heuristic) hunts for tasks
 that escape this — skip-language in task.md, cycle-skip strings in code-work
 workers.
 
-## Ordering between tasks is `after`, not a claim on the run
+## Ordering between tasks is `schedule_after`, not a claim on the run
 
-A task that reads what another task produces declares **`after:
+A task that reads what another task produces declares **`schedule_after:
 ['<pack>/<task>']`**: its item yields while that upstream's item is live this
 cycle, and picks up the moment the upstream converges. Nothing else
 orders tasks — there is no run to claim, because there is no run: each item is
@@ -358,7 +358,7 @@ closing or running anything.
 
 ## A dormant project runs nothing
 
-A project nobody is working on declares itself dormant in `.claudinite-checks.json`:
+A project nobody is working on declares itself dormant in `.claudinite-settings.json`:
 
 ```json
 "dormant": true

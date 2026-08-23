@@ -1,4 +1,4 @@
-import { finding } from '../../engine/checks/helpers/findings.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
 
 // The other half of the task contract (the writing-tasks skill, "Every task
 // declaration carries the full contract" + "The task folder"): the declaration

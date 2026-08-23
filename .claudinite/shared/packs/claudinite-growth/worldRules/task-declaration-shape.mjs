@@ -1,8 +1,8 @@
-import { finding } from '../../engine/checks/helpers/findings.mjs';
-import { stripComments } from '../../engine/checks/helpers/code-scanning.mjs';
-import { FREQUENCIES } from '../../engine/scheduler/calendar.mjs';
-import { MODEL_FAMILIES } from '../../engine/scheduler/model-map.mjs';
-import { OUTCOMES, SIGNAL_NAMES } from '../../engine/scheduler/task-contract.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
+import { stripComments } from '../../../engine/checks/helpers/code-scanning.mjs';
+import { FREQUENCIES } from '../../../engine/scheduler/calendar.mjs';
+import { MODEL_FAMILIES } from '../../../engine/scheduler/model-map.mjs';
+import { OUTCOMES, SIGNAL_NAMES } from '../../../engine/scheduler/task-contract.mjs';
 
 // Every scheduler task is a `tasks/<name>/task.mjs` whose default export carries
 // the full declaration contract (per-project-scheduling DESIGN §1) with legal
@@ -90,6 +90,22 @@ const rule = {
           fix: `rename "${field}" → "code_work" and "${timeout}" → "code_work_timeout" (the two phases of task execution are code-work, then agentic-work — neither is named for the other)`,
         }));
       }
+      // The ordering field's rename. ADVISORY for the same reason as the code-work rename above:
+      // the runtime normalizes it at the door, so a member's own task file keeps working and its
+      // CI must not go red over a declaration nobody has edited. Worth making because the bare
+      // preposition invited reading the field as a time — it is not one; it names task ids, and
+      // what it steers is when the item is scheduled onto an executor.
+      //
+      // The regex is anchored on a NON-word character before the key so it cannot match the
+      // canonical spelling's own tail.
+      if (/(?<![\w.])after:\s*\[/.test(text)) {
+        out.push(finding(rule, {
+          file,
+          severity: 'advisory',
+          what: 'declares its ordering under the legacy name "after"',
+          fix: 'rename "after" to "schedule_after" (it names task ids, not a time — what it steers is when this item is scheduled onto an executor)',
+        }));
+      }
       // `session_scope` lost its last reader with the slot scheduler (#974): the
       // queue routes a hand-off by `invocation_endpoint`, and nothing anywhere
       // asks a task what its scope is. ADVISORY, like the code-work rename above and
@@ -103,7 +119,7 @@ const rule = {
           file,
           severity: 'advisory',
           what: 'declares "session_scope", which nothing reads',
-          fix: 'drop it — reach is a property of which endpoint the hand-off calls, so a task needing wider access declares "invocation_endpoint": <a key in the repo\'s taskScheduler.endpoints> instead',
+          fix: 'drop it — reach is a property of which endpoint the hand-off calls, so a task needing wider access declares "invocation_endpoint": <a key in the repo\'s taskScheduler.agenticTaskInvocationEndpoints> instead',
         }));
       }
       if (model && MODEL_FAMILIES.includes(model) && model !== 'none' && !hasNum('agent_execution_timeout')) {

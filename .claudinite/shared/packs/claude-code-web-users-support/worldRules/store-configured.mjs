@@ -1,5 +1,5 @@
-import { finding } from '../../engine/checks/helpers/findings.mjs';
-import { resolveStore } from './store.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
+import { resolveStore } from '../store.mjs';
 
 // Declaring this pack is a statement that this project's users HAVE a preferences
 // store. If its entry names none — or names one that does not resolve — the pack is
@@ -22,7 +22,7 @@ const rule = {
     const config = ctx.config.packConfig?.['claude-code-web-users-support'];
     if (resolveStore(config ?? null)) return [];
     return [finding(rule, {
-      file: '.claudinite-checks.json',
+      file: '.claudinite-settings.json',
       what: config === undefined
         ? 'the claude-code-web-users-support pack is declared but names no store'
         : `the claude-code-web-users-support pack's store does not resolve (${JSON.stringify(config)})`,

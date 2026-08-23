@@ -76,7 +76,7 @@ function readHasLocalPacks(root) {
 }
 
 // The log-retention window, in days, from the declared packs' entry config
-// (`retention_days` in .claudinite-checks.json). Read through the caller's
+// (`retention_days` in .claudinite-settings.json). Read through the caller's
 // existing per-pack config reader rather than a second settings parser, and
 // keyed by the PARAMETER, not by a pack name — core does not name the pack that
 // happens to declare it. First declared pack carrying a numeric value wins.

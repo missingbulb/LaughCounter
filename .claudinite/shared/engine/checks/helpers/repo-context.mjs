@@ -3,6 +3,9 @@ import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { parseEntries } from './session-transcript.mjs';
 import { SHARED_SUBDIR, packEntryId } from '../../pack_loader/pack-registry.mjs';
+import { canonicalPackVersions } from '../../pack_loader/renamed-packs.mjs';
+import { SETTINGS_FILE, LEGACY_SETTINGS_FILE, settingsPath } from '../../settings-file.mjs';
+import { isVersion } from '../../version.mjs';
 
 function sh(root, cmd, args, { allowFail = false, input = undefined, timeout = undefined } = {}) {
   const r = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, input, timeout });
@@ -99,7 +102,7 @@ function vendoredSet(root, files) {
   return set;
 }
 
-// The complete set of top-level settings .claudinite-checks.json may carry. A key
+// The complete set of top-level settings the settings file may carry. A key
 // outside this set is a typo or a stale name — a settings error as real as invalid
 // JSON, caught at load so it can't silently change nothing. `packConfig` is the
 // legacy home of per-pack parameters — still honored while the fleet migrates to
@@ -107,9 +110,17 @@ function vendoredSet(root, files) {
 // `pack-entry-config` baseline migration (engine/migrations/) documents the fold; when
 // the fleet is off the old shape, drop the key here (and the overlay below) so
 // a straggler gets the unknown-setting error.
-// `claudinite` is the vendored-mount stamp — { updated: "<ISO datetime>", ref: "<sha>" },
-// written by the nightly update pass, selecting which migration notes still apply
-// (vendoring/DESIGN.md owns the model); the checks engine itself only tolerates it.
+// `engineVersion` is the engine version this repo's mount holds, written by the
+// update flows; a pack's installed version sits on that pack's own entry. Both were
+// a nested `claudinite` block until #1252, alongside an `updated` datetime and a
+// `ref` — those two held the provenance of the last FULL re-vendor rather than of
+// this mount, so a member converging nightly read as months stale, and nothing may
+// judge freshness by them any more because they no longer exist.
+// `dailyClaudiniteUpdatesRequirePrReview` is the harsh override: true leaves this
+// repo's daily update PR open for a human. Absent — the normal shape — means it
+// lands on its own. It is an override rather than a materialized preference
+// because every member wants the same thing, and the one that doesn't should have
+// to say so (#1252).
 // `taskScheduler` is the per-repo maintenance anchor the vendored hourly scheduler
 // reads (per-project-scheduling DESIGN §2) — { dailyHour, weeklyDay, monthlyDay },
 // all UTC. Absence means the documented defaults, so an omitted key is not an
@@ -121,7 +132,16 @@ function vendoredSet(root, files) {
 // below, and the wiring converge (engine/scheduler/converge-wiring.mjs) clears it.
 // `dormant` is the project's own declaration that it is out of the RECURRING work —
 // see isDormant below for exactly how much that covers.
-export const CONFIG_KEYS = ['packs', 'rules', 'accept', 'sharedConstants', 'packConfig', 'maintenance', 'claudinite', 'taskScheduler', 'dormant'];
+// `claudinite` and `maintenance` are the two retired blocks, tolerated on read so a
+// member that has not yet run the #1252 record still loads. LEGACY_CONFIG_KEYS is
+// what Phase 3 deletes.
+export const CONFIG_KEYS = ['packs', 'rules', 'accept', 'sharedConstants', 'packConfig',
+  'engineVersion', 'dailyClaudiniteUpdatesRequirePrReview', 'taskScheduler', 'dormant'];
+
+// The retired blocks, read but never written. Their content is folded into the
+// current shape by the load below, so nothing downstream sees either name.
+export const LEGACY_CONFIG_KEYS = ['claudinite', 'maintenance'];
+const KNOWN_CONFIG_KEYS = [...CONFIG_KEYS, ...LEGACY_CONFIG_KEYS];
 
 // Does this project declare itself DORMANT? A project goes dormant when it is
 // finished, parked, or simply not being worked on: it should stop paying the
@@ -141,7 +161,7 @@ export const CONFIG_KEYS = ['packs', 'rules', 'accept', 'sharedConstants', 'pack
 //     exactly as before the moment someone opens a session on the repo. Dormancy
 //     is about unattended upkeep, never about what an interactive session may do.
 //
-// The predicate reads BOTH shapes deliberately: a raw parsed .claudinite-checks.json
+// The predicate reads BOTH shapes deliberately: a raw parsed .claudinite-settings.json
 // and the normalized config loadConfig returns. A cross-repo reader fetches another
 // repo's declaration over the API with no engine loaded against that tree, and it
 // must decide dormancy by the same test that repo's own scheduler used — a second
@@ -152,7 +172,14 @@ export const isDormant = (config) => config?.dormant === true;
 // The keys a `schedule` object may carry, and the canonical weekday vocabulary
 // (mirrored from engine/scheduler/calendar.mjs WEEKDAYS — kept as a literal here so
 // the checks layer does not import the scheduler engine).
-const SCHEDULE_KEYS = ['dailyHour', 'weeklyDay', 'monthlyDay', 'dispatch', 'endpoints'];
+const SCHEDULE_KEYS = ['dailyHour', 'weeklyDay', 'monthlyDay', 'dispatch', 'agenticTaskInvocationEndpoints', 'endpoints'];
+
+// What the endpoint map is called. `endpoints` said nothing about WHICH endpoints —
+// a scheduler has several kinds it could mean — where these are exactly one thing:
+// the routine URLs a task's agentic phase is invoked through (#1252). The old
+// spelling is read while members carry it and written by nothing.
+export const ENDPOINTS_KEY = 'agenticTaskInvocationEndpoints';
+export const LEGACY_ENDPOINTS_KEY = 'endpoints';
 
 // `taskScheduler.dispatch` chose between the slot scheduler and the work-item
 // queue while the two coexisted (tasks-dispatch DESIGN §14). The slot scheduler is
@@ -173,7 +200,12 @@ const SCHEDULE_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // exist BECAUSE this pack is declared (`rules`, `accept` — they may name any
 // rule; the entry is their provenance). `via` is written by
 // resolveDeclaredPacks on materialized dependencies (engine/pack_loader/pack-registry.mjs).
-export const PACK_ENTRY_KEYS = ['id', 'config', 'answers', 'rules', 'accept', 'via'];
+// `version` is the pack version this repo has INSTALLED — written by the update
+// and install flows onto the entry of the pack it describes, which is the only
+// place it cannot be orphaned from what it prices. It lived in a central
+// `claudinite.packVersions` map until #1252, where a pack rename left a version
+// keyed by a spelling no entry carried.
+export const PACK_ENTRY_KEYS = ['id', 'version', 'config', 'answers', 'rules', 'accept', 'via'];
 
 // Load and validate the project's settings. Validity is checked at load — the
 // moment Claudinite reads the file — and every problem is collected into `errors`
@@ -193,23 +225,24 @@ export const PACK_ENTRY_KEYS = ['id', 'config', 'answers', 'rules', 'accept', 'v
 // `config`, overlaid on the legacy top-level key. Checks and env machinery
 // read this one shape regardless of which form the file used.
 export function loadConfig(root) {
-  const path = join(root, '.claudinite-checks.json');
-  const empty = { packs: [], packEntries: [], rules: {}, accept: [], sharedConstants: [], packConfig: {}, taskScheduler: null, claudinite: null, maintenance: null, dormant: false, errors: [] };
+  const path = settingsPath(root);
+  const name = path.endsWith(LEGACY_SETTINGS_FILE) ? LEGACY_SETTINGS_FILE : SETTINGS_FILE;
+  const empty = { packs: [], packEntries: [], rules: {}, accept: [], sharedConstants: [], packConfig: {}, taskScheduler: null, engineVersion: null, packVersions: {}, dailyClaudiniteUpdatesRequirePrReview: false, dormant: false, errors: [] };
   if (!existsSync(path)) return empty;
 
   let raw;
   try {
     raw = JSON.parse(readFileSync(path, 'utf8'));
   } catch (e) {
-    return { ...empty, errors: [{ what: `.claudinite-checks.json is not valid JSON: ${e.message}`, fix: 'fix the JSON syntax' }] };
+    return { ...empty, errors: [{ what: `${name} is not valid JSON: ${e.message}`, fix: 'fix the JSON syntax' }] };
   }
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { ...empty, errors: [{ what: '.claudinite-checks.json must be a JSON object', fix: 'wrap the settings in an object: { "packs": [ ... ] }' }] };
+    return { ...empty, errors: [{ what: `${name} must be a JSON object`, fix: 'wrap the settings in an object: { "packs": [ ... ] }' }] };
   }
 
   const errors = [];
   for (const key of Object.keys(raw)) {
-    if (!CONFIG_KEYS.includes(key)) {
+    if (!KNOWN_CONFIG_KEYS.includes(key)) {
       errors.push({ what: `unknown setting "${key}"`, fix: `remove it or fix the name — valid settings: ${CONFIG_KEYS.join(', ')}` });
     }
   }
@@ -239,6 +272,10 @@ export function loadConfig(root) {
     const badShape = (prop, expected) =>
       errors.push({ what: `"${prop}" on the "${entry.id}" pack entry must be ${expected}`, fix: `fix or remove the entry's "${prop}"` });
     const normalized = { id: packEntryId(entry) };
+    if (entry.version !== undefined) {
+      if (isVersion(entry.version)) normalized.version = entry.version;
+      else badShape('version', 'the installed pack version — date-anchored <day>.<n>');
+    }
     if (entry.config !== undefined) {
       if (entry.config !== null && typeof entry.config === 'object' && !Array.isArray(entry.config)) normalized.config = entry.config;
       else badShape('config', 'an object of the pack\'s parameters');
@@ -329,7 +366,8 @@ export function loadConfig(root) {
       if (monthlyDay !== undefined && !(Number.isInteger(monthlyDay) && monthlyDay >= 1 && monthlyDay <= 31)) {
         errors.push({ what: `"taskScheduler.monthlyDay" must be an integer 1–31, got ${JSON.stringify(monthlyDay)}`, fix: 'set a day of the month, 1 through 31 (clamped to the month length)' });
       }
-      const { dispatch, endpoints } = raw.taskScheduler;
+      const { dispatch } = raw.taskScheduler;
+      const endpoints = raw.taskScheduler[ENDPOINTS_KEY] ?? raw.taskScheduler[LEGACY_ENDPOINTS_KEY];
       if (dispatch !== undefined && !DISPATCH_MODES.includes(dispatch)) {
         errors.push({
           what: `"taskScheduler.dispatch" must be one of ${DISPATCH_MODES.join(', ')}, got ${JSON.stringify(dispatch)}`,
@@ -342,17 +380,72 @@ export function loadConfig(root) {
       // since a task declaration is vendored verbatim into every consuming repo.
       if (endpoints !== undefined) {
         if (endpoints === null || typeof endpoints !== 'object' || Array.isArray(endpoints)) {
-          errors.push({ what: '"taskScheduler.endpoints" must be an object of endpoint name → { url, tokenSecret }', fix: 'e.g. { "default": { "url": "https://…", "tokenSecret": "CCR_SESSION_TOKEN" } }' });
+          errors.push({ what: `"taskScheduler.${ENDPOINTS_KEY}" must be an object of endpoint name → { url, tokenSecret }`, fix: 'e.g. { "default": { "url": "https://…", "tokenSecret": "CCR_SESSION_TOKEN" } }' });
         } else {
-          for (const [name, entry] of Object.entries(endpoints)) {
+          for (const [epName, entry] of Object.entries(endpoints)) {
             if (entry === null || typeof entry !== 'object' || Array.isArray(entry)
                 || typeof entry.url !== 'string' || typeof entry.tokenSecret !== 'string') {
-              errors.push({ what: `"taskScheduler.endpoints.${name}" must be { url, tokenSecret } (both strings)`, fix: 'give the endpoint an invocation URL and the NAME of the repo Actions secret holding its token — never the token itself' });
+              errors.push({ what: `"taskScheduler.${ENDPOINTS_KEY}.${epName}" must be { url, tokenSecret } (both strings)`, fix: 'give the endpoint an invocation URL and the NAME of the repo Actions secret holding its token — never the token itself' });
             }
           }
         }
       }
       taskScheduler = raw.taskScheduler;
+    }
+  }
+
+  // --- the installed mount: the engine version this repo holds, and the version of
+  // each pack it has installed. The current home is the top-level `engineVersion`
+  // and each pack entry's own `version`; the retired `claudinite` block is read
+  // underneath for a member the #1252 record has not reached, and a pack renamed
+  // since that block was written still keys its version under the old spelling, so
+  // the legacy map is canonicalized before anything compares it.
+  let engineVersion = null;
+  if (raw.engineVersion !== undefined) {
+    if (isVersion(raw.engineVersion)) engineVersion = raw.engineVersion;
+    else {
+      errors.push({
+        what: `"engineVersion" must be a version — date-anchored <day>.<n>, got ${JSON.stringify(raw.engineVersion)}`,
+        fix: 'leave it to the update flows, which write the version they installed',
+      });
+    }
+  } else if (isVersion(raw.claudinite?.engineVersion)) {
+    engineVersion = raw.claudinite.engineVersion;
+  }
+
+  const packVersions = {};
+  const legacyVersions = raw.claudinite?.packVersions;
+  if (legacyVersions && typeof legacyVersions === 'object' && !Array.isArray(legacyVersions)) {
+    Object.assign(packVersions, canonicalPackVersions(legacyVersions));
+  }
+  for (const entry of packEntries) {
+    if (entry.version !== undefined) packVersions[entry.id] = entry.version;
+  }
+
+  // --- the delivery override. `true` is the only value that means anything, so
+  // anything else present is a typo the run must not read as "yes" or silently as
+  // "no" — a wrong answer here is a PR merged unreviewed on a repo that asked for
+  // review, or a repo's daily update stalled forever waiting for a human nobody
+  // told. The retired `maintenance.delivery` says the same thing the old way, and
+  // an unrecognised value THERE is equally an error rather than a default.
+  let requirePrReview = false;
+  if (raw.dailyClaudiniteUpdatesRequirePrReview !== undefined) {
+    if (typeof raw.dailyClaudiniteUpdatesRequirePrReview === 'boolean') {
+      requirePrReview = raw.dailyClaudiniteUpdatesRequirePrReview;
+    } else {
+      errors.push({
+        what: `"dailyClaudiniteUpdatesRequirePrReview" must be true or false, got ${JSON.stringify(raw.dailyClaudiniteUpdatesRequirePrReview)}`,
+        fix: 'set it to true to leave this repo\'s update PR for a human, or remove the key',
+      });
+    }
+  } else if (raw.maintenance?.delivery !== undefined) {
+    const legacy = String(raw.maintenance.delivery).trim();
+    if (['review', 'pr'].includes(legacy)) requirePrReview = true;
+    else if (!['auto-merge', 'auto', 'push', ''].includes(legacy)) {
+      errors.push({
+        what: `the retired "maintenance.delivery" holds ${JSON.stringify(raw.maintenance.delivery)}, which is neither auto-merge nor review`,
+        fix: 'remove the "maintenance" block — set "dailyClaudiniteUpdatesRequirePrReview": true if this repo\'s update PR must wait for a human',
+      });
     }
   }
 
@@ -375,18 +468,23 @@ export function loadConfig(root) {
     sharedConstants: Array.isArray(raw.sharedConstants) ? raw.sharedConstants : [],
     packConfig,
     taskScheduler,
-    // Passed through as declared, not normalized: `claudinite` is the
-    // vendored-mount provenance stamp the `stamp` signal reads, and `maintenance`
-    // is the delivery preference. Both are in CONFIG_KEYS, so declaring them is
-    // legal and raises no error — and omitting them from THIS shape is what made
-    // the stamp invisible to the scheduler and silently killed baselining across
-    // the whole fleet: every repo self-skipped as "no vendored mount (no stamp)"
-    // while its scheduler runs went green. A key that validates but does not
-    // survive the load is the worst kind — legal to write, impossible to read,
-    // silent in both directions. The CONFIG_KEYS-survive-loadConfig test pins the
-    // whole set so no future key can go the same way.
-    claudinite: raw.claudinite ?? null,
-    maintenance: raw.maintenance ?? null,
+    // The installed mount, normalized from wherever this member happens to spell
+    // it: the top-level `engineVersion` and each entry's own `version`, falling
+    // back to the retired `claudinite` block for a member that has not run the
+    // #1252 record yet. Downstream reads ONE shape and never learns there were
+    // two — and omitting a declared key from this returned shape is the worst
+    // kind of bug, legal to write and impossible to read: it is what made the
+    // stamp invisible to the scheduler and silently killed baselining fleet-wide,
+    // every repo self-skipping as "no vendored mount" while its runs went green.
+    // The CONFIG_KEYS-survive-loadConfig test pins the whole set.
+    engineVersion,
+    packVersions,
+    // The harsh override, normalized to the boolean every caller asks for and named
+    // exactly as the file names it — one spelling, so nothing has to learn that the
+    // key and the field it loads into are different words. Absent is the normal
+    // shape and means the update PR lands on its own; the retired
+    // `maintenance.delivery: review` says the same thing the old way.
+    dailyClaudiniteUpdatesRequirePrReview: requirePrReview,
     // Normalized to a boolean rather than passed through: everything downstream
     // asks "is this project dormant", and a tri-state (true / false / absent) would
     // invite each caller to answer the absent case for itself. Absent is active.

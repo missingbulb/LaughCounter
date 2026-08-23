@@ -14,7 +14,7 @@ the self-refresh. The contract a scheduled task is written to is claudinite-grow
   skill's own text carries (to a sibling doc, a sibling skill) was written for its real home and
   dangles from that announced base — resolve such links against the canon path instead.
 
-- **Wanting a pack's rules to apply here** — declare its id in `.claudinite-checks.json`. Nothing
+- **Wanting a pack's rules to apply here** — declare its id in `.claudinite-settings.json`. Nothing
   activates by being mounted, fingerprinted or present on disk, so a pack whose files you can see
   but whose id is undeclared contributes no prose, no checks, no skills and no tasks.
 

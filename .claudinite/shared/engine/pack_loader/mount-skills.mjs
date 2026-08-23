@@ -2,7 +2,7 @@
 // SessionStart hook: mount the ACTIVE packs' bundled skills. A skill lives in
 // exactly one pack's own tree (`<pack>/skills/<skill>/`, canon and local alike
 // — #385); this hook takes the union over the packs declared in
-// .claudinite-checks.json (no pack is active by default — bootstrap seeds
+// .claudinite-settings.json (no pack is active by default — bootstrap seeds
 // `basics`, which bundles the baseline skills)
 // and (re)generates the `.claude/skills/<name>` symlinks to match —
 // created, retargeted, and removed as the declarations change, so the mounted
@@ -19,6 +19,7 @@ import {
 } from 'node:fs';
 import { join, dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { settingsPath } from '../settings-file.mjs';
 
 try {
   // This module lives at <corpus>/engine/pack_loader/.
@@ -26,7 +27,7 @@ try {
   const projectRoot = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 
   let declared = [];
-  const configPath = join(projectRoot, '.claudinite-checks.json');
+  const configPath = settingsPath(projectRoot);
   if (existsSync(configPath)) {
     const raw = JSON.parse(readFileSync(configPath, 'utf8'));
     if (Array.isArray(raw.packs)) declared = raw.packs;

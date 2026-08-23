@@ -7,7 +7,7 @@
 //
 // Pure and stateless: `now` is always injected, every value is UTC.
 
-import { anchorInstant } from '../calendar.mjs';
+import { anchorInstant, normalizeFrequency } from '../calendar.mjs';
 
 const HOUR_MS = 3600e3;
 const DAY_MS = 24 * HOUR_MS;
@@ -15,11 +15,17 @@ const DAY_MS = 24 * HOUR_MS;
 // One period of a frequency, in ms — the unit the janitor's stale-ready rule
 // counts in (DESIGN §11) and the coarse step `nextAnchor` walks.
 export function periodMs(frequency) {
-  if (frequency === 'hourly') return HOUR_MS;
-  if (frequency === 'weekly') return 7 * DAY_MS;
-  if (frequency === 'monthly') return 31 * DAY_MS;
-  if (frequency === 'manual') return null;
-  return DAY_MS; // the daily family
+  // Normalized like `anchorInstant`. Today this changes no answer — every retired token maps to
+  // `daily`, which is also the fallthrough below — so it is insurance, not the thing carrying the
+  // behaviour: it is what keeps this correct if `LEGACY_FREQUENCIES` ever gains a mapping that is
+  // not `daily`. What DOES carry it is the door plus that fallthrough, and why it matters is
+  // sharp: this feeds the janitor's stale-ready bound and the precondition's signal window, so a
+  // token resolving to an HOUR here parks a member's task needs-human on every sweep (§17.1).
+  const freq = normalizeFrequency(frequency);
+  if (freq === 'weekly') return 7 * DAY_MS;
+  if (freq === 'monthly') return 31 * DAY_MS;
+  if (freq === 'manual') return null;
+  return DAY_MS;
 }
 
 // The most recent occurrence at or before `now`, as a Date. `manual` has none —
@@ -33,9 +39,9 @@ export const mostRecentAnchor = anchorInstant;
 // wrong. The coarse step is under one period, so the loop advances by at most two
 // steps and never overshoots an occurrence.
 export function nextAnchor(frequency, schedule, now) {
-  if (frequency === 'manual') return null;
+  if (normalizeFrequency(frequency) === 'manual') return null;
   const from = mostRecentAnchor(frequency, schedule, now).getTime();
-  const step = frequency === 'monthly' ? 28 * DAY_MS : periodMs(frequency);
+  const step = normalizeFrequency(frequency) === 'monthly' ? 28 * DAY_MS : periodMs(frequency);
   for (let t = from + step; ; t += step) {
     const candidate = mostRecentAnchor(frequency, schedule, new Date(t));
     if (candidate.getTime() > from) return candidate;

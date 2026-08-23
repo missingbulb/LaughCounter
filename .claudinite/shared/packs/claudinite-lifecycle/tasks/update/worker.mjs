@@ -1,8 +1,8 @@
 // THE UPDATE RUNNER (#768) — the shell that makes the versioned flows actually run
 // against a member. Everything it decides was decided elsewhere: the flows judge and
-// write, `terminalFor` says what happens to the PR, `servedBy` says whether this repo
-// is ours at all. What lives here is the I/O none of them may carry — the clone, the
-// branch, the commit, the push, the PR, and the hand-off.
+// write, `terminalFor` says what happens to the PR, `deliveryFor` says whether the PR
+// this run opens is the member's to land. What lives here is the I/O none of them may
+// carry — the clone, the branch, the commit, the push, the PR, and the hand-off.
 //
 // SAME SHAPE AS BASELINING, deliberately. That worker is the proven pattern for
 // "converge a member from its own Actions run": clone canon fresh, run the CLONE's
@@ -10,18 +10,20 @@
 // and let the shared landing helper own every nuance of arming versus merging. A
 // second, cleverer shape here would be a second set of the same bugs.
 //
-// IT STANDS DOWN unless the repo declares itself served by the update flows. The
-// inverse of baselining's guard, from the same definition, so exactly one mechanism
-// converges a mount — and a repo that has said nothing is not this one's to touch.
+// IT NO LONGER ASKS WHICH MECHANISM SERVES THE REPO. There is one, and its only
+// rival was deleted in #768 Phase 5, so the question had exactly one answer for
+// every member that could ask it; the `maintenance` block that held it is gone
+// (#1252) and `engine/served-by.mjs` is deprecated with it.
 import { execFileSync } from 'node:child_process';
-import { readFileSync, existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { servedBy, servedByUpdates } from '../../../../engine/served-by.mjs';
+import { removeTree } from '../../../../engine/remove-tree.mjs';
 import {
-  resolveDelivery, pullCreateError, landDelivery, openDeliveredPull, disposeOpenPull,
+  deliveryFor, pullCreateError, landDelivery, openDeliveredPull, disposeOpenPull,
 } from '../../../../engine/scheduler/land-pr.mjs';
+import { settingsPath, SETTINGS_FILE } from '../../../../engine/settings-file.mjs';
 
 const CANON_URL = 'https://github.com/missingbulb/Claudinite.git'; // public — no token
 const UPDATE_PREFIX = 'claudinite/update';
@@ -110,31 +112,17 @@ export async function main() {
   if (!repo) { console.error('update: no repo (CLAUDINITE_REPO/GITHUB_REPOSITORY)'); process.exit(1); }
   if (!token) { console.error('update: no GITHUB_TOKEN in env'); process.exit(1); }
 
-  const checksPath = join(root, '.claudinite-checks.json');
-  if (!existsSync(checksPath)) { console.log('update: no .claudinite-checks.json — nothing to update'); return; }
-  const declaration = JSON.parse(readFileSync(checksPath, 'utf8'));
+  // Either settings-file name, in the rename's read order: this worker is VENDORED,
+  // so the copy running on a member may predate the record that renamed its own
+  // file — and one that only knew the new name would report "nothing to update" on
+  // every repo still carrying the old one.
+  const settingsFile = settingsPath(root);
+  if (!existsSync(settingsFile)) { console.log(`update: no ${SETTINGS_FILE} — nothing to update`); return; }
+  const declaration = JSON.parse(readFileSync(settingsFile, 'utf8'));
 
-  // A repo that declares the RETIRED mechanism is not served by anything: Phase 5
-  // deleted it. Standing down silently would leave that repo unmaintained with a
-  // green run to show for it, so the dead end is named and the fix stated.
-  // Asked as "are these flows mine to run", NOT as a string comparison against one
-  // spelling. The mechanism was renamed `updates` → `versioned` (#768), and the two
-  // names are live at once while that record drains — so a literal here would refuse
-  // a member the moment its own declaration was correctly renamed, which is the
-  // fielded-worker asymmetry all over again: this file is vendored and a cycle behind
-  // the flows that rewrite the declaration it reads.
-  const served = servedBy(declaration);
-  if (!servedByUpdates(declaration)) {
-    console.error(`update: this repo declares maintenance.mechanism "${served.mechanism}", which was retired in`
-      + ' Claudinite #768 Phase 5 — nothing maintains this repo. Set it to "versioned" (or remove the key: that'
-      + ' is now the default) to be served by the update flows.');
-    process.exit(1);
-  }
-  const { delivery } = resolveDelivery(declaration?.maintenance?.delivery);
-  if (!delivery) {
-    console.error(`update: maintenance.delivery "${declaration?.maintenance?.delivery}" is neither auto-merge nor review`);
-    process.exit(1);
-  }
+  // One override, one direction: a repo that asked for review gets its PR opened and
+  // left; every other repo — the normal shape, the key absent — has it landed.
+  const delivery = deliveryFor(declaration);
 
   // DISPOSE OF THE INCUMBENT FIRST (#787). A cycle that could not land its PR — the
   // usual cause is a `pull_request` run parked at `action_required` while the
@@ -257,7 +245,7 @@ export async function main() {
       console.log(`update: requested the apply stage — ${terminal.why}`);
     }
   } finally {
-    rmSync(tmp, { recursive: true, force: true });
+    removeTree(tmp);
   }
 }
 

@@ -5,17 +5,35 @@
 # every reader that knows this workflow by name keep holding.
 #
 # A thin shim: all logic lives in the vendored engine, so this file changes
-# rarely. The minute below is a placeholder; bootstrap and the wiring converge
-# rewrite it to this repo's stable hashed minute in :10–:50, computed by
+# rarely. The cron line below is a placeholder; bootstrap and the wiring converge
+# rewrite it to this repo's stable hashed minute in :10–:50 and its own two
+# anchor hours, computed by
 # `node .claudinite/shared/engine/scheduler/hash-minute.mjs <owner/repo>`.
 #
-# TWO JOBS, IN ORDER. The scheduler run is pure label mechanics over the issue list —
+# TWO TICKS A DAY, NOT TWENTY-FOUR (DESIGN §17). Actions bills each job's minutes
+# rounded up, so a day's cost is the RUN COUNT — a scheduler run's median is 32
+# seconds, and an hourly cron billed 24 minutes a day per repo to do about 13
+# minutes of work. The hours are the repo's `taskScheduler.dailyHour` and twelve
+# hours after it: the first covers every occurrence the calendar can produce
+# (every daily, weekly and monthly anchor falls on that hour), the second carries
+# the work that has no anchor — adopting an issue somebody marked, releasing a
+# `Not-before`, reclaiming a dead claim. A missed tick costs latency and never an
+# occurrence: dueness is read from the anchor, never from whether the cron fired.
+#
+# TWO JOBS, IN ORDER, THE SECOND CONDITIONAL. The scheduler run is pure label mechanics over the issue list —
 # instantiate each task's standing item at its anchor, ready what is due, reclaim
 # dead executor claims — and evaluates no precondition and collects no signal. The
 # drain then STARTS an executor run for what the scheduler run just created, which is what
 # keeps the common case's latency at zero even with no `labeled` event delivered.
 # Lost events are therefore never the only delivery — they are latency sugar,
 # which is what retires the re-arm.
+#
+# THE DRAIN RUNS ONLY WHEN THERE IS SOMETHING TO DRAIN (DESIGN §15.30). Actions
+# bills each job's minutes rounded up, so an executor dispatched into an empty
+# queue costs a full invocation to find nothing: on a quiet repo, 24 of them a
+# day. The scheduler-run job reports what it left pickable and the drain job's
+# `if` reads it. This weakens no delivery — what a lost label event would have
+# delivered is exactly what that parting look sees.
 #
 # The drain dispatches rather than executes, and that is the point: this workflow's
 # concurrency group serializes SCHEDULER RUNS, and an executor run inside it would make each
@@ -33,7 +51,7 @@ name: Claudinite scheduler
 
 on:
   schedule:
-    - cron: '49 * * * *'
+    - cron: '49 4,16 * * *'
   workflow_dispatch:
     inputs:
       wake:
@@ -57,12 +75,17 @@ permissions:
 jobs:
   scheduler-run:
     runs-on: ubuntu-latest
+    outputs:
+      pickable: ${{ steps.run.outputs.pickable }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: 24
       - name: Instantiate, ready and reclaim work items
+        # `id` so the step's `pickable` output can become the job output the
+        # drain's `if` reads; the script writes it as its last act.
+        id: run
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CLAUDINITE_WAKE: ${{ inputs.wake }}
@@ -83,6 +106,10 @@ jobs:
   # every hour whatever happens.
   drain:
     needs: scheduler-run
+    # An hour that readied nothing dispatches nothing. An OLDER member workflow
+    # maps no such output, and an empty string is not 'true' — so a stale copy
+    # keeps dispatching every hour, which is the previous behavior and safe.
+    if: needs.scheduler-run.outputs.pickable == 'true'
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -105,7 +132,12 @@ jobs:
   # first-run failure may precede any label-ensure.
   report-failure:
     needs: [scheduler-run, drain]
-    if: failure()
+    # Explicit results rather than `failure()`: `drain` is skipped on a quiet
+    # hour, and a bare status function makes this job's fate turn on how the
+    # platform propagates a skipped dependency.
+    if: >-
+      always()
+      && (needs.scheduler-run.result == 'failure' || needs.drain.result == 'failure')
     runs-on: ubuntu-latest
     permissions:
       issues: write

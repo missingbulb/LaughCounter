@@ -7,7 +7,9 @@ set -euo pipefail
 
 # Runs when the environment image is built, as root, starting in the checkout's
 # PARENT dir — hence the search for the one dir under here that mounts Claudinite.
-cd "$(dirname "$(find "$PWD" -maxdepth 2 -name .claudinite-checks.json 2>/dev/null | head -n1)")"
+# Either settings-file name (#1252): this script is pasted into a managed container's
+# Setup field by hand and re-pasted rarely, so it long outlives a member's rename.
+cd "$(dirname "$(find "$PWD" -maxdepth 2 \( -name .claudinite-settings.json -o -name .claudinite-checks.json \) 2>/dev/null | head -n1)")"
 
 # What this installs is the active packs' business, which is why the body never
 # changes as their requirements do.

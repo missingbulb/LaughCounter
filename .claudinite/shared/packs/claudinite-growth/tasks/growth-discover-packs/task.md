@@ -39,15 +39,22 @@ Now hold the manifest against two things: the **available canon packs** (`.claud
 
 ### 3. Author the local pack — distilled from the repo's real usage
 
-For each candidate, author a populated pack under `.claudinite/local/packs/<name>/`, distilled from **how this project actually works** — never from imagination. Apply the [generate-project-instructions](../../skills/generate-project-instructions/SKILL.md) method (don't re-derive it): descend the promotion ladder ([engine/checks/DESIGN.md](../../../../engine/checks/DESIGN.md)) — a rule a deterministic check can carry becomes the **check plus a see-it-fail fixture** (fires on a violating input, quiet on a clean one), a procedure with a nameable trigger becomes a skill, and only signature-less judgment lands as `RULES.md` prose. Ground and cite every rule in the project's real files. **Never pad** with speculative best-practice rules the evidence doesn't demonstrate; a rule you can't ground, you don't write — a smaller honest pack beats a padded one. And **never open an empty stub to fill later**. Write the pack files (`RULES.md`, `pack.mjs`, `README.md`), register it, and **declare it** in the repo's `.claudinite-checks.json` so it actually activates.
+For each candidate, author a populated pack under `.claudinite/local/packs/<name>/`, distilled from **how this project actually works** — never from imagination. Apply the [generate-project-instructions](../../skills/generate-project-instructions/SKILL.md) method (don't re-derive it): descend the promotion ladder ([engine/checks/DESIGN.md](../../../../engine/checks/DESIGN.md)) — a rule a deterministic check can carry becomes the **check plus a see-it-fail fixture** (fires on a violating input, quiet on a clean one), a procedure with a nameable trigger becomes a skill, and only signature-less judgment lands as `RULES.md` prose. Ground and cite every rule in the project's real files. **Never pad** with speculative best-practice rules the evidence doesn't demonstrate; a rule you can't ground, you don't write — a smaller honest pack beats a padded one. And **never open an empty stub to fill later**. Write the pack files (`RULES.md`, `pack.mjs`, `README.md`), register it, and **declare it** in the repo's `.claudinite-settings.json` so it actually activates.
 
 ### 4. Open the PR for review
 
 Land the new pack (and its declaration) through a single PR on a per-run-unique branch (see [the git-github-advanced skill](../../../git-github/skills/git-github-advanced/SKILL.md)) — title `Claudinite growth: discover local pack <name>`, and **put the issue reference in the commit message**: `Refs #<n>` for this task's tracking issue (below), in the commit itself, not only the PR body, so the `task-lifecycle` gate passes. **Never arm auto-merge** — the reviewer is the point. A new check must still ship green (see it fail on a violating fixture, pass on a clean one) so CI stays green and the reviewer has something mergeable; a rule that can't be made a confident check lands as prose instead.
 
-## Tracking
+## Record
 
-The standing log is the issue titled exactly **`Claudinite tracker: Discover Local Packs`** in this repo. Find it **by that exact title, never a fuzzy match or a hard-coded number**; create it already closed if missing — creation always lands an issue open and ignores a `state: closed` argument, so create it and close it in a second call. **Never open, close, or reopen it** afterward — its state carries no meaning, only the log does. Log each run as a **dated comment**: the pack authored (the repo segment it covers + the rungs its rules landed on), or "nothing new worth a local pack this run", and any "should declare canon pack X instead" note. For a candidate you found nothing groundable for, name it and why.
+A pack this run authors is seeded with its own `VERSIONS.md` — the empty table `seedRepoLocalPack` writes,
+described in [the pack README](../../README.md) — and the run's first row goes in it: date,
+`growth-discover-packs`, the repo segment the pack covers and the rungs its rules landed on. Everything else
+this run has to say — a candidate you found nothing groundable for, a "should declare canon pack X instead"
+note — belongs in the PR body, where the reviewer deciding on the pack is already reading. There is no
+standing issue.
+
+A run that authored no pack writes nothing anywhere.
 
 ## What this task must never do
 

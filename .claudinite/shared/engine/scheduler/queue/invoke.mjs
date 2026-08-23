@@ -18,6 +18,8 @@
 // the prompt says which issue and which nonce, and the session validates both in
 // code before acting (DESIGN §7).
 
+import { ENDPOINTS_KEY, LEGACY_ENDPOINTS_KEY } from '../../checks/helpers/repo-context.mjs';
+
 export const DEFAULT_ENDPOINT = 'default';
 
 // The endpoint is a ROUTINE'S API TRIGGER — `POST /v1/claude_code/routines/
@@ -61,10 +63,13 @@ export const DEFAULT_HEADERS = Object.freeze({
 // where the operator reads it, never a crash.
 export function resolveEndpoint(config, task) {
   const name = task?.decl?.invocation_endpoint ?? DEFAULT_ENDPOINT;
-  const endpoints = config?.taskScheduler?.endpoints ?? {};
+  // Either spelling: `endpoints` was renamed to say WHICH endpoints these are
+  // (#1252), and a member writes its own settings, so the old key stays live until
+  // that member's own converge rewrites it.
+  const endpoints = config?.taskScheduler?.[ENDPOINTS_KEY] ?? config?.taskScheduler?.[LEGACY_ENDPOINTS_KEY] ?? {};
   const entry = endpoints[name];
   if (!entry) {
-    return { name, error: `this repo's config declares no invocation endpoint "${name}" (taskScheduler.endpoints)` };
+    return { name, error: `this repo's settings declare no invocation endpoint "${name}" (taskScheduler.${ENDPOINTS_KEY})` };
   }
   if (!entry.url) return { name, error: `invocation endpoint "${name}" declares no url` };
   if (!entry.tokenSecret) return { name, error: `invocation endpoint "${name}" declares no tokenSecret (the NAME of the repo Actions secret holding its token)` };

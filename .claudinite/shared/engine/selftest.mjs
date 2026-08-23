@@ -34,9 +34,15 @@
 import { existsSync, readFileSync, readdirSync, lstatSync, realpathSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { SETTINGS_FILE, SETTINGS_FILES } from './settings-file.mjs';
+import { hasInstalledMount } from './installed-versions.mjs';
 
 export const MOUNT = '.claudinite/shared';
-export const CHECKS = '.claudinite-checks.json';
+// Both settings-file names, newest first (#1252): the probe runs on a member whose
+// own rename record may not have landed yet, and reporting "the declaration is
+// missing" on a repo that simply spells it the old way would fail every session
+// there over a file sitting right beside it.
+export const CHECKS = SETTINGS_FILE;
 export const SETTINGS = '.claude/settings.json';
 export const SCHEDULER = '.github/workflows/claudinite-scheduler.yml';
 
@@ -80,17 +86,21 @@ export function probeMount(io) {
 }
 
 export function probeStamp(io) {
-  const raw = io.read(CHECKS);
+  const name = SETTINGS_FILES.find((f) => io.read(f) !== null) ?? CHECKS;
+  const raw = io.read(name);
   if (raw === null) return fail('stamp', `${CHECKS} is missing`, 'run bootstrap --init to write the declaration');
   let cfg;
   try { cfg = JSON.parse(raw); } catch (e) {
-    return fail('stamp', `${CHECKS} is not valid JSON: ${e.message}`, 'fix the JSON syntax — nothing can read the declaration until it parses');
+    return fail('stamp', `${name} is not valid JSON: ${e.message}`, 'fix the JSON syntax — nothing can read the declaration until it parses');
   }
   if (!io.exists(MOUNT)) return skip('stamp', 'no vendored mount to stamp');
-  const s = cfg.claudinite;
-  if (!s || typeof s.updated !== 'string' || !s.updated) {
-    return fail('stamp', 'the mount is present but carries no claudinite.updated stamp',
-      'the update flows read this to decide what to apply — a missing stamp makes the task self-skip forever (#518)');
+  // The VERSIONS, not a datetime. The `claudinite.updated` this probed until #1252
+  // recorded the last full re-vendor rather than the last converge, so it was a
+  // stale reading of a healthy mount; what the update flows actually read to decide
+  // what to apply is what a member has installed, which is what must be present.
+  if (!hasInstalledMount(cfg)) {
+    return fail('stamp', 'the mount is present but no installed versions are recorded',
+      'the update flows read these to decide what to apply — with none, the task self-skips forever (#518)');
   }
   return pass('stamp');
 }

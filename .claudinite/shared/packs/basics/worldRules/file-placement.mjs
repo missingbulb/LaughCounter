@@ -1,7 +1,7 @@
 import { dirname, join, normalize, sep } from 'node:path';
-import { finding } from '../../engine/checks/helpers/findings.mjs';
-import { engineSurface } from '../../engine/checks/helpers/module-imports.mjs';
-import { SHARED_SUBDIR } from '../../engine/pack_loader/pack-registry.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
+import { engineSurface } from '../../../engine/checks/helpers/module-imports.mjs';
+import { SHARED_SUBDIR } from '../../../engine/pack_loader/pack-registry.mjs';
 
 const CODE_EXT = /\.(mjs|cjs|jsx?|tsx?)$/;
 const CODE_REF = /(?:from\s+|require\(\s*|import\(\s*)['"](\.{1,2}\/[^'"]+)['"]/g;

@@ -14,25 +14,22 @@
 // prose corpus. The brief carries both.
 //
 // The channel is the REPOSITORY, per the code-work contract (task-code-work DESIGN
-// §3): no code→agent data channel exists, so the brief is written into this
-// task's own standing tracker issue and the hand-off payload carries only its
-// number. The body is rewritten each run — it describes THIS window, so a second
-// copy would be a stale one. The tracker's COMMENTS stay the agentic phase's
-// prune log; code-work never comments.
+// §3): no code→agent data channel exists, so the brief is posted as a COMMENT on
+// the run's own work item, whose number code-work is handed as CLAUDINITE_ITEM.
+// The item is where the agentic phase is already reading, the brief describes THIS
+// window and nothing else, and both die together when the item converges — which
+// is the whole life the brief has. A standing issue would outlive it by a week and
+// then hold a stale window.
 
 import { writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { makeGh } from '../../../../engine/scheduler/signals/gh.mjs';
 import { loadConfig } from '../../../../engine/checks/helpers/repo-context.mjs';
-import { findOrCreateTracker, writeTracker } from '../../../../engine/scheduler/tracker.mjs';
 
 const log = (s) => console.log(`growth-dedup code_work: ${s}`);
 
 // The window this task's own cadence covers — `frequency: 'weekly'` in task.mjs.
 export const WINDOW_DAYS = 7;
-
-// The standing log this task keeps. Its own, named here and nowhere else.
-export const TRACKER_TITLE = 'Claudinite tracker: Growth Dedup';
 
 // A canon pack's file, in the two-root form: the mount prefix is optional because
 // the canon home runs this same code from its repo root, where the shared packs
@@ -53,7 +50,7 @@ const CHECK_ID = /"id"\s*:\s*"([^"]+)"/;
 // truncated brief never reads as the complete set of what the canon added.
 export const MAX_ADDED_LINES_PER_FILE = 40;
 
-// The whole brief's budget, against GitHub's 65536-byte issue body. Measured
+// The whole brief's budget, against GitHub's 65536-byte cap on an issue comment. Measured
 // need: the canon home's own busiest week rendered 350KB unbudgeted, so this is
 // a live constraint, not a theoretical one. What the budget rations is the added
 // LINES; every changed file is named regardless, since that list is cheap and is
@@ -118,7 +115,7 @@ export function summarizeCanonWindow(commits, declaredPacks) {
 }
 
 /**
- * The tracker body: the window's canon additions, as the run's starting point.
+ * The brief: the window's canon additions, as the run's starting point.
  *
  * Two tiers, because they have different worth per byte. The MAP — each pack's
  * new check ids and the paths of every file that moved — is always complete: it
@@ -135,7 +132,7 @@ export function renderBrief(summary, { sinceIso }) {
   push(
     `# Canon window diff — since ${sinceIso}`,
     '',
-    'Written by the `growth-dedup` code_work at the top of each run, and rewritten every run:',
+    'Written by the `growth-dedup` code_work at the top of this run:',
     'this describes the CURRENT window only. It is where the run starts, not what it may cite —',
     'a prune may still quote an older line in one of these packs.',
     '',
@@ -235,13 +232,18 @@ async function main() {
   const declared = loadConfig(root).packs ?? [];
   const summary = summarizeCanonWindow(await windowCommits(gh, repo, branch, sinceIso), declared);
 
-  // THIS TASK's tracker, resolved by this task. Every run rewrites the body with
-  // the window's brief — that brief IS what the agentic phase works from — so it
-  // is found or created here, and the number is handed on below.
-  const { number: tracker } = await findOrCreateTracker(gh, repo, TRACKER_TITLE);
-  await writeTracker(gh, repo, tracker, { body: renderBrief(summary, { sinceIso }) });
+  // The brief, onto the run's OWN work item. `CLAUDINITE_ITEM` is the number the
+  // queue hands every code-work run; without it there is nowhere to put the brief
+  // and the agentic phase would start from nothing, so this is a hard failure.
+  const item = process.env.CLAUDINITE_ITEM;
+  if (!item) throw new Error('CLAUDINITE_ITEM is not set — nowhere to post the window brief');
+  const posted = await gh(`/repos/${repo}/issues/${item}/comments`, {
+    method: 'POST',
+    body: { body: renderBrief(summary, { sinceIso }) },
+  });
+  if (posted.status >= 300) throw new Error(`could not post the window brief to #${item}: POST returned ${posted.status}`);
   const detail = handoffDetail(summary);
-  log(`tracker #${tracker} carries the brief — ${detail}`);
+  log(`window brief posted to work item #${item} — ${detail}`);
 
   // ALWAYS hand off. The precondition already decided this run happens, and an
   // empty canon window still leaves the repo's fresh local items to re-check, so
@@ -249,11 +251,9 @@ async function main() {
   // judging whether an added canon line genuinely covers a local item.
   const requestPath = process.env.CLAUDINITE_REQUEST_AGENT;
   if (!requestPath) throw new Error('CLAUDINITE_REQUEST_AGENT is not set — cannot hand off to the agentic phase');
-  // The brief is ON the tracker, so the number is the one thing the agentic phase
-  // cannot do without: it travels in the hand-off payload's `delivered`, which the
-  // dispatch renders as an `Issue:` line.
+  // No `delivered`: the brief is a comment on the item the agentic phase is already
+  // reading, so there is no artifact identity this run has to hand over.
   writeFileSync(requestPath, JSON.stringify({
-    delivered: { issue: tracker },
     reason: { code: 'canon-window-diff', detail },
   }));
 }

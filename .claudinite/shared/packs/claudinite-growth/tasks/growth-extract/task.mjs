@@ -18,13 +18,13 @@
 
 export default {
   id: 'growth-extract',
-  frequency: 'daily-1h',           // the 03:00 anchor — lessons captured from an already-converged mount (DESIGN §2)
-  // …and the ordering the anchor hour only IMPLIES, declared (tasks-dispatch
-  // DESIGN §9): this task reads a mount `claudinite-lifecycle/update` converges, so it yields while
-  // that task's item is live this cycle and runs the moment it converges — or
-  // rolls. The staggered anchor hours express the same intent and cannot enforce
-  // it; this can.
-  after: ['claudinite-lifecycle/update'],
+  frequency: 'daily',
+  // The ordering, declared (tasks-dispatch DESIGN §9) — and now the ONLY thing carrying it, since
+  // the staggered anchor hours retired with the twice-daily cron (§17.1). This task reads a mount
+  // `claudinite-lifecycle/update` converges, so it yields while that task's item is live this
+  // cycle and runs the moment it converges — or rolls. The offset only ever implied this; the
+  // declaration enforces it.
+  schedule_after: ['claudinite-lifecycle/update'],
   precondition_signals: ['commits', 'prs', 'issues'],
   agent_model: 'opus',                   // generalizing/curating lessons is the heaviest judgment, and the default delivery lands the PR with no human review
   expected_outcome: 'merged-pr',            // additive edits to the repo's own local packs; delivered to land per the repo's delivery settings

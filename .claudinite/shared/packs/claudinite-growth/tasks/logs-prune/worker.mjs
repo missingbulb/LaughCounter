@@ -29,6 +29,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DEFAULT_BRANCH } from '../../capture-log.mjs';
 import { planPrune } from './prune-logs.mjs';
+import { settingsPath } from '../../../../engine/settings-file.mjs';
 
 const PUSH_ATTEMPTS = 3;
 
@@ -44,7 +45,7 @@ const git = (root, args, opts = {}) => execFileSync('git', ['-C', root, ...args]
 // what it should not, so an unreadable declaration must not become a number.
 export function readRetentionDays(root) {
   let config;
-  try { config = JSON.parse(readFileSync(join(root, '.claudinite-checks.json'), 'utf8')); } catch { return null; }
+  try { config = JSON.parse(readFileSync(settingsPath(root), 'utf8')); } catch { return null; }
   const entry = (config?.packs ?? []).find((p) => (typeof p === 'string' ? p : p?.id) === 'claudinite-growth');
   const days = typeof entry === 'object' ? entry?.config?.retention_days : undefined;
   return typeof days === 'number' && days > 0 ? days : null;

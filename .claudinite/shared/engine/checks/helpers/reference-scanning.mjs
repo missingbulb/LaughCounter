@@ -735,7 +735,7 @@ export function barrierFindings(ctx, edges, rule) {
     // resolve its findings — such a rule overrides the excusal clause via
     // `crossingExcuse` to point at the lever that actually works (an accept).
     const excuse = rule.crossingExcuse
-      || 'add a reviewed exception in .claudinite-checks.json if the crossing is deliberate';
+      || 'add a reviewed exception in .claudinite-settings.json if the crossing is deliberate';
     const raw = [];
     const seen = new Set();
     const emit = (file, line, what, r) => {
@@ -835,7 +835,7 @@ export function barrierFindings(ctx, edges, rule) {
 // Emit a spec/shape error as a blocking finding pinned at the settings file.
 export function specFinding(rule, { what, fix }) {
   return finding(rule, {
-    file: '.claudinite-checks.json',
+    file: '.claudinite-settings.json',
     line: null,
     what: `barriers config: ${what}`,
     why: 'a malformed barrier declaration silently enforces nothing',

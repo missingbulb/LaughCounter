@@ -4,7 +4,7 @@
 // `validate-dispatch` validate against this one function, so the accepted shape
 // can never drift between the two surfaces.
 
-import { FREQUENCIES } from './calendar.mjs';
+import { ACCEPTED_FREQUENCIES, normalizeFrequency } from './calendar.mjs';
 import { MODEL_FAMILIES } from './model-map.mjs';
 import { EXECUTING_LEASH_MS } from './queue/leases.mjs';
 
@@ -32,6 +32,7 @@ const LEGACY_FIELDS = {
   agent_preprocessing_timeout: 'code_work_timeout',
   prework: 'code_work',
   prework_timeout: 'code_work_timeout',
+  after: 'schedule_after',
 };
 
 // Return the declaration with canonical field names. Non-objects pass through
@@ -46,6 +47,9 @@ export function normalizeTaskDeclaration(decl) {
       delete out[legacy];
     }
   }
+  // THE ONE DOOR for the retired frequency spellings (DESIGN §17.1). Here rather than in the
+  // calendar because a frequency is read by more than the calendar — see `normalizeFrequency`.
+  if (out.frequency !== undefined) out.frequency = normalizeFrequency(out.frequency);
   return out;
 }
 
@@ -97,8 +101,13 @@ export function validateTaskDeclaration(raw) {
   if (typeof decl.id !== 'string' || decl.id.trim() === '') {
     bad('the task has no string "id"', 'give the task an "id" matching its directory name');
   }
-  if (!FREQUENCIES.includes(decl.frequency)) {
-    bad(`"frequency" ${JSON.stringify(decl.frequency)} is not a legal frequency`, `set one of: ${FREQUENCIES.join(', ')}`);
+  // ACCEPTED, not FREQUENCIES: a member's own task file may still carry a retired spelling and
+  // must keep running, since nothing converges a member's task files. Stopping a NEW declaration
+  // from naming one is the author-time declaration-shape check's job, not this one's — the split
+  // is deliberate, and `FREQUENCIES` beside `ACCEPTED_FREQUENCIES` in calendar.mjs is where it is
+  // spelled out.
+  if (!ACCEPTED_FREQUENCIES.includes(decl.frequency)) {
+    bad(`"frequency" ${JSON.stringify(decl.frequency)} is not a legal frequency`, `set one of: ${ACCEPTED_FREQUENCIES.join(', ')}`);
   }
   if (!Array.isArray(decl.precondition_signals) || !decl.precondition_signals.every((s) => SIGNAL_NAMES.includes(s))) {
     bad(`"precondition_signals" must be an array of known signal names`, `use only: ${SIGNAL_NAMES.join(', ')}`);
@@ -181,15 +190,16 @@ export function validateTaskDeclaration(raw) {
 
   // --- the work-item queue's three optional declarations (tasks-dispatch DESIGN) ---
 
-  // `after` — ordering, declared (DESIGN §9). A list of `<pack>/<task>` ids this
+  // `schedule_after` — ordering, declared (DESIGN §9). A list of `<pack>/<task>` ids this
   // task yields to WHILE THEY ARE LIVE THIS CYCLE. It compiles to the executor's
   // pick-time yield, never to a `Blocked-by` edge: a standing item that rolls
   // never closes, so blocked-by would starve every dependent of a quiet upstream
   // forever. The engine never learns what any named task does — it reads item
   // states, generically.
-  if (decl.after !== undefined
-      && !(Array.isArray(decl.after) && decl.after.every((s) => typeof s === 'string' && /^[^/\s]+\/[^/\s]+$/.test(s)))) {
-    bad('"after" is not an array of "<pack>/<task>" ids', 'e.g. "after": ["claudinite-lifecycle/update"] — this task yields while those are live this cycle');
+  if (decl.schedule_after !== undefined
+      && !(Array.isArray(decl.schedule_after)
+        && decl.schedule_after.every((s) => typeof s === 'string' && /^[^/\s]+\/[^/\s]+$/.test(s)))) {
+    bad('"schedule_after" is not an array of "<pack>/<task>" ids', 'e.g. "schedule_after": ["claudinite-lifecycle/update"] — this task is not scheduled onto an executor while those are live this cycle');
   }
 
   // `on_interrupt` — the ack-early/ack-late dial (DESIGN §6). Most of this fleet's
@@ -209,7 +219,7 @@ export function validateTaskDeclaration(raw) {
   // of which endpoint a task names.
   if (decl.invocation_endpoint !== undefined
       && !(typeof decl.invocation_endpoint === 'string' && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(decl.invocation_endpoint))) {
-    bad('"invocation_endpoint" is not a kebab-case endpoint name', 'name a key from the repo\'s taskScheduler.endpoints map, e.g. "fleet" — never a URL');
+    bad('"invocation_endpoint" is not a kebab-case endpoint name', 'name a key from the repo\'s taskScheduler.agenticTaskInvocationEndpoints map, e.g. "fleet" — never a URL');
   }
 
   // The repo Actions secrets this task needs configured (DESIGN §9). Purely

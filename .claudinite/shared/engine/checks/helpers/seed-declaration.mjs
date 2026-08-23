@@ -1,14 +1,14 @@
-// Seed a fresh repo's `.claudinite-checks.json` — the write behind
+// Seed a fresh repo's settings file — the write behind
 // `check_the_world.mjs --init` and bootstrap.mjs's first step, extracted so the
 // two callers cannot drift. Returns { path, existed, declared }; writes only when
 // the file is absent.
 import { writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { buildContext } from './repo-context.mjs';
+import { settingsPath } from '../../settings-file.mjs';
 import { resolveDeclaredPacks } from '../../pack_loader/pack-registry.mjs';
 
 export function seedDeclaration(root, packs) {
-  const path = join(root, '.claudinite-checks.json');
+  const path = settingsPath(root);
   if (existsSync(path)) return { path, existed: true, declared: null };
   const ctx = buildContext({ root, mode: 'all' });
   // No pack is active by default, so the baseline is seeded as an explicit
@@ -26,11 +26,13 @@ export function seedDeclaration(root, packs) {
   // A pack can't be imported without its dependencies — pull each declared pack's
   // `requires` closure into the declaration so it's complete and visible.
   const declared = resolveDeclaredPacks(detected, packs);
-  // maintenance.delivery is deliberately materialized, not defaulted — the selection
-  // must be visible in the file where a project would change it (see engine/checks/README.md).
-  // Only what carries a decision: the declaration and the always-explicit
-  // delivery. Empty rules/accept boilerplate is noise, not settings (#385);
-  // loadConfig defaults absent keys.
-  writeFileSync(path, `${JSON.stringify({ packs: declared, maintenance: { delivery: 'auto-merge' } }, null, 2)}\n`);
+  // ONLY the declaration. The delivery preference used to be materialized here so the
+  // selection was visible where a project would change it — but every project made
+  // the same selection, so the line said nothing and the file carried it anyway.
+  // It is an override now (`dailyClaudiniteUpdatesRequirePrReview`, #1252): absent
+  // means the update PR lands, and the one project that wants a human writes it in.
+  // Empty rules/accept boilerplate is noise, not settings (#385); loadConfig defaults
+  // every absent key.
+  writeFileSync(path, `${JSON.stringify({ packs: declared }, null, 2)}\n`);
   return { path, existed: false, declared };
 }

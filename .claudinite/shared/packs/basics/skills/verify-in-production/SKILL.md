@@ -75,7 +75,7 @@ there is nothing left to wait on but the release itself.
   shows what is still unproven about it — [RULES.md](../../RULES.md)' *Filing an issue that
   belongs under another*, applied where there is no PR left to carry the link.
 - **`In-production-when:`** names a thing to *read*, never a duration to wait. "`missingbulb/Shepherd`'s
-  `.claudinite-checks.json` stamps `packVersions.tidy-repo` at 8 or higher." "The live site's
+  `.claudinite-settings.json` stamps `packVersions.tidy-repo` at 8 or higher." "The live site's
   `/version.json` reports a version past 4.2.0." "Any session started after this landed — check
   the vendored copy under `.claudinite/shared/` carries the new text." A merge is not a
   production condition, and neither is elapsed time.

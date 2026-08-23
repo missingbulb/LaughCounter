@@ -30,6 +30,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { settingsPath } from '../settings-file.mjs';
 
 // The prose is reported in TOKENS because that is the unit of the cost it
 // imposes — a context window, not a disk. The estimate goes through WORDS at the
@@ -46,7 +47,7 @@ try {
   const projectRoot = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 
   let declared = [];
-  const configPath = join(projectRoot, '.claudinite-checks.json');
+  const configPath = settingsPath(projectRoot);
   if (existsSync(configPath)) {
     const raw = JSON.parse(readFileSync(configPath, 'utf8'));
     if (Array.isArray(raw.packs)) declared = raw.packs;

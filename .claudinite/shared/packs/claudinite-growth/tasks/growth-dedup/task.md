@@ -81,20 +81,16 @@ worker only frames the unattended run around it.
   none reds the repo's CI and blocks the merge.
 - If an edit touches something a test reads, run the repo's offline test suite and keep it green before pushing.
 
-## Tracking
+## The brief, and the record
 
-The task's standing log is the issue the work item's **Delivered by code-work** section names (`Issue: #<n>`).
-Code-work found or opened it and has already rewritten its body with this run's brief.
+Code-work has already posted **this window's canon diff** as a comment on your own work item — the issue you
+are reading. That comment is the brief this run starts from. **It is a required input**: a work item carrying
+no such comment is a failed run, not a lighter one, so converge to `needs-human` naming what is missing rather
+than re-deriving the window yourself.
 
-**That number is a required input.** A work item that does not carry it is a failed run, not a lighter one: converge to `needs-human` naming the missing input.
-Never search for a tracker by title and never create one — the brief
-you are working from lives on a specific issue, and any issue you find yourself is a different one. Never
-re-write the body code-work just wrote, and **never open, close, or reopen it**: its state carries no meaning,
-only the log does.
-
-Its **body** is code-work's, rewritten every run: this window's canon diff, the brief you started from. Leave it
-alone. The **comments** are yours: log each run that changed a doc as a **dated comment** — naming what was
-pruned and the canon line that now covers it. A run that prunes nothing logs nothing.
+Every rule this run actually prunes gets a row at the top of its pack's `VERSIONS.md` table, in the same commit
+as the prune: date, `growth-dedup`, what was removed and the canon line that now covers it. That file is the
+record — there is no standing issue, and a run that pruned nothing writes no row.
 
 ## Nothing downstream catches a wrong prune
 

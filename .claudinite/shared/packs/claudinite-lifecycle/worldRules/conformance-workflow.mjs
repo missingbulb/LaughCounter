@@ -1,4 +1,4 @@
-import { finding } from '../../engine/checks/helpers/findings.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
 
 // A member must have SOMETHING in CI that runs the world sweep on every pull
 // request — otherwise its own conformance is never gated, and (worse) its

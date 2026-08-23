@@ -15,7 +15,7 @@ instructions.
 
 2. **Validate in code before acting**, never by judgment:
    - the task file exists at HEAD,
-   - its pack is declared in `.claudinite-checks.json`,
+   - its pack is declared in `.claudinite-settings.json`,
    - the issue's title names that same task, **or** — for a marked issue, whose
      title is the person's own — its machine block's first line is that task's
      worker path,

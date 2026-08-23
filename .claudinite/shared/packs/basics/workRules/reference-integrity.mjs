@@ -1,4 +1,4 @@
-import { finding } from '../../engine/checks/helpers/findings.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
 
 // A deleted path a migration record (migrations/<date>-<slug>/) still names
 // isn't stale — it's the declared legacy shape the record documents.

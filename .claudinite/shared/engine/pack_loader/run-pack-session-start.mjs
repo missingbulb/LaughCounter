@@ -45,6 +45,7 @@ import { existsSync, readFileSync, appendFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { settingsPath } from '../settings-file.mjs';
 
 // The file an active pack contributes, if it ships one. Named for when it runs, and
 // deliberately the mirror of the session-end runner's STEP_FILE.
@@ -61,7 +62,7 @@ async function main() {
   const projectRoot = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 
   let config = { packs: [] };
-  const configPath = join(projectRoot, '.claudinite-checks.json');
+  const configPath = settingsPath(projectRoot);
   if (existsSync(configPath)) {
     try { config = JSON.parse(readFileSync(configPath, 'utf8')); } catch { return; } // unparsable settings are the world runner's finding
   }

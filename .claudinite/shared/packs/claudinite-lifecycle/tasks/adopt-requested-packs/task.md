@@ -29,7 +29,7 @@ A suspected pack that asks interview questions the repo cannot answer from its o
 
 Run **adopt-pack** for the confirmed and requested packs. Two things belong to you rather than the skill:
 
-- **On a requested issue, merge the rendered entries verbatim** into `.claudinite-checks.json`'s `packs` — into an entry this repo already carries where one exists, never replacing a `config` this repo already chose. The `answers` are recorded answers; transcribe them, don't re-ask.
+- **On a requested issue, merge the rendered entries verbatim** into `.claudinite-settings.json`'s `packs` — into an entry this repo already carries where one exists, never replacing a `config` this repo already chose. The `answers` are recorded answers; transcribe them, don't re-ask.
 - **One PR for this work list**, and **link both ways**: the PR body names this issue, and you comment the PR link on it. The fleet's weekly sweep closes it on its own once the declaration carries the packs; your comment is what makes the intervening week legible.
 
 ## 3. Report

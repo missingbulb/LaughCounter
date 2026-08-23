@@ -2,6 +2,9 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { MIGRATION_FILE, migrationDirs, migrationActive, recordName, flowOf } from '../checks/helpers/active-migrations.mjs';
 import { RENAMED_PACKS } from '../pack_loader/renamed-packs.mjs';
+import { SETTINGS_FILE, SETTINGS_FILES, LEGACY_SETTINGS_FILE } from '../settings-file.mjs';
+import { installedVersions, withInstalledVersions, LEGACY_STAMP_KEY } from '../installed-versions.mjs';
+import { ENDPOINTS_KEY, LEGACY_ENDPOINTS_KEY } from '../checks/helpers/repo-context.mjs';
 
 // <corpus>/engine/migrations/ — records are addressed corpus-relative, because they
 // no longer share one directory with this module: an engine record sits beside it,
@@ -156,7 +159,20 @@ export async function applyRewrites(migration, { read, write }) {
 // The declaration a pack-seeding op writes into. Fixed, not a parameter: this op
 // declares PACKS, and a repo's declaration lives in exactly one file. A `file` knob
 // would quietly make it a general JSON editor, which is a much larger thing to own.
-export const DECLARATION = '.claudinite-checks.json';
+//
+// TWO NAMES WHILE THE RENAME DRAINS (#1252): a record runs on a member whose file may
+// still be `.claudinite-checks.json`, and one that only knew the new name would write
+// a SECOND declaration beside the real one — a settings file nothing reads, with the
+// pack the record meant to seed in it. `declarationFile` asks the member which name
+// it carries; every op below writes back to that same one.
+export const DECLARATION = SETTINGS_FILE;
+
+async function declarationFile(read) {
+  for (const name of SETTINGS_FILES) {
+    if ((await read(name)) != null) return name;
+  }
+  return null;
+}
 
 // Write side — "every member should now declare this pack": for each declared
 // `{ id, config }`, add that pack to the member's `packs` when it is absent, and
@@ -184,8 +200,9 @@ export const DECLARATION = '.claudinite-checks.json';
 export async function applyPackDeclarations(migration, { read, write }) {
   if (!migration.declarePacks?.length) return [];
   if (migration.appliesTo && !(await migration.appliesTo(read))) return [];
-  const raw = await read(DECLARATION);
-  if (raw == null) return [];                       // not a member — nothing to declare into
+  const file = await declarationFile(read);
+  if (file == null) return [];                      // not a member — nothing to declare into
+  const raw = await read(file);
   let config;
   try { config = JSON.parse(raw); } catch { return []; }
   if (config === null || typeof config !== 'object' || Array.isArray(config)) return [];
@@ -196,7 +213,7 @@ export async function applyPackDeclarations(migration, { read, write }) {
     const at = packs.findIndex((e) => idOf(e) === id);
     if (at === -1) {
       packs.push(packConfig ? { id, config: packConfig } : id);
-      done.push(`${DECLARATION}: declared ${id}`);
+      done.push(`${file}: declared ${id}`);
       continue;
     }
     // Declared already: the only thing still owed is a config it never got.
@@ -204,9 +221,9 @@ export async function applyPackDeclarations(migration, { read, write }) {
     const prior = typeof packs[at] === 'string' ? { id } : packs[at];
     if (prior.config) continue;                     // the repo's own parameters — untouched
     packs[at] = { ...prior, id, config: packConfig };
-    done.push(`${DECLARATION}: configured ${id}`);
+    done.push(`${file}: configured ${id}`);
   }
-  if (done.length) await write(DECLARATION, `${JSON.stringify({ ...config, packs }, null, 2)}\n`);
+  if (done.length) await write(file, `${JSON.stringify({ ...config, packs }, null, 2)}\n`);
   return done;
 }
 
@@ -229,8 +246,9 @@ export async function applyPackDeclarations(migration, { read, write }) {
 export async function applyLocalDeclarationNormalization(migration, { read, write, exists }) {
   if (!migration.normalizeLocalDeclarations) return [];
   if (migration.appliesTo && !(await migration.appliesTo(read))) return [];
-  const raw = await read(DECLARATION);
-  if (raw == null) return [];
+  const file = await declarationFile(read);
+  if (file == null) return [];
+  const raw = await read(file);
   let config;
   try { config = JSON.parse(raw); } catch { return []; }
   if (config === null || typeof config !== 'object' || Array.isArray(config)) return [];
@@ -252,9 +270,9 @@ export async function applyLocalDeclarationNormalization(migration, { read, writ
     }
     const token = `${LOCAL_DECL}${bare}`;
     packs.push(typeof entry === 'string' ? token : { ...entry, id: token });
-    done.push(`${DECLARATION}: ${id} -> ${token}`);
+    done.push(`${file}: ${id} -> ${token}`);
   }
-  if (done.length) await write(DECLARATION, `${JSON.stringify({ ...config, packs }, null, 2)}\n`);
+  if (done.length) await write(file, `${JSON.stringify({ ...config, packs }, null, 2)}\n`);
   return done;
 }
 
@@ -323,8 +341,9 @@ export function mergeDeclarationEntries(survivor, absorbed) {
 export async function applyPackRenames(migration, { read, write }) {
   if (!migration.renameDeclaredPacks) return [];
   if (migration.appliesTo && !(await migration.appliesTo(read))) return [];
-  const raw = await read(DECLARATION);
-  if (raw == null) return [];
+  const file = await declarationFile(read);
+  if (file == null) return [];
+  const raw = await read(file);
   let config;
   try { config = JSON.parse(raw); } catch { return []; }
   if (config === null || typeof config !== 'object' || Array.isArray(config)) return [];
@@ -336,7 +355,7 @@ export async function applyPackRenames(migration, { read, write }) {
     if (typeof id !== 'string' || id.startsWith(LOCAL_DECL) || id.startsWith(LEGACY_LOCAL_DECL)) return entry;
     const to = RENAMED_PACKS[id];
     if (to === undefined) return entry;
-    done.push(`${DECLARATION}: ${id} -> ${to}`);
+    done.push(`${file}: ${id} -> ${to}`);
     return typeof entry === 'string' ? to : { ...entry, id: to };
   });
 
@@ -354,10 +373,91 @@ export async function applyPackRenames(migration, { read, write }) {
     }
     const i = at.get(id);
     packs[i] = mergeDeclarationEntries(packs[i], entry);
-    done.push(`${DECLARATION}: merged a second "${id}" entry into the first`);
+    done.push(`${file}: merged a second "${id}" entry into the first`);
   }
 
-  if (done.length) await write(DECLARATION, `${JSON.stringify({ ...config, packs }, null, 2)}\n`);
+  if (done.length) await write(file, `${JSON.stringify({ ...config, packs }, null, 2)}\n`);
+  return done;
+}
+
+
+// Write side — "this member's settings file moves to its new name and its new
+// shape" (#1252). The one op that RENAMES the declaration, which is why it is an op
+// rather than four `rewrite`s: a rewrite replaces literal text, and no two members
+// share a literal here; a materialization writes a whole template, which would
+// clobber every project's own declaration.
+//
+// What it does, in the order that keeps a half-applied run readable:
+//   1. moves `.claudinite-checks.json` to `.claudinite-settings.json` (git sees a
+//      rename, so the file's history follows it);
+//   2. lifts the retired `claudinite` block's `engineVersion` to the top level and
+//      its `packVersions` onto the entry of each pack they price, dropping any key
+//      no entry names — a version for a pack the declaration does not carry prices
+//      nothing, and inventing an entry for it would activate a pack nobody declared;
+//   3. turns `maintenance.delivery: review` into
+//      `dailyClaudiniteUpdatesRequirePrReview: true` and drops the block — including
+//      `mechanism`, whose only rival was deleted in #768 Phase 5, so it had exactly
+//      one possible answer for every member that could still ask;
+//   4. renames `taskScheduler.endpoints` to `agenticTaskInvocationEndpoints`.
+//
+// IDEMPOTENT BY CONSTRUCTION: every step is stated as "if the retired shape is
+// there", so a second run finds nothing and writes nothing. It reads the member's
+// OWN file and rewrites only the keys it names — a project's rules, accept entries,
+// pack config and answers pass through untouched, and key ORDER is preserved for
+// everything it does not move, because this is a file people read.
+export async function applySettingsReshape(migration, { read, write, move, exists }) {
+  if (!migration.reshapeSettings) return [];
+  if (migration.appliesTo && !(await migration.appliesTo(read))) return [];
+  const file = await declarationFile(read);
+  if (file == null) return [];
+  const raw = await read(file);
+  let config;
+  try { config = JSON.parse(raw); } catch { return []; }
+  if (config === null || typeof config !== 'object' || Array.isArray(config)) return [];
+
+  const done = [];
+
+  // 1. The name. Moved before anything is written, so the write below lands on the
+  //    renamed file and git records one rename rather than a delete and an add.
+  if (file === LEGACY_SETTINGS_FILE) {
+    if (await exists(SETTINGS_FILE)) return [];     // both names present — a repair no record should guess at
+    await move(LEGACY_SETTINGS_FILE, SETTINGS_FILE);
+    done.push(`${LEGACY_SETTINGS_FILE} -> ${SETTINGS_FILE}`);
+  }
+
+  // 2. The versions, onto the shape that holds them now.
+  let next = config;
+  if (next[LEGACY_STAMP_KEY] !== undefined) {
+    const { engineVersion, packVersions } = installedVersions(next);
+    next = withInstalledVersions(next, { engineVersion, packVersions });
+    delete next[LEGACY_STAMP_KEY];
+    done.push(`${SETTINGS_FILE}: engineVersion and per-pack versions lifted out of "${LEGACY_STAMP_KEY}"`);
+  }
+
+  // 3. The delivery override. Only `review` carries an intent worth keeping; every
+  //    other value said what the absent key now says.
+  if (next.maintenance !== undefined) {
+    const delivery = String(next.maintenance?.delivery ?? '').trim();
+    const { maintenance, ...rest } = next;
+    next = rest;
+    if (delivery === 'review' || delivery === 'pr') {
+      next.dailyClaudiniteUpdatesRequirePrReview = true;
+      done.push(`${SETTINGS_FILE}: maintenance.delivery "${delivery}" -> dailyClaudiniteUpdatesRequirePrReview: true`);
+    } else {
+      done.push(`${SETTINGS_FILE}: dropped the retired "maintenance" block`);
+    }
+  }
+
+  // 4. The endpoint map's name.
+  const scheduler = next.taskScheduler;
+  if (scheduler && typeof scheduler === 'object' && !Array.isArray(scheduler)
+      && scheduler[LEGACY_ENDPOINTS_KEY] !== undefined && scheduler[ENDPOINTS_KEY] === undefined) {
+    const { [LEGACY_ENDPOINTS_KEY]: endpoints, ...restScheduler } = scheduler;
+    next = { ...next, taskScheduler: { [ENDPOINTS_KEY]: endpoints, ...restScheduler } };
+    done.push(`${SETTINGS_FILE}: taskScheduler.${LEGACY_ENDPOINTS_KEY} -> ${ENDPOINTS_KEY}`);
+  }
+
+  if (done.length) await write(SETTINGS_FILE, `${JSON.stringify(next, null, 2)}\n`);
   return done;
 }
 
@@ -374,6 +474,9 @@ export async function applyMigration(migration, io) {
   applied.push(...(await applyPackDeclarations(migration, io)));
   applied.push(...(await applyLocalDeclarationNormalization(migration, io)));
   applied.push(...(await applyPackRenames(migration, io)));
+  // LAST: every op above writes to whichever name the member still carries, and this
+  // is the one that changes which name that is.
+  applied.push(...(await applySettingsReshape(migration, io)));
   return applied;
 }
 

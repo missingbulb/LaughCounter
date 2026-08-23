@@ -1,7 +1,7 @@
 import { posix } from 'node:path';
-import { finding } from '../../engine/checks/helpers/findings.mjs';
-import { packEntryId } from '../../engine/pack_loader/pack-registry.mjs';
-import { RULES_INDEX_FILE, RULES_INDEX_IMPORT } from '../../engine/pack_loader/generate-rules-index.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
+import { packEntryId } from '../../../engine/pack_loader/pack-registry.mjs';
+import { RULES_INDEX_FILE, RULES_INDEX_IMPORT } from '../../../engine/pack_loader/generate-rules-index.mjs';
 
 // The rules index is the ONLY channel a pack's prose reaches a session on (#807). The
 // SessionStart prose step that used to carry it is gone, deliberately — one channel, so

@@ -1,4 +1,4 @@
-import { finding } from '../../engine/checks/helpers/findings.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
 
 // `task.md` is one thing: the spec an agentic task's session follows (the
 // writing-tasks skill, "The task folder"). A task that declares

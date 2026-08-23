@@ -1,4 +1,4 @@
-import { finding } from '../../engine/checks/helpers/findings.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
 import { gatesEveryPull } from './conformance-workflow.mjs';
 
 // A member gates the TREE on every pull request (conformance-workflow, beside

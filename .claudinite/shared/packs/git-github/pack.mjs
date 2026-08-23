@@ -12,23 +12,12 @@
 // carried was a second copy of that same fact, kept in a place a repo had to
 // re-declare (#1079).
 export default {
-  id: 'git-github',
-  version: '60821.1',
-  minEngineVersion: 1,
+  version: '60822.2',
+  minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'git and GitHub procedure and platform: commit layering, branch and merge mechanics, workflow YAML, triggers, secrets, scheduling',
     excludes: 'the issue-branch-PR lifecycle rules themselves — basics; release pipeline content for one product — its release pack',
   },
-  badge: 'badge.svg',
-  detect: null,
-  marker: null,
-  prose: null,
   // The `gha/` rules are declared checks, discovered structurally beside this
   // manifest (declared-checks.json). The lifecycle checks stay in basics.
-  worldRules: [],
-  skills: [
-    'git-github-advanced',
-    'github-actions-scheduling',
-    'merge-to-main',
-  ],
 };
