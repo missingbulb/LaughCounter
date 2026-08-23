@@ -1,0 +1,54 @@
+{
+  "packs": [
+    {
+      "id": "basics",
+      "version": "60823.1"
+    },
+    {
+      "id": "barriers",
+      "version": "60823.1",
+      "via": [
+        "basics"
+      ]
+    },
+    {
+      "id": "claudinite-growth",
+      "version": "60823.2"
+    },
+    {
+      "id": "tidy-repo",
+      "version": "60823.1"
+    },
+    {
+      "id": "git-github",
+      "version": "60822.2"
+    },
+    "local/on-device-privacy",
+    "local/macos-audio",
+    "local/laughcounter",
+    {
+      "id": "claude-code-web-users-support",
+      "version": "60823.1",
+      "config": {
+        "repo": "missingbulb/Shepherd"
+      }
+    },
+    {
+      "id": "claudinite-lifecycle",
+      "version": "60823.1"
+    }
+  ],
+  "accept": [],
+  "taskScheduler": {
+    "agenticTaskInvocationEndpoints": {
+      "default": {
+        "url": "https://api.anthropic.com/v1/claude_code/routines/trig_01RD71c5quPEaqaLwMKhLuiK/fire",
+        "tokenSecret": "CCR_ROUTINE_TOKEN"
+      }
+    },
+    "dailyHour": 4,
+    "weeklyDay": "Sun",
+    "monthlyDay": 1
+  },
+  "engineVersion": "60823.1"
+}

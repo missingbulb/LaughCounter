@@ -1,7 +1,8 @@
 import { readdirSync, existsSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validateManifest, normalizeManifest } from './pack-schema.mjs';
+import { applyPackConventions, bundledSkillDirs, ruleModuleFiles, RULE_DIRS } from './pack-conventions.mjs';
 import { canonicalPackId, canonicalPackIdAmong } from './renamed-packs.mjs';
 
 // This module lives at <canon>/engine/pack_loader/; the packs it scans at <canon>/packs/.
@@ -105,6 +106,36 @@ async function declaredChecksIn(dir, label, errors) {
   }
 }
 
+// One scope's coded rules, imported in filename order. Isolated per module for
+// the reason a manifest's own import was not: a manifest that failed to import
+// took the whole pack with it, where a rule module that does is now one reported
+// fault beside its working neighbours. A module exporting no rule is the same
+// class of fault — a file sitting in the directory contributing nothing is what
+// this reports rather than silently drops.
+async function ruleModulesIn(packDir, scope, label, errors) {
+  const rules = [];
+  for (const file of ruleModuleFiles(packDir, scope)) {
+    const name = `${scope}/${basename(file)}`;
+    let rule;
+    try {
+      rule = (await import(pathToFileURL(file).href)).default;
+    } catch (e) {
+      errors.push({ what: `${label}/${name} failed to load: ${e.message}`, fix: `fix ${name}, or remove it from the pack`, dir: packDir });
+      continue;
+    }
+    if (rule === null || typeof rule !== 'object' || typeof rule.id !== 'string' || typeof rule.run !== 'function') {
+      errors.push({
+        what: `${label}/${name} sits in a rule directory but default-exports no rule`,
+        fix: `default-export { id, severity, description, doc, why, run(ctx) } from ${name}, or move the module out of ${scope}/`,
+        dir: packDir,
+      });
+      continue;
+    }
+    rules.push(rule);
+  }
+  return rules;
+}
+
 async function scanPackDir(dir, { local, subdir }, errors) {
   const out = [];
   if (!existsSync(dir)) return out;
@@ -140,20 +171,28 @@ async function scanPackDir(dir, { local, subdir }, errors) {
       });
       continue;
     }
+    // The tree's own answers first — id, prose, badge and skills come from the pack
+    // directory, and the manifest overrides only what it actually declares
+    // (pack-conventions.mjs). Everything below reads one merged manifest, so no
+    // reader has to know which half a field came from.
+    mod = applyPackConventions(mod, packDir, name);
+    // The convention supplies the id, so reaching here without a string one means
+    // the export is not an object to merge into at all, or it overrode the id with
+    // something that is not a name. Either way there is nothing to activate.
     if (!mod || typeof mod.id !== 'string') {
       errors.push({
-        what: `the pack in ${rel} has no string "id" default export`,
-        fix: 'export default { id: "<name>", ... } from its pack.mjs',
+        what: `the pack in ${rel} has no object default export carrying a usable id`,
+        fix: 'export default { version, ruleRoutingGuidance, ... } from its pack.mjs — the id is the directory name unless the manifest overrides it with a string',
         dir: packDir,
       });
       continue;
     }
-    // A local pack's id must equal its directory name. The engine activates a pack
+    // A local pack's id must equal its directory name. The convention gives it that
+    // for free, so this can only fire on a manifest that OVERRODE the id — and the
+    // override is exactly what must not be allowed here: the engine activates a pack
     // by its exported id, but the fleet planner reads a local pack's daily tasks by
     // directory name (it never imports pack.mjs), so a mismatch would silently
-    // diverge — the engine runs the pack while the fleet skips its task. Require
-    // dir == id so the two can never disagree (the canon convention, enforced here
-    // for local packs).
+    // diverge — the engine runs the pack while the fleet skips its task.
     if (local && mod.id !== name) {
       errors.push({
         what: `the local pack in ${rel} exports id "${mod.id}" but its directory is "${name}"`,
@@ -171,7 +210,7 @@ async function scanPackDir(dir, { local, subdir }, errors) {
     // fatal: a pack whose declaration is incomplete still loads and still runs
     // its checks — silently disabling a repo's own rules is a worse failure than
     // the one being reported, and the blocking config error is what gets it fixed.
-    for (const e of validateManifest(mod, { label: `the pack in ${rel}`, skillDirs: skillDirNames(packDir) })) {
+    for (const e of validateManifest(mod, { label: `the pack in ${rel}`, skillDirs: bundledSkillDirs(packDir) })) {
       errors.push({ ...e, dir: packDir });
     }
     // The pack's declared checks (declared-checks.json — data, not a module) ride
@@ -181,6 +220,16 @@ async function scanPackDir(dir, { local, subdir }, errors) {
     // its own `scope` picks the list it joins — and normalizeManifest stamps the
     // same answer back either way.
     const declared = await declaredChecksIn(packDir, rel, errors);
+    // The pack's CODED rules, discovered the same way its declared ones already
+    // were: `<pack>/worldRules/*.mjs` and `<pack>/workRules/*.mjs`, each module
+    // default-exporting one rule. A manifest that declares the list overrides the
+    // directory, exactly like every other convention — which is why the scan runs
+    // only for a scope the manifest left unspoken.
+    const scanned = {};
+    for (const scope of RULE_DIRS) {
+      if (mod[scope] !== undefined) continue;
+      scanned[scope] = await ruleModulesIn(packDir, scope, rel, errors);
+    }
     // A CANON pack's own id is canonicalized like a declared one. A member's mount
     // is replaced per pack and per version, so a repo can hold a pack DIRECTORY
     // renamed by a migration record while the `pack.mjs` inside it still carries the
@@ -195,27 +244,13 @@ async function scanPackDir(dir, { local, subdir }, errors) {
     // exactly that case (#1186).
     const pack = { ...normalizeManifest({ ...mod,
       ...(local ? {} : { id: canonicalPackId(mod.id), rawId: mod.id }),
-      worldRules: [...(mod.worldRules ?? []), ...declared.filter((r) => r.scope !== 'work')],
-      workRules: [...(mod.workRules ?? []), ...declared.filter((r) => r.scope === 'work')],
+      worldRules: [...(mod.worldRules ?? scanned.worldRules ?? []), ...declared.filter((r) => r.scope !== 'work')],
+      workRules: [...(mod.workRules ?? scanned.workRules ?? []), ...declared.filter((r) => r.scope === 'work')],
     }), dir: packDir, local };
     pack.skillChecks = await scanSkillChecks(packDir, errors);
     out.push(pack);
   }
   return out;
-}
-
-// The skill directory names a pack bundles — the tree side of the manifest's
-// `skills` declaration, which the spec holds to it in both directions. Absent or
-// unreadable skills/ reads as none: scanSkillChecks reports the unreadable case,
-// and the spec must not turn one broken directory into a wall of phantom findings.
-function skillDirNames(packDir) {
-  const skillsRoot = join(packDir, 'skills');
-  if (!existsSync(skillsRoot)) return [];
-  try {
-    return readdirSync(skillsRoot, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
-  } catch {
-    return [];
-  }
 }
 
 // A pack's skill-owned checks: any <pack>/skills/<skill>/checks.mjs (default
@@ -304,7 +339,7 @@ export async function loadPacks(opts) {
 }
 
 // A local pack's canonical declaration token is namespaced `local/<id>` —
-// self-documenting in .claudinite-checks.json (a reader sees at a glance the
+// self-documenting in .claudinite-settings.json (a reader sees at a glance the
 // pack lives in the repo's own tree under .claudinite/local/, and a canon id can
 // never be claimed by accident; the discoverPacks shadow guard stays as the
 // backstop). Both the pre-rename `local_packs/<id>` form and the bare id remain
@@ -351,7 +386,7 @@ export const packEntryId = (entry) => {
 };
 
 // No pack is active by default. Activation is exactly the project's declaration
-// in .claudinite-checks.json (bootstrap's --init seeds the default-on packs).
+// in .claudinite-settings.json (bootstrap's --init seeds the default-on packs).
 export const isActive = (pack, config) =>
   (config.packs ?? []).some((entry) => packEntryId(entry) === pack.id);
 
@@ -361,6 +396,10 @@ export const isActive = (pack, config) =>
 // taken in the caller's order and the FIRST occurrence of a name wins, so a caller
 // passing canon packs before local ones resolves a shared name to canon.
 //
+// Read off each pack's own `skills`, which the convention fills from that same
+// directory listing — so this is the tree's answer for every ordinary pack, and a
+// manifest that withholds a name is honoured here rather than quietly re-derived.
+//
 // One definition, two readers: the SessionStart mount hook (mount-skills.mjs) turns
 // it into `.claude/skills/` symlinks, and the usage fold asks it which skill names a
 // typed `/command` could possibly be. The mounts themselves are gitignored session
@@ -369,14 +408,10 @@ export const isActive = (pack, config) =>
 export function bundledSkillSources(packs) {
   const byName = new Map();
   for (const pack of packs) {
-    const bundleRoot = join(pack.dir, 'skills');
-    if (!existsSync(bundleRoot)) continue;
-    let entries;
-    try { entries = readdirSync(bundleRoot, { withFileTypes: true }); } catch { continue; }
-    for (const entry of entries) {
-      if (!entry.isDirectory() || byName.has(entry.name)) continue;
-      const dir = join(bundleRoot, entry.name);
-      if (existsSync(join(dir, 'SKILL.md'))) byName.set(entry.name, dir);
+    for (const name of pack.skills ?? []) {
+      if (byName.has(name)) continue;
+      const dir = join(pack.dir, 'skills', name);
+      if (existsSync(join(dir, 'SKILL.md'))) byName.set(name, dir);
     }
   }
   return byName;
@@ -390,7 +425,7 @@ export function bundledSkillSources(packs) {
 // Declared entries keep their order; each pack's pulled-in dependencies land
 // right after it, deterministically. This runs when the declaration is
 // WRITTEN — bootstrap's `--init` and the baselining backfill — so a pack's
-// prerequisites are materialized into .claudinite-checks.json, visible and
+// prerequisites are materialized into .claudinite-settings.json, visible and
 // droppable like every other entry (the same reason a seeded pack is written
 // explicitly rather than defaulted), never resolved implicitly at run time.
 //

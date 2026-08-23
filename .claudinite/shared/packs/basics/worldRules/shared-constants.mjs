@@ -1,4 +1,4 @@
-import { finding } from '../../engine/checks/helpers/findings.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
 
 // Flat-literal count — raw bytes, comments included, no regex. A value wrapped
 // across a line break is invisible here (as it is to a grep/sed rename too), so a
@@ -31,7 +31,7 @@ function fileExtension(path) {
 // Data-driven drift guard for a value that must be copied across files that can't
 // share an import (a label spanning a YAML workflow guard and a JS module; a repo
 // slug in prod code and its test). The cases are declared per-repo in
-// .claudinite-checks.json under "sharedConstants"; an empty/absent list is a no-op.
+// .claudinite-settings.json under "sharedConstants"; an empty/absent list is a no-op.
 // Each entry is { what, value, counts } — value is the literal, counts maps a
 // repo-relative path to the exact number of times it must appear, and what names
 // the places and why the split is forced (so the guard self-documents). A count
@@ -70,7 +70,7 @@ const rule = {
 
       if (!wellFormed) {
         out.push(finding(rule, {
-          file: '.claudinite-checks.json',
+          file: '.claudinite-settings.json',
           what: `malformed sharedConstants ${label}: needs a non-empty "value", a "what" naming the places and why the split is forced, and a non-empty "counts" map`,
           fix: 'shape each entry as { "what": "...", "value": "...", "counts": { "repo/relative/path": N } }',
         }));
@@ -84,7 +84,7 @@ const rule = {
       const paths = Object.keys(entry.counts);
       if (paths.length > 1 && paths.every((p) => IMPORTABLE_EXTENSIONS.has(fileExtension(p)))) {
         out.push(finding(rule, {
-          file: '.claudinite-checks.json',
+          file: '.claudinite-settings.json',
           what: `sharedConstants ${label} watches only same-technology files that can share an import (${paths.join(', ')}) — a shared-constant is for a value copied across files that CAN'T`,
           fix: `export ${label} from one module and import it into the other(s), then drop this entry (${entry.what})`,
         }));
@@ -98,7 +98,7 @@ const rule = {
           regex = new RegExp(entry.value, 'g');
         } catch (e) {
           out.push(finding(rule, {
-            file: '.claudinite-checks.json',
+            file: '.claudinite-settings.json',
             what: `sharedConstants ${label} sets "regex": true but "value" is not a valid regular expression: ${e.message}`,
             fix: 'fix the pattern, or drop "regex": true to match the value as a flat literal',
           }));
@@ -110,7 +110,7 @@ const rule = {
       for (const [rel, expected] of Object.entries(entry.counts)) {
         if (!Number.isInteger(expected) || expected < 0) {
           out.push(finding(rule, {
-            file: '.claudinite-checks.json',
+            file: '.claudinite-settings.json',
             what: `sharedConstants ${label} gives a non-integer count for ${rel}`,
             fix: `set "counts"["${rel}"] to the number of times ${label} must appear in that file`,
           }));
@@ -119,7 +119,7 @@ const rule = {
         const text = ctx.read(rel);
         if (text === null) {
           out.push(finding(rule, {
-            file: '.claudinite-checks.json',
+            file: '.claudinite-settings.json',
             what: `sharedConstants ${label} watches ${rel}, but that file does not exist`,
             fix: `the value's home moved or was removed — update the entry's "counts" (${entry.what})`,
           }));
@@ -150,7 +150,7 @@ const rule = {
             .map((v) => `${JSON.stringify(v)} in ${matched.filter((m) => m.value === v).map((m) => m.rel).join(', ')}`)
             .join('; ');
           out.push(finding(rule, {
-            file: '.claudinite-checks.json',
+            file: '.claudinite-settings.json',
             what: `sharedConstants ${label} matches differing values across files — ${detail}`,
             fix: `bring the copies back into sync (${entry.what})`,
           }));

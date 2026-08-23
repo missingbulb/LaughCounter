@@ -19,7 +19,7 @@ Your task's declared `expected_outcome` is a **ceiling, not a plan**:
 
 ## 1. Read the repo's delivery preference
 
-`.claudinite-checks.json` → `maintenance.delivery`:
+`.claudinite-settings.json` → `maintenance.delivery`:
 
 - **`auto-merge`** (legacy aliases `auto`, `push`) — go to step 2.
 - **`review`** (legacy alias `pr`) — leave the PR open for the owner and stop. Never arm

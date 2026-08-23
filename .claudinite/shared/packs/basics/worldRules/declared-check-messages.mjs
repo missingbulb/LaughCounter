@@ -1,4 +1,4 @@
-import { finding } from '../../engine/checks/helpers/findings.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
 
 // A declared check IS its messages — the format carries no comments, no
 // description and no doc pointer (#827), so what/fix/failureMessage are the

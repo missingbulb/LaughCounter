@@ -17,7 +17,7 @@ could be added. **Match the owner's plain-words name to a pack id yourself** bef
 disambiguate — pack ids rarely read like how people describe them, so read the candidate's entry
 there and confirm the fit.
 
-Add each chosen pack's id to `packs` in `.claudinite-checks.json`. A pack that only makes sense
+Add each chosen pack's id to `packs` in `.claudinite-settings.json`. A pack that only makes sense
 alongside another names it in `requires`; `resolveDeclaredPacks` pulls that closure in when the
 declaration is written, so you declare what you *chose* and its dependencies follow (e.g.
 `spec-driven-product` pulls `executable-requirements`). An unknown pack name — or an unknown
@@ -130,7 +130,7 @@ review gate as any other change; it is never pushed straight to the default bran
 **A failing check is your work, not the reviewer's.** Declaring a pack is what switched those rules
 on, so every finding they now produce belongs to this change — fix it here, in the repo, before the
 PR opens. Two things that are *not* fixes: silencing a rule by adding it to `rules`/`accept` in
-`.claudinite-checks.json`, and undeclaring the pack to make the findings stop. Both turn a real
+`.claudinite-settings.json`, and undeclaring the pack to make the findings stop. Both turn a real
 signal off on the repo's first exposure to it. If a finding genuinely cannot be satisfied — the pack
 demands structure this repo has decided against — that is evidence the pack is **not** the right fit:
 drop it from the declaration, say why on the PR, and let the smaller adoption land.

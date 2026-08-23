@@ -17,22 +17,27 @@
 // came to, and what landed in git. That half exists in a repo whose sessions are all
 // unattended and captured nothing at all.
 //
-// WHY HOURLY. The file is the whole past-data plane the dashboard renders from
-// (claudinite-dashboard) — every panel that reaches further back than one page of live
-// reads comes from here, so its freshness is what the page's freshness IS. Its own
-// sources are cheap enough for that cadence: the capture files are local git, and the
-// REST reads are four calls in total, all watermarked so an hour that read nothing new
-// costs nothing. The precondition is what keeps a quiet repo quiet.
+// WHY DAILY. The file is the whole past-data plane the dashboard renders from
+// (claudinite-dashboard) — every panel that reaches further back than one page of live reads
+// comes from here. It folded hourly until the scheduler's cron went to two ticks a day
+// (tasks-dispatch DESIGN §17): a frequency finer than the cron cannot be honoured, since the
+// anchor is only ever seen when a tick comes. Nothing about the DATA changes — hour rows are
+// still recomputed from source across a three-day window, so only the newest rows' freshness
+// moves, and the dashboard already tops up the freshest hours from the live run listing it
+// fetches anyway. The precondition is what keeps a quiet repo quiet.
 //
 // Self-contained (imports nothing): the whole contract is this default export.
 
-// The signal window an hourly task is judged over: its own period plus the scheduler's
-// hour of slack. A log stamped inside it is a session that ran since the last fold.
-const WINDOW_DAYS = 2 / 24;
+// The signal window a task is judged over: its own period plus the scheduler's hour of slack. A
+// log stamped inside it is a session that ran since the last fold. This MUST track the declared
+// frequency — sized to an hour while the task anchors daily, the "a session captured" arm never
+// fires (a log is ~23h old by the next anchor) and a repo whose only movement is commit-less
+// sessions silently stops folding altogether.
+const WINDOW_DAYS = 25 / 24;
 
 export default {
   id: 'usage-fold',
-  frequency: 'hourly',                   // the dashboard's past-data plane; see the header
+  frequency: 'daily',                    // see "WHY DAILY" in the header
   precondition_signals: ['commits', 'conversationLogs'],
   agent_model: 'none',                   // pure code — no agent (task-code-work DESIGN §4)
   expected_outcome: 'merged-pr',         // the regenerated GENERATED aggregate rides a PR landed per the repo's delivery settings
@@ -67,7 +72,7 @@ export default {
     if (!moved.length) {
       return {
         run: false,
-        reason: 'nothing moved this hour — no commit on the default branch and no new conversation log; '
+        reason: 'nothing moved this period — no commit on the default branch and no new conversation log; '
           + 'the run and queue reads stay past their watermarks for the next fold that has something to do',
       };
     }

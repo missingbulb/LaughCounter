@@ -1,0 +1,15 @@
+{
+  "$schema": "../claudinite-dashboard/dashboard-descriptor.schema.json",
+  "widgets": [
+    {
+      "id": "stars",
+      "kind": "stat",
+      "label": "stars",
+      "noun": "stars",
+      "glyph": "★",
+      "source": "repo-stars"
+    }
+  ],
+  "repo": ["stars"],
+  "fleet": { "member": "stars" }
+}

@@ -2,7 +2,7 @@
 // Environment requirements — a pack declares a toolchain (or per-repo deps) a
 // cloud session needs but the base image doesn't ship, via an optional `env`
 // field on its pack.mjs. Driven by the repo's ACTIVE packs and the per-pack
-// parameters it supplies in .claudinite-checks.json (each pack entry's
+// parameters it supplies in .claudinite-settings.json (each pack entry's
 // `config`; loadConfig folds the legacy top-level "packConfig" into the same
 // view):
 //
@@ -37,7 +37,7 @@ const resolveField = (field, params) =>
 /**
  * The env declarations of a repo's active packs, each resolved against the
  * project's per-pack params (each pack entry's `config` in
- * .claudinite-checks.json, via loadConfig's normalized packConfig view).
+ * .claudinite-settings.json, via loadConfig's normalized packConfig view).
  */
 export async function activeEnvs(projectRoot, { packs, config } = {}) {
   config ??= loadConfig(projectRoot);

@@ -1,8 +1,10 @@
 # Claudinite work-item executor (tasks-dispatch DESIGN §6, §10) — a pull worker
-# over the queue. ONE RUN PERFORMS ONE ITEM (§15.22), and the queue drains as a
-# chain of runs: the scheduler run dispatches this workflow every hour, a run that settled
-# its item dispatches the next, and the continuation job below covers a run that
-# died before it could. It carries NO cron of its own — the scheduler run's hourly dispatch
+# over the queue. ONE RUN DRAINS THE QUEUE (§15.30, reversing §15.22's one-item
+# run): Actions bills each job's minutes rounded up, so a run per item paid a
+# whole invocation — checkout, setup, rounding — for each one. A run now settles
+# its items one at a time until nothing is pickable, and the continuation job
+# below covers a run that dies mid-drain. It carries NO cron of its own — the
+# scheduler run's hourly dispatch, made when that run leaves something pickable,
 # is the guaranteed delivery, so a lost `task:ready` label event is latency lost
 # and never work lost.
 #
@@ -50,10 +52,11 @@ jobs:
       || github.event.label.name == 'task:urgent'
     runs-on: ubuntu-latest
     # The old cap — ≤ the engine's executing leash — retired with the heartbeat
-    # (§15.15). A run is bounded by ONE work step now, and a holder that is alive
+    # (§15.15). A run is bounded by a DRAIN's work now, and a holder that is alive
     # says so on its item every 15 minutes, so the leash reclaims silence rather
     # than length. What is left here is a backstop against a wedged runner, well
-    # clear of any declared `code_work_timeout`.
+    # clear of any declared `code_work_timeout`; a drain the platform kills at it
+    # hands its remainder to the continuation job like any other dead run.
     timeout-minutes: 350
     steps:
       - uses: actions/checkout@v5

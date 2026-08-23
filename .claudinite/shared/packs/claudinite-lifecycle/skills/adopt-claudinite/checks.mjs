@@ -27,7 +27,7 @@ const rule = {
     if (!ctx.packs) return [];
     const { stale } = interviewState(ctx.packs, ctx.config);
     return stale.map(({ packId, answerId }) => finding(rule, {
-      file: '.claudinite-checks.json',
+      file: '.claudinite-settings.json',
       what: `the "${packId}" pack entry stores an answer for "${answerId}", a question the pack no longer declares`,
       fix: 'remove the stale answer, or re-key it to the renamed question id',
     }));

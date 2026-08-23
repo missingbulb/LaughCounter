@@ -7,7 +7,7 @@
 //   questions: [{ id: 'goals', prompt: '…', distill: '…' }]
 //
 // Stable-id'd, because the answers live VERBATIM on the pack's entry in
-// .claudinite-checks.json (`answers: { "<question-id>": "<answer>" }` — see
+// .claudinite-settings.json (`answers: { "<question-id>": "<answer>" }` — see
 // engine/checks/README.md): the settings file records the project's intent beside the
 // `config` distilled from it. The GAP — declared question ids minus answered
 // ids — drives the asking: at adoption every question is pending; when the
@@ -85,7 +85,7 @@ export function renderPending(pending) {
     'Pack adoption interview pending — the active packs below declare adoption questions this '
     + 'project has not answered. In an INTERACTIVE session, at a natural moment (not mid-task), '
     + 'ask the owner each question via AskUserQuestion, record the answer VERBATIM in '
-    + '.claudinite-checks.json on that pack\'s entry as answers: { "<question-id>": "<answer>" } '
+    + '.claudinite-settings.json on that pack\'s entry as answers: { "<question-id>": "<answer>" } '
     + '("n/a — none wanted" is a valid answer and stops the asking), and where the question '
     + 'carries a distill note, derive the entry\'s config from the answer. This is a mild '
     + 'reminder, never a gate: in an unattended session, or when it would derail the work at '

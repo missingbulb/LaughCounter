@@ -6,7 +6,7 @@
 // says whether this pack is configured at all. Anything that grows a third reader
 // (a fleet sweep writing the pointer into a member) reads it from here too.
 //
-// THE SHAPE, on this pack's own entry in `.claudinite-checks.json`:
+// THE SHAPE, on this pack's own entry in `.claudinite-settings.json`:
 //
 //   { "id": "claude-code-web-users-support", "config": { "repo": "owner/name", "path": "preferences" } }
 //

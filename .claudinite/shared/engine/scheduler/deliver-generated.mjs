@@ -34,7 +34,8 @@ import { execFileSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { deliveryFromChecks, pullCreateError, landDelivery } from './land-pr.mjs';
+import { deliveryForText, pullCreateError, landDelivery } from './land-pr.mjs';
+import { SETTINGS_FILES } from '../settings-file.mjs';
 
 const API = 'https://api.github.com';
 
@@ -108,9 +109,8 @@ export function pushGenerated(root, { remote, baseSha, branch, files, message })
 // otherwise a `<branchPrefix>/<stamp>` branch is minted and a PR opened on it.
 //
 // How the PR lands is land-pr.mjs's business, not the calling task's: the member's
-// `maintenance.delivery` (read from the BASE tip — a `review` member's PR is opened
-// and left for the owner; an unrecognized value fails the run rather than guessing),
-// then the repo's own shape (no PR CI → direct merge; ungated base → verify-then-
+// `dailyClaudiniteUpdatesRequirePrReview` (read from the BASE tip — a repo that
+// declares it gets its PR opened and left for the owner), then the repo's own shape (no PR CI → direct merge; ungated base → verify-then-
 // land; a gate → arm auto-merge, landing poll as fallback). A PR this run could not
 // land stays open — the next run rebuilds it from the base, so nothing is lost.
 //
@@ -123,12 +123,12 @@ export async function deliverGenerated({ root, repo, base, token, branchPrefix, 
   const remote = remoteUrl(repo, token);
 
   const baseSha = baseTip(root, remote, base);
-  // The member's delivery preference gates everything after the push. Same stance
-  // as the update converge: an absent key resolves to the default (materializing it is the
-  // converge's job, not a generated-file PR's), an unrecognized value fails loudly
-  // — substituting a default would deliver the opposite of a stated intent.
-  const { delivery } = deliveryFromChecks(readAt(root, baseSha, '.claudinite-checks.json'));
-  if (!delivery) throw new Error('this repo\'s maintenance.delivery is neither auto-merge nor review — fix .claudinite-checks.json');
+  // The member's delivery override gates everything after the push, read from the
+  // BASE tip. Both settings-file names are tried in the read order the rename
+  // defines: a member that has not run the #1252 record still carries the old one,
+  // and reading only the new name would silently land a `review` member's PR.
+  const settingsText = SETTINGS_FILES.map((f) => readAt(root, baseSha, f)).find((t) => t != null);
+  const delivery = deliveryForText(settingsText);
 
   const commit = pushGenerated(root, { remote, baseSha, branch, files, message });
 

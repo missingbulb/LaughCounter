@@ -75,7 +75,7 @@ GitHub MCP tools.
    session's previous capture, whatever event produced it, so any two events chain into
    disjoint files and a zero delta pushes nothing at all. Double-writing is therefore safe by
    construction, not by coordination — the property [`session-end.mjs`](session-end.mjs) relies
-   on, so `pack.test.mjs` pins it directly.
+   on, so `test/pack.test.mjs` pins it directly.
    The branch is a **work queue, not an archive** — never merged; tips are cheap in shallow
    session clones and retention keeps them bounded.
 1. **Capture — again, when the session ends** ([session-end.mjs](session-end.mjs), invoked by the
@@ -157,14 +157,15 @@ here: its subject is Claudinite's own surface, not lesson capture.
 
 | Rule | Severity | Reason | Enforcement |
 |---|---|---|---|
+| Changing a local pack automatically | high | complexity | prose: 65 words |
 | Wanting a job to run in Actions | high | complexity | prose: 55 words + check (`scheduler-workflow-shape`) |
 
 ## Coded rules
 
 | Rule | Kind | What |
 |---|---|---|
-| `dedup-prune-integrity` | work-scope ([dedup-integrity.mjs](dedup-integrity.mjs)) | a dedup edit only removes portable text — never grows a local pack or re-imports a canon rule |
-| `growth-write-scope` | work-scope ([growth-write-scope.mjs](growth-write-scope.mjs)) | a capture run (extract, dedup) writes only the repo's own local packs |
+| `dedup-prune-integrity` | work-scope ([dedup-integrity.mjs](workRules/dedup-integrity.mjs)) | a dedup edit only removes portable text — never grows a local pack or re-imports a canon rule |
+| `growth-write-scope` | work-scope ([growth-write-scope.mjs](workRules/growth-write-scope.mjs)) | a capture run (extract, dedup) writes only the repo's own local packs |
 
 The capture runs' write surface is the local packs and nothing else — a run improves the repo's
 **packs**, never the canon it prunes against or the project's own code. `growth-write-scope` is
@@ -192,19 +193,21 @@ each is a fact about a platform this repo does not control, and when it stops be
 here goes red. The prose keeps reading as authoritative, sessions keep obeying it, and the cost
 lands as a session spent on a route that closed.
 
-[rule-revalidation](tasks/rule-revalidation/task.md) is the weekly re-probe. It slices the corpus by
-longest-since-probed, **runs** the smallest read-only thing that would distinguish true from false
-for each environment-dependent claim, and corrects what the probe contradicts — in a reviewed PR
-whose body carries the probe evidence, since that is the one thing a reviewer cannot re-derive from
-the diff. Its scope is the same `pack_paths` config `prose-to-checks-sweep` reads, so a repo names
-its capture surface once.
+[rule-revalidation](tasks/rule-revalidation/task.md) is the weekly re-probe. It takes **every**
+environment-dependent claim in the capture surface — the judgment prose that makes up most of a pack
+is out of scope, so that set is far smaller than the corpus — **runs** the smallest read-only thing
+that would distinguish true from false for each, and corrects what the probe contradicts, in a
+reviewed PR whose body carries the probe evidence, since that is the one thing a reviewer cannot
+re-derive from the diff. Its scope is the same `pack_paths` config `prose-to-checks-sweep` reads, so
+a repo names its capture surface once. Covering the whole set every run is what lets the task hold
+no state between runs: there is no "what did I probe last time" to remember.
 
 The dangerous verdict is the one it refuses to reach. An executor session carries the reach its
 repo's routine was provisioned with, which is not the reach every rule was written under, so a probe
 that cannot run is logged **unprobed** and the rule is left untouched. Rewriting a rule into "you
 cannot do X" because one session could not is unfalsifiable afterwards and removes the capability
-from every future session — which is why the corpus each run touches is small and every verdict is
-logged on a standing tracker, including the ones that changed nothing.
+from every future session — which is why an unprobed
+claim is reported in the run's PR body as explicitly as a corrected one.
 
 ## Identifying a project's capture surface: its local packs (the same way in every stage)
 
@@ -231,6 +234,30 @@ run against the member repo and read the local packs from the working tree; prom
 and reads the same subtree over the GitHub API (get-file-contents under `.claudinite/local_packs/`).
 Extract writes into it, promote reads from it, dedup prunes within it — all against the identical,
 `.claudinite/local_packs/`-rooted set.
+
+## The change record: each local pack's own `VERSIONS.md`
+
+A canon pack's `VERSIONS.md` carries one row per version bump. A local pack is neither versioned nor
+distributed, so its `VERSIONS.md` carries the same thing at the only granularity it has: **one row
+per change automatic work made to it** — a prose rule added or removed, a check created, a rule
+corrected against a probe or deleted as irrelevant.
+
+| Date | Task | Change |
+|---|---|---|
+| 2026-08-23 | `growth-extract` | Added: **Restoring source after a see-it-fail mutation** — `git checkout --`, never a `.bak`. |
+| 2026-08-23 | `prose-to-checks-sweep` | Converted to a check: the entry-point await rule → `pack-discovery-entry-await`. |
+
+Every growth task writes its own rows, in the same PR as the change they describe, so the record
+diffs beside what it records and travels with the pack it is about. A reader looking at a rule and
+wondering where it came from is already in the directory.
+
+This is the growth lifecycle's **whole** record: no growth task keeps a standing tracker issue. An
+issue body is rewritten in place with no history, sits outside the PR that made the change, and is
+one sweep away from being closed as stale — none of which is true of a tracked file. A run that
+changed nothing writes no row at all: the file logs what happened to the pack, never that a run
+happened.
+
+`seedRepoLocalPack` creates the file empty at adoption, so no task has to invent it.
 
 ## Checks
 

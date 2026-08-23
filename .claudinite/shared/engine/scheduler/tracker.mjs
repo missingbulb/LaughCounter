@@ -43,6 +43,13 @@ export function pickTracker(items, title) {
 // The tracker titled exactly `title`, or null if no issue carries it. Searches
 // EVERY state: a tracker's resting state is closed, so a state-filtered lookup
 // misses all of them.
+//
+// A tracker found OPEN is closed on the way back. Creation has closed since #951,
+// but that only ever covered a tracker this code minted — one that predates the
+// fix, or whose closing PATCH failed, had nothing anywhere that would ever look at
+// its state again, so it sat open indefinitely (#904, open from 2026-08-16). The
+// repair rides the lookup because every task's own run performs one, which is the
+// only pass guaranteed to reach every tracker in the fleet.
 export async function findTracker(gh, repo, title) {
   const want = title.trim();
   const q = encodeURIComponent(`repo:${repo} in:title "${want}"`);
@@ -52,7 +59,16 @@ export async function findTracker(gh, repo, title) {
   }
   const exact = json.items.filter((i) => (i.title ?? '').trim() === want);
   const found = pickTracker(exact, want);
-  return found ? { number: found.number, duplicates: exact.length - 1 } : null;
+  if (!found) return null;
+  // Fail-soft, and deliberately so: an unclosable tracker is untidy, never a
+  // reason to fail the run that was about to write its record.
+  if (found.state === 'open') {
+    await gh(`/repos/${repo}/issues/${found.number}`, {
+      method: 'PATCH',
+      body: { state: 'closed', state_reason: 'completed' },
+    }).catch(() => {});
+  }
+  return { number: found.number, duplicates: exact.length - 1 };
 }
 
 // Create the tracker and close it — TWO calls, because issue creation always lands

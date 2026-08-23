@@ -35,6 +35,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname, relative, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadPacks, isActive, SHARED_SUBDIR } from './pack-registry.mjs';
+import { settingsPath } from '../settings-file.mjs';
 
 // The index, and the line a repo's CLAUDE.md carries to pull it in. One definition:
 // the generator writes the first, the converge ensures the second, and the basics
@@ -48,7 +49,7 @@ const posix = (p) => p.split(sep).join('/');
 // The repo's declared pack list, read the way every other loader reads it. A missing
 // or malformed settings file means nothing is declared.
 function declaredPacks(projectRoot) {
-  const configPath = join(projectRoot, '.claudinite-checks.json');
+  const configPath = settingsPath(projectRoot);
   if (!existsSync(configPath)) return [];
   try {
     const raw = JSON.parse(readFileSync(configPath, 'utf8'));

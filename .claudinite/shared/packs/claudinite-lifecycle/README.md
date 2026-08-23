@@ -38,7 +38,7 @@ not prose: the session that has lost its rules is the session least able to noti
 
 What goes wrong when one fires:
 
-- `claudinite-lifecycle-declared` — this pack's entry is gone from `.claudinite-checks.json`, so none of the rules above run and the session cannot tell.
+- `claudinite-lifecycle-declared` — this pack's entry is gone from `.claudinite-settings.json`, so none of the rules above run and the session cannot tell.
 - `rules-index-current` — the generated index is missing, stale or unimported: the repo's packs contribute no prose to any session.
 - `claudinite-isolation` — the repo's own code reaches into `.claudinite/`, so the next canon refactor is a breaking migration for code the canon does not own (a declared `forbidReferences` barrier edge).
 - `conformance-workflow` — nothing in CI runs the world sweep unfiltered on a pull request, so conformance is ungated and the maintenance PR never lands.

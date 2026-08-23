@@ -8,9 +8,9 @@
 //
 // The contract that keeps tasks simple: a task declares only its outcome CEILING
 // (`expected_outcome: 'merged-pr'` — it MAY land a PR). Whether the PR actually
-// lands unreviewed is the MEMBER REPO's call — `maintenance.delivery` in
-// `.claudinite-checks.json`, where `review` degrades every merged-pr task to
-// open-pr (member config wins, per-project-scheduling DESIGN §1). Tasks stay
+// lands unreviewed is the MEMBER REPO's call — `dailyClaudiniteUpdatesRequirePrReview`
+// in its settings file, where `true` degrades every merged-pr task to open-pr
+// (member config wins, per-project-scheduling DESIGN §1). Tasks stay
 // unaware of that setting by construction: they hand their PR to landDelivery()
 // (directly, or through deliver-generated.mjs) and the repo-shape nuances stay
 // here:
@@ -77,22 +77,20 @@ export function normalizeDelivery(raw) {
 // The default a repo gets when it never declared one.
 export const DEFAULT_DELIVERY = 'auto-merge';
 
-// `maintenance.delivery` is always EXPLICIT — but a key that is simply absent is
+// @deprecated — the `maintenance.delivery` resolution, kept callable for the
+// fielded workers that still import it (an `updates/*`-class surface: a member's
+// vendored worker is a cycle behind the flows that rewrote its declaration). New
+// callers ask `deliveryFor` below, which reads the current key.
+//
+// `maintenance.delivery` was always EXPLICIT — but a key that is simply absent is
 // DRIFT, not an error. A repo adopted before the key existed, or one whose key
 // was hand-removed, would otherwise fail its scheduled tasks every night forever
-// with nothing that could ever fix it (the only writer is check_the_world --init,
-// which runs once at adoption; baselining's converge is what repairs the drift).
-// So: resolve to the default and carry on — `materialize: true` tells the one
-// caller that CAN write the repair (the update converge) to do so; everyone else just uses
-// the resolved value.
+// with nothing that could ever fix it. So: resolve to the default and carry on —
+// `materialize: true` tells the one caller that CAN write the repair to do so.
 //
 // An UNRECOGNIZED value is a different thing entirely: someone wrote an intent
 // this code cannot honour, and silently substituting a default would deliver
 // the opposite of what they asked for. That still fails the run (delivery: null).
-//
-// Returns { delivery, materialize } — `delivery` null only for the unrecognized
-// case. A content-free value (empty/whitespace) carries no intent, so it is
-// treated as absent rather than as a typo.
 export function resolveDelivery(raw) {
   if (raw == null || String(raw).trim() === '') {
     return { delivery: DEFAULT_DELIVERY, materialize: true };
@@ -100,14 +98,37 @@ export function resolveDelivery(raw) {
   return { delivery: normalizeDelivery(raw), materialize: false };
 }
 
-// The same resolution, from the raw TEXT of a repo's .claudinite-checks.json —
-// the shape a caller reading the file off a git blob has in hand. Unparsable or
-// absent text resolves like a missing key: default, not failure (the file's
-// integrity is check_the_world's problem, not the delivery step's).
+// @deprecated with `resolveDelivery` above, and kept callable for the same reason.
 export function deliveryFromChecks(text) {
   let parsed = null;
   try { parsed = JSON.parse(text ?? 'null'); } catch { /* unreadable → absent */ }
   return resolveDelivery(parsed?.maintenance?.delivery);
+}
+
+// THE MEMBER'S DELIVERY, from its parsed settings. One override, one direction:
+// `dailyClaudiniteUpdatesRequirePrReview: true` leaves the PR for a human, and
+// anything else — the key absent, which is the normal shape — lands it. That
+// asymmetry is the point of #1252: every member wanted the same thing, so the
+// setting materialized into every declaration said nothing, and the one repo that
+// wants review is the one that should have to say so.
+//
+// The retired `maintenance.delivery` is read underneath for a member the rename
+// record has not reached. Unparsable or absent settings resolve like an absent
+// key — auto-merge, not failure: the file's integrity is check_the_world's
+// problem, not the delivery step's.
+export function deliveryFor(settings) {
+  if (settings?.dailyClaudiniteUpdatesRequirePrReview === true) return 'review';
+  if (settings?.dailyClaudiniteUpdatesRequirePrReview === undefined
+      && normalizeDelivery(settings?.maintenance?.delivery) === 'review') return 'review';
+  return DEFAULT_DELIVERY;
+}
+
+// The same, from the raw TEXT of a settings file — the shape a caller reading the
+// file off a git blob has in hand.
+export function deliveryForText(text) {
+  let parsed = null;
+  try { parsed = JSON.parse(text ?? 'null'); } catch { /* unreadable → absent */ }
+  return deliveryFor(parsed);
 }
 
 // --- CI dispatch on the delivered PR (#565) -----------------------------------

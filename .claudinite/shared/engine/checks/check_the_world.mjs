@@ -13,14 +13,14 @@
 //               (adopting a repo with a backlog only — not the enforcement default)
 //   --base REF  override the base ref
 //   --list      machine-readable catalog of every rule, both scopes (id, severity, description, doc)
-//   --init      write .claudinite-checks.json — basics plus the fingerprinted packs
+//   --init      write .claudinite-settings.json — basics plus the fingerprinted packs
 import { buildContext } from './helpers/repo-context.mjs';
 import { discoverPacks, packEntryId } from '../pack_loader/pack-registry.mjs';
 import { runActivePackRules, packRules } from './run-active-pack-rules.mjs';
 import { reportFindings } from './report-findings.mjs';
 
 const configError = (what, fix) => ({
-  rule: 'config', severity: 'blocking', file: '.claudinite-checks.json', line: null,
+  rule: 'config', severity: 'blocking', file: '.claudinite-settings.json', line: null,
   what, why: 'the settings file is what executes — a bad key, value, or pack name silently changes what runs', fix, doc: 'engine/checks/README.md',
 });
 

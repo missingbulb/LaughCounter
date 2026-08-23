@@ -1,9 +1,3 @@
-import taskDeclarationShape from './task-declaration-shape.mjs';
-import taskDeclarationMatchesFolder from './task-declaration-matches-folder.mjs';
-import taskCodeWorkEnv from './task-code-work-env.mjs';
-import dedupIntegrity from './dedup-integrity.mjs';
-import growthWriteScope from './growth-write-scope.mjs';
-import taskMdOnlyWhenAgentic from './task-md-only-when-agentic.mjs';
 
 // Opt into the growth lifecycle: a repo declaring claudinite-growth contributes its
 // hard-won lessons up to the Claudinite canon and prunes them back out once the canon
@@ -75,18 +69,13 @@ import taskMdOnlyWhenAgentic from './task-md-only-when-agentic.mjs';
 // than something every adopter must weigh in on. A project that wants the prune
 // active sets retention_days itself.
 export default {
-  id: 'claudinite-growth',
-  version: '60821.2',
-  minEngineVersion: 1,
+  version: '60823.2',
+  minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'authoring Claudinite content here — lesson extraction, dedup, revalidation, conversation logs, skill-usage folding, the task contract',
     excludes: 'this repo\'s Claudinite status — mount, declaration, adoption, update — claudinite-lifecycle; issue/PR housekeeping — tidy-repo; fleet sweeps — claudinite-fleet-sheepdog',
   },
-  badge: 'badge.svg',
-  detect: null,
-  marker: null,
   seededByDefault: true,
-  prose: 'RULES.md',
   // Growth builds on Claudinite's own surface — a lesson is routed by reading the
   // pack catalog and landed by adopting or authoring a pack — so `core` is a
   // prerequisite rather than an ambient assumption.
@@ -97,22 +86,4 @@ export default {
   // which is authoring, not whether Claudinite is working in this repo. The
   // contract's third rule (task-phase-discipline) is a declared check in this pack's
   // declared-checks.json, beside them.
-  worldRules: [
-    taskDeclarationShape,
-    taskDeclarationMatchesFolder,
-    taskMdOnlyWhenAgentic,
-    // …and the environment that contract hands a task's code-work, which is the half
-    // no declaration states and nothing else can catch.
-    taskCodeWorkEnv,
-  ],
-  workRules: [dedupIntegrity, growthWriteScope],
-  skills: [
-    'extract-from-activity',
-    'extract-from-conversations',
-    'generate-project-instructions',
-    'growth-dedup',
-    'prose-to-checks',
-    'unattended-agents',
-    'writing-tasks',
-  ],
 };

@@ -29,7 +29,7 @@ export function applyConfig(findings, config) {
       out.push({
         rule: 'config',
         severity: 'blocking',
-        file: '.claudinite-checks.json',
+        file: '.claudinite-settings.json',
         line: null,
         what: `acceptance for ${f.rule}${acceptance.path ? ` on ${acceptance.path}` : ''}${acceptance.pack ? ` (on the "${acceptance.pack}" pack entry)` : ''} has no reason`,
         why: 'the reason string is what makes an accepted violation reviewable',

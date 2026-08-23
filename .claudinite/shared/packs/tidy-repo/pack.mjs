@@ -14,27 +14,16 @@
 // one: each has its own trigger and scope, none depends on another's result, so
 // there is no ordering barrier and a dimension with nothing to do stays silent.
 export default {
-  id: 'tidy-repo',
-  version: '60820.1',
-  minEngineVersion: 1,
+  version: '60823.1',
+  minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'housekeeping of open issues, pull requests and branches in one repo — triage verdicts, standing trackers, assess-vs-act policy',
     excludes: 'extracting lessons into packs — that is claudinite-growth; cross-repo fleet sweeps are claudinite-fleet-sheepdog',
   },
-  badge: 'badge.svg',
-  detect: null,
-  marker: null,
   seededByDefault: true,
-  prose: 'RULES.md',
-  worldRules: [],
   // The pack's scheduled tasks live in this pack's own `tasks/<id>/`, discovered by
   // the scheduler's filesystem scan (engine/scheduler/discover.mjs), not declared here.
   //
   // The single-object worker skills those workers apply live under this pack's own
   // skills/ and mount wherever tidy-repo is declared.
-  skills: [
-    'single-branch-status',
-    'single-issue-triage',
-    'single-pr-status',
-  ],
 };

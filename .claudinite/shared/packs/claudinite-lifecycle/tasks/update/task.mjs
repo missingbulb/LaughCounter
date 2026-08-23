@@ -1,12 +1,8 @@
 // basics task: update — the versioned engine/pack update flows, run by a repo on
-// itself (#768 — see the versioned-updates design there). The successor to `baselining`,
-// and for now its sibling: exactly one of the two serves any repo, decided by that
-// repo's own `maintenance.mechanism` (engine/served-by.mjs).
-//
-// A repo that has not been flipped declares nothing, is served by baselining, and
-// never reaches this task's worker — which stands down in that case rather than
-// assuming. So adding this task changes nothing for a member until someone writes
-// the flag into its declaration.
+// itself (#768 — see the versioned-updates design there). The successor to
+// `baselining`, and since Phase 5 deleted that, the only thing that maintains a
+// member's mount: there is no mechanism flag left to consult, and the block that
+// held one is gone (#1252).
 //
 // Two stages, like baselining's. The DETERMINISTIC flows are `code_work`
 // (worker.mjs): they converge the mount, run the version-ranged migrations, gate on
@@ -17,11 +13,9 @@
 // Self-contained (imports nothing) so the scheduler, executor, and a human all load
 // it standalone — the whole contract lives in this default export.
 
-const OVERDUE_DAYS = 1;
-
 export default {
   id: 'update',
-  frequency: 'daily-2h',                 // the same 02:00 anchor baselining holds: a repo's mount is converged before anything reads it
+  frequency: 'daily',                    // the head of the morning chain — everything that reads a converged mount declares `schedule_after:` this
   precondition_signals: ['stamp', 'sharedMount'],
   agent_model: 'sonnet',                 // the apply stage only — most runs are agentless
   expected_outcome: 'merged-pr',
@@ -32,18 +26,20 @@ export default {
   agent_execution_timeout: 1800,
 
   // PURE over the collected signals. It gates only that the worker RUNS; the worker
-  // owns every decision after that, including whether this repo is its to serve —
-  // which is deliberately NOT decided here. The signals carry the stamp, not the
-  // declaration, and a precondition that guessed at the mechanism from a stamp would
-  // be a second answer to a question `servedBy` already answers from the file.
+  // owns every decision after that.
+  //
+  // Newness comes from the mount's OWN movement in the window, never from a
+  // datetime in the declaration: the one that used to be stamped there recorded the
+  // last full re-vendor, so a member converging nightly looked months overdue
+  // forever (#1252). "The mount converged inside this window" is the same question
+  // the age was a proxy for, asked of the commits that would have done it.
   precondition(signals) {
     const stamp = signals.stamp ?? {};
-    if (!stamp.ref && stamp.ageDays === null) {
-      return { run: false, reason: 'no vendored mount (no stamp) — nothing to update' };
+    if (!stamp.present) {
+      return { run: false, reason: 'no vendored mount (no installed versions) — nothing to update' };
     }
-    const age = stamp.ageDays;
-    if (age !== null && age < OVERDUE_DAYS && !(signals.sharedMount?.changedPacks ?? []).length) {
-      return { run: false, reason: `converged ${age}d ago and no pack moved — nothing due` };
+    if (stamp.convergedInWindow && !(signals.sharedMount?.changedPacks ?? []).length) {
+      return { run: false, reason: 'the mount converged in this window and no pack moved — nothing due' };
     }
     return {
       run: true,

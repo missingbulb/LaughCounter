@@ -34,8 +34,26 @@ export function hashedMinute(fullName) {
   return MINUTE_MIN + ((h >>> 0) % BAND);
 }
 
-// The full hourly cron line for a repo — what the vendored workflow's `cron:` holds.
-export const hashedCron = (fullName) => `${hashedMinute(fullName)} * * * *`;
+// The anchor hour a repo that declares no `taskScheduler.dailyHour` runs on. DUPLICATED from
+// `calendar.mjs`'s DEFAULT_SCHEDULE because this module imports nothing by contract (bootstrap,
+// the update runner and a human all load it standalone); `hash-minute.test.mjs` guards the two
+// against drift.
+const DEFAULT_DAILY_HOUR = 4;
+
+// The full cron line for a repo — what the vendored workflow's `cron:` holds. TWO TICKS A DAY
+// (DESIGN §17): the anchor tick at the repo's own `dailyHour`, which covers every occurrence the
+// calendar can produce, and the drain tick twelve hours later for the work that has no anchor —
+// adopting a marked issue, releasing a `Not-before`, reclaiming a dead claim.
+//
+// `dailyHour` defaults rather than being required because a member's VENDORED worker is a cycle
+// stale and may still call this with one argument; that caller gets the default-schedule answer,
+// which is right for every repo that has not moved its anchor, and its own next converge passes
+// the real value.
+export const hashedCron = (fullName, dailyHour = DEFAULT_DAILY_HOUR) => {
+  const anchor = ((Math.trunc(dailyHour) % 24) + 24) % 24;
+  const drain = (anchor + 12) % 24;
+  return `${hashedMinute(fullName)} ${anchor},${drain} * * *`;
+};
 
 // CLI: `node hash-minute.mjs <owner/repo>` prints the minute (bootstrap / update
 // use this to stamp or verify the workflow's cron without re-implementing the hash).

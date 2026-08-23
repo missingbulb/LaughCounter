@@ -1,6 +1,6 @@
 import { sep } from 'node:path';
-import { finding } from '../../engine/checks/helpers/findings.mjs';
-import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../engine/pack_loader/pack-registry.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
+import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../../engine/pack_loader/pack-registry.mjs';
 
 // The machine backstop for the growth-dedup task doc's rule: a dedup edit only ever REMOVES
 // portable text. The routine has instead reworded partially-covered items —

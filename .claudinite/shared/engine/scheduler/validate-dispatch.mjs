@@ -34,7 +34,7 @@ const reject = (reason, extra = {}) => ({ ok: false, reason, ...extra });
 
 // Validate a dispatch body. Capabilities (all injected for testability):
 //   exists(path)        -> boolean   — does this repo-relative path exist at HEAD
-//   isPackDeclared(id)  -> boolean   — is this pack active in .claudinite-checks.json
+//   isPackDeclared(id)  -> boolean   — is this pack active in .claudinite-settings.json
 //   loadTask(mjsPath)   -> decl      — load the task.mjs default export (throws on parse error)
 // Returns { ok:true, pack, task, taskPath, model, resolvedModel, outcome },
 // { ok:false, gone:true, pack, task, reason } — a well-formed dispatch whose task
@@ -61,7 +61,7 @@ export function validateDispatchBody(body, { exists, isPackDeclared, loadTask })
   const gone = (reason) => reject(reason, { gone: true, pack, task });
   if (!exists(taskPath)) return gone(`task file ${taskPath} does not exist at HEAD — the repo no longer carries this task`);
   if (!exists(mjsPath)) return gone(`the task.mjs sibling ${mjsPath} is missing — the repo no longer carries this task`);
-  if (!builtIn && !isPackDeclared(pack)) return gone(`pack "${pack}" is not declared in .claudinite-checks.json — this task is not active here`);
+  if (!builtIn && !isPackDeclared(pack)) return gone(`pack "${pack}" is not declared in .claudinite-settings.json — this task is not active here`);
 
   let decl;
   try {

@@ -30,8 +30,8 @@ export default {
   agent_execution_timeout: 1800,            // proving canon coverage per local item — generous bound, extreme protection
 
   // The deterministic half: what the mounted canon ADDED in the window — prose
-  // lines and new checks alike — written into the task's tracker issue as the
-  // brief the agentic phase starts from. Reading a diff is code work, and the
+  // lines and new checks alike — posted as a comment on the run's own work item,
+  // the brief the agentic phase starts from. Reading a diff is code work, and the
   // pack owns it: the `sharedMount` signal names the packs that moved and stops
   // there, deliberately, because a signal is a cheap gate any task may declare,
   // not one task's research. The hand-off is unconditional (worker.mjs) —

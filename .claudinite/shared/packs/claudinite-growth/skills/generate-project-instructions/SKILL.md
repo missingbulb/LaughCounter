@@ -155,15 +155,17 @@ for work under `client/`) — never around a technology or a methodology: those 
 (their portable half is a canon seed above; the project-specific residue lands in the structural pack
 that owns the work). Each local pack is a real pack:
 
-- **`pack.mjs`** — `{ id, detect: null, marker: null, prose: 'RULES.md', rules: [...], skills: [...] }`.
+- **`pack.mjs`** — `{ version, ruleRoutingGuidance, detect: null, marker: null, rules: [...] }`. The id
+  is the directory name, the prose the `RULES.md` beside it and the skills its `skills/`
+  subdirectories, all by convention — none of them is declared.
   A local pack is declared by hand, never fingerprinted or seeded (`detect`/`marker` stay null), as its
-  namespaced token `local_packs/<name>` in `.claudinite-checks.json`; its id
+  namespaced token `local_packs/<name>` in `.claudinite-settings.json`; its id
   must be unique and may not shadow a canon pack.
 - **`RULES.md`** — the always-loaded judgment core and the project's concrete values (real
   setup/run/verify commands, real paths, inputs, metrics, invariants). Keep it terse; anything a check
   or skill can carry doesn't belong here, and anything inferable from the code is omitted.
 - **Checks** (`rules`) — the project-specific deterministic rules as `.mjs` modules listed on
-  `pack.mjs`, each with a red-first fixture (`pack.test.mjs`) runnable by the project's own test suite.
+  `pack.mjs`, each with a red-first fixture (`test/pack.test.mjs`) runnable by the project's own test suite.
   Local check modules stay dependency-free (they must load without the gitignored mount): return plain
   finding objects rather than importing the engine's helpers.
 - **Skills** (`skills/<name>/SKILL.md`) — the project's activity-scoped procedures, bundled in the pack;
@@ -190,7 +192,7 @@ docs) — it does **not** `@import` the pack prose; the pack system injects the 
   `.claudinite/local_packs/` (tracked project content — the sync hook preserves it, the gitignore
   re-includes it). Declaring a **local** pack — as `local_packs/<name>` — is valid immediately (the
   engine discovers local packs from the repo), so the declaration lands in the same PR.
-- **Declare a new *canon* pack** in `.claudinite-checks.json` only after it has merged and the mount
+- **Declare a new *canon* pack** in `.claudinite-settings.json` only after it has merged and the mount
   re-synced — declaring a canon id the mounted registry doesn't know is an unknown-pack settings error;
   a *local* id is never that error. Note a pending canon declaration as a follow-up in the project PR.
 - **Existing projects sharing a facet keep their local packs for now.** Once the canon pack lands, the

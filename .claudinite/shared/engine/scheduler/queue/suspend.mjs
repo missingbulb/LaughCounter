@@ -10,10 +10,10 @@
 // dormancy, which needs a commit and a converge to take effect and another to
 // undo. A variable takes effect on the next run and clears the same way.
 //
-// What it freezes: STARTS, not running work. A run already past this gate
-// finishes its item — killing live work would leave exactly the half-done state
-// the leash exists to recover — so an in-flight run may close an item after the
-// hold goes on. Nothing NEW is ever picked.
+// What it freezes: STARTS, and — since the drain became batched (§15.30) — each
+// PICK inside a running drain. A run already past this gate finishes the item it
+// holds: killing live work would leave exactly the half-done state the leash
+// exists to recover. Nothing NEW is ever picked.
 //
 // Resume needs no code: clear the variable and the next scheduler run reclaims, readies and
 // drains on its own. The impatient path is dispatching the SCHEDULER workflow, not
@@ -25,6 +25,32 @@ export const SUSPEND_ALL_VAR = 'CLAUDINITE_TASKS_SUSPEND_ALL';
 // must not read as on. Anything else — unset, empty, a word — is not a hold.
 export const isSuspended = (env = process.env) =>
   ['true', '1', 'yes'].includes(String(env[SUSPEND_ALL_VAR] ?? '').trim().toLowerCase());
+
+// THE BETWEEN-ITEMS READ (§15.30). `vars.*` reaches a run's env at START only, so
+// a batched drain — which may legally run for hours — cannot see a hold set after
+// it began by re-reading its own environment. This asks the API instead, once per
+// item boundary.
+//
+// A read that does not answer is NOT a verdict. It falls back to the value this
+// run started with and SAYS which path it took: a hold silently reading as "off"
+// spends the queue the operator was stopping, and one silently reading as "on"
+// freezes a queue nobody held. The fallback is also what the run degrades to
+// where the token cannot read repository variables at all — the hold then reaches
+// this drain only when it next starts, exactly as it did before the drain
+// batched, and every boundary says so rather than looking like a live check.
+export async function readSuspendedNow(gh, repo, { env = process.env, log = () => {} } = {}) {
+  const { status, json } = await gh(`/repos/${repo}/actions/variables/${SUSPEND_ALL_VAR}`);
+  // Parsed by the same predicate as the env copy: two spellings of "is this on"
+  // would eventually disagree, and this one decides whether work stops.
+  if (status === 200) return isSuspended({ [SUSPEND_ALL_VAR]: json?.value });
+  // Not set is not a fault: the variable simply does not exist, which is the
+  // normal state of every repo nobody has ever held.
+  if (status === 404) return false;
+  log(`! could not read ${SUSPEND_ALL_VAR} live (${status}) — using the value this run started with.`
+    + ' Reading a repository variable needs a token with variables read access; without it a hold'
+    + ' reaches a running drain only when its next run starts.');
+  return isSuspended(env);
+}
 
 // The one line every entry point prints when it parks, so a run that did nothing
 // says WHY it did nothing — a silent clean exit is indistinguishable from a run

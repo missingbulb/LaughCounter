@@ -1,5 +1,5 @@
-import { finding } from '../../engine/checks/helpers/findings.mjs';
-import { resolveStore, isUsableIdentity } from './store.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
+import { resolveStore, isUsableIdentity } from '../store.mjs';
 
 // A person's preferences file is addressed by their IDENTITY and nothing else:
 // store.mjs builds `<path>/<email>.md` from CLAUDE_CODE_USER_EMAIL, and

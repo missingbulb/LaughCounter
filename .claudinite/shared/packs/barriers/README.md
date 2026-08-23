@@ -6,7 +6,7 @@ Declared like any pack (no fingerprint — wanting structural segregation is the
 
 ## Declaring barriers
 
-A repo states its graph as `config.rules` on its **barriers pack entry** in `.claudinite-checks.json` — an array of rules. A rule is the unit; each rule owns its exceptions.
+A repo states its graph as `config.rules` on its **barriers pack entry** in `.claudinite-settings.json` — an array of rules. A rule is the unit; each rule owns its exceptions.
 
 Adopting the pack without a graph is a silent no-op, so adoption asks one question — what the barriers are *for* ([the adoption interview](../README.md#adoption-interview-questions)): the owner's answer is recorded verbatim as `answers.goals` on the entry, and the edge list below is distilled from it.
 

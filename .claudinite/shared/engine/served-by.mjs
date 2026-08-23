@@ -1,5 +1,18 @@
-// WHICH MECHANISM SERVES THIS REPO — the rollout's skew guard (#768's first risk),
-// now the record of a rollout that finished. It began as the flag that kept
+// @deprecated (#1252) — WHICH MECHANISM SERVES THIS REPO. Nothing in the corpus
+// calls this any more: the `maintenance` block it reads is retired, and with the
+// rival mechanism deleted in #768 Phase 5 the question had one possible answer for
+// every member that could still ask it.
+//
+// KEPT CALLABLE, not deleted, for the reason every `updates/*` export is: a member's
+// VENDORED worker is a cycle behind the flows that rewrote its declaration, so a
+// removal would wedge every member holding the old copy on its next run. Its answers
+// stay correct for those callers by construction — a member whose block the rename
+// record has removed reads as the default, which is `versioned`, which is what it
+// is. Retire it by reading the field: the condition is that no member's vendored
+// worker imports it.
+//
+// Below is what it was: the rollout's skew guard (#768's first risk), and then the
+// record of a rollout that finished. It began as the flag that kept
 // baselining and the update flows from converging one mount at once: two mechanisms
 // writing the same files would race, and the loser's write would look like drift the
 // winner then "repairs", nightly, forever.

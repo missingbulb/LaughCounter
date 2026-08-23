@@ -14,11 +14,14 @@
 // repo already converged produces an empty change list.
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { join, dirname, relative } from 'node:path';
+import { join, dirname, relative, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { hashedCron } from './hash-minute.mjs';
+import { DEFAULT_SCHEDULE } from './calendar.mjs';
 import { writeRulesIndex, RULES_INDEX_FILE, RULES_INDEX_IMPORT } from '../pack_loader/generate-rules-index.mjs';
-import { LOCAL_PACKS_SUBDIR, LOCAL_DECL_PREFIX } from '../pack_loader/pack-registry.mjs';
+import { LOCAL_PACKS_SUBDIR, LOCAL_DECL_PREFIX, SHARED_SUBDIR } from '../pack_loader/pack-registry.mjs';
+import { settingsPath } from '../settings-file.mjs';
+import { ENDPOINTS_KEY, LEGACY_ENDPOINTS_KEY } from '../checks/helpers/repo-context.mjs';
 
 // The settings-hook registrations a scheduled repo carries (bootstrap Part 5).
 // Ensured present without clobbering — a set-union keyed on the command string, so
@@ -83,7 +86,7 @@ export async function declaredSecrets(root, config) {
   // holding its token, and the stamp puts that name in the executor's env exactly
   // as a `required_secrets` entry. The executor reads it only at the moment of the
   // invocation call; nothing else in a task's life ever sees it.
-  const endpointTokens = Object.values(config?.taskScheduler?.endpoints ?? {})
+  const endpointTokens = Object.values(config?.taskScheduler?.[ENDPOINTS_KEY] ?? config?.taskScheduler?.[LEGACY_ENDPOINTS_KEY] ?? {})
     .map((e) => e?.tokenSecret).filter((n) => typeof n === 'string' && n);
   return [...new Set([...names, ...endpointTokens])].sort();
 }
@@ -127,13 +130,18 @@ export function withDeclaredSecrets(stubText, names = []) {
 // Action's GITHUB_TOKEN, which GitHub never lets near `.github/workflows/`), so it
 // WITHHOLDS the content and hands it to a lane that can. A flow that had to write
 // the file in order to learn what it should say could not do that.
-export function schedulerWorkflowTarget(fullName, stubText, secretNames = []) {
+// `dailyHour` picks BOTH of the cron's hours (DESIGN §17): the anchor tick and the drain tick
+// twelve hours after it. Optional, and absent means the documented default — an unset key is the
+// default, never a misconfiguration — so a caller that does not read the repo's schedule still
+// writes the right cron for every repo that has not moved its anchor.
+export function schedulerWorkflowTarget(fullName, stubText, secretNames = [], dailyHour = undefined) {
   return withDeclaredSecrets(stubText, secretNames)
-    .replace(/cron:\s*'[^']*'/, `cron: '${hashedCron(fullName)}'`);
+    .replace(/cron:\s*'[^']*'/, `cron: '${hashedCron(fullName, dailyHour ?? DEFAULT_SCHEDULE.dailyHour)}'`);
 }
 
-export function convergeSchedulerWorkflow(root, fullName, stubText, secretNames = []) {
-  return writeWorkflow(root, SCHEDULER_WORKFLOW, schedulerWorkflowTarget(fullName, stubText, secretNames));
+export function convergeSchedulerWorkflow(root, fullName, stubText, secretNames = [], dailyHour = undefined) {
+  return writeWorkflow(root, SCHEDULER_WORKFLOW,
+    schedulerWorkflowTarget(fullName, stubText, secretNames, dailyHour));
 }
 
 // The queue's second workflow — the label-event executor. No cron of its own (the
@@ -233,10 +241,28 @@ export function ensureRulesIndexImport(root) {
 export const RULES_INDEX_MERGE_ATTR = 'claudinite-rules.GENERATED.md merge=ours';
 
 export function ensureRulesIndexMergeAttribute(root) {
+  return ensureAttributeLine(root, RULES_INDEX_MERGE_ATTR);
+}
+
+// The shared mount is canon-owned content the member never authored, so the git HOST
+// is told so: Linguist keeps a member's language stats off the corpus (which outweighs
+// a small member's own source by byte count) and collapses the mount in a converge
+// diff. Presentation only — the CHECK-scope exclusion is a separate, structural rule
+// in the file-set builder (engine/checks/helpers/repo-context.mjs), which drops the
+// mount prefix before attributes are ever consulted, so that exclusion holds on a host
+// and a checkout that honor no attributes at all. git wants '/' separators in a
+// pattern; SHARED_SUBDIR is joined with the platform's.
+export const MOUNT_VENDORED_ATTR = `${SHARED_SUBDIR.split(sep).join('/')}/** linguist-vendored`;
+
+export function ensureMountVendoredAttribute(root) {
+  return ensureAttributeLine(root, MOUNT_VENDORED_ATTR);
+}
+
+function ensureAttributeLine(root, line) {
   const path = join(root, '.gitattributes');
   const text = existsSync(path) ? readFileSync(path, 'utf8') : '';
-  if (text.split('\n').some((l) => l.trim() === RULES_INDEX_MERGE_ATTR)) return false;
-  writeFileSync(path, (text && !text.endsWith('\n') ? `${text}\n` : text) + `${RULES_INDEX_MERGE_ATTR}\n`);
+  if (text.split('\n').some((l) => l.trim() === line)) return false;
+  writeFileSync(path, (text && !text.endsWith('\n') ? `${text}\n` : text) + `${line}\n`);
   return true;
 }
 
@@ -263,33 +289,52 @@ export const packIdForRepo = (fullName) => (fullName ?? '').split('/').pop()
   .toLowerCase()
   .replace(/^-+|-+$/g, '');
 
-const SEED_MANIFEST = (id) => `// ${id} — this repo's own rules: the ones that are true here and portable nowhere.
+const SEED_MANIFEST = (id) => `// ${id} — this repo's own pack: everything local, and portable nowhere. Its rules,
+// and the checks, skills and tasks that carry them, all live here.
 // Seeded empty at adoption; everything in it is this repo's to write. A lesson that
 // would hold in another repo belongs in a canon pack instead — propose it upstream.
+//
+// The id is this directory's name and the prose is the RULES.md beside this file —
+// both by convention (engine/pack_loader/pack-conventions.mjs), so neither is
+// declared here.
 export default {
-  id: '${id}',
   version: 1,
   ruleRoutingGuidance: {
-    belongs: 'working rules and lessons specific to this repository and not portable to any other',
+    belongs: 'everything specific to this repository and portable nowhere else: its working rules, and the checks, skills and tasks carrying them',
     excludes: 'anything true beyond this repo — that belongs in a canon pack, proposed upstream',
   },
   detect: null,
   marker: null,
-  prose: 'RULES.md',
   worldRules: [],
 };
 `;
 
-const SEED_PROSE = (id) => `# ${id} — this repo's own rules
+const SEED_PROSE = (id) => `# ${id} — this repo's own pack
 
-The capture surface for lessons **specific to this repository**. Loaded into every session
-through the rules index, so what lands here should be a directive an agent can act on, not a
-description of how something works.
+The home for everything **specific to this repository**: the rules below, and beside them the
+checks, skills and tasks that carry them. Nothing local needs a home invented for it — this is
+that home. This file is loaded into every session through the rules index, so what lands *here*
+should be a directive an agent can act on, not a description of how something works; a rule a
+deterministic check can enforce belongs in this pack's \`declared-checks.json\` instead, and a
+procedure with a nameable trigger in its own \`skills/<name>/SKILL.md\`.
 
 A lesson that would hold in another repo does not belong here — propose it to the Claudinite
 canon instead, where every repo gets it.
 
 <!-- Nothing yet. The growth lifecycle writes here; so may you. -->
+`;
+
+const SEED_VERSIONS = (id) => `# ${id} — change record
+
+Every change automatic work makes to this pack, newest first: a prose rule added or removed, a
+check created, a rule corrected against a probe or deleted as irrelevant. The row is written in
+the same PR as the change it describes, so this file diffs beside it.
+
+A run that changed nothing writes no row — this is the log of what happened to the pack, never a
+log of runs.
+
+| Date | Task | Change |
+|---|---|---|
 `;
 
 // Seed `.claudinite/local/packs/<repo>/` and declare it. Returns the pack id when it
@@ -301,9 +346,9 @@ export function seedRepoLocalPack(root, fullName) {
   const dir = join(root, LOCAL_PACKS_SUBDIR, id);
   if (existsSync(dir)) return null;
 
-  const settingsPath = join(root, '.claudinite-checks.json');
+  const settingsFile = settingsPath(root);
   let raw;
-  try { raw = JSON.parse(readFileSync(settingsPath, 'utf8')); } catch { return null; }
+  try { raw = JSON.parse(readFileSync(settingsFile, 'utf8')); } catch { return null; }
   const declared = Array.isArray(raw.packs) ? raw.packs : [];
   // Any local declaration at all means this repo already has a home of its own.
   if (declared.some((p) => String(typeof p === 'string' ? p : p?.id).startsWith('local'))) return null;
@@ -311,20 +356,21 @@ export function seedRepoLocalPack(root, fullName) {
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'pack.mjs'), SEED_MANIFEST(id));
   writeFileSync(join(dir, 'RULES.md'), SEED_PROSE(id));
+  writeFileSync(join(dir, 'VERSIONS.md'), SEED_VERSIONS(id));
 
   // Declared as text, never a JSON round-trip: re-serializing rewrites what it was not
   // asked to — `ensure_ascii` escapes every non-ASCII character in a settings file full
   // of prose, and indent and key order become the serializer's opinion.
-  const text = readFileSync(settingsPath, 'utf8');
+  const text = readFileSync(settingsFile, 'utf8');
   const entry = `"${LOCAL_DECL_PREFIX}${id}"`;
   const patched = text.replace(/("packs"\s*:\s*\[)/, (m) => `${m}\n    ${entry},`);
-  writeFileSync(settingsPath, patched === text
+  writeFileSync(settingsFile, patched === text
     ? text // no `packs` array to extend — leave the file alone rather than guess at its shape
     : patched);
   return id;
 }
 
-// Strip the retired `badges` setting from `.claudinite-checks.json`. `badges` is
+// Strip the retired `badges` setting from the settings file. `badges` is
 // not in CONFIG_KEYS, so a member still carrying it gets an unknown-setting error
 // until the key goes; doing it here — beside the retired corpus import, for the
 // same reason — means the converge that already runs on every member clears it,
@@ -336,7 +382,7 @@ export function seedRepoLocalPack(root, fullName) {
 // file is full of — so a three-line deletion arrives as a diff touching every
 // `reason` in the repo.
 export function removeRetiredBadgeSetting(root) {
-  const path = join(root, '.claudinite-checks.json');
+  const path = settingsPath(root);
   if (!existsSync(path)) return false;
   const text = readFileSync(path, 'utf8');
   let raw;
@@ -418,9 +464,9 @@ export function convergeBadgeRow(root, entries) {
 // wrote one it cannot deliver would fail its whole push, not just that file.
 // `seedLocalPack` defaults off for the same reason `badges` does: both are one-time
 // seeds of files the repo then owns, and only bootstrap passes them.
-export async function convergeWiring(root, fullName, stubText, secretNames = [], { badges = false, workflows = true, seedLocalPack = false, executorStub = null } = {}) {
+export async function convergeWiring(root, fullName, stubText, secretNames = [], { badges = false, workflows = true, seedLocalPack = false, executorStub = null, dailyHour = undefined } = {}) {
   const changed = [];
-  if (workflows && convergeSchedulerWorkflow(root, fullName, stubText, secretNames)) changed.push(SCHEDULER_WORKFLOW);
+  if (workflows && convergeSchedulerWorkflow(root, fullName, stubText, secretNames, dailyHour)) changed.push(SCHEDULER_WORKFLOW);
   // In queue mode `stubText` IS the scheduler run stub (the CLI picks it by dispatch mode),
   // and the executor is its second workflow. Nothing removes the executor when a
   // repo flips back: rolling back is a config edit, and an executor workflow whose
@@ -442,6 +488,7 @@ export async function convergeWiring(root, fullName, stubText, secretNames = [],
   if (await writeRulesIndex(root)) changed.push(RULES_INDEX_FILE);
   if (ensureRulesIndexImport(root)) changed.push(`${CLAUDE_MD} rules-index import`);
   if (ensureRulesIndexMergeAttribute(root)) changed.push('.gitattributes merge=ours for the rules index');
+  if (ensureMountVendoredAttribute(root)) changed.push('.gitattributes linguist-vendored for the shared mount');
   if (badges && convergeBadgeRow(root, await badgeRowEntries(root, await repoConfig(root)))) changed.push(`${README} pack row`);
   return { changed, ...(hooks.error ? { error: hooks.error } : {}) };
 }
@@ -471,7 +518,7 @@ async function main() {
   const executorStub = existsSync(join(stubs, 'claudinite-executor.yml'))
     ? readFileSync(join(stubs, 'claudinite-executor.yml'), 'utf8') : null;
   const secretNames = await declaredSecrets(root, config);
-  const { changed, error } = await convergeWiring(root, fullName, readFileSync(stubPath, 'utf8'), secretNames, { badges, seedLocalPack, executorStub });
+  const { changed, error } = await convergeWiring(root, fullName, readFileSync(stubPath, 'utf8'), secretNames, { badges, seedLocalPack, executorStub, dailyHour: config?.taskScheduler?.dailyHour });
   if (error) console.log(`! ${error}`);
   console.log(changed.length ? `converge-wiring: ${changed.join(', ')}` : 'converge-wiring: already converged');
 }

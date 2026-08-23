@@ -27,7 +27,7 @@
     "id": "warning-suppression",
     "severity": "blocking",
     "failureMessage": "an unexplained suppression hides the signal instead of recording why the fix was rejected",
-    "fix": "add the reason on the suppression line or in the comment above — or fix the cause; if it genuinely can't be annotated, accept it in .claudinite-checks.json with a reason",
+    "fix": "add the reason on the suppression line or in the comment above — or fix the cause; if it genuinely can't be annotated, accept it in .claudinite-settings.json with a reason",
     "scanFiles": "/^(?!.*\\.md$)/",
     "excludeFiles": "/^packs\\/|(^|\\/)checks\\/test\\/|^\\.claudinite\\/local(\\/packs|_packs)\\/[^/]+\\/([^/]+\\.mjs|skills\\/[^/]+\\/checks\\.mjs)$/",
     "matchLines": [

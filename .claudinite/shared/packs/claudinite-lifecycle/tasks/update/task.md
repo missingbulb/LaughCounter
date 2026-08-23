@@ -70,7 +70,7 @@ behavior nobody reviews. Report what you found either way.
 ## 5. End green, or end at `needs-human`
 
 Run this repo's checks. Green: push to the branch, then **land the delivery yourself**,
-per this repo's `maintenance.delivery` in `.claudinite-checks.json`:
+per this repo's `maintenance.delivery` in `.claudinite-settings.json`:
 
 - **`auto-merge`** — merge the PR. Nothing else will: the deterministic half arms
   auto-merge only on a `merge` terminal, and yours was `apply-stage`, so the PR is

@@ -39,6 +39,7 @@ import {
 import { renderUsageFile, withoutStamp } from './usage-format.mjs';
 import { makeReader, readRuns } from './read-runs.mjs';
 import { makeReader as makeQueueReader, readQueueOutcomes } from './read-queue.mjs';
+import { settingsPath } from '../../../../engine/settings-file.mjs';
 
 const BRANCH = 'conversation-logs';
 export const USAGE_PATH = '.claudinite/local/usage.GENERATED.json';
@@ -221,7 +222,7 @@ export async function main() {
   if (found === null) log(`no ${BRANCH} branch — nothing captured yet; folding the run, queue and git sources only`);
 
   let config = {};
-  try { config = JSON.parse(readFileSync(join(root, '.claudinite-checks.json'), 'utf8')); } catch { /* no declaration */ }
+  try { config = JSON.parse(readFileSync(settingsPath(root), 'utf8')); } catch { /* no declaration */ }
   const mounted = await mountedSkillNames(root, config);
 
   const files = (found?.names ?? []).map((name) => ({

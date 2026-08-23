@@ -1,10 +1,10 @@
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { realpathSync } from 'node:fs';
-import { finding } from '../../engine/checks/helpers/findings.mjs';
-import { runRule } from '../../engine/checks/helpers/work.mjs';
-import { buildContext } from '../../engine/checks/helpers/repo-context.mjs';
-import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../engine/pack_loader/pack-registry.mjs';
+import { finding } from '../../../engine/checks/helpers/findings.mjs';
+import { runRule } from '../../../engine/checks/helpers/work.mjs';
+import { buildContext } from '../../../engine/checks/helpers/repo-context.mjs';
+import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../../engine/pack_loader/pack-registry.mjs';
 
 // The write-surface gate for the growth lifecycle's two CAPTURE runs — extract
 // and dedup. Their docs bound every edit to the repo's own local packs, and
@@ -18,7 +18,7 @@ import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../engine/pack
 // prefix the whole lifecycle shares, because its other runs have wider surfaces
 // by design: promote writes the canon under packs/ and skills/ (its own gate is
 // canon-curation's promote-scope.mjs), and pack discovery writes the repo-root
-// .claudinite-checks.json declaration that activates the pack it authors.
+// .claudinite-settings.json declaration that activates the pack it authors.
 // Keying on the prefix would red both. A run whose title this list doesn't
 // carry is simply not this rule's business.
 //
@@ -70,7 +70,7 @@ export default rule;
 // canon-curation's growth-scope-gate.mjs (core CI must not name a specific
 // pack — the barriers rule); a consumer wiring its own CI would invoke this
 // module directly:
-// `node .claudinite/shared/packs/claudinite-growth/growth-write-scope.mjs [root]`.
+// `node .claudinite/shared/packs/claudinite-growth/workRules/growth-write-scope.mjs [root]`.
 //   exit 0 — not a capture run, or every touched path is under the local packs
 //   exit 1 — a capture run touched a path outside the local packs
 export function runCli(root = process.cwd()) {

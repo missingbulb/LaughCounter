@@ -76,20 +76,14 @@ packs (not the shared canon). A run that finds nothing and opens nothing is fine
 A new check must ship green — see it fail on a violating fixture, pass on a clean one — so CI stays green and
 the PR can merge; a check that can't be made confident lands its lesson as prose instead, never a broken check.
 
-## Tracking: log each run under the task's own issue
+## Record what you landed in the pack's own `VERSIONS.md`
 
-The task's standing log is the issue titled exactly, in this repo:
+Every rule this run adds, and every rule it converts to a check, gets a row at the top of the table in
+the pack's `VERSIONS.md`, **in the same commit as the change** — date, `growth-extract`, and what landed
+where. That file, not a GitHub issue, is the growth lifecycle's record: it diffs beside the rule it
+describes, travels with the pack, and is already open in front of anyone reading the rule.
 
-> **Claudinite tracker: Growth Extract**
-
-Find it **by that exact title, never a fuzzy match or a hard-coded number** (a bare number can dangle, and it
-differs per repo). A run that finds no issue under the exact title just creates one (closed) — creation always
-lands an issue open and ignores a `state: closed` argument, so create it and close it in a second call.
-**Never open, close, or reopen it** afterward — its state carries no meaning, only the log does. When a run adds a lesson or
-converts one to a check, log it as a **dated comment** — not a sub-issue — so the issue
-accumulates a scrollable history, each entry naming **what happened and where**. A run that changed nothing
-logs nothing. (A repo that still carries a closed `Claudinite tracker: Conversation Extract` issue from when
-the halves were two tasks keeps it as history — never post to it, never reopen it.)
+A run that changed nothing writes no row. This is the log of what happened to the pack, never a log of runs.
 
 ## Nothing downstream catches a bad lesson
 
