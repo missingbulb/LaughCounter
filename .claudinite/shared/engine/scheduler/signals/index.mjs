@@ -63,9 +63,9 @@ function logStampMs(name) {
   return Number.isFinite(ms) ? ms : null;
 }
 
-async function paged(gh, path) {
+async function paged(gh, path, maxPages = Infinity) {
   const out = [];
-  for (let page = 1; ; page += 1) {
+  for (let page = 1; page <= maxPages; page += 1) {
     const sep = path.includes('?') ? '&' : '?';
     const { status, json } = await gh(`${path}${sep}per_page=100&page=${page}`);
     if (status !== 200 || !Array.isArray(json) || json.length === 0) break;
@@ -105,6 +105,9 @@ async function pagedWindow(gh, path, inWindow) {
 // `commits`-gated precondition ever reaches this listing on its account. The housekeeping regex already covers
 // the growth tasks' own `Claudinite growth: …` PRs and the scheduler's
 // `[claudinite-task]` titles, so the self-trigger guards survive the widening.
+// How far the per-open-PR file read pages before it stops (100 files a page).
+const PR_FILE_PAGES = 3;
+
 const isMinablePr = (p) => {
   if ((p.user?.login ?? '').endsWith('[bot]')) return false;
   return !HOUSEKEEPING.test((p.title ?? '').trim());
@@ -155,15 +158,31 @@ const COLLECTORS = {
       .filter((p) => p.merged_at && new Date(p.merged_at) >= since && isMinablePr(p))
       .map((p) => ({ number: p.number, title: p.title, mergedAt: p.merged_at }));
 
-    return {
-      // `labels` rides along so a precondition can rule on an open PR's family
-      // (e.g. wiki-growth declining while its own labeled PR sits unreviewed) —
-      // the run/no-run decision belongs in the precondition, and it can only
-      // live there if the signal carries the fact it turns on.
-      open: open.map((p) => ({
+    // Each open PR's changed paths — the pending work itself, so a precondition
+    // can rule on WHAT is waiting for review rather than on a marker somebody has
+    // to remember to apply (wiki-growth declines while a `product-wiki/` change is
+    // pending). One read per open PR: the open set is a handful, and no PR listing
+    // carries files.
+    //
+    // `null` is UNKNOWN, and it is a third state, not an empty list: every PR
+    // changes at least one file, so an empty read is a read that failed, and a
+    // precondition gating on a path must decline on "I could not look" rather than
+    // read it as "nothing pending".
+    const withPaths = [];
+    for (const p of open) {
+      // Capped at PR_FILE_PAGES: past it a PR is a mass refactor, whose paths no
+      // consumer of this signal rules on, and paying 30 reads for one would be the
+      // window's whole budget.
+      const files = await paged(gh, `/repos/${ctx.repo}/pulls/${p.number}/files`, PR_FILE_PAGES);
+      const changedPaths = files.map((f) => f.filename).filter(Boolean);
+      withPaths.push({
         number: p.number, title: p.title, updatedAt: p.updated_at,
-        labels: (p.labels ?? []).map((l) => (typeof l === 'string' ? l : l?.name)).filter(Boolean),
-      })),
+        changedPaths: changedPaths.length ? changedPaths : null,
+      });
+    }
+
+    return {
+      open: withPaths,
       touched: open.filter((p) => new Date(p.updated_at) >= since).map((p) => p.number),
       merged,
     };

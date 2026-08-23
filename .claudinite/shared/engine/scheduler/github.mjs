@@ -97,9 +97,9 @@ export async function createIssue(gh, repo, { title, body, labels = [] }) {
 //
 // Judged by STATUS, never by the body: a token without `actions: write` 403s this
 // POST with a plausible JSON body, and a body-only check would log it as sent.
-export async function dispatchWorkflow(gh, repo, file, ref) {
+export async function dispatchWorkflow(gh, repo, file, ref, inputs = null) {
   const { status } = await gh(`/repos/${repo}/actions/workflows/${file}/dispatches`, {
-    method: 'POST', body: { ref },
+    method: 'POST', body: { ref, ...(inputs ? { inputs } : {}) },
   });
   return { ok: status === 204, status };
 }
