@@ -14,7 +14,7 @@
 // one: each has its own trigger and scope, none depends on another's result, so
 // there is no ordering barrier and a dimension with nothing to do stays silent.
 export default {
-  version: '60823.1',
+  version: '60824.1',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'housekeeping of open issues, pull requests and branches in one repo — triage verdicts, standing trackers, assess-vs-act policy',
@@ -22,7 +22,7 @@ export default {
   },
   seededByDefault: true,
   // The pack's scheduled tasks live in this pack's own `tasks/<id>/`, discovered by
-  // the scheduler's filesystem scan (engine/scheduler/discover.mjs), not declared here.
+  // the scheduler's filesystem scan (packs/claudinite-tasks/discover.mjs), not declared here.
   //
   // The single-object worker skills those workers apply live under this pack's own
   // skills/ and mount wherever tidy-repo is declared.

@@ -9,7 +9,7 @@ import { finding } from '../../../engine/checks/helpers/findings.mjs';
 //
 // Why it is its own rule rather than more of that one: both faces fail the same
 // way, and it is the way a shape error does NOT fail. Discovery
-// (engine/scheduler/discover.mjs) is fail-soft per task — a task whose declared
+// (packs/claudinite-tasks/discover.mjs) is fail-soft per task — a task whose declared
 // `id` differs from its directory name is dropped into `errors` and simply never
 // runs, and a dangling `agent_instructions` hands the executor a worker doc that
 // isn't there. Nothing goes red; the scheduler keeps reporting healthy runs while
