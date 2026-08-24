@@ -159,9 +159,9 @@ export async function main() {
       ? ['clone', '--depth', '1', '--branch', rehearsalRef, CANON_URL, tmp]
       : ['clone', '--depth', '1', CANON_URL, tmp]);
     const load = async (rel) => import(pathToFileURL(join(tmp, rel)).href);
-    const { engineUpdate } = await load('updates/engine-update.mjs');
-    const { packUpdate } = await load('updates/pack-update.mjs');
-    const { terminalFor } = await load('updates/terminals.mjs');
+    const { engineUpdate } = await load('packs/claudinite-lifecycle/updates/engine-update.mjs');
+    const { packUpdate } = await load('packs/claudinite-lifecycle/updates/pack-update.mjs');
+    const { terminalFor } = await load('packs/claudinite-lifecycle/updates/terminals.mjs');
 
     // ENGINE FIRST, always: a pack declares the minimum engine it runs on, and the
     // pack flow enforces that against what this repo HAS. Running packs first would

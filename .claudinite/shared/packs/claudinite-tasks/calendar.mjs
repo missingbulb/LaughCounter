@@ -31,12 +31,13 @@ export const FREQUENCIES = ['daily', 'weekly', 'monthly', 'manual'];
 // This map is PERMANENT, not a migration window. A task declaration is member-owned data that no
 // vendoring pass rewrites, so a member can carry a retired token indefinitely and must keep
 // working; `task-declaration-shape` is what stops a NEW declaration naming one.
-export const LEGACY_FREQUENCIES = Object.freeze({
-  hourly: 'daily',
-  'daily-2h': 'daily',
-  'daily-1h': 'daily',
-  'daily+1h': 'daily',
-});
+// EMPTIED, NOT DELETED (#1234). The map IS the tolerance, so emptying it collapses
+// `ACCEPTED_FREQUENCIES` onto `FREQUENCIES`, makes a declaration still naming a retired
+// token fail contract validation, and leaves `normalizeFrequency` as the identity every
+// caller can keep calling — nothing is unwired, and the next retirement fills it in again.
+// Emptied once the fleet's own declarations were read and none named a retired token:
+// GoogleCalendarEventCreator's `create-extractor` was the last, and moved to `daily`.
+export const LEGACY_FREQUENCIES = Object.freeze({});
 
 // What a declaration may CARRY, as against what a new one may be WRITTEN with.
 export const ACCEPTED_FREQUENCIES = [...FREQUENCIES, ...Object.keys(LEGACY_FREQUENCIES)];
