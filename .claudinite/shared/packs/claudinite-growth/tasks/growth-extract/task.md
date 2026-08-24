@@ -64,7 +64,7 @@ If the run found at least one genuinely new lesson, it lands **all** of it — b
 upgrade pass produced — through a **single PR**: one commit for the whole run on a per-run-unique branch, not
 one per lesson and not one per half. Open the PR (title `Claudinite growth: extract lessons`, its commit
 referencing the tracking issue so the `task-lifecycle` gate passes), then **deliver it by the shared
-procedure — [deliver-pr.md](../../../../engine/scheduler/deliver-pr.md)**. That procedure — never this file —
+procedure — [deliver-pr.md](../../../../packs/claudinite-tasks/deliver-pr.md)**. That procedure — never this file —
 owns every landing nuance: it reads this repo's `maintenance.delivery` (a `review` repo's PR waits for the
 owner — still a delivered outcome), arms auto-merge where the repo allows it, and licenses the hand merge
 when the arm is rejected `clean status` (a base branch that requires nothing — GitHub never auto-merges

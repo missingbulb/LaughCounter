@@ -11,7 +11,7 @@ lessons into its local packs, and pruning them once the shared canon covers them
 that runs canon-side, not a repo-side task, so it lives outside this pack.
 
 Its scheduled work is five tasks under this pack's own `tasks/`, each discovered by the repo's
-scheduler (`engine/scheduler/discover.mjs`) wherever the pack is declared:
+scheduler (`packs/claudinite-tasks/discover.mjs`) wherever the pack is declared:
 
 | Task | Runs when | Where it lands |
 |---|---|---|
@@ -21,7 +21,7 @@ scheduler (`engine/scheduler/discover.mjs`) wherever the pack is declared:
 | `prose-to-checks-sweep` ([tasks/prose-to-checks-sweep/task.md](tasks/prose-to-checks-sweep/task.md)) | weekly (no-ops cheaply on a quiet corpus) | a PR converting always-testable pack prose into checks |
 | `rule-revalidation` ([tasks/rule-revalidation/task.md](tasks/rule-revalidation/task.md)) | weekly | a reviewed PR correcting rules whose environment claim no longer probes true |
 
-(Plus two agentless tasks over the conversation-logs branch: [usage-fold](tasks/usage-fold/README.md) hourly,
+(Plus two agentless tasks over the conversation-logs branch: [usage-fold](../claudinite-tasks/tasks/usage-fold/README.md) hourly,
 described below, and `logs-prune` — retention, [tasks/logs-prune/worker.mjs](tasks/logs-prune/worker.mjs).)
 
 ## Extraction is one task over two sources
@@ -36,7 +36,7 @@ described below, and `logs-prune` — retention, [tasks/logs-prune/worker.mjs](t
    whether any of it upgrades to a check before the PR opens.
 
 Everything lands in **one** PR, delivered to land where the repo's delivery settings allow
-(`engine/scheduler/deliver-pr.md`). The two extraction halves used to be two tasks firing in
+(`packs/claudinite-tasks/deliver-pr.md`). The two extraction halves used to be two tasks firing in
 the same nightly anchor against the same local packs; they share the lesson bar, the promotion ladder
 and the dedup surface ([extracting-lessons.md](extracting-lessons.md)), so the split bought nothing
 and cost a second opus dispatch, a second PR, and two runs deduping against a corpus the other was
@@ -125,7 +125,7 @@ skill-vs-prose call had no empirical feedback: a skill whose trigger never fires
 one that fires daily, and a "skill" that loads in every session (rules wearing a skill's clothes)
 looked exactly like a genuinely activity-scoped one.
 
-The [usage-fold](tasks/usage-fold/README.md) task closes that loop — hourly, agentless, seconds. It
+The [usage-fold](../claudinite-tasks/tasks/usage-fold/README.md) task closes that loop — hourly, agentless, seconds. It
 counts skill loads **and their denominators** (captures, merges, sessions, user messages, user
 commands) out of the logs this pack already captures, into
 `.claudinite/local/usage.GENERATED.json`: day rows recomputed statelessly inside the raw retention
@@ -267,9 +267,7 @@ happened.
 | `growth-write-scope` | high | correctness | check: blocking |
 | `in-session-github-access` | high | correctness | check: blocking |
 | `routine-structure` | medium | complexity | check: blocking |
-| `task-declaration-shape` | high | correctness | check: blocking |
 | `task-declaration-matches-folder` | high | correctness | check: blocking |
-| `task-code-work-env` | high | correctness | check: blocking |
 | `task-md-only-when-agentic` | high | correctness | check: blocking |
 | `task-phase-discipline` | medium | complexity | check: advisory |
 
@@ -278,8 +276,6 @@ lives here because it judges whether a task is *written* correctly — authoring
 pack — and not whether Claudinite is *working* in the repo. Relevance-first: all five are inert until
 the repo carries a `tasks/<name>/task.mjs` of its own.
 
-- `task-declaration-shape` — a task declaration the scheduler reads is incomplete or illegal, so the task never fires or fires wrong.
 - `task-declaration-matches-folder` — a declaration disagrees with its folder: discovery drops it into `errors` and every run keeps reporting healthy without it.
-- `task-code-work-env` — a task reads a `CLAUDINITE_*` variable code-work never sets, so a parameter (a scope filter, a dry-run switch) silently never arrives and the run goes green in its most dangerous mode.
 - `task-md-only-when-agentic` — an agentless task carries a `task.md`, which the corpus reads as "an agent runs here": prose no session will ever open, judged by the routine contract and named by every work item as the file the run is about.
 - `task-phase-discipline` — a task decides not to run after its precondition already said run, hiding the decision from the run records.

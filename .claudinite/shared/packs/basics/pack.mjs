@@ -16,7 +16,7 @@ export default {
   // `migrationApplies` is `want > have` against the stamped version, and what gets
   // stamped is this manifest's number — so a record declaring a version above it would
   // re-apply every cycle, forever, draining never.
-  version: '60823.1',
+  version: '60824.1',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'cross-project working discipline, issue-branch-PR lifecycle, repo hygiene, doc/reference integrity and the baseline engineering, testing and debugging skills',
@@ -36,6 +36,6 @@ export default {
   // are declared checks carrying scope: "work", discovered structurally beside
   // these.
   // `task-janitor` and `ci-performance` are this pack's scheduled tasks,
-  // discovered by the scheduler's filesystem scan (engine/scheduler/discover.mjs)
+  // discovered by the scheduler's filesystem scan (packs/claudinite-tasks/discover.mjs)
   // rather than declared here.
 };

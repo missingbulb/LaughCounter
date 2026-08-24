@@ -35,7 +35,7 @@ Three responsibilities, strictly separated (owner, 2026-08-06):
    task*: items stuck ready past their period, items wearing no state label after
    a torn transition, and a health review of the open set.
 
-The engine is vendored under `.claudinite/shared/engine/scheduler/`; the basics
+The engine is vendored under `.claudinite/shared/packs/claudinite-tasks/`; the basics
 pack owns the conformance guards for the surfaces a repo authors around it —
 scheduling is baseline Claudinite discipline, present wherever basics is
 declared (everywhere), not an opt-in feature.
@@ -49,7 +49,7 @@ than by replaying a ledger.
 - **The scheduler workflow is a thin shim.** The vendored
   `claudinite-scheduler.yml` carries a single **hourly** cron on a repo-hashed
   minute constrained to **:10–:50** (the one repo-specific value in the stub —
-  `engine/scheduler/hash-minute.mjs`, a pure function of the repo full name that
+  `packs/claudinite-tasks/hash-minute.mjs`, a pure function of the repo full name that
   bootstrap stamps in and baselining re-derives), a `concurrency` group, a
   `workflow_dispatch` trigger (whose one `wake` input is how a task is forced,
   here or from another repo), and a call into the vendored scheduler run — no logic of its own
@@ -84,7 +84,7 @@ than by replaying a ledger.
   scheduler run and executor read agent_model/expected_outcome/frequency from this file — never from the work
   item — so an illegal or missing value means a task never fires, fires wrong,
   or writes past its declared ceiling. The same contract
-  (`engine/scheduler/task-contract.mjs`) is re-validated at run time, so the
+  (`packs/claudinite-tasks/task-contract.mjs`) is re-validated at run time, so the
   static and runtime views can't drift. A task declares **no session scope** — see
   the next entry.
 
@@ -121,8 +121,8 @@ than by replaying a ledger.
 - **A task says which repo secrets it needs.** Code-work runs Action-side, so repo
   Actions secrets are reachable there and nowhere else in a task's life (an agent
   session carries none). A task lists what it needs in `required_secrets`; the
-  wiring converge stamps each name into the workflows that run code-work — the scheduler run's
-  drain and the executor — so a worker reads it as ordinary environment. A declared
+  executor holds every repo secret and hands each task's code-work exactly the names
+  that task declared, so a worker reads it as ordinary environment. A declared
   secret the repo has not configured is **named, not guessed at**: code-work is the
   only code that sees a secret's value, so the executor parks the item at
   `needs-human` + `task:needs-human-action` saying exactly which one is missing. Nothing else fails; the task
@@ -137,7 +137,7 @@ than by replaying a ledger.
   code-work and passes the number to its agentic phase the ordinary way — the hand-off
   payload's `delivered.issue`, which the executor renders into the work item as an `Issue:` line
   the worker doc points at. The exact-title lookup and the create-then-close pair are
-  a library that code-work may call (`engine/scheduler/tracker.mjs`), never a phase:
+  a library that code-work may call (`packs/claudinite-tasks/tracker.mjs`), never a phase:
   whether a run with nothing to say should mint a tracker at all is the task's own
   judgment, and tidy-repo's three answer no.
 

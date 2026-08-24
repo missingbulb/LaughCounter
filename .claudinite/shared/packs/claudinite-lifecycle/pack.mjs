@@ -14,7 +14,7 @@
 // so `claudinite-lifecycle-declared` reports a member that has lost the entry rather
 // than being what puts it there.
 export default {
-  version: '60823.1',
+  version: '60824.3',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'using Claudinite itself — the vendored mount, the pack declaration, bootstrapping, adopting packs, the self-refresh update',
@@ -27,7 +27,7 @@ export default {
   // required for the per-repo config rule members' own edges ride.
   requires: ['barriers'],
   // Both scheduled tasks live in this pack's `tasks/`, discovered by the
-  // scheduler's filesystem scan (engine/scheduler/discover.mjs) rather than
+  // scheduler's filesystem scan (packs/claudinite-tasks/discover.mjs) rather than
   // declared here: `update`, the per-repo self-refresh every member runs, and
   // `adopt-requested-packs`, which acts on a repo's pack-adoption requests.
   //

@@ -22,7 +22,7 @@ import { pathToFileURL } from 'node:url';
 import { removeTree } from '../../../../engine/remove-tree.mjs';
 import {
   deliveryFor, pullCreateError, landDelivery, openDeliveredPull, disposeOpenPull,
-} from '../../../../engine/scheduler/land-pr.mjs';
+} from '../../../claudinite-tasks/shared-code/delivery.mjs';
 import { settingsPath, SETTINGS_FILE } from '../../../../engine/settings-file.mjs';
 
 const CANON_URL = 'https://github.com/missingbulb/Claudinite.git'; // public — no token

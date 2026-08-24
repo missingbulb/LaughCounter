@@ -486,7 +486,7 @@ export async function applyMigration(migration, io) {
 // a pending note needed an agent stage, holding the member's stamp until one ran.
 //
 // What the successor drops is the MODEL knob. Which model runs a session is the
-// scheduler's answer (engine/scheduler/model-map.mjs, off the task declaration), and
+// scheduler's answer (packs/claudinite-tasks/model-map.mjs, off the task declaration), and
 // a record reaching around it to name its own was a second authority over the same
 // fact. What a record legitimately knows is narrower and is all `applyStage` asks
 // for: whether its change needs a session at all, and what that session must do.

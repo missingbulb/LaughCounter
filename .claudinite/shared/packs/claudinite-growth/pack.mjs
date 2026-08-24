@@ -4,7 +4,7 @@
 // owns them. This pack carries the REPO-side stages — extract, dedup, the weekly local
 // pack discovery, and the weekly prose-to-checks sweep — as scheduled tasks under this pack's
 // own `tasks/`, discovered by the scheduler's filesystem scan
-// (engine/scheduler/discover.mjs), so none of them is declared here. The central
+// (packs/claudinite-tasks/discover.mjs), so none of them is declared here. The central
 // promote stage — lifting portable lessons up into the shared canon — is a home-only
 // duty that runs canon-side, outside this pack; its precondition targets exactly the
 // members that declare THIS pack, minus any member whose entry sets config.promote:
@@ -69,7 +69,7 @@
 // than something every adopter must weigh in on. A project that wants the prune
 // active sets retention_days itself.
 export default {
-  version: '60823.2',
+  version: '60824.1',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'authoring Claudinite content here — lesson extraction, dedup, revalidation, conversation logs, skill-usage folding, the task contract',

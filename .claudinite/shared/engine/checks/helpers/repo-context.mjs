@@ -129,7 +129,7 @@ function vendoredSet(root, files) {
 // A repo's README pack-badge row has no key here on purpose: the row is seeded at
 // adoption and owned by the repo after, so there is nothing for it to configure.
 // A member carrying a stale `badges` key therefore gets the unknown-setting error
-// below, and the wiring converge (engine/scheduler/converge-wiring.mjs) clears it.
+// below, and the wiring converge clears it.
 // `dormant` is the project's own declaration that it is out of the RECURRING work —
 // see isDormant below for exactly how much that covers.
 // `claudinite` and `maintenance` are the two retired blocks, tolerated on read so a
@@ -149,7 +149,7 @@ const KNOWN_CONFIG_KEYS = [...CONFIG_KEYS, ...LEGACY_CONFIG_KEYS];
 //
 // What dormancy means, exactly — it is narrow on purpose:
 //   - NO RECURRING WORK. The vendored scheduler stops before it evaluates
-//     anything (engine/scheduler/queue/scheduler-run.mjs), so no work item is instantiated,
+//     anything before it evaluates a precondition, so no work item is instantiated,
 //     no agent session is started, and no maintenance PR is opened.
 //     Nothing scheduled runs "for nothing" on a repo nobody is working on.
 //   - NO FLEET CEREMONY. Whatever looks at this repo from the OUTSIDE reads the
@@ -170,8 +170,8 @@ const KNOWN_CONFIG_KEYS = [...CONFIG_KEYS, ...LEGACY_CONFIG_KEYS];
 export const isDormant = (config) => config?.dormant === true;
 
 // The keys a `schedule` object may carry, and the canonical weekday vocabulary
-// (mirrored from engine/scheduler/calendar.mjs WEEKDAYS — kept as a literal here so
-// the checks layer does not import the scheduler engine).
+// (mirrored from the scheduler's own WEEKDAYS — kept as a literal here so the checks
+// layer does not import the scheduler).
 const SCHEDULE_KEYS = ['dailyHour', 'weeklyDay', 'monthlyDay', 'dispatch', 'agenticTaskInvocationEndpoints', 'endpoints'];
 
 // What the endpoint map is called. `endpoints` said nothing about WHICH endpoints —

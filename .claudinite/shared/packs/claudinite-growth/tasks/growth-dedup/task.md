@@ -69,7 +69,7 @@ worker only frames the unattended run around it.
   whole run's prunes, not one per item — never a direct push. **Title the commit and the PR
   `Claudinite growth: dedup local packs`** — the `growth-write-scope` check keys on that title to certify the
   run pruned only the repo's local packs. Then **deliver it by the shared procedure —
-  [deliver-pr.md](../../../../engine/scheduler/deliver-pr.md)**. That procedure — never this file — owns every
+  [deliver-pr.md](../../../../packs/claudinite-tasks/deliver-pr.md)**. That procedure — never this file — owns every
   landing nuance: it reads this repo's `maintenance.delivery` (a `review` repo's PR waits for the owner — still
   a delivered outcome) and arms auto-merge where the repo allows it. Do not assume this run's PR merges
   unreviewed — that is the repo's setting, not this task's (the declared ceiling is `merged-pr`: it *may*
@@ -104,7 +104,7 @@ what the run got wrong: a real lesson pruned on a claim the canon does not actua
 - **Never edit the read-only canon** — it only prunes the repo's *local packs* against it, and the
   `growth-write-scope` check reds a run that touches anything outside them.
 - **Never land a prune outside a PR** — every prune rides the run's single PR, delivered by
-  [deliver-pr.md](../../../../engine/scheduler/deliver-pr.md); a direct push to `main` is never in scope, and
+  [deliver-pr.md](../../../../packs/claudinite-tasks/deliver-pr.md); a direct push to `main` is never in scope, and
   neither is merging past a red check or a repo whose delivery setting says `review`.
 - **Never prune a local item without quoting the mounted-canon line (or covering check rule id) that covers
   it** — when unsure, leave it.
