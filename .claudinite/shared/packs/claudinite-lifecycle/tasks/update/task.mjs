@@ -26,20 +26,29 @@ export default {
   agent_execution_timeout: 1800,
 
   // PURE over the collected signals. It gates only that the worker RUNS; the worker
-  // owns every decision after that.
+  // owns every decision after that — and that division is why this asks almost nothing.
   //
-  // Newness comes from the mount's OWN movement in the window, never from a
-  // datetime in the declaration: the one that used to be stamped there recorded the
-  // last full re-vendor, so a member converging nightly looked months overdue
-  // forever (#1252). "The mount converged inside this window" is the same question
-  // the age was a proxy for, asked of the commits that would have done it.
+  // THE ONE QUESTION WORTH ASKING IS UNAVAILABLE HERE. "Is this member behind the
+  // canon?" needs the canon's versions, and the scheduler Action deliberately does not
+  // read canon (DESIGN §3.3): `stamp.canonHead` is always null and no signal carries
+  // them. Two proxies have stood in for it and both answered a different question. A
+  // datetime in the declaration recorded the last FULL re-vendor, so a member converging
+  // nightly read as months overdue forever (#1252). Local movement in the window —
+  // "the mount converged and no declared pack's files changed" — reads as "nothing
+  // happened here lately", which is equally true of a member that is current and one
+  // that canon moved past an hour after its own converge (#1344). The second proxy left
+  // LaughCounter and TLDR four packs behind for a day, declining their own updates,
+  // with no way out: a forced wake mints the item and the precondition is re-evaluated
+  // at pick, so the force converges to a no-op.
+  //
+  // So it no longer guesses. The asymmetry settles it: declining wrongly costs
+  // permanent, silent staleness nothing in the member can repair, while running
+  // wrongly costs one converge that finds nothing and exits. A daily no-op is the
+  // cheaper mistake by a wide margin.
   precondition(signals) {
     const stamp = signals.stamp ?? {};
     if (!stamp.present) {
       return { run: false, reason: 'no vendored mount (no installed versions) — nothing to update' };
-    }
-    if (stamp.convergedInWindow && !(signals.sharedMount?.changedPacks ?? []).length) {
-      return { run: false, reason: 'the mount converged in this window and no pack moved — nothing due' };
     }
     return {
       run: true,
