@@ -25,7 +25,7 @@
 
 import { pathToFileURL } from 'node:url';
 import {
-  READY, BLOCKED, URGENT, TASK_OBSOLETE, QUEUE_LABELS,
+  READY, BLOCKED, URGENT, TASK_OBSOLETE, QUEUE_LABELS, ORIGIN_AD_HOC,
   EPISODE_MARKER, workItemTitle, workItemBody, withNotBefore, statusesOn,
 } from './work-item.mjs';
 import { clearStatus } from './apply-status.mjs';
@@ -104,7 +104,9 @@ export async function createWorkItem(gh, repo, { pack, task, taskPath, frequency
       blockedBy: opts.blockedBy,
       context: opts.context.length ? opts.context : [FORCED_CONTEXT],
     }),
-    labels: [blocked ? BLOCKED : READY, ...(opts.urgent ? [URGENT] : [])],
+    // A hand-created item is `ad-hoc` by construction — nobody's schedule asked for
+    // it — and the origin is worn for life beside whatever status it holds (§3).
+    labels: [ORIGIN_AD_HOC, blocked ? BLOCKED : READY, ...(opts.urgent ? [URGENT] : [])],
   });
   if (!res.number) return { ok: false, error: `could not create the item: ${res.status}` };
 

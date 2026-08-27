@@ -7,6 +7,7 @@ forward adds its own row.
 
 | Version | Date | What changed |
 |---|---|---|
+| 60827.1 | 2026-08-27 | A new check declares `since` and lands at its real severity even where the tree still violates it, so "the tree isn't clean yet" stops forcing a lesson down to prose. Prose is rationed at two one-sentence rules per run, and two check shapes are named below the bar. A lesson tied to one call site is dropped rather than inflated into a pack rule: a repo's own comments belong to tidy-repo's `improve-comments`, never to a capture run (#1378). |
 | 60824.1 | 2026-08-24 | `usage-fold` and the two task-declaration checks move to the new `claudinite-tasks` pack, which owns the mechanism they are about (#1317). |
 | 60823.3 | 2026-08-23 | `writing-tasks` states the secrets path as it now works: the executor holds every repo secret and hands each task's code-work exactly the names its own declaration lists, rather than a converge stamping names into the workflows (#1301). |
 | 60823.2 | 2026-08-23 | Prose and task docs name the member settings file by its current name, `.claudinite-settings.json` (#1252). |
@@ -17,3 +18,4 @@ forward adds its own row.
 | 60821.1 | — | Usage-fold becomes the dashboard's past-data plane — hourly on a movement precondition, an hour tier, the queue's own closed-item outcomes in place of the retired slot-scheduler census, and the git/rule-token/token series (#1158). The file's readers accept every earlier version, so nothing in a member has to be rewritten and there is no migration record. |
 | 60821.2 | 2026-08-21 | This pack's inline version-history comments moved out of `pack.mjs` into this file. |
 | 60822.2 | 2026-08-23 | The manifest stops restating its own tree (#1246): `id`, `prose`, `badge`, `skills`, `worldRules` and `workRules` are resolved from the pack directory and an absent `detect`/`marker` means no fingerprint. Coded rules move into `worldRules/`/`workRules/` and tests into `test/`, which no vendor set ships. `minEngineVersion` rises to the engine release that reads all of it. |
+| 60827.1 | 2026-08-27 | `writing-tasks` states the vocabulary the engine now writes — one `task:status:*` per item, the origin beside it, and a park as one label rather than a pair (#1119). |

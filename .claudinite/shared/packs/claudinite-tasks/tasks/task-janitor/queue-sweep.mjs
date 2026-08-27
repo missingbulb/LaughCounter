@@ -21,7 +21,7 @@ import {
   periodForTasks,
 } from '../../../claudinite-tasks/queue/janitor-rules.mjs';
 import {
-  NEEDS_HUMAN, QUEUE_LABELS, HANDOFF_MARKER,
+  QUEUE_LABELS, HANDOFF_MARKER,
   NEEDS_HUMAN_ACTION, NEEDS_HUMAN_DECISION,
   STATUS_BLOCKED, STATUS_READY, STATUS_RUNNING_EXECUTOR, STATUS_RUNNING_AGENT,
   isStatus, isParked,
@@ -54,24 +54,23 @@ export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log 
 
   // Both labels, as everywhere: the state the machine reads plus what the human is
   // being asked for.
-  const escalate = async (item, body, from, triage) => {
+  const escalate = async (item, body, from, park) => {
     await comment(gh, repo, item.number, body);
     // Every spelling of the status being left goes: the item may have been filed by
     // an engine older than this one, and a swap that named one spelling would leave
-    // the other standing (`apply-status`).
+    // the other standing (`apply-status`). The park that replaces it is ONE label.
     if (from) await clearStatus({ removeLabel }, gh, repo, item, from);
-    await addLabel(gh, repo, item.number, NEEDS_HUMAN);
-    await addLabel(gh, repo, item.number, triage);
+    await addLabel(gh, repo, item.number, park);
   };
 
   for (const item of stale) {
     await escalate(item, staleReadyComment(item), STATUS_READY, NEEDS_HUMAN_ACTION);
-    log(`escalated stale-ready #${item.number} → ${NEEDS_HUMAN}`);
+    log(`escalated stale-ready #${item.number} → ${NEEDS_HUMAN_ACTION}`);
     result.staleReady.push(item.number);
   }
   for (const item of deadAgents) {
     await escalate(item, deadAgentComment(item, await sessionNote(gh, repo, item)), STATUS_RUNNING_AGENT, NEEDS_HUMAN_DECISION);
-    log(`reclaimed a dead agent claim on #${item.number} → ${NEEDS_HUMAN}`);
+    log(`reclaimed a dead agent claim on #${item.number} → ${NEEDS_HUMAN_DECISION}`);
     result.deadAgents.push(item.number);
   }
   for (const item of stuck) {
@@ -97,7 +96,7 @@ export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log 
       continue;
     }
     await escalate(item, statelessComment(), null, NEEDS_HUMAN_DECISION);
-    log(`repaired stateless #${item.number} → ${NEEDS_HUMAN}`);
+    log(`repaired stateless #${item.number} → ${NEEDS_HUMAN_DECISION}`);
     result.stateless.push(item.number);
   }
 
@@ -106,7 +105,7 @@ export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log 
   const count = (status) => open.filter((i) => isStatus(i, status) && !converged.has(i.number)).length;
   log(`health: ${result.open} open work item(s) — ${count(STATUS_BLOCKED)} blocked, ${count(STATUS_READY)} ready, `
     + `${count(STATUS_RUNNING_EXECUTOR)} executing, ${count(STATUS_RUNNING_AGENT)} with an agent, `
-    + `${open.filter(isParked).length + converged.size} needs-human; `
+    + `${open.filter(isParked).length + converged.size} parked; `
     + `this run escalated ${result.staleReady.length} stale, reclaimed ${result.deadAgents.length} dead agent claim(s), `
     + `surfaced ${result.stuck.length} stuck dependency(ies), repaired ${result.stateless.length} stateless item(s)`);
   return result;
