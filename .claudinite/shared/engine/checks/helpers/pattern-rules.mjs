@@ -18,6 +18,10 @@ import { normalizeEdges, barrierFindings, staleFindings } from './reference-scan
 // or it isn't finished. So a spec carries exactly:
 //   id              the rule id settings and findings name it by
 //   severity        'blocking' | 'advisory'
+//   since           optional 'YYYY-MM-DD' — the date this check was added. A
+//                   blocking check is enforced as advisory for its first
+//                   GRACE_DAYS from it (helpers/findings.mjs), so a check can
+//                   land against a tree that still violates it.
 //   failureMessage  why this matters, printed on every finding the rule makes
 //   …the assertions below, each with the `what` and `fix` it fails with
 //
@@ -344,7 +348,7 @@ const excluded = (path, exclude) =>
 // container throws at load, so a typo cannot silently assert nothing.
 const MSG = ['what', 'fix'];
 const SPEC_KEYS = {
-  spec: ['id', 'severity', 'failureMessage', 'fix', 'scope', 'scanFiles', 'scanTracked', 'excludeFiles',
+  spec: ['id', 'severity', 'since', 'failureMessage', 'fix', 'scope', 'scanFiles', 'scanTracked', 'excludeFiles',
     'scanFileClasses', 'excludeFileClasses', 'scanIgnoringComments', 'scanIgnoringMarkdownFences',
     'relevantWhen', 'whenMissing',
     'maxLines', 'maxLineLength', 'skipLinesMatching', 'matchLines', 'countMatchingLines',
@@ -1427,6 +1431,13 @@ export function patternRule(declaration, { selfExclude = null } = {}) {
   if (declaration.severity !== 'blocking' && declaration.severity !== 'advisory') {
     throw new Error(`${where}: severity must be "blocking" or "advisory", not ${JSON.stringify(declaration.severity)}`);
   }
+  // `since` is the date the check was authored, and the engine holds a blocking
+  // check to advisory for its first GRACE_DAYS from it (findings.mjs). Validated
+  // here rather than shrugged off downstream: a misspelled date silently grants no
+  // grace, which lands as a red build on the run that thought it had one.
+  if (declaration.since !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(declaration.since)) {
+    throw new Error(`${where}: "since" is the date this check was added, as YYYY-MM-DD, not ${JSON.stringify(declaration.since)}`);
+  }
   validateSpecKeys(declaration, 'spec', where);
   const spec = compileSpec(declaration, null, where);
   normalizeLegacySpellings(spec);
@@ -1472,6 +1483,7 @@ export function patternRule(declaration, { selfExclude = null } = {}) {
   const rule = {
     id: spec.id,
     severity: spec.severity,
+    ...(spec.since ? { since: spec.since } : {}),
     why: spec.failureMessage,
     ...(spec.scope ? { scope: spec.scope } : {}),
     spec,

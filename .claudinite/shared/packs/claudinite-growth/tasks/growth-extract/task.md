@@ -73,8 +73,11 @@ default settings it squash-merges once the repo's checks pass, so daily lesson-c
 requests while every change still gets a PR trail and a CI gate. This writes only the repo's *own* local
 packs (not the shared canon). A run that finds nothing and opens nothing is fine — and common.
 
-A new check must ship green — see it fail on a violating fixture, pass on a clean one — so CI stays green and
-the PR can merge; a check that can't be made confident lands its lesson as prose instead, never a broken check.
+A new check ships with its **red-first fixture** — see it fail on a violating fixture, pass on a clean one —
+and with `since: '<today>'`, which holds a `blocking` check to advisory for its first two weeks. That window
+is what lets this run land a check the tree *does* violate: the backlog it surfaces belongs to whoever
+touches those files next, not to this PR, and CI stays green either way. Never ship a check you can't make
+confident — but "the tree still violates it" is no longer a reason to drop to prose.
 
 ## Record what you landed in the pack's own `VERSIONS.md`
 
@@ -96,10 +99,11 @@ in the loop.
 ## What this task must never do
 
 - **Never write outside the repo's own local packs** — this task improves the repo's **packs**, never the
-  canon and never the project's own code. Everything else under `.claudinite/` is the read-only mount, and
-  lifting a lesson up into the canon is the central promote task's job. A lesson tied to one call site lands
-  as its pack's entry **naming the site**, not as an edit out there. The `growth-write-scope` check keys on
-  this run's pinned title (below) and reds any path outside the local packs.
+  canon, never the project's own code, and never its comments, which belong to the tidy-repo pack's
+  `improve-comments` task. Everything else under `.claudinite/` is the read-only mount, and lifting a lesson
+  up into the canon is the central promote task's job. A lesson tied to one call site is dropped, not landed
+  as its pack's entry naming the site. The `growth-write-scope` check keys on this run's pinned title
+  (below) and reds any path outside the local packs.
 - **Never widen past the Context window** — the halves it declares live, the substantive commits and the
   touched PRs/issues named there are the scope; do not re-decide it. That includes the upgrade pass: this
   run's own additions, never the standing backlog.
@@ -109,3 +113,7 @@ in the loop.
   it. Retention is the agentless `logs-prune` task's job, on the capture stamps alone.
 - **Don't add noise** — a duplicate or hallucinated "lesson" is worse than adding nothing, the more so when
   its PR usually lands with no human review to catch it.
+- **Never spend the prose ration to avoid the work of a higher rung.** The ladder rations prose at **at most
+  two** new `RULES.md` rules per run, each one sentence. A run with something real to say says it as a
+  check; a paragraph of prose standing in for a check nobody wrote is this task's characteristic failure,
+  and it is charged to every session in every repo that declares the pack, forever.

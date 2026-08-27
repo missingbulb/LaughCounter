@@ -57,30 +57,48 @@ pack's stated territory is merely too narrow, propose widening it rather than ro
 
 1. **A declared check** — an entry in that pack's `declared-checks.json`, whose `failureMessage` *is* the
    lesson. Nothing wires it: writing the declaration adds the check. This is the first rung to try for any
-   lesson whose whole logic is "these patterns over these files", and most captured conditions are.
+   lesson whose whole logic is "these patterns over these files", and most captured conditions are. Give it
+   `severity: 'blocking'` and `since: '<today>'`: the engine holds a check to advisory for its first two
+   weeks, so a check may land against a tree that still violates it and the backlog it surfaces is somebody
+   else's next change, not this run's.
 2. **A custom code rule** — a `<rule>.mjs` exporting `run(ctx)`, listed on the pack's `pack.mjs` — only
    when the check needs what patterns can't say: real parsing, structured-data field logic, git/diff or
    conversation state, a derived comparison. Reaching for code where a declaration would do costs a module
-   to read and maintain for nothing.
+   to read and maintain for nothing. An **unattended** run ships one `advisory`: hand-written logic has
+   failure modes a declaration cannot have, and nobody reviewed this one.
 3. **A pack skill**, when the lesson is an activity-scoped procedure rather than a condition.
 4. **Terse prose** in the pack's `RULES.md` — the fallback, only what none of the above can carry.
 
 Either check rung ships with a **red-first fixture**; the declaration vocabulary is documented in
 [`pattern-rules.mjs`](../../engine/checks/helpers/pattern-rules.mjs)'s header, and the authoring shape for
-both rungs in [`engine/checks/README.md`](../../engine/checks/README.md#adding-a-rule).
+both rungs — with the `since` grace window — in
+[`engine/checks/README.md`](../../engine/checks/README.md#adding-a-rule).
+
+**Two check shapes are below the bar however cleanly they'd be written**: one that asserts particular code
+exists or still reads a particular way (it pins a point in time and reds the next legitimate edit), and one
+derivable from the product's own requirements (that is a requirement — it belongs in the tests).
 
 Write **more checks and less prose**: a check relieves every session's context completely, where prose only
-relocates it. When no pack's scope fits, the lesson lands in the repo's general local pack. A **new** local
+relocates it. **Prose is rationed, and the ration is small.** Every rule in a `RULES.md` is paid for by every
+session in every repo that declares the pack, forever, whether or not it ever applies — so a pass adds *at
+most two*, each one sentence: the trigger, the directive, and a consequence clause only where the rule can't
+be applied without it. A candidate that needs a paragraph to land has not been understood well enough to be
+a rule yet; the evidence behind it belongs in the pack's `VERSIONS.md` row and the issue, never in the rule.
+If more than two candidates clear every bar above, write the two strongest and drop the rest — they will
+recur if they were real.
+
+When no pack's scope fits, the lesson lands in the repo's general local pack. A **new** local
 pack is justified only by the repo's own **project structure** — a segment of the repo's tree whose work is
 its own territory (a `client` pack for work under `client/`), so a repo's local packs mirror its layout.
 **Never mint a local pack around a technology or a methodology**, however real the knowledge: capture those
 lessons in the structural pack that owns the work, and let the canon-side promote stage — Claudinite's call,
 never a member's — decide whether a technology or methodology facet earns a pack of its own.
 
-**A gotcha tied to one call site is not a pack rule at all.** A trap from misusing a specific API, class, or
-library goes as a **comment right at the usage site** — next to the call itself, where the next editor of
-that line sees it — never collected into a centralized gotchas list. Co-locate it in a file's own header
-comment when the trap spans the whole file and you'd only hit it *while editing that file*. Reserve a
+**A gotcha tied to one call site is not a pack rule at all, and it is not this pass's to land either.** A
+trap from misusing a specific API, class, or library belongs as a comment at that usage site — and a capture
+run's write surface stops at its own packs, so **drop the candidate** rather than inflate it into a pack
+rule or collect it into a centralized gotchas list. The comments in a repo's own source belong to the
+tidy-repo pack's `improve-comments` task, which has its own trigger and its own review surface. Reserve a
 central gotchas doc for what no single usage site owns: a trap you could hit *without* reading the relevant
 file (a mistake of omission), or a cross-cutting invariant.
 

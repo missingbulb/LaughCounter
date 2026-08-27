@@ -40,3 +40,32 @@ export function stripComments(source) {
   }
   return out;
 }
+
+// The extensions whose comments `stripComments` actually models. A file outside
+// this set is never called comments-only: the parser cannot see its comments, so
+// "nothing but comments changed" is a claim it has no grounds for, and answering
+// "no" is the end that fails safe for both callers below.
+export const COMMENT_CHECKABLE = new Set([
+  '.mjs', '.cjs', '.js', '.jsx', '.ts', '.tsx', '.c', '.h', '.cc', '.cpp', '.hpp',
+  '.java', '.go', '.swift', '.kt', '.dart', '.rs', '.cs', '.scss', '.css',
+]);
+
+// Did a change to `file` touch only its comments? `before`/`after` are the file's
+// two contents, null where it was added or deleted — neither of which is a
+// comment-only change, whatever the other side holds.
+//
+// Indentation and blank lines are ignored, so a whitespace-only edit inside a
+// template literal reads as comments-only; in a language whose indentation is
+// semantic the extension set above has already answered no.
+//
+// Its callers grant a PERMISSION on the answer — may this run land its own pull
+// request unreviewed, may it have touched this file at all — which is why the safe
+// end is "no" and why the answer lives here rather than in each of them.
+export function commentOnly(file, before, after) {
+  if (before == null || after == null) return false;
+  const dot = file.lastIndexOf('.');
+  const ext = dot === -1 ? '' : file.slice(dot).toLowerCase();
+  if (!COMMENT_CHECKABLE.has(ext)) return false;
+  const meat = (text) => stripComments(text).split('\n').map((l) => l.trim()).filter((l) => l !== '').join('\n');
+  return meat(before) === meat(after);
+}

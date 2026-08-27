@@ -1,9 +1,9 @@
-// tidy-repo task: tidy-issues — the ACTING third of the tidy sweep
+// tidy-repo task: tidy-issues — the ACTING half of the tidy sweep
 // (per-project-scheduling DESIGN §6). Triages the issues the window touched, and
 // re-checks every open issue when the default branch moved substantively (a real
 // commit can implement an old issue without the issue itself being touched).
-// Worker: task.md. Branches and PRs are separate tasks: one dimension per task,
-// each with its own trigger, scope, and tracker — no ordering barrier between them.
+// Worker: task.md. PRs are a separate task: one dimension per task, each with its
+// own trigger, scope, and tracker — no ordering barrier between them.
 //
 // Self-contained (imports nothing): the whole contract is this default export.
 
@@ -35,12 +35,22 @@ export default {
   // baseline commit, a bot bump) implements nothing, so it does not widen at all.
   precondition(signals) {
     const substantive = signals.commits?.substantiveChange === true;
-    const open = (signals.issues?.open ?? []).map((i) => i.number);
-    const touched = signals.issues?.touched ?? [];
 
-    // The issues signal already hides Claudinite's own issues — the queue's work
-    // items and the standing trackers — so none can ever be triaged as project
-    // work, nor count as the touch that triggers a run.
+    // A `task:*` label is the scheduler's own marker, stamped on a queue work item
+    // when it is created and carried for its whole life. The issues signal hides
+    // those items by TITLE prefix, so one the queue files under any other title
+    // reaches this task and gets triaged as project work. The label is the
+    // invariant, so it is what this filters on — and it filters BOTH ways: such an
+    // issue is neither a touch that triggers a run nor a target inside one.
+    const queueItem = (i) => (i.labels ?? []).some((l) => String(l).startsWith('task:'));
+    const open = (signals.issues?.open ?? []).filter((i) => !queueItem(i)).map((i) => i.number);
+    const inScope = new Set(open);
+    const touched = (signals.issues?.touched ?? []).filter((n) => inScope.has(n));
+
+    // Between the signal's title filter and the label filter above, none of
+    // Claudinite's own issues — the queue's work items, its schedule board, the
+    // standing trackers — can be triaged as project work or count as the touch
+    // that triggers a run.
     if (!touched.length) return { run: false, reason: 'no issues touched in the window' };
 
     const scope = substantive ? open : touched;

@@ -32,13 +32,14 @@ import { isReleasable } from './readiness.mjs';
 import { pickOrder } from './executor.mjs';
 import { lastLivenessAt } from './heartbeat.mjs';
 import {
-  WORK_PREFIX, BLOCKED, READY, NEEDS_HUMAN, TASK_OBSOLETE,
+  WORK_PREFIX, BLOCKED, READY, TASK_OBSOLETE,
   NEEDS_HUMAN_DECISION, isBlockingPark,
   STATUS_BLOCKED, STATUS_READY, STATUS_RUNNING_EXECUTOR, STATUS_RUNNING_AGENT,
   isStatus, isParked, statusOf,
   QUEUE_LABELS, EPISODE_MARKER, workItemTitle, parseWorkItemTitle, parseWorkItemBody,
   workItemBody, labelNames, hasLabel, parseLastVerdict,
-  ORIGIN_AD_HOC, ORIGIN_LABELS, REQUEST_LABEL, parseRequestFields, parseBlockedBy, withMachineBlock,
+  ORIGIN_AD_HOC, ORIGIN_PLANNED, ORIGIN_LABELS, REQUEST_LABEL, parseRequestFields,
+  parseBlockedBy, withMachineBlock,
 } from './work-item.mjs';
 import { VERDICT_NO, VERDICT_GO, VERDICT_FAIL_OPEN, SCHEDULE_PREFIX } from './schedule-board.mjs';
 import { REQUEST_TASK_ID } from '../built-in-tasks.mjs';
@@ -263,7 +264,9 @@ export async function planSchedulerRun({
     const notBefore = firstEver ? nextAnchor(task.decl.frequency, schedule, now).toISOString() : null;
     ops.push({
       kind: 'create', pack: task.pack, task: task.id, title,
-      labels: [firstEver ? BLOCKED : READY],
+      // THE ORIGIN, worn for the item's whole life beside whatever status it holds
+      // (DESIGN §3): the schedule filed this one, so it is `planned`.
+      labels: [ORIGIN_PLANNED, firstEver ? BLOCKED : READY],
       body: workItemBody({
         taskPath: task.taskPath,
         notBefore,
@@ -276,8 +279,9 @@ export async function planSchedulerRun({
   }
 
   // ---- job 2: ready whatever is due (any origin) --------------------------
-  // The same predicate a CLOSE asks (§15.19) — one definition, so the hourly pass
-  // and the close-time release can never disagree about what "due" means.
+  // The only site that ever releases a blocked item (§15.19, reversed by
+  // §15.31 / #1373): a converge writes only to the item it holds, so nothing
+  // else asks this question.
   for (const item of items) {
     if (closedByThisRun.has(item.number)) continue;
     if (isReleasable(item, { stateOf, nowMs })) ops.push({ kind: 'ready', issue: item.number });
@@ -369,10 +373,10 @@ export async function planSchedulerRun({
     // human, who decides whether the interrupted run left anything behind.
     const oneShot = parsed && policyOf.get(`${parsed.pack}/${parsed.task}`) === 'needs-human';
     ops.push({
-      kind: 'reclaim', issue: item.number, to: oneShot ? NEEDS_HUMAN : READY,
-      // What the human is being asked for: whether the interrupted run left
-      // anything behind, and so whether this re-queues at all — a decision.
-      triage: oneShot ? NEEDS_HUMAN_DECISION : null,
+      // ONE label either way: back into the queue, or parked at the kind that says
+      // what the human is being asked for — whether the interrupted run left
+      // anything behind, and so whether this re-queues at all.
+      kind: 'reclaim', issue: item.number, to: oneShot ? NEEDS_HUMAN_DECISION : READY,
       reason: oneShot
         ? `The executor holding this item went silent for over ${minutes} minutes. This task declares \`on_interrupt: 'needs-human'\`, so nothing re-queues it automatically — check whether the interrupted run left anything behind, then re-queue it by hand.`
         : `Reclaimed: the executor holding this item went silent for over ${minutes} minutes. Returning it to the queue.`,
@@ -699,7 +703,6 @@ async function main() {
       // claimant — the item then livelocks through reclaim cycles forever (F18).
       await comment(gh, repo, op.issue, `${EPISODE_MARKER}\n${op.reason}`);
       await swapStatus({ addLabel, removeLabel }, gh, repo, { number: op.issue }, STATUS_RUNNING_EXECUTOR, op.to);
-      if (op.triage) await addLabel(gh, repo, op.issue, op.triage);
       if (op.to === READY) readied.add(op.issue);
       console.log(`- reclaimed #${op.issue} -> ${op.to}`);
     } else if (op.kind === 'adopt') {
@@ -796,7 +799,10 @@ async function main() {
       const res = await createIssue(gh, repo, {
         title: workItemTitle({ pack: c.pack, task: c.task }),
         body: workItemBody({ taskPath: c.taskPath, context: [FORCED_WAKE_CONTEXT] }),
-        labels: [READY],
+        // A forced mint stands in for the occurrence a schedule would have filed, so
+        // it wears the same origin: the task IS on a calendar, and this item is its
+        // current occurrence (§8).
+        labels: [ORIGIN_PLANNED, READY],
       });
       if (res.number) {
         readied.add(res.number);

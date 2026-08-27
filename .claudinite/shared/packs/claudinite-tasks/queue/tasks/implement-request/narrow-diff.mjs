@@ -13,24 +13,18 @@
 // So a change that edits one module, its tests, a README and a comment in a file
 // somewhere else is narrow; one that edits code in two directories is not.
 //
-// TWO LIMITS, stated because they bound what the verdict means. Comment stripping
-// is C-family (`//`, `/* */`) — a file whose language this parser does not model
-// is never called comments-only, it counts as code, which is the safe end. And the
-// comparison ignores indentation and blank lines, so a whitespace-only edit inside
-// a template literal reads as comments-only; in a language where indentation is
-// semantic the file is not comment-checkable in the first place.
+// THE LIMIT THAT BOUNDS THE VERDICT: a file `commentOnly` cannot answer for counts
+// as code, so a comment-only edit in a language the parser does not model parks the
+// run rather than merging it. That is the safe end, and it is deliberate — the
+// verdict grants a merge nobody will look at.
 
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { stripComments } from '../../../../../engine/checks/helpers/code-scanning.mjs';
+import { COMMENT_CHECKABLE, commentOnly } from '../../../../../engine/checks/helpers/code-scanning.mjs';
 
-// The extensions whose comments `stripComments` actually models. Anything else is
-// counted as code even when the change was a comment — a verdict this module is
-// not sure of is a verdict of "ask the human".
-export const COMMENT_CHECKABLE = new Set([
-  '.mjs', '.cjs', '.js', '.jsx', '.ts', '.tsx', '.c', '.h', '.cc', '.cpp', '.hpp',
-  '.java', '.go', '.swift', '.kt', '.dart', '.rs', '.cs', '.scss', '.css',
-]);
+// Re-exported so this module stays the one place a caller asks about a narrow
+// diff; the parser and the safe end are the shared helper's.
+export { COMMENT_CHECKABLE, commentOnly };
 
 const DOC_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.rst']);
 
@@ -47,16 +41,6 @@ export function classifyPath(file) {
   if (/(^|[.\-_])(test|tests|spec)[.\-_]/i.test(name) || /^test_/i.test(name)) return 'test';
   if (DOC_EXTENSIONS.has(path.extname(name).toLowerCase())) return 'doc';
   return 'code';
-}
-
-// Did the change touch only comments? Absent content on either side (an add or a
-// delete) is not a comment-only change, and a language this parser does not model
-// answers false.
-export function commentOnly(file, before, after) {
-  if (before == null || after == null) return false;
-  if (!COMMENT_CHECKABLE.has(path.extname(file).toLowerCase())) return false;
-  const meat = (text) => stripComments(text).split('\n').map((l) => l.trim()).filter((l) => l !== '').join('\n');
-  return meat(before) === meat(after);
 }
 
 // The verdict over a whole diff. `entries` are `{ file, before, after }`, contents

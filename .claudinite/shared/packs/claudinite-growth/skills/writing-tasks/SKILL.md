@@ -125,7 +125,7 @@ than by replaying a ledger.
   that task declared, so a worker reads it as ordinary environment. A declared
   secret the repo has not configured is **named, not guessed at**: code-work is the
   only code that sees a secret's value, so the executor parks the item at
-  `needs-human` + `task:needs-human-action` saying exactly which one is missing. Nothing else fails; the task
+  `task:status:needs-human-action` saying exactly which one is missing. Nothing else fails; the task
   that needs the secret just doesn't work yet. The consequence worth designing
   around: **a workflow that exists only to hold a secret is redundant** — fold its
   work into the task's code-work rather than dispatching and polling a second
@@ -276,10 +276,13 @@ the same cycle once the upstream is out of the way.
 ## The queue labels are the item's state, and only the queue writes them
 
 A work item's **state is its labels**, and there is exactly one state label on it
-at a time: `task:blocked` (waiting on a `Not-before` or a `Blocked-by`),
-`task:ready` (available to pick), `task:executing` (an executor holds the claim),
-`task:agent` (a session owns it). Beside them: `task:urgent` (pick before anything
-non-urgent) and the terminal set — `task:done`, `task:obsolete`, `needs-human`.
+at a time: `task:status:blocked` (waiting on a `Not-before` or a `Blocked-by`),
+`task:status:waiting-for-executor` (available to pick), `task:status:running-executor`
+(an executor holds the claim), `task:status:running-agent` (a session owns it).
+Beside them: the item's lifelong `task:origin:*`, `task:urgent` (pick before anything
+non-urgent), and the ends — `task:status:done`, `task:status:rejected`, and the four
+`task:status:needs-human-*` parks. Every spelling any older engine wrote is still
+read; none is written.
 (A closed item may still wear the retired `outcome:*` spellings of the first two,
 or `outcome:delivered`, which nothing writes any more; every reader accepts them.)
 
@@ -296,7 +299,7 @@ Two rules follow, and both are about not borrowing the vocabulary:
   `[claudinite-work]` item is either ignored or misread — neither is what the
   person applying it meant.
 - **A task that wants its own tracking issue owns that issue's whole lifecycle**,
-  in its own vocabulary. `needs-human` is the one word shared with the queue, and
+  in its own vocabulary. A park is the one state shared with the queue, and
   a task reusing it is on the hook for clearing it: nothing sweeps an issue that
   is not a work item.
 
@@ -314,7 +317,7 @@ carries, and the only thing tying that record back to the work it describes.
 A hand-off is an **API call**, not a label event — the executor invokes the
 session directly and stamps a nonce on the item first. So a session proves it is
 this item's session in code before acting: the task file exists at HEAD, its pack
-is declared, the title names that task, the item carries `task:agent`, and the
+is declared, the title names that task, the item carries `task:status:running-agent`, and the
 newest hand-off comment carries the nonce it was given. A nonce mismatch means
 the fire named a hand-off that is not the current one — the item belongs to
 someone else, or to an earlier episode — and the session stops without labelling,
@@ -322,21 +325,21 @@ closing or running anything.
 
 ## Item lifecycle — every exit is terminal, and nothing keeps updating
 
-- **Succeeded, nothing pending** → `task:done`, one comment, issue closed.
-- **Parked for a human** → `needs-human` **plus one sub-label naming what is being
-  asked for**, one comment, issue left open. Nothing keeps updating a parked issue:
+- **Succeeded, nothing pending** → `task:status:done`, one comment, issue closed.
+- **Parked for a human** → one `task:status:needs-human-*` label naming what is being
+  asked for, one comment, issue left open. Nothing keeps updating a parked issue:
   one visible convergence, then it is a person's to look at. Re-queueing it by hand
   (`create-work-item --wake #<n>`) is the sanctioned road back, and the
   precondition is re-evaluated at that pickup — which is what makes the retry safe
   even when the failed run half-did its work. The four:
-  - `task:needs-human-approval` — succeeded, and deliberately left an unmerged PR
+  - `task:status:needs-human-approval` — succeeded, and deliberately left an unmerged PR
     for a person to merge or close. The only park that is not a fault.
-  - `task:needs-human-action` — something outside the code must change before this
+  - `task:status:needs-human-action` — something outside the code must change before this
     can run: a secret set, a scope granted, a routine rewired, an input supplied.
-  - `task:needs-human-decision` — the run stopped mid-flight and the next step is a
+  - `task:status:needs-human-decision` — the run stopped mid-flight and the next step is a
     choice: re-queue or abandon, does the half-done work stand, was the ceiling
     violation acceptable.
-  - `task:needs-human-failure` — the run broke. A bug, a contract-forbidden shape, a
+  - `task:status:needs-human-failure` — the run broke. A bug, a contract-forbidden shape, a
     malformed item. The default when nothing else fits.
 
   **An open item is the task's standing item, and a `failure` park therefore stops

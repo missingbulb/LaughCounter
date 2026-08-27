@@ -44,9 +44,10 @@ approach was re-decided mid-flight.
 
 **An already-settled, already-enforced implementation choice is not a lesson.** If a check or a test
 already pins the shape — which roots a CI sweep walks, which contract a construction must satisfy — and
-all that is left to say is *why it looks like that*, that explanation belongs as a comment at the
-implementation site, not as prose in a pack. A rule earns its place by steering a **future** decision or
-catching a **repeatable** mistake, not by narrating a past one that is already locked in.
+all that is left to say is *why it looks like that*, it belongs at the implementation site rather than as
+prose in a pack — and this run does not write there, so the candidate is dropped. A rule earns its place by
+steering a **future** decision or catching a **repeatable** mistake, not by narrating a past one that is
+already locked in.
 
 Wall-time and dialogue friction (a clarifying round-trip, a backtrack, a wait sat through) leave no trace
 in a diff. Don't infer them from artifacts — that is the conversation sibling's territory, working from
@@ -59,8 +60,10 @@ check first, a custom code rule only where patterns can't say it, then pack skil
 local pack whose territory owns it. Write more checks and less prose, and keep each addition terse and in
 the repo's own voice.
 
-A new check ships **green or not at all**: see it fail on a violating fixture and pass on a clean one. A
-rule that cannot be made confident lands as prose instead — never as a broken check.
+A new check ships with its **red-first fixture**: see it fail on a violating fixture and pass on a clean
+one. Declare `since: '<today>'` on it — a `blocking` check is enforced as advisory for its first two weeks,
+so a check whose backlog the tree still carries can land now and bite later. A rule that cannot be made
+confident lands as prose instead — never as a broken check.
 
 Finding nothing is a perfectly good and common outcome; a duplicate or invented "lesson" is worse than
 adding nothing.

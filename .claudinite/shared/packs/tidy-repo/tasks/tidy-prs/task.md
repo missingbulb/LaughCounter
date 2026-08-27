@@ -1,6 +1,6 @@
 # tidy-prs worker
 
-The **assess-only** PR third of the repo tidy-up: a weekly pass over every open PR — run only when a PR
+The **assess-only** PR half of the repo tidy-up: a weekly pass over every open PR — run only when a PR
 actually moved in the window — then record the picture. The run's **Context section is binding scope**
 — it lists the PRs to assess. Work only
 those; don't enumerate the repo yourself. GitHub access is **MCP-only** (`mcp__github__*`).
@@ -27,7 +27,7 @@ One standing tracker issue per repo, titled exactly `Claudinite tracker: Tidy PR
 title, never a fuzzy match**; create it **already closed** when there is something to record and it is absent
 — creation always lands an issue open and ignores a `state: closed` argument, so create it and close it in a
 second call (never a fresh issue per run, never a bare number that can dangle). Each dimension keeps its
-**own** tracker, so three tasks never race to rewrite one body.
+**own** tracker, so the two tasks never race to rewrite one body.
 
 Touch it two ways on a run that has something to record:
 

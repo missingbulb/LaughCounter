@@ -11,7 +11,7 @@
 
 import { periodMs } from './anchors.mjs';
 import {
-  READY, AGENT, NEEDS_HUMAN,
+  READY, AGENT, requeueHint,
   STATUS_READY, STATUS_RUNNING_AGENT, STATUS_BLOCKED, isStatus, statusOf,
   parseWorkItemTitle, parseWorkItemBody, taskIdFromPath,
 } from './work-item.mjs';
@@ -46,7 +46,7 @@ export function staleReadyItems(open = [], now, { periodFor = () => null, factor
 export const staleReadyComment = (item) => {
   const p = parseWorkItemTitle(item.title) ?? taskIdFromPath(parseWorkItemBody(item.body).taskPath);
   return `This work item for ${p ? `${p.pack}/${p.task}` : 'this task'} has sat \`${READY}\` for over ~${STALE_READY_PERIODS} of its scheduling periods `
-    + `without an executor picking it up. Labeling \`${NEEDS_HUMAN}\` and taking it out of the queue for triage.`;
+    + 'without an executor picking it up. Parking it for a human and taking it out of the queue.';
 };
 
 // Rule B — THE AGENT LEASH. An item with an agent silent past ~3h means the session died.
@@ -59,7 +59,7 @@ export function deadAgentItems(open = [], now, { leashMs = AGENT_LEASH_MS } = {}
 
 export const deadAgentComment = (item, sessionNote = null) =>
   `This work item has carried \`${AGENT}\` for over ${Math.round(AGENT_LEASH_MS / 3600e3)}h with no activity — `
-  + `the agent session that claimed it${sessionNote ? ` (${sessionNote})` : ''} never converged it. Labeling \`${NEEDS_HUMAN}\` for triage.`;
+  + `the agent session that claimed it${sessionNote ? ` (${sessionNote})` : ''} never converged it. Parking it for a human.`;
 
 // Rule C — THE STUCK-DEPENDENCY SWEEP (F14). The stale-ready rule cannot see this
 // at all: a blocked item is never ready. So a blocked item whose blockers have not
@@ -95,7 +95,7 @@ export function statelessItems(open = []) {
 
 export const statelessComment = () =>
   'This work item carries no state label at all — the leavings of a label swap that tore mid-flight, which puts it outside the state machine. '
-  + `Labeling \`${NEEDS_HUMAN}\`: re-queue it by hand (remove \`${NEEDS_HUMAN}\`, add \`${READY}\`) once you have looked at it.`;
+  + `Parking it for a human: re-queue it by hand (${requeueHint}) once you have looked at it.`;
 
 // The period of a task, for rule A — read from the declaration at HEAD.
 export const periodForTasks = (tasks = []) => {

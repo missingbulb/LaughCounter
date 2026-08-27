@@ -19,16 +19,21 @@ conversation — the issue body is the whole brief. State the change, the files 
 surfaces it touches if you know them, what "done" looks like, and anything the
 owner ruled out. Size it to its idea; a rename is a sentence.
 
-Give the body these two lines, verbatim in this spelling — the scheduler run reads the
-first one:
+Give the body its wait and the marker, verbatim in this spelling — the scheduler
+run reads the wait fields:
 
 ```
 Blocked-by: #<what this waits on>
+Not-before: <ISO instant this may first run>
 
 <!-- filed by /do-later -->
 ```
 
-**What it waits on**, first match wins:
+The two waits compose: an issue carrying both sleeps until every blocker has
+closed **and** the moment has passed. Write only the ones the deferral actually
+has.
+
+**What issue it waits on**, first match wins:
 
 1. the issue of the **previous `/do-later` you filed in this session** — that is
    the chain the owner asked for, each deferral behind the last;
@@ -41,6 +46,16 @@ Only ever name blockers that will actually *close* — a merged PR does, a branc
 does not. If you filed an earlier `/do-later` this session but no longer have its
 number, find it by its marker line among the repo's open issues rather than
 falling back to (2).
+
+**What moment it waits on.** A deferral the owner words as a *time* — "check
+tomorrow", "in a week", "not until after the release" — waits on an instant, and
+`Blocked-by:` cannot express it. That is `Not-before:`, and it is the queue's own
+wait field rather than a parameter: it is honoured whether or not the author holds
+push access. Give it an ISO-8601 instant resolved against today's date
+(`Not-before: 2026-08-28T09:00:00Z`) — the next scheduler run adopts the issue,
+holds it blocked, and releases it on the first hourly pass after that instant.
+A time-worded deferral is never case 4: it waits on the moment even when no issue
+or PR is in flight, so it does not "queue immediately".
 
 ## The mark, and the parameters in the body
 
@@ -66,7 +81,7 @@ only for an author with push access on the repository.
   rather than "implement this issue". Left out, the run is the built-in request
   implementer, which is what a `/do-later` almost always wants.
 
-Keep the fields on their own lines, above the marker line, beside `Blocked-by:`.
+Keep the fields on their own lines, above the marker line, beside the wait fields.
 
 If the mark does not exist in the repository yet, it cannot be applied (the API
 refuses an unknown label, and only the scheduler run creates it). Say so in your

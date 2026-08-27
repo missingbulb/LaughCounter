@@ -1,12 +1,11 @@
 # tidy-issues worker
 
-The **acting** third of the repo tidy-up: triage the issues in scope, then record what you did. The run's
+The **acting** half of the repo tidy-up: triage the issues in scope, then record what you did. The run's
 **Context section is binding scope** — it lists the issues to triage. Work only those; don't enumerate the
 repo yourself. GitHub access is **MCP-only** (`mcp__github__*`).
 
 This task writes **issues only** (its triage actions and its own tracker). It never opens, closes, merges,
-or comments on a PR, never touches a branch, and never pushes — those dimensions belong to `tidy-prs` and
-`tidy-branches`, which are assess-only.
+or comments on a PR — that dimension belongs to `tidy-prs`, which is assess-only.
 
 ## 1. Triage each issue
 
@@ -28,7 +27,7 @@ One standing tracker issue per repo, titled exactly `Claudinite tracker: Tidy Is
 **exact title, never a fuzzy match**; create it **already closed** when there is something to record and it
 is absent — creation always lands an issue open and ignores a `state: closed` argument, so create it and
 close it in a second call (never a fresh issue per run, never a bare number that can dangle). Each dimension
-keeps its **own** tracker, so three tasks never race to rewrite one body.
+keeps its **own** tracker, so the two tasks never race to rewrite one body.
 
 Touch it two ways on a run that has something to record:
 
@@ -42,8 +41,8 @@ the live picture; the state is just however it was created).
 ## 3. Retire the legacy tracker (transitional, one line of work)
 
 Repos tidied before the split carry a single combined tracker titled exactly `Claudinite tracker: Repo
-Tidy`. If it exists and its body doesn't already say so, rewrite the body to one line pointing at the three
-per-dimension trackers (`Tidy Issues`, `Tidy PRs`, `Tidy Branches`) and stop there — nothing else to do on
-it, and never open, close, or reopen it. Already pointing at them ⇒ skip. Absent ⇒ skip; never create it.
+Tidy`. If it exists and its body doesn't already say so, rewrite the body to one line pointing at the
+per-dimension trackers (`Tidy Issues`, `Tidy PRs`) and stop there — nothing else to do on it, and never
+open, close, or reopen it. Already pointing at them ⇒ skip. Absent ⇒ skip; never create it.
 
 `model: sonnet` — the implemented-in-`main` call is judgment; the reconcile is mechanical aggregation.

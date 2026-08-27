@@ -108,6 +108,10 @@ Follow the extract stage's check-authoring discipline (the local promotion ladde
    observable** (an append-only transcript, a published artifact). A blocking finding no edit can
    retract never converges — it spends every remaining Stop cycle on something nothing can fix.
    Advisory there is *diagnostic*: it names the cause the moment it appears.
+   - **Declare `since: '<today>'` beside the severity.** A blocking check is enforced as advisory for
+     its first two weeks, so a conversion whose backlog the tree still carries lands at its real
+     severity now and starts biting once somebody has had time to clear it. Never soften a real
+     defect to `advisory` for that reason — the window is what makes softening unnecessary.
    - **Prefer a positive allowlist over an enumerated list of the bad cases.** Match the one allowed
      shape and flag everything else, rather than banning the violations you can name. An allowlist
      catches a variant that doesn't exist yet the day it lands, and turns an indirection (a value

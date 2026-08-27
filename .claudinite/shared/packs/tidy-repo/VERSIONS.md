@@ -5,6 +5,9 @@ the version this file was introduced beside (60820.1); earlier bumps are not bac
 
 | Version | Date | What changed |
 |---|---|---|
+| 60827.2 | 2026-08-27 | A third dimension, `improve-comments`: the pack's first task whose subject is the repo's own source. Weekly over the files the window's commits touched, running the `improve-comments` skill and nothing else, declining while its previous PR is still open, and leaving its PR for review. The skill owns a blocking `improve-comments-scope` gate that strips the comments from both sides of every changed file and reds anything but comment text and `README.md` content. `RULES.md` is deleted: its bullets described what the pack's own workers do, and each worker already states its policy in the `task.md` it loads (#1383). |
+| 60827.1 | 2026-08-27 | `tidy-issues` ignores any issue carrying a `task:*` label — the scheduler's own queue work items, which the signal's title filter misses when one is filed under another title (#1386). |
+| 60824.2 | 2026-08-24 | `tidy-branches` is dropped; the pack keeps `tidy-issues` and `tidy-prs` (#1240). |
 | 60824.1 | 2026-08-24 | Prose names the scheduler at its new home in the `claudinite-tasks` pack (#1317). |
 | 60823.1 | 2026-08-23 | Its seed record reads the declaration under either settings-file name while the #1252 rename drains. |
 | 60822.1 | 2026-08-22 | The manifest stops restating its own tree (#1246): `id`, `prose`, `badge`, `skills`, `worldRules` and `workRules` are resolved from the pack directory and an absent `detect`/`marker` means no fingerprint. Coded rules move into `worldRules/`/`workRules/` and tests into `test/`, which no vendor set ships. `minEngineVersion` rises to the engine release that reads all of it. |

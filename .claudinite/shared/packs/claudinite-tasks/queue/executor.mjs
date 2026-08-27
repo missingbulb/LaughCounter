@@ -17,12 +17,11 @@
 
 import { pathToFileURL } from 'node:url';
 import { isSuspended, readSuspendedNow, suspendedNotice, SUSPEND_ALL_VAR } from './suspend.mjs';
-import { readyDependents } from './readiness.mjs';
 import { HEARTBEAT_MS, heartbeatComment, withHeartbeat } from './heartbeat.mjs';
 import { renderTaskExec } from '../run-record.mjs';
 import { swapStatus, clearStatus } from './apply-status.mjs';
 import {
-  READY, URGENT, EXECUTING, AGENT, NEEDS_HUMAN,
+  READY, URGENT, EXECUTING, AGENT, requeueHint,
   STATUS_READY, STATUS_RUNNING_EXECUTOR, STATUS_RUNNING_AGENT, isStatus,
   TASK_DONE, TASK_OBSOLETE, QUEUE_LABELS, QUEUED_LABEL, isStandingItem,
   NEEDS_HUMAN_ACTION, NEEDS_HUMAN_APPROVAL, NEEDS_HUMAN_FAILURE, triageLabelFor,
@@ -288,9 +287,6 @@ async function executeItem({
   api, gh, repo, root, config, schedule, byId, pathTo = () => null, item, executorId, claim,
   now, heartbeatMs, collectSignalsFor, runTaskCodeWork, invokeAgent, log,
 }) {
-  // What a close needs beyond the item itself: the clock for a dependent's
-  // `Not-before`, and somewhere to say what it released.
-  const ctx = { now, log };
   const parsed = parseWorkItemTitle(item.title);
   const { taskPath } = parseWorkItemBody(item.body);
   // A marked issue's identity is its machine block, not its title (§16.1): the id
@@ -309,7 +305,7 @@ async function executeItem({
   }
   if (!task) {
     await close(api, gh, repo, item, STATUS_RUNNING_EXECUTOR, TASK_OBSOLETE, 'not_planned',
-      `\`${id}\` is not a task this repo carries at HEAD (the pack may be undeclared, or the task removed). Closing obsolete.`, 'task-gone', ctx);
+      `\`${id}\` is not a task this repo carries at HEAD (the pack may be undeclared, or the task removed). Closing obsolete.`, 'task-gone');
     return 'obsolete';
   }
   if (task.taskPath !== taskPath) {
@@ -335,7 +331,7 @@ async function executeItem({
   // once the API recovers, and nothing is written to whatever it could not read.
   if (verdict.error) {
     await converge(api, gh, repo, item, STATUS_RUNNING_EXECUTOR, NEEDS_HUMAN_FAILURE, claim,
-      `This run could not be decided: ${verdict.error}\n\nNothing ran and nothing was written. Re-queue this item (remove the \`${NEEDS_HUMAN}\` labels, add \`${READY}\`) once the cause has cleared.`);
+      `This run could not be decided: ${verdict.error}\n\nNothing ran and nothing was written. Re-queue this item (${requeueHint}) once the cause has cleared.`);
     log(`! #${item.number} ${id}: the precondition could not answer — ${verdict.error}`);
     return 'needs-human';
   }
@@ -359,7 +355,7 @@ async function executeItem({
       `The precondition declined: ${plan.reason}`
       + (plan.standing
         ? '\n\nThis task\'s next occurrence is decided at its next anchor; declined occurrences are recorded on the schedule board.'
-        : ''), 'success', ctx);
+        : ''), 'success');
     return 'obsolete';
   }
 
@@ -392,7 +388,7 @@ async function executeItem({
     }
     if (result.missingSecrets?.length) {
       await converge(api, gh, repo, item, STATUS_RUNNING_EXECUTOR, NEEDS_HUMAN_ACTION, claim,
-        `This task declares repo Actions secrets that are not configured: ${result.missingSecrets.join(', ')}. Set them in repo settings and re-queue this item (remove the \`${NEEDS_HUMAN}\` labels, add \`${READY}\`).`);
+        `This task declares repo Actions secrets that are not configured: ${result.missingSecrets.join(', ')}. Set them in repo settings and re-queue this item (${requeueHint}).`);
       return 'needs-human';
     }
     if (!result.agentRequested) {
@@ -410,7 +406,7 @@ async function executeItem({
       await close(api, gh, repo, item, STATUS_RUNNING_EXECUTOR, TASK_DONE, 'completed',
         result.delivered?.length
           ? `Code-work did this run's work and left:\n${result.delivered.map((d) => `- ${d}`).join('\n')}`
-          : 'Code-work did this run\'s work; no agent was needed.', 'success', ctx);
+          : 'Code-work did this run\'s work; no agent was needed.', 'success');
       return TASK_DONE;
     }
     return handOff({ api, gh, repo, item, task, id, context, result, executorId, claim, invokeAgent, config, log });
@@ -493,7 +489,7 @@ async function handOff({ api, gh, repo, item, task, id, context, result, executo
     // The endpoint refused, so no session exists and none will: a token, a URL or
     // a routine is wrong, and every future pick would be refused the same way.
     await converge(api, gh, repo, item, STATUS_RUNNING_AGENT, NEEDS_HUMAN_ACTION, claim,
-      `Could not start an agent session: ${invocation.error}\n\nNo session was started. Fix the invocation endpoint, then re-queue this item (remove the \`${NEEDS_HUMAN}\` labels, add \`${READY}\`).`);
+      `Could not start an agent session: ${invocation.error}\n\nNo session was started. Fix the invocation endpoint, then re-queue this item (${requeueHint}).`);
     return 'needs-human';
   }
   // NOTHING CAME BACK, and this is the case the whole design turns on: the call
@@ -506,7 +502,7 @@ async function handOff({ api, gh, repo, item, task, id, context, result, executo
   await api.comment(gh, repo, item.number,
     `The agent invocation got no answer: ${invocation.error}\n\n`
     + 'The session may or may not have started, so nothing here re-tries it — a second call could put two sessions on this item. '
-    + `If a session did start it will converge this item; if it did not, the janitor's agent leash brings this item to \`${NEEDS_HUMAN}\` within a few hours.`);
+    + 'If a session did start it will converge this item; if it did not, the janitor\'s agent leash parks it for a human within a few hours.');
   log(`! #${item.number} ${id}: invocation unanswered — left with the agent, leash decides — ${invocation.error}`);
   return 'unknown';
 }
@@ -560,30 +556,27 @@ const recordFor = (item, status) => {
     : '';
 };
 
-// Park an item for a human. BOTH labels, always: `needs-human` is the state every
-// guard and sweep reads, `triage` is what the human is being asked for.
-async function converge(api, gh, repo, item, from, triage, claim, body, status = 'failed') {
+// Park an item for a human. ONE label: the park IS the status, and its kind is what
+// the human is being asked for (DESIGN §4). The two-label park it replaces could be
+// half-applied, which was a torn state of its own.
+async function converge(api, gh, repo, item, from, park, claim, body, status = 'failed') {
   await strikeClaim(api, gh, repo, claim);
   await api.comment(gh, repo, item.number, body + recordFor(item, status));
-  await swapStatus(api, gh, repo, item, from, NEEDS_HUMAN);
-  await api.addLabel(gh, repo, item.number, triage);
+  await swapStatus(api, gh, repo, item, from, park);
 }
 
-// A close is also the moment a dependent may become due (§15.19): whoever closes
-// an item releases what it was holding, in code, and this run's next pick then
-// finds it. The scheduler run stays the backstop for every close this code never
-// performs — a human's, or a session that stopped early.
-async function close(api, gh, repo, item, from, outcome, stateReason, body, status, ctx = {}) {
+// A close writes only to the item it holds (§15.19, reversed by §15.31 /
+// #1373): a dependent this close may make due is released solely by the
+// scheduler run's own readiness job, on its next hourly pass, never here.
+async function close(api, gh, repo, item, from, outcome, stateReason, body, status) {
   await api.comment(gh, repo, item.number, body + recordFor(item, status));
   await clearStatus(api, gh, repo, item, from);
   await api.addLabel(gh, repo, item.number, outcome);
   // A MARKED ISSUE IS NOT THE RUN'S TO CLOSE (§16.1, §16.5). The item's terminal
   // status stands on the still-open issue: the run's verdict is about the run, and
-  // whether the issue is finished belongs to the person who opened it. Nothing is
-  // released either — a dependent waits for that issue to close, and it has not.
+  // whether the issue is finished belongs to the person who opened it.
   if (!isWorkItemTitle(item.title)) return;
   await api.closeIssue(gh, repo, item.number, stateReason);
-  await readyDependents(api, gh, repo, item.number, ctx);
 }
 
 // --- CLI ----------------------------------------------------------------------

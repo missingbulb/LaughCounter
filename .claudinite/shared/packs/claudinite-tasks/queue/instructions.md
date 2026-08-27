@@ -19,7 +19,7 @@ instructions.
    - the issue's title names that same task, **or** — for a marked issue, whose
      title is the person's own — its machine block's first line is that task's
      worker path,
-   - the issue carries `task:agent`,
+   - the issue carries `task:status:running-agent`,
    - and its newest hand-off comment carries **the nonce you were given**.
 
    And **if the item carries a `Request: #N` field**, one more: that issue is open
@@ -64,8 +64,8 @@ instructions.
    - **Delivered by code-work** names artifacts this run already created — a branch,
      a PR, an issue. Work on those; never make your own duplicates of them.
    - **An input the task file calls required and the issue does not carry stops the
-     run.** Say which one was missing and park this item (`needs-human` +
-     `task:needs-human-action` — the item has to be re-created carrying it). Never
+     run.** Say which one was missing and park this item
+     (`task:status:needs-human-action` — the item has to be re-created carrying it). Never
      reconstruct it — searching for the issue by title, taking the newest branch, or
      inferring the scope substitutes another run's inputs for this one's, and the run
      then reports success on work nobody asked for.
@@ -79,8 +79,7 @@ instructions.
 6. **Converge the issue exactly once — in code, not by hand.** One command
    performs every side effect the transition needs: the comment, the label swap,
    the outcome label, the `claudinite-task-exec` record on the item, the close
-   with the right state reason, the request write-back, and the release of
-   anything that was blocked on this item.
+   with the right state reason, and the request write-back.
 
    ```bash
    node <engine>/scheduler/queue/converge-item.mjs --issue <n> \
@@ -91,22 +90,52 @@ instructions.
    **You supply the judgment — which outcome, and the prose.** Everything below
    is how to choose; nothing below is yours to perform. If the command refuses,
    read what it says: it means this item is not yours to converge, and doing it
-   by hand anyway is how an item ends up closed wearing `task:agent`.
+   by hand anyway is how an item ends up closed wearing a live status.
+
+   **If it says it has no REST route from this session**, that is the ordinary
+   case — a session's GitHub access belongs to the session, and a subprocess
+   cannot reach it. Nothing is broken and nothing is deferred: you finish this
+   item yourself, with the command still deciding every step. Give it the issue
+   you already read and it prints the exact calls:
+
+   ```bash
+   CLAUDINITE_ITEM_REPO=<owner/repo> CLAUDINITE_ITEM_JSON='<the issue as your GitHub
+     tools returned it: number, title, body, state, labels>' \
+   node <engine>/scheduler/queue/converge-item.mjs --issue <n> \
+     --outcome done|approval|action|decision|failure \
+     --summary '<what happened>' [--pr <n>]
+   ```
+
+   Then **make those calls with your GitHub tools, in the order given, changing
+   nothing** — the bodies verbatim, the label sets exactly as written. They are
+   computed, not suggested: the label sets already carry every label the issue
+   should still have, so writing your own is how one gets dropped. One step asks
+   you to output a line in your reply; do that too, it is the run's only census
+   record.
 
    | label | when |
    |---|---|
-   | `task:done` | succeeded, nothing pending — close the issue |
-   | `needs-human` | anything else — leave the issue open, and add exactly one of the four below |
+   | `task:status:done` | succeeded, nothing pending — close the issue |
+   | a park | anything else — leave the issue open, wearing exactly one of the four below |
 
-   Every park wears `needs-human` **and** one sub-label saying what you are asking
+   A park is ONE label, and its kind says what you are asking
    a person for. Pick by the REMEDY, not by how the run felt:
 
    | sub-label | when |
    |---|---|
-   | `task:needs-human-approval` | you succeeded and deliberately left an unmerged PR. Name it; the human merges or closes it |
-   | `task:needs-human-action` | something outside the code must change before this can run: a secret, a scope, a routine's wiring, an input this item never carried |
-   | `task:needs-human-decision` | you stopped mid-flight and what happens next is a choice — you ran out of time, or you exceeded the declared ceiling and someone must say whether that stands |
-   | `task:needs-human-failure` | the run broke: a bug, a contract-forbidden shape, a malformed or forged item. Use this when you are unsure |
+   | `task:status:needs-human-approval` | you succeeded and deliberately left an unmerged PR. Name it; the human merges or closes it |
+   | `task:status:needs-human-action` | something outside the code must change before this can run: a secret, a scope, a routine's wiring, an input this item never carried |
+   | `task:status:needs-human-decision` | you stopped mid-flight and what happens next is a choice — you ran out of time, or you exceeded the declared ceiling and someone must say whether that stands |
+   | `task:status:needs-human-failure` | the run broke: a bug, a contract-forbidden shape, a malformed or forged item. Use this when you are unsure |
+
+   **A convergence you could not perform at all is the failure park, and never
+   anything else.** Not `decision` (that is for a choice you stopped in front
+   of), not `action` (that is for something outside the code that must change
+   first). This is not a judgment call: the failure park is the only one that
+   HOLDS THE TASK'S LANE, and a run that could not converge must stop its task
+   recurring until a person has looked. Choosing a lane-releasing park here is
+   how one broken convergence became fourteen stranded items in a member repo,
+   one a night, each looking like a fresh incident.
 
    **A marked issue needs no write-back at all**: it is the item, so the approval
    park it wears *is* the in-review state and the failure park *is* the report (which
@@ -116,7 +145,7 @@ instructions.
    the run said. Only an item filed under the older shadow model writes back to a
    different issue, and the command does that too.
 
-   Only `task:needs-human-failure` (and a park with no sub-label at all) holds the
+   Only `task:status:needs-human-failure` (and a park whose kind cannot be decoded) holds the
    task's lane — while one is open the generator files no further occurrence of
    this task. The other three wait for their human while the schedule carries on,
    so leaving one open costs nobody but the person it names.
