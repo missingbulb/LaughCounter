@@ -1,8 +1,8 @@
 
 // Opt into the growth lifecycle: a repo declaring claudinite-growth contributes its
 // hard-won lessons up to the Claudinite canon and prunes them back out once the canon
-// owns them. This pack carries the REPO-side stages — extract, dedup, the weekly local
-// pack discovery, and the weekly prose-to-checks sweep — as scheduled tasks under this pack's
+// owns them. This pack carries the REPO-side stages — extract, dedup, and the weekly
+// prose-to-checks sweep — as scheduled tasks under this pack's
 // own `tasks/`, discovered by the scheduler's filesystem scan
 // (packs/claudinite-tasks/discover.mjs), so none of them is declared here. The central
 // promote stage — lifting portable lessons up into the shared canon — is a home-only
@@ -56,10 +56,6 @@
 // the probe rather than re-reading the prose. It shares prose-to-checks-sweep's
 // `pack_paths` config: a member revalidates its own local packs, the canon its own.
 //
-// growth-discover-packs is the weekly LOCAL pack-discovery reflection: the repo
-// manifests its own stack, notices project-specific knowledge no canon pack homes,
-// and authors a local pack for it under its own `.claudinite/local/packs/`.
-//
 // A declared pack (no fingerprint), seeded like tidy-repo: --init seeds it into every
 // new repo, the one-time grow-with-claudinite-seed migration seeds the existing fleet,
 // and baselining never re-adds it — so removing it is a durable opt-out.
@@ -69,7 +65,7 @@
 // than something every adopter must weigh in on. A project that wants the prune
 // active sets retention_days itself.
 export default {
-  version: '60830.1',
+  version: '60830.3',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'authoring Claudinite content here — lesson extraction, dedup, revalidation, conversation logs, skill-usage folding, the task contract',

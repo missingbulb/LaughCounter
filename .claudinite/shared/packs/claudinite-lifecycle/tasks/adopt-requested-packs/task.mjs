@@ -25,8 +25,21 @@
 // WHY sonnet: the deciding is mostly done. A REQUESTED issue carries the exact
 // declaration entries to write; a SUSPECTED one needs the bounded judgment "is this
 // fingerprint's suspicion right for this repo", made against a checkout, with the
-// pack's own README stating its boundary — and the outcome is ceilinged at
-// `open-pr`, so it always lands in front of a reviewer.
+// pack's own README stating its boundary.
+//
+// WHY IT LANDS UNATTENDED (#1453). This ceiling used to be `open-pr`, on the
+// reasoning that a new pack switches on checks in the member's CI and so should
+// always be reviewed. In practice the review never came: ClaudiniteCanary#133 did
+// its work correctly, opened its PR, and sat parked for approval for ELEVEN days
+// while the adoption never reached the repo it was for. A gate nobody walks through
+// is not a safeguard, it is where the work stops.
+//
+// What that trades away, stated because it is a reversal: a member's gate surface
+// can now change with no human in front of it. The adoption PR still runs that
+// member's own checks before it merges, so a pack whose checks fail there cannot
+// land — but a pack whose checks pass and is merely unwanted now arrives unasked.
+// The fleet enforcer's `add-packs` issue remains the place to say no, before the
+// work is placed rather than after it is done.
 //
 // Self-contained (imports nothing): the whole contract is this default export.
 
@@ -35,7 +48,7 @@ export default {
   frequency: 'manual',                   // fired by the fleet enforcer when it places work here — never due on its own
   precondition_signals: [],              // no signal — the work list arrives by push, not by observation
   agent_model: 'sonnet',                 // applies existing packs by an existing skill; confirmation judgment is bounded and reviewed
-  expected_outcome: 'open-pr',           // a new pack switches on checks in this repo's CI — always reviewed, never auto-merged
+  expected_outcome: 'merged-pr',         // lands unattended — see the note below on what that trades away
   agent_instructions: 'task.md',
   // Adopting packs is a declaration edit, an interview transcription, a re-vendor, a
   // scaffold and a PR. Generous, because it is a runaway bound and not a scheduling

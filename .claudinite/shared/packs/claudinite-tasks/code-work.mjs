@@ -39,6 +39,17 @@ export function runCodeWork(command, {
   echo = (chunk, stream) => (stream === 'stderr' ? process.stderr : process.stdout).write(chunk),
 }) {
   return new Promise((resolve) => {
+    // A cwd THAT NO LONGER EXISTS is the one spawn failure the caller cannot read.
+    // Node reports it as an ENOENT on the command — `spawn /bin/sh ENOENT` under
+    // `shell: true` — which names the one thing that is not missing, and sends
+    // whoever reads it looking for a shell on the runner. The task directory can
+    // genuinely vanish under a run in flight: one executor run drains several items
+    // from one checkout, and an earlier item's mount update deletes a retired task's
+    // directory out from under the items behind it.
+    if (!existsSync(taskDir)) {
+      resolve({ ok: false, timedOut: false, code: null, signal: null, stdout: '', stderr: `task directory ${taskDir} does not exist — nothing was run` });
+      return;
+    }
     // `detached` puts the shell and everything it spawns in their OWN process
     // group, which is what makes the kill below reach the worker: `shell: true`
     // means the direct child is `sh -c`, and signalling it alone leaves the
@@ -130,7 +141,10 @@ export function codeWorkFailure(result) {
 //     claudinite-needs-human: action — FLEET_GITHUB_TOKEN lacks Actions: write
 //
 // The kind is one of the triage kinds (`action`, `decision`, `approval`,
-// `failure`); anything else, or no marker at all, leaves the park a `failure`.
+// `failure`). It NAMES WHAT THE PERSON MUST DO; it does not choose the park, which
+// is `failure` for every failed run (#1452) — a worker that could downgrade its own
+// non-zero exit into a non-blocking lane let the task re-file daily against a cause
+// nobody had fixed. Both halves are rendered into the item's comment.
 // The LAST marker wins, so a worker that sweeps many targets may revise its
 // verdict as it goes. Read from the worker's output rather than from a file
 // because it must survive the SIGKILL at `code_work_timeout` — output is echoed

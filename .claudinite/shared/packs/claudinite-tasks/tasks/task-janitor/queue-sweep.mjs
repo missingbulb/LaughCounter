@@ -18,22 +18,22 @@
 import {
   staleReadyItems, staleReadyComment, deadAgentItems, deadAgentComment,
   stuckBlockedItems, stuckBlockedComment, statelessItems, statelessComment,
-  periodForTasks,
+  supersededItems, supersededComment, orphanedParkItems, orphanedParkComment, periodForTasks,
 } from '../../../claudinite-tasks/queue/janitor-rules.mjs';
 import {
-  QUEUE_LABELS, HANDOFF_MARKER,
+  QUEUE_LABELS, HANDOFF_MARKER, TASK_OBSOLETE,
   NEEDS_HUMAN_ACTION, NEEDS_HUMAN_DECISION,
   STATUS_BLOCKED, STATUS_READY, STATUS_RUNNING_EXECUTOR, STATUS_RUNNING_AGENT,
-  isStatus, isParked,
-  parseWorkItemBody,
+  isStatus, isParked, statusOf,
+  parseWorkItemTitle, parseWorkItemBody, taskIdFromPath,
 } from '../../../claudinite-tasks/queue/work-item.mjs';
-import { listOpenWorkItems } from '../../../claudinite-tasks/queue/read.mjs';
-import { ensureLabels, addLabel, removeLabel, comment, listComments, readIssue } from '../../../claudinite-tasks/github.mjs';
+import { listOpenWorkItems, listDoneWorkItems } from '../../../claudinite-tasks/queue/read.mjs';
+import { ensureLabels, addLabel, removeLabel, comment, listComments, readIssue, closeIssue } from '../../../claudinite-tasks/github.mjs';
 import { clearStatus } from '../../../claudinite-tasks/queue/apply-status.mjs';
 
 export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log } = {}) {
   const open = await listOpenWorkItems(gh, repo);
-  const result = { open: open.length, staleReady: [], deadAgents: [], stuck: [], stateless: [] };
+  const result = { open: open.length, staleReady: [], deadAgents: [], stuck: [], stateless: [], superseded: [], orphaned: [] };
 
   // A `Blocked-by` target need not be a work item, so its state is read directly.
   const known = new Map(open.map((i) => [i.number, i.state]));
@@ -49,6 +49,11 @@ export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log 
   const deadAgents = deadAgentItems(open, now);
   const stuck = stuckBlockedItems(open, now, { stateOf: (n) => known.get(n) ?? null });
   const stateless = statelessItems(open);
+  // Rule E reads the CLOSED half of the queue, so it is the one rule with an input
+  // the others do not share. Read once, indexed by task, newest-done-wins.
+  const doneAfter = doneRunLookup(await listDoneWorkItems(gh, repo));
+  const superseded = supersededItems(open, { doneAfter });
+  const orphaned = orphanedParkItems(open, { knownTaskIds: new Set(tasks.map((t) => `${t.pack}/${t.id}`)) });
 
   if (stale.length || deadAgents.length || stateless.length) await ensureLabels(gh, repo, QUEUE_LABELS);
 
@@ -100,14 +105,42 @@ export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log 
     result.stateless.push(item.number);
   }
 
+  // CLOSING, not escalating — the two rules here that REMOVE an item rather than hand
+  // it to a person. Both are safe for the same reason: the evidence is not a clock but
+  // a fact about the world (this task ran clean since; this task no longer exists).
+  const retire = async (item, body) => {
+    await comment(gh, repo, item.number, body);
+    await clearStatus({ removeLabel }, gh, repo, item, statusOf(item));
+    await addLabel(gh, repo, item.number, TASK_OBSOLETE);
+    await closeIssue(gh, repo, item.number, 'not_planned');
+  };
+
+  for (const item of superseded) {
+    const p = parseWorkItemTitle(item.title) ?? taskIdFromPath(parseWorkItemBody(item.body).taskPath);
+    const run = doneAfter(`${p.pack}/${p.task}`, item.updated_at ?? item.created_at);
+    await retire(item, supersededComment(run));
+    log(`superseded #${item.number} by #${run.number} → ${TASK_OBSOLETE}`);
+    result.superseded.push(item.number);
+  }
+  // Superseded wins where both apply: naming the run that answered it says more than
+  // naming the absence of a task file.
+  for (const item of orphaned) {
+    if (result.superseded.includes(item.number)) continue;
+    const p = parseWorkItemTitle(item.title) ?? taskIdFromPath(parseWorkItemBody(item.body).taskPath);
+    await retire(item, orphanedParkComment(`${p.pack}/${p.task}`));
+    log(`orphaned park #${item.number} (${p.pack}/${p.task} is gone) → ${TASK_OBSOLETE}`);
+    result.orphaned.push(item.number);
+  }
+
   // The health review — the queue as its subject, computable entirely from issues.
-  const converged = new Set([...result.staleReady, ...result.deadAgents, ...result.stateless]);
+  const converged = new Set([...result.staleReady, ...result.deadAgents, ...result.stateless, ...result.superseded, ...result.orphaned]);
   const count = (status) => open.filter((i) => isStatus(i, status) && !converged.has(i.number)).length;
   log(`health: ${result.open} open work item(s) — ${count(STATUS_BLOCKED)} blocked, ${count(STATUS_READY)} ready, `
     + `${count(STATUS_RUNNING_EXECUTOR)} executing, ${count(STATUS_RUNNING_AGENT)} with an agent, `
     + `${open.filter(isParked).length + converged.size} parked; `
     + `this run escalated ${result.staleReady.length} stale, reclaimed ${result.deadAgents.length} dead agent claim(s), `
-    + `surfaced ${result.stuck.length} stuck dependency(ies), repaired ${result.stateless.length} stateless item(s)`);
+    + `surfaced ${result.stuck.length} stuck dependency(ies), repaired ${result.stateless.length} stateless item(s), `
+    + `closed ${result.superseded.length} superseded and ${result.orphaned.length} orphaned park(s)`);
   return result;
 }
 
@@ -119,4 +152,25 @@ async function sessionNote(gh, repo, item) {
     .filter((c) => (c.body ?? '').includes(HANDOFF_MARKER)).at(-1);
   const nonce = handoff?.body?.match(/nonce `([^`]+)`/)?.[1];
   return nonce ? `invocation nonce ${nonce}` : null;
+}
+
+// "The newest item for this task that converged done strictly after `since`" — rule
+// E's only input, built once over the closed half. Strictly after, because an
+// equal-or-earlier success says nothing about a failure that came after it.
+export function doneRunLookup(done = []) {
+  const byTask = new Map();
+  for (const d of done) {
+    const p = parseWorkItemTitle(d.title) ?? taskIdFromPath(parseWorkItemBody(d.body).taskPath);
+    if (!p) continue;
+    const id = `${p.pack}/${p.task}`;
+    if (!byTask.has(id)) byTask.set(id, []);
+    byTask.get(id).push(d);
+  }
+  return (id, since) => {
+    const at = new Date(since).getTime();
+    const runs = (byTask.get(id) ?? [])
+      .filter((d) => new Date(d.closed_at ?? d.updated_at).getTime() > at)
+      .sort((a, b) => new Date(a.closed_at ?? a.updated_at) - new Date(b.closed_at ?? b.updated_at));
+    return runs.at(-1) ?? null;
+  };
 }

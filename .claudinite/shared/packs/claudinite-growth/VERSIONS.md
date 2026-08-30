@@ -7,6 +7,8 @@ forward adds its own row.
 
 | Version | Date | What changed |
 |---|---|---|
+| 60830.3 | 2026-08-30 | A member repo no longer authors packs of its own: the weekly per-repo `growth-discover-packs` reflection is retired, leaving pack discovery to canon-curation's fleet sweep, which now carries the stack-manifest method itself. A repo's local packs stay what adoption seeded, with `growth-extract` writing rules into them (#1447). |
+| 60830.2 | 2026-08-30 | Local packs keep no `VERSIONS.md`: they are neither versioned nor distributed, so the commit and its PR are the record, and an append-at-the-top table several growth runs a day write to only manufactured merge conflicts. The growth tasks stop writing local rows, `seedRepoLocalPack` stops seeding the file, and the two tasks that also sweep canon `packs/` keep writing rows there (#1439). |
 | 60827.1 | 2026-08-27 | A new check declares `since` and lands at its real severity even where the tree still violates it, so "the tree isn't clean yet" stops forcing a lesson down to prose. Prose is rationed at two one-sentence rules per run, and two check shapes are named below the bar. A lesson tied to one call site is dropped rather than inflated into a pack rule: a repo's own comments belong to tidy-repo's `improve-comments`, never to a capture run (#1378). |
 | 60824.1 | 2026-08-24 | `usage-fold` and the two task-declaration checks move to the new `claudinite-tasks` pack, which owns the mechanism they are about (#1317). |
 | 60823.3 | 2026-08-23 | `writing-tasks` states the secrets path as it now works: the executor holds every repo secret and hands each task's code-work exactly the names its own declaration lists, rather than a converge stamping names into the workflows (#1301). |

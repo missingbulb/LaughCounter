@@ -23,12 +23,11 @@ permissions:
 jobs:
   execute:
     # A workflow's event trigger names label strings LITERALLY — nothing here
-    # decodes — so both ready spellings must appear for as long as any fielded
-    # engine writes the legacy one (#1119).
+    # decodes. The legacy `task:ready` stood beside this one while a fielded engine
+    # could still write it; no member stamps such a version any more (#1119).
     if: >-
       github.event_name == 'workflow_dispatch'
       || github.event.label.name == 'task:status:waiting-for-executor'
-      || github.event.label.name == 'task:ready'
       || github.event.label.name == 'task:urgent'
     runs-on: ubuntu-latest
     # A backstop against a wedged runner, well clear of any declared

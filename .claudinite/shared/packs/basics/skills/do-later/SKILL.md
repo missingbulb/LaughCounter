@@ -19,19 +19,29 @@ conversation — the issue body is the whole brief. State the change, the files 
 surfaces it touches if you know them, what "done" looks like, and anything the
 owner ruled out. Size it to its idea; a rename is a sentence.
 
-Give the body its wait and the marker, verbatim in this spelling — the scheduler
-run reads the wait fields:
+**Every field a run reads is one block on the first lines of the description**,
+above the marker and ahead of your prose — the waits and the parameters together,
+verbatim in this spelling:
 
 ```
 Blocked-by: #<what this waits on>
 Not-before: <ISO instant this may first run>
+Model: <opus | sonnet | haiku>
+Automerge: if-narrow
+Task: <pack>/<task>
 
 <!-- filed by /do-later -->
+
+<the brief>
 ```
 
+Write only the lines the deferral actually has; each is explained below. A field
+further down the body still parses, but nobody editing the issue can then see what
+the run will do, and a retry that rewrites `Not-before:` has no one place to write
+it — #1160 carried its model six paragraphs below its waits.
+
 The two waits compose: an issue carrying both sleeps until every blocker has
-closed **and** the moment has passed. Write only the ones the deferral actually
-has.
+closed **and** the moment has passed.
 
 **What issue it waits on**, first match wins:
 
@@ -81,7 +91,7 @@ only for an author with push access on the repository.
   rather than "implement this issue". Left out, the run is the built-in request
   implementer, which is what a `/do-later` almost always wants.
 
-Keep the fields on their own lines, above the marker line, beside the wait fields.
+These ride the same block as the waits, on the body's first lines.
 
 If the mark does not exist in the repository yet, it cannot be applied (the API
 refuses an unknown label, and only the scheduler run creates it). Say so in your

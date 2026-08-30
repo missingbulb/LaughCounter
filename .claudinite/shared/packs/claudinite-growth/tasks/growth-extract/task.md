@@ -79,14 +79,11 @@ is what lets this run land a check the tree *does* violate: the backlog it surfa
 touches those files next, not to this PR, and CI stays green either way. Never ship a check you can't make
 confident — but "the tree still violates it" is no longer a reason to drop to prose.
 
-## Record what you landed in the pack's own `VERSIONS.md`
+## The PR is the record
 
-Every rule this run adds, and every rule it converts to a check, gets a row at the top of the table in
-the pack's `VERSIONS.md`, **in the same commit as the change** — date, `growth-extract`, and what landed
-where. That file, not a GitHub issue, is the growth lifecycle's record: it diffs beside the rule it
-describes, travels with the pack, and is already open in front of anyone reading the rule.
-
-A run that changed nothing writes no row. This is the log of what happened to the pack, never a log of runs.
+There is no changelog file to update and no standing tracker issue to comment on: this run's commit and
+its PR body are what say what landed and why. Say it there — the rule added, the check it became, the
+evidence behind it — so a reader who blames a rule back to its commit finds the reasoning already written.
 
 ## Nothing downstream catches a bad lesson
 

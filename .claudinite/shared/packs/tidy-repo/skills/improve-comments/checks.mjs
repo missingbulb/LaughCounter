@@ -20,7 +20,13 @@ import { COMMENT_CHECKABLE, commentOnly } from '../../../../engine/checks/helper
 //   - an ADDED or DELETED code file is never comment-only, whatever it holds — a
 //     whole file is a whole file, and this pass does not add or remove them;
 //   - a DELETED `README.md` is not an improvement to a README. Modifying one is the
-//     pass's business; deciding a document should not exist is not.
+//     pass's business; deciding a document should not exist is not;
+//   - ANY change under `.claudinite/`, comment-only or not. The mount is not the
+//     repo's own source: `shared/` is vendored and the next converge replaces it
+//     whole (that half is already invisible to every check — repo-context drops
+//     the shared prefix), and `.claudinite/local/` is what the growth tasks write.
+//     The task's precondition keeps the mount out of a round's scope; this is what
+//     holds when a run reaches for one anyway.
 //
 // RELEVANCE IS THE PINNED COMMIT SUBJECT, the same self-gating shape
 // claudinite-growth's capture gate uses: the run marks itself, so this rule can run
@@ -30,12 +36,18 @@ export const IMPROVE_COMMENTS_RUN = /^Claudinite tidy: improve comments/;
 
 const isReadme = (p) => basename(p).toLowerCase() === 'readme.md';
 
+// The same prefix the task's precondition filters its scope by (MOUNT_PREFIX in
+// tasks/improve-comments/task.mjs); that task imports nothing, so the two are held
+// in step by the test beside this check rather than by a shared constant.
+const MOUNT_PREFIX = '.claudinite/';
+const inMount = (p) => p.startsWith(MOUNT_PREFIX);
+
 const rule = {
   id: 'improve-comments-scope',
   severity: 'blocking',
   scope: 'work',
   doc: 'packs/tidy-repo/skills/improve-comments/SKILL.md',
-  description: 'An improve-comments run changes only comments in code files, and README.md documents',
+  description: 'An improve-comments run changes only comments in code files outside the .claudinite/ mount, and README.md documents',
   why: 'the pass runs unattended against the repo\'s own source, and its whole safety case is that a comment cannot change behaviour — a run that also moved a line has made an unreviewed code change wearing a housekeeping title',
 
   run(work) {
@@ -44,9 +56,15 @@ const rule = {
 
     const deleted = new Set(work.deleted);
     return [...new Set([...work.changedFiles, ...work.deleted])]
-      .filter((p) => (isReadme(p) ? deleted.has(p) : !commentOnly(p, work.readBase(p), work.read(p))))
+      .filter((p) => inMount(p) || (isReadme(p) ? deleted.has(p) : !commentOnly(p, work.readBase(p), work.read(p))))
       .sort()
-      .map((p) => finding(rule, isReadme(p)
+      .map((p) => finding(rule, inMount(p)
+        ? {
+          file: p,
+          what: `an improve-comments run changed ${p}, which is inside the ${MOUNT_PREFIX} mount`,
+          fix: `revert ${p} — the mount is not this repo's source: the next converge replaces it whole, so a comment improved there is gone by morning; take the change to the canon instead`,
+        }
+        : isReadme(p)
         ? {
           file: p,
           what: `an improve-comments run deleted ${p} — a README may be improved, never removed`,

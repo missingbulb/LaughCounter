@@ -8,6 +8,7 @@ own row.
 
 | Version | Date | What changed |
 |---|---|---|
+| 60830.2 | 2026-08-30 | `adopt-requested-packs` lands its PR instead of holding it for review. The `open-pr` ceiling existed so a human reviewed a change that switches on new checks in the member's CI, but the review never came — one member's adoption sat parked for eleven days and never reached the repo it was for. The member's own checks still gate the merge (#1453). |
 | 60824.6 | 2026-08-24 | The update worker names the flows at their real home, and `scheduler-workflow-shape` requires the pack's scheduler entry now that every member's workflow names it (#1328). |
 | 60824.5 | 2026-08-24 | `scheduler-workflow-shape` stops accepting the legacy hourly cron line, now that every member's workflow carries the two-tick form (#1234). |
 | 60824.4 | 2026-08-24 | The update precondition stops guessing whether the member is behind: the canon's versions are unavailable to a scheduler run (DESIGN §3.3), and the local-movement proxy declined updates on members that were four packs stale (#1344). |

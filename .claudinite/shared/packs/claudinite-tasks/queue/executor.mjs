@@ -15,6 +15,7 @@
 // The pure decisions live at the top and test with fixtures; the shell below is
 // the GitHub/code-work/invocation I/O around them.
 
+import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { isSuspended, readSuspendedNow, suspendedNotice, SUSPEND_ALL_VAR } from './suspend.mjs';
 import { HEARTBEAT_MS, heartbeatComment, withHeartbeat } from './heartbeat.mjs';
@@ -24,7 +25,7 @@ import {
   READY, URGENT, EXECUTING, AGENT, requeueHint,
   STATUS_READY, STATUS_RUNNING_EXECUTOR, STATUS_RUNNING_AGENT, isStatus,
   TASK_DONE, TASK_OBSOLETE, QUEUE_LABELS, QUEUED_LABEL, isStandingItem,
-  NEEDS_HUMAN_ACTION, NEEDS_HUMAN_APPROVAL, NEEDS_HUMAN_FAILURE, triageLabelFor,
+  NEEDS_HUMAN_ACTION, NEEDS_HUMAN_APPROVAL, NEEDS_HUMAN_FAILURE,
   CLAIM_MARKER, HANDOFF_MARKER, EPISODE_MARKER,
   parseWorkItemTitle, isWorkItemTitle, parseWorkItemBody, parseContextLines, mergeContext, withNotBefore, withSection, editItemBody, hasLabel, DELIVERED_HEADING, LEGACY_DELIVERED_HEADINGS,
   LAST_VERDICT_HEADING, lastVerdictLines } from './work-item.mjs';
@@ -308,6 +309,18 @@ async function executeItem({
       `\`${id}\` is not a task this repo carries at HEAD (the pack may be undeclared, or the task removed). Closing obsolete.`, 'task-gone');
     return 'obsolete';
   }
+  // THE SAME FACT, LEARNED LATER. The task set was built once, at the start of the
+  // run; one run drains several items from one checkout, and an earlier item's own
+  // work rewrites that checkout — the mount update deletes a retired task's
+  // directory out from under the items behind it. So a task can resolve here and
+  // not exist on disk — the same fact the branch above closes on, and it converges
+  // the same way. Without this the run reaches code-work and spawns with a cwd that is gone
+  // (missingbulb/Shepherd#300).
+  if (!existsSync(task.taskDir)) {
+    await close(api, gh, repo, item, STATUS_RUNNING_EXECUTOR, TASK_OBSOLETE, 'not_planned',
+      `\`${id}\` no longer exists in this checkout (\`${task.taskPath}\`) — it was removed while this run was in flight. Nothing ran. Closing obsolete.`, 'task-gone');
+    return 'obsolete';
+  }
   if (task.taskPath !== taskPath) {
     await converge(api, gh, repo, item, STATUS_RUNNING_EXECUTOR, NEEDS_HUMAN_FAILURE, claim,
       `This item's task path (\`${taskPath}\`) is not where \`${id}\` lives at HEAD (\`${task.taskPath}\`). Not running it.`, 'invalid');
@@ -377,12 +390,20 @@ async function executeItem({
         heartbeatComment({ executor: executorId, at: nowIso(), minutes })),
     });
     if (!result.ok) {
-      // The worker's own verdict routes the park where it left one; a worker that
-      // said nothing about why it failed is a `failure` — the lane that means
-      // "someone reads the trace", which is the only safe default for a run whose
-      // cause is unknown.
-      await converge(api, gh, repo, item, STATUS_RUNNING_EXECUTOR, triageLabelFor(result.triage?.kind), claim,
-        `Code-work failed: ${result.why}${result.triage?.detail ? `\n\nThe worker's own verdict: ${result.triage.detail}` : ''}`
+      // A RUN THAT FAILED PARKS `failure`, whatever the worker asked for (#1452).
+      // The marker used to route the park, so a worker naming `action` put a failed
+      // run in a NON-BLOCKING lane: the standing slot freed and the task re-filed the
+      // next day against a cause nobody had fixed. That is how ClaudiniteCanary
+      // reached seven copies of one fleet-digest failure and hitbut twenty-two.
+      //
+      // The verdict is not discarded — it was always most useful as the human-facing
+      // instruction, and that is where it now goes, kind and detail both. A run that
+      // never STARTED is the other thing entirely and keeps its own lane: see the
+      // `missingSecrets` branch below, where nothing failed because nothing ran.
+      await converge(api, gh, repo, item, STATUS_RUNNING_EXECUTOR, NEEDS_HUMAN_FAILURE, claim,
+        `Code-work failed: ${result.why}`
+        + `${result.triage?.kind ? `\n\nThe worker asks for: **${result.triage.kind}**` : ''}`
+        + `${result.triage?.detail ? `\n\nThe worker's own verdict: ${result.triage.detail}` : ''}`
         + `${result.detail ? `\n\n\`\`\`\n${result.detail}\n\`\`\`` : ''}`);
       return 'needs-human';
     }

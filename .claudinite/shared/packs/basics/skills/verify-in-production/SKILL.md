@@ -54,8 +54,10 @@ filed for a change already covered by a test is a wasted run re-proving what the
 **A deferred request** — the same ad-hoc lane `/do-later` rides, so the queue does the waiting,
 the running and the lifecycle; nothing here adds machinery beside it. One issue, titled
 `Verify in production: <the change, in a few words>`, its body the whole brief: the run that
-verifies will never see this conversation and may be days away. Say what changed and why it
-could not be watched now, then, each spelled verbatim on its own line:
+verifies will never see this conversation and may be days away. **Every field a run reads is one
+block on the first lines of the description**, ahead of your prose — the same placement
+[`/do-later`](../do-later/SKILL.md) files under, and what gives the retry below one place to
+rewrite `Not-before:`. Then say what changed and why it could not be watched now.
 
 ```
 Original-issue: #<the change's issue>
@@ -63,6 +65,7 @@ In-production-when: <the concrete artifact to read, and what makes it true>
 Verify: <what to observe, and what counts as a pass>
 Not-before: <ISO instant just past the expected release>
 Retry-every: <how far to push Not-before when not yet live, e.g. 1 day>
+Model: sonnet
 ```
 
 No `Blocked-by:`. You are filing after the merge, so the change's PR has already closed and
@@ -86,13 +89,15 @@ there is nothing left to wait on but the release itself.
 - **`Not-before:`** is the queue's own wait field: adoption holds the run until the moment has
   passed. Aim it just past the release you expect — the re-arm covers a miss, so don't pad it.
 - **`Retry-every:`** is the extension you are prescribing: when the run finds the change not
-  yet live, it pushes `Not-before:` forward by exactly this much. Size it to the release you
-  wait on — a nightly converge retries daily, a next-session rule in minutes.
+  yet live, it re-arms `Not-before:` to **now + `Retry-every:`** — never the old value plus it.
+  Size it to the release you wait on — a nightly converge retries daily, a next-session rule in
+  minutes.
 
 Then the mark, as `/do-later` applies it: **`task:origin:ad-hoc`**, the one label the scheduler
-run adopts. Beside it, in the body, **`Model: sonnet`** (reading a live artifact and judging an
-assertion against it). Never `Automerge:` — a verification has nothing to merge. If the mark
-doesn't exist in the repo yet, say so and leave the issue — it appears on the next scheduler run.
+run adopts. `Model: sonnet` is in the block above because that is the work: reading a live
+artifact and judging an assertion against it. Never `Automerge:` — a verification has nothing to
+merge. If the mark doesn't exist in the repo yet, say so and leave the issue — it appears on the
+next scheduler run.
 
 ## Tell the run how to converge
 
@@ -105,10 +110,16 @@ decides nothing: it executes this playbook.
    the URL) and close this issue as completed. Fails: reopen `Original-issue:` with a comment
    saying what was asserted, what happened instead and where you read it; comment here linking
    that; close this issue as completed — the verification did its job by finding the fault.
-3. **Not yet live** → push `Not-before:` forward by `Retry-every:`, **clear the issue's
+3. **Not yet live** → set `Not-before:` to **now + `Retry-every:`** — the instant you are
+   reading this at, never the old value the field carries — **clear the issue's
    `task:status:*` label** (clearing the status is the whole of the re-ask — the mark stays on
    for life), and leave the issue open. The next scheduler run re-adopts it, and the bumped
    field holds it until the new moment. No comment; the bumped field is the record.
+
+   Measuring from the old value is what #1160 did: the queue releases a sleeping item on the
+   first hourly pass past its instant, so by the time a run reads the field it is already
+   behind — old + `Retry-every: 1 day` lands in the past again, the item goes ready on the very
+   next pass, and a daily retry spends a session an hour.
 
 ## Then say what you filed
 
