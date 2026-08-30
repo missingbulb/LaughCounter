@@ -21,7 +21,7 @@ forcing, recovery — is the canon's own tasks-dispatch design document, and aut
 | `tasks/` | this pack's own scheduled tasks: `task-janitor` (the queue's sweeps) and `usage-fold` (it folds this mechanism's run records and outcome labels) |
 | `worldRules/` | the task-declaration checks |
 | `workRules/` | the armed-auto-merge gate (`automerge-policy-scope`) |
-| `merge-policy.mjs` | the auto-merge policy engine: what a task's `automerge`, an item's `Merge:` field and the arming trailer mean, the built-in diff classes, and the `merge-rules.json` vocabulary a pack extends them with |
+| `merge-policy.mjs` | the auto-merge policy engine: what a task's `automerge`, an item's `Merge:` field and the arming trailer mean, the built-in diff classes, the inline `under:<dir>` folder scope, the `&&` intersection, and the `merge-rules.json` vocabulary a pack extends them with |
 | `test/` | the unit suite, and `test/sim/` — the simulator and its scenario suite, the mechanism's executable spec |
 | `executor.md`, `queue/instructions.md`, `deliver-pr.md` | operational documents a member's routines and workers read out of their own mount at runtime |
 

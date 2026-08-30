@@ -18,7 +18,16 @@
 // its own task's period, so the weekly run sees a full 7 days of canon and
 // local-pack movement batched into one run.
 //
-// Self-contained (imports nothing): the whole contract is this default export.
+// The whole contract is this default export; the only imports are the shared
+// constants the local-pack policy scope is built from, never task logic.
+
+import { sep } from 'node:path';
+import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../../../engine/pack_loader/pack-registry.mjs';
+
+// The two roots a local pack may sit under during the rename window, as the
+// '/'-separated prefixes a policy scope takes (the constants are platform-joined).
+const LOCAL_PACK_ROOTS = [LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR]
+  .map((subdir) => subdir.split(sep).join('/'));
 
 export default {
   id: 'growth-dedup',
@@ -26,7 +35,10 @@ export default {
   precondition_signals: ['localPacks', 'sharedMount', 'commits'],
   agent_model: 'opus',                   // proving the canon genuinely covers a local item — and telling coverage from "stated too generally" — is a judgment call
   expected_outcome: 'pr',
-  automerge: ['markdown-trims'], // a prune may remove lines or cut one down, never grow one; a `review` member still reviews
+  // A prune may remove lines or cut one down, never grow one — and only inside
+  // the local packs it prunes; the same edit to the repo's own prose is somebody
+  // else's document. A `review` member still reviews.
+  automerge: LOCAL_PACK_ROOTS.map((root) => `under:${root} && markdown-trims`),
   agent_instructions: 'task.md',
   agent_execution_timeout: 1800,            // proving canon coverage per local item — generous bound, extreme protection
 

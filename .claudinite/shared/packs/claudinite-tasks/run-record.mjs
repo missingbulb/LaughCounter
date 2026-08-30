@@ -96,8 +96,9 @@ export const TASK_EXEC_STATUSES = Object.freeze([
   'success',
   // The run failed (task failure or ceiling violation); the item parked.
   'failed',
-  // The dispatch named a task the repo no longer carries (file gone, pack
-  // undeclared) — the executor closed the issue as obsolete. Not a failure.
+  // The dispatch named a task file the repo no longer carries — retired, its pack
+  // undeclared, or the item's stored path left behind by a pack rename — and the
+  // executor closed the issue as obsolete. Not a failure.
   'task-gone',
   // The dispatch was malformed (bad path shape, unparseable declaration) and was
   // parked without running.

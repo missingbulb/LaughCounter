@@ -41,7 +41,10 @@ export default {
   precondition_signals: ['commits', 'conversationLogs'],
   agent_model: 'none',                   // pure code — no agent (task-code-work DESIGN §4)
   expected_outcome: 'pr',
-  automerge: ['generated-file-changes'],  // the regenerated aggregate is the whole delivery — its merge=ours line is seeded at adoption
+  // The regenerated aggregate is the whole delivery — scoped to the tree it
+  // lands in, so a GENERATED file elsewhere in the repo is some other task's.
+  // Its merge=ours line is seeded at adoption.
+  automerge: ['under:.claudinite/local && generated-file-changes'],
   code_work: 'node worker.mjs',
   // One tree read plus one blob read per capture file in the ~10-day window, all
   // local git, then four REST reads and one PR. A busy repo captures a few files a

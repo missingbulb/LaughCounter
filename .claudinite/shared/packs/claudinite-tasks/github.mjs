@@ -76,6 +76,11 @@ export const listComments = async (gh, repo, number) => {
   return out;
 };
 
+// Replace an issue's body. The whole body, because that is the only shape the API
+// offers — every caller reshapes the text it read rather than composing a new one.
+export const setIssueBody = (gh, repo, number, body) =>
+  gh(`/repos/${repo}/issues/${number}`, { method: 'PATCH', body: { body } });
+
 export const closeIssue = (gh, repo, number, stateReason = 'completed') =>
   gh(`/repos/${repo}/issues/${number}`, { method: 'PATCH', body: { state: 'closed', state_reason: stateReason } });
 

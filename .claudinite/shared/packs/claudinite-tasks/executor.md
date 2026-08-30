@@ -30,11 +30,13 @@ goes through your GitHub tools.
 1. **Resolve and validate your dispatch — in code, before anything else.**
 
    ```bash
-   node <engine>/scheduler/resolve-dispatch.mjs <scope>
+   node <here>/resolve-dispatch.mjs <scope>
    ```
 
-   `<engine>` is the engine root — the **parent** of the directory this file sits in (this file
-   is `<engine>/scheduler/executor.md`), so the same `<engine>` addresses every command below.
+   `<here>` is **the directory this file sits in** — `packs/claudinite-tasks/` in the canon,
+   `.claudinite/shared/packs/claudinite-tasks/` in a member's mount — and `<engine>` is
+   `<here>/../../engine`. Between them they address every command below; derive both from
+   where you found this file rather than from any root you were told.
    `<scope>` is the word your launcher prompt
    names — `self` if it names none. The shell finds the trigger that started this session and
    asserts, before any judgment of yours, that the issue body names a legal task path, the
@@ -147,7 +149,7 @@ goes through your GitHub tools.
    Then **record the execution in code** — one command, whichever way it went:
 
    ```bash
-   node <engine>/scheduler/record-exec.mjs <pack>/<task> <slot> <success|failed>
+   node <here>/record-exec.mjs <pack>/<task> <slot> <success|failed>
    ```
 
    It prints the machine-readable execution record (`claudinite-task-exec …`) into this

@@ -433,6 +433,17 @@ export const EPISODE_MARKER = '<!-- claudinite-episode -->';
 export const NOT_BEFORE_FIELD = 'Not-before';
 export const BLOCKED_BY_FIELD = 'Blocked-by';
 
+// `Ends-when` is a PARK'S END CONDITION (#1468) — the one field a park carries that
+// says what would make it stop being a question. `#<n> closed` is its only grammar,
+// and its target is whatever the park is waiting on: an approval park's pull
+// request, an action park's setup issue. Nothing else is recognised, so a hand-written
+// condition the janitor cannot evaluate reads as absent rather than as satisfied.
+//
+// It is NOT `Blocked-by`, which governs the ready/blocked lane and releases an item
+// to run again; this one ENDS an item that already ran.
+export const ENDS_WHEN_FIELD = 'Ends-when';
+export const ENDS_WHEN_CLOSED = 'closed';
+
 // The three fields a REQUEST item carries (DESIGN §16.3, §16.11). `Request` is the issue this
 // run implements — the whole payload, since the request task has no code-work phase
 // to hand one over. `Model` is the family the asker chose, copied here by the scheduler run
@@ -471,17 +482,30 @@ export const MERGE_IF_NARROW = 'if-narrow';
 // authority — and cannot import it: this module is deliberately pure (see the
 // header), so the drift guard is the test that runs a value matrix through both
 // sides (test/queue/request-mode.test.mjs).
-const POLICY_TERM = /^(reject:)?[a-z0-9]+(-[a-z0-9]+)*$/;
+const RULE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const PATH_SEGMENT = /^[A-Za-z0-9._-]+$/;
+const policyName = (name) => {
+  if (!name.startsWith('under:')) return RULE_NAME.test(name);
+  const segments = name.slice('under:'.length).replace(/\/+$/, '').split('/');
+  return segments.every((seg) => PATH_SEGMENT.test(seg) && seg !== '.' && seg !== '..');
+};
+// A term is `&&`-joined names, optionally reject:-prefixed. The value is returned
+// CANONICAL — whitespace around `&&` collapsed — so an item body, and the trailer
+// stamped from it, stay whitespace-free whatever a person typed.
 function policyFieldValue(raw) {
   if (raw == null) return null;
   const value = String(raw).trim();
   if (['if-narrow', 'yes', 'true'].includes(value.toLowerCase())) return MERGE_IF_NARROW;
   if (value.toLowerCase() === 'anything') return 'anything';
-  const terms = value.split(';').map((t) => t.trim());
+  const terms = value.split(';').map((term) => {
+    const prefix = term.trim().startsWith('reject:') ? 'reject:' : '';
+    const names = term.trim().slice(prefix.length).split('&&').map((n) => n.trim());
+    return { prefix, names, canonical: prefix + names.join('&&') };
+  });
   const wellFormed = terms.length > 0
-    && terms.every((t) => POLICY_TERM.test(t) && t !== 'nothing')
-    && terms.some((t) => !t.startsWith('reject:'));
-  return wellFormed ? value : null;
+    && terms.every(({ names }) => names.every((n) => policyName(n) && n !== 'nothing'))
+    && terms.some(({ prefix }) => !prefix);
+  return wellFormed ? terms.map((t) => t.canonical).join(';') : null;
 }
 
 // The heading the delivered-artifacts section carries in a work item body. One
@@ -548,6 +572,7 @@ const BLOCKED_BY_RE = /^Blocked-by:[ \t]*(.*)$/m;
 const REQUEST_RE = /^Request:[ \t]*#?(\d+)/m;
 const MODEL_RE = /^Model:[ \t]*(\S+)/m;
 const MERGE_RE = /^Merge:[ \t]*(\S+)/m;
+const ENDS_WHEN_RE = /^Ends-when:[ \t]*#(\d+)[ \t]+(\S+)[ \t]*$/m;
 
 // Build a work item body. The first line is the task path — the only thing an
 // executor reads to locate the worker, validated in code before anything trusts
@@ -605,7 +630,11 @@ export function parseWorkItemBody(body) {
   // expression reads as absent, and absent is the safe end of this field — a run
   // that cannot read its permission opens a pull request and waits.
   const merge = policyFieldValue(MERGE_RE.exec(text)?.[1] ?? null);
-  return { taskPath, notBefore: nb, blockedBy, request, model, merge };
+  // Same fencing again, and here it is what keeps the janitor honest: a condition
+  // it cannot evaluate must read as "no end condition", never as one that is met.
+  const ends = ENDS_WHEN_RE.exec(text);
+  const endsWhen = ends && ends[2] === ENDS_WHEN_CLOSED ? Number(ends[1]) : null;
+  return { taskPath, notBefore: nb, blockedBy, request, model, merge, endsWhen };
 }
 
 // WHAT A MARKED ISSUE ASKS FOR (DESIGN §16.3, §16.7, §16.11) — read from the
@@ -627,7 +656,7 @@ export function parseRequestFields(body, { gated = false } = {}) {
   const asked = {
     task: /^Task:[ \t]*(\S+)/m.exec(text)?.[1] ?? null,
     model: MODEL_RE.exec(text)?.[1] ?? null,
-    automerge: /^Automerge:[ \t]*(\S+)/m.exec(text)?.[1]?.toLowerCase() ?? null,
+    automerge: /^Automerge:[ \t]*(.+?)[ \t]*$/m.exec(text)?.[1] ?? null,
   };
   const blockedBy = parseBlockedBy(text);
   const notBefore = NOT_BEFORE_RE.exec(text)?.[1]?.trim() || null;
@@ -714,6 +743,21 @@ export function withNotBefore(body, iso) {
   const at = lines.findIndex((l) => l.trim() !== '');
   if (at === -1) return `${NOT_BEFORE_FIELD}: ${iso}\n`;
   lines.splice(at + 1, 0, '', `${NOT_BEFORE_FIELD}: ${iso}`);
+  return lines.join('\n');
+}
+
+// Stamp `Ends-when` on an existing body, same text surgery as `withNotBefore` and
+// for the same reason: the body carries sections that belong to whoever wrote them.
+// Re-stamping replaces the condition rather than adding a second one — a converge
+// that runs twice on one item must not leave two ends.
+export function withEndsWhen(body, number) {
+  const text = String(body ?? '');
+  const field = `${ENDS_WHEN_FIELD}: #${number} ${ENDS_WHEN_CLOSED}`;
+  if (ENDS_WHEN_RE.test(text)) return text.replace(ENDS_WHEN_RE, field);
+  const lines = text.split('\n');
+  const at = lines.findIndex((l) => l.trim() !== '');
+  if (at === -1) return `${field}\n`;
+  lines.splice(at + 1, 0, '', field);
   return lines.join('\n');
 }
 

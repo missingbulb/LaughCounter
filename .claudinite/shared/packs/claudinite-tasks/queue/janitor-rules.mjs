@@ -1,6 +1,6 @@
 // The janitor's queue rules (tasks-dispatch DESIGN §11) — the recovery that needs
-// judgment or a longer horizon than the scheduler run's hourly label mechanics. Four rules,
-// pure, each returning the items it claims plus the comment it would post; the
+// judgment or a longer horizon than the scheduler run's hourly label mechanics. Each rule is
+// pure, returning the items it claims plus the comment it would post; the
 // janitor task's worker is the only I/O shell over them.
 //
 // What is NOT here: the executing-leash reclaim, which rides the scheduler run (a
@@ -12,7 +12,7 @@
 import { periodMs } from './anchors.mjs';
 import {
   READY, AGENT, requeueHint,
-  STATUS_READY, STATUS_RUNNING_AGENT, STATUS_BLOCKED, isStatus, statusOf,
+  STATUS_READY, STATUS_RUNNING_AGENT, STATUS_BLOCKED, STATUS_DONE, STATUS_REJECTED, isStatus, statusOf,
   isParked, parkKindOf,
   parseWorkItemTitle, parseWorkItemBody, taskIdFromPath,
 } from './work-item.mjs';
@@ -22,7 +22,8 @@ export const AGENT_LEASH_MS = 3 * 3600e3;
 // "read the trace", an action is "the token is missing" — so a run that converged
 // clean is proof it is not broken any more. `approval` and `decision` are absent on
 // purpose: those parks carry content a person still owes an answer to (an approval
-// park typically holds an open PR), and a later success does not answer them.
+// park typically holds an open PR), and a later success does not answer them. What
+// DOES answer an approval park is that pull request resolving — rule G.
 export const SUPERSEDABLE_PARKS = Object.freeze(['failure', 'action']);
 export const STALE_READY_PERIODS = 2;
 export const STUCK_BLOCKED_MS = 2 * 86400e3;
@@ -135,29 +136,85 @@ export const supersededComment = (run) =>
   + 'was parked on is resolved. Closing it `task:status:rejected` rather than leaving a question nobody needs to answer. '
   + `If this park was about something that run did NOT cover, re-queue it (${requeueHint}).`;
 
-// Rule F — THE ORPHANED PARK (#1452). A park whose task this repo no longer carries
-// is asking a person about work that cannot run again. The executor already closes
-// such an item obsolete when it picks one (#1446) — but a PARKED item is never
+// Rule F — THE ORPHANED PARK (#1452, widened #1461). A park this repo CANNOT RUN at
+// HEAD is asking a person about work that can never happen. The executor already
+// closes such an item obsolete when it picks one (#1446) — but a PARKED item is never
 // picked, so that verdict could never reach the set that needs it most:
 // ClaudiniteCanary's seven parked `fleet-digest` items, for a task since retired.
 //
-// `knownTaskIds` is the declared task set at HEAD. EMPTY MEANS UNKNOWN, never
-// "everything retired": discovery returning nothing is a broken read, and acting on
-// it would close the whole queue.
-export function orphanedParkItems(open = [], { knownTaskIds = new Set() } = {}) {
-  if (!knownTaskIds.size) return [];
+// TWO WAYS AN ITEM IS UNRUNNABLE, and the second is why this rule is not just an id
+// lookup. An item carries its task twice — the id in its title and the worker PATH in
+// its body — and only the id is canonicalized across a pack rename
+// (`parseWorkItemTitle`). So an item open across one keeps naming the pre-rename
+// directory, the executor's path guard refuses it (executor.mjs), and it parks
+// `failure` — where the id lookup alone still reads it as a live task and leaves it
+// there. Nothing rewrites an item body and HEAD's path moves only on another rename,
+// so that mismatch is permanent: no answer a human could give makes the item runnable
+// (ClaudiniteCanary#115, which froze `logs-prune` there for eleven days, because a
+// `failure` park holds the task's lane).
+//
+// `tasks` is the declared task set at HEAD. EMPTY MEANS UNKNOWN, never "everything
+// retired": discovery returning nothing is a broken read, and acting on it would close
+// the whole queue. An item naming NO path is left alone for the same reason — that is
+// the malformed shape `statelessItems` and the executor own, not a verdict about HEAD.
+export const taskPathIndex = (tasks = []) => new Map(tasks.map((t) => [`${t.pack}/${t.id}`, t.taskPath]));
+
+export function orphanedParkItems(open = [], { tasks = [] } = {}) {
+  if (!tasks.length) return [];
+  const headPath = taskPathIndex(tasks);
   return open.filter((item) => {
     if (!isParked(item)) return false;
-    const p = parseWorkItemTitle(item.title) ?? taskIdFromPath(parseWorkItemBody(item.body).taskPath);
+    const { taskPath } = parseWorkItemBody(item.body);
+    const p = parseWorkItemTitle(item.title) ?? taskIdFromPath(taskPath);
     if (!p) return false;
-    return !knownTaskIds.has(`${p.pack}/${p.task}`);
+    const at = headPath.get(`${p.pack}/${p.task}`);
+    if (at === undefined) return true;
+    return !!taskPath && at !== taskPath;
   });
 }
 
-export const orphanedParkComment = (id) =>
-  `\`${id}\` is not a task this repo carries at HEAD — the pack may be undeclared, or the task retired. `
-  + 'This item is parked on work that cannot run again, so it closes `task:status:rejected` rather than '
-  + 'waiting for an answer that would change nothing.';
+// Two causes, two sentences, because the reader's next move differs: a retired task is
+// nothing to chase, a relocated one already has a live occurrence somewhere.
+export const orphanedParkComment = (id, headPath = null) => (headPath
+  ? `This item names \`${id}\` at a path it no longer lives at — the pack was renamed since the item was filed, `
+    + `and the task is at \`${headPath}\` now. An item's stored path is never rewritten, so this one can never run. `
+    + 'Closing it obsolete; the scheduler files a fresh occurrence at the current path.'
+  : `\`${id}\` is not a task this repo carries at HEAD — the pack may be undeclared, or the task retired. `
+    + 'This item is parked on work that cannot run again, so it closes `task:status:rejected` rather than '
+    + 'waiting for an answer that would change nothing.');
+
+// Rule G — THE ENDED PARK (#1468). A park states what a person owes; nothing watched
+// for that debt being PAID. An approval park in particular holds an open pull
+// request, which is why rule E excludes it — a later clean run does not answer it —
+// so once the pull request merged the item sat open until somebody read it.
+//
+// `Ends-when: #<n> closed` is the item's own answer to "what would end this", and
+// the resolution of that target is the verdict:
+//
+//   merged   → the work this park was holding LANDED, so the item is `done`
+//   closed   → it was abandoned, so the item is `rejected`
+//
+// The distinction is the whole point of reading merged-ness rather than state: a
+// park closed as `rejected` when its pull request in fact merged would report a
+// delivered run as one that never happened.
+//
+// `resolutionOf(n)` answers `'merged' | 'closed' | null` — null for open, unknown,
+// or unreadable, all of which mean the park stands. Only parked items: a live item
+// is the machinery working, and an item still with an agent has not ended anything.
+export function endedParkItems(open = [], { resolutionOf = () => null } = {}) {
+  return open.filter((item) => {
+    if (!isParked(item)) return false;
+    const { endsWhen } = parseWorkItemBody(item.body);
+    if (endsWhen == null) return false;
+    return resolutionOf(endsWhen) != null;
+  });
+}
+
+export const endedParkComment = (target, resolution) => (resolution === 'merged'
+  ? `#${target} merged, which is what this item was parked waiting for. Closing it \`${STATUS_DONE}\` — `
+    + 'the work landed and there is nothing left for anyone to do here.'
+  : `#${target} was closed without merging, which ends what this item was parked waiting for. `
+    + `Closing it \`${STATUS_REJECTED}\` — nothing landed, so if the work is still wanted, re-queue it (${requeueHint}).`);
 
 // The period of a task, for rule A — read from the declaration at HEAD.
 export const periodForTasks = (tasks = []) => {

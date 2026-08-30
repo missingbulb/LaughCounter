@@ -27,7 +27,7 @@ import {
   TASK_DONE, TASK_OBSOLETE, QUEUE_LABELS, QUEUED_LABEL, isStandingItem,
   NEEDS_HUMAN_ACTION, NEEDS_HUMAN_APPROVAL, NEEDS_HUMAN_FAILURE,
   CLAIM_MARKER, HANDOFF_MARKER, EPISODE_MARKER,
-  parseWorkItemTitle, isWorkItemTitle, parseWorkItemBody, parseContextLines, mergeContext, withNotBefore, withSection, editItemBody, hasLabel, DELIVERED_HEADING, LEGACY_DELIVERED_HEADINGS,
+  parseWorkItemTitle, isWorkItemTitle, parseWorkItemBody, taskIdFromPath, parseContextLines, mergeContext, withNotBefore, withSection, editItemBody, hasLabel, DELIVERED_HEADING, LEGACY_DELIVERED_HEADINGS,
   LAST_VERDICT_HEADING, lastVerdictLines } from './work-item.mjs';
 
 const titleOf = (item) => (item.title ?? '').trim();
@@ -322,6 +322,23 @@ async function executeItem({
     return 'obsolete';
   }
   if (task.taskPath !== taskPath) {
+    // A MISMATCH HAS TWO CAUSES AND ONLY ONE IS A PERSON'S PROBLEM (#1461). The guard
+    // exists for a tampered or forged item, whose path names some OTHER task — that
+    // parks. But an item open across a pack rename hits it too: only the title's id is
+    // canonicalized (`parseWorkItemTitle`), so the body keeps naming the pre-rename
+    // directory forever, and parking it strands the item AND holds the task's lane,
+    // since nothing rewrites an item body. When the path resolves to this very task —
+    // `taskIdFromPath` canonicalizes too — the item is merely stale, which is the
+    // `!task` branch's verdict: close it obsolete and let the generator file a fresh
+    // occurrence at today's path.
+    const named = taskIdFromPath(taskPath);
+    if (named && `${named.pack}/${named.task}` === id) {
+      await close(api, gh, repo, item, STATUS_RUNNING_EXECUTOR, TASK_OBSOLETE, 'not_planned',
+        `This item names \`${id}\` at \`${taskPath}\`, where it no longer lives — the pack was renamed since the item `
+        + `was filed, and the task is at \`${task.taskPath}\` now. An item's stored path is never rewritten, so this one `
+        + 'can never run. Closing obsolete; the scheduler files a fresh occurrence at the current path.', 'task-gone');
+      return 'obsolete';
+    }
     await converge(api, gh, repo, item, STATUS_RUNNING_EXECUTOR, NEEDS_HUMAN_FAILURE, claim,
       `This item's task path (\`${taskPath}\`) is not where \`${id}\` lives at HEAD (\`${task.taskPath}\`). Not running it.`, 'invalid');
     return 'needs-human';
