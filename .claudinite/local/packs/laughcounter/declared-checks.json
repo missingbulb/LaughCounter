@@ -1,0 +1,17 @@
+[
+  {
+    "id": "laughcounter/single-version-source",
+    "severity": "blocking",
+    "since": "2026-08-30",
+    "failureMessage": "a hardcoded version+build copy can disagree with the DMG it actually shipped in — the ambiguity that stalled diagnosing the installTap crash (#61/#74/#75)",
+    "scanFiles": "/^mac\\/Sources\\/.*\\.swift$/",
+    "excludeFiles": "mac/Sources/LaughCounter/AppDelegate.swift",
+    "matchLines": [
+      {
+        "match": "/[\"']v?\\d+\\.\\d+(?:\\.\\d+)?\\s*\\(\\d+\\)[\"']/",
+        "what": "a hardcoded `v<version> (<build>)`-shaped string literal outside AppDelegate.swift",
+        "fix": "derive it from Bundle.main.infoDictionary (CFBundleShortVersionString / CFBundleVersion), as AppDelegate.versionLabel does, instead of writing a second copy that can drift from what actually shipped"
+      }
+    ]
+  }
+]
