@@ -6,7 +6,7 @@ Mine the **existing** prose of this repo's packs — each pack's `RULES.md` / `S
 
 The run's **Context section is binding scope**: it names the **pack paths** to sweep. Work only those paths — a consuming repo's own local packs by default; Claudinite also its core `packs/`. **Never** edit a read-only mounted canon pack under `.claudinite/shared/`.
 
-Convert prose to checks in a single owner-approved PR (a check can break CI or misfire, so it is reviewed, not auto-merged).
+Convert prose to checks in a single PR.
 
 ## The method lives in the skill
 

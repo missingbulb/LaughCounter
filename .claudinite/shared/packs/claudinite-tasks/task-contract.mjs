@@ -7,6 +7,7 @@
 import { ACCEPTED_FREQUENCIES, normalizeFrequency } from './calendar.mjs';
 import { MODEL_FAMILIES } from './model-map.mjs';
 import { EXECUTING_LEASH_MS } from './queue/leases.mjs';
+import { normalizePolicy } from './merge-policy.mjs';
 
 // A declared timeout is always a whole number of seconds, > 0.
 const isPositiveInt = (n) => Number.isInteger(n) && n > 0;
@@ -50,13 +51,28 @@ export function normalizeTaskDeclaration(decl) {
   // THE ONE DOOR for the retired frequency spellings (DESIGN §17.1). Here rather than in the
   // calendar because a frequency is read by more than the calendar — see `normalizeFrequency`.
   if (out.frequency !== undefined) out.frequency = normalizeFrequency(out.frequency);
+  // The retired outcome ceilings become the outcome/policy pair. An explicit
+  // `automerge` beside a legacy spelling wins: a half-migrated declaration
+  // keeps the narrower intent it states.
+  if (LEGACY_OUTCOMES[out.expected_outcome] !== undefined) {
+    if (out.automerge === undefined) out.automerge = LEGACY_OUTCOMES[out.expected_outcome];
+    out.expected_outcome = 'pr';
+  }
   return out;
 }
 
 // The write ceiling a task declares (DESIGN §1, §4). A declared MAXIMUM, not a
-// promise: `none` may never open a PR, `open-pr` may open but never merge,
-// `merged-pr` may arm auto-merge. "No change" is always legal.
-export const OUTCOMES = ['none', 'open-pr', 'merged-pr'];
+// promise: `none` may never open a PR; `pr` may open one, and what (if anything)
+// the run may then MERGE is the separate `automerge` policy — 'nothing',
+// 'anything', or a list of diff classes merge-policy.mjs evaluates the actual
+// diff against. "No change" is always legal.
+export const OUTCOMES = ['none', 'pr'];
+
+// The retired one-word ceilings, each carrying the policy it always meant. They
+// stay accepted forever — a member's own task files rename on their own clock —
+// and normalize at the door like the code-work renames: `open-pr` is a pr task
+// that merges nothing, `merged-pr` a pr task authorized for anything.
+export const LEGACY_OUTCOMES = { 'open-pr': 'nothing', 'merged-pr': 'anything' };
 
 
 // The retired scope vocabulary. It routed a slot dispatch to one of two labels, and
@@ -117,6 +133,23 @@ export function validateTaskDeclaration(raw) {
   }
   if (!OUTCOMES.includes(decl.expected_outcome)) {
     bad(`"expected_outcome" ${JSON.stringify(decl.expected_outcome)} is not a legal outcome ceiling`, `set one of: ${OUTCOMES.join(', ')}`);
+  }
+  // automerge — REQUIRED beside `pr` (the legacy ceilings arrive here already
+  // carrying theirs), and validated as a policy SHAPE only: whether every named
+  // rule resolves is the policy engine's question, answered where the diff is
+  // judged, and it fails closed there — never at author time, where the rule set
+  // depends on which packs are active.
+  if (decl.expected_outcome === 'pr') {
+    if (decl.automerge === undefined) {
+      bad('a "pr" task declares no "automerge"', 'say what may land unreviewed: "nothing", "anything", or a list of diff classes, e.g. ["comment-only-changes", "readme-changes"]');
+    } else {
+      const policy = normalizePolicy(decl.automerge);
+      if (policy.kind === 'invalid') {
+        bad(`"automerge" is not a legal policy: ${policy.reason}`, 'set "nothing", "anything", or a list of rule names, each optionally reject:-prefixed');
+      }
+    }
+  } else if (decl.automerge !== undefined) {
+    bad('a "none" task declares "automerge"', 'drop it — a task that opens no pull request has nothing to merge; or set expected_outcome: "pr"');
   }
   // agent_instructions — REQUIRED for an agentic task (agent_model !== 'none'):
   // that's the worker file the agent reads. A `none` task runs no agent, so the

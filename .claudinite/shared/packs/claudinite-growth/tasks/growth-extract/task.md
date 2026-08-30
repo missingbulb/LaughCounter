@@ -4,17 +4,15 @@ The growth lifecycle's capture stage, over **both** lesson sources in one run: t
 (commits, merged PRs, issue discussion) and the conversation logs captured from working sessions. Each
 durable, reusable lesson is folded into the repo's own **local packs** (`.claudinite/local/packs/` — the
 normalized capture surface) at the repo's own level, without straining to generalize it. The run lands its
-edits through a single PR **delivered to land** (on the default delivery settings it merges once the repo's
-checks pass, with no human review — daily capture never piles up as review requests); finding nothing to add
+edits through a single PR, handed to the shared delivery procedure; finding nothing to add
 on a given run is a perfectly good outcome.
 
 The run's **Context section is binding scope**: it names the substantive commit shas and the
 PRs/issues touched in the window. That is the work; do not widen it.
 
 > This is the **unattended daily** capture. It writes only the repo's *own* local packs, so — **unlike** an
-> owner-requested, in-session retrospective (which delivers a PR for a human to review) — it opens a PR and
-> **delivers it to land** (the shared procedure under *Output* below; on the default settings GitHub lands it
-> once the repo's checks pass). The shared canon stays human-gated — lifting anything up into it is the
+> owner-requested, in-session retrospective — it opens a PR and hands it to the shared delivery
+> procedure (*Output* below). The shared canon stays human-gated — lifting anything up into it is the
 > central promote task's job (canon-side), and that PR waits for the owner.
 
 ## Conventions used in this doc
@@ -58,19 +56,14 @@ re-derive any of it here.
 If an edit touches something a test reads (a doc constant, a code path), run the repo's offline test suite
 and keep it green before opening the PR.
 
-## Output: one PR, delivered to land
+## Output: one PR
 
 If the run found at least one genuinely new lesson, it lands **all** of it — both halves, plus any check the
 upgrade pass produced — through a **single PR**: one commit for the whole run on a per-run-unique branch, not
 one per lesson and not one per half. Open the PR (title `Claudinite growth: extract lessons`, its commit
 referencing the tracking issue so the `task-lifecycle` gate passes), then **deliver it by the shared
-procedure — [deliver-pr.md](../../../../packs/claudinite-tasks/deliver-pr.md)**. That procedure — never this file —
-owns every landing nuance: it reads this repo's `maintenance.delivery` (a `review` repo's PR waits for the
-owner — still a delivered outcome), arms auto-merge where the repo allows it, and licenses the hand merge
-when the arm is rejected `clean status` (a base branch that requires nothing — GitHub never auto-merges
-there). Do not assume this run's PR merges unreviewed: that is the repo's setting, not this task's. On the
-default settings it squash-merges once the repo's checks pass, so daily lesson-capture never floods review
-requests while every change still gets a PR trail and a CI gate. This writes only the repo's *own* local
+procedure — [deliver-pr.md](../../../../packs/claudinite-tasks/deliver-pr.md)** — that procedure, never this
+file, owns whether and how the PR lands. This writes only the repo's *own* local
 packs (not the shared canon). A run that finds nothing and opens nothing is fine — and common.
 
 A new check ships with its **red-first fixture** — see it fail on a violating fixture, pass on a clean one —

@@ -42,14 +42,16 @@ export default {
   // and only because this task declares the field below.
   agent_model: 'opus',
   model_from_request: true,
-  // The ceiling the executor enforces in code. It is `merged-pr` because ONE shape
-  // of request may land its own change: an asker who applied `claude-automerge`
-  // said up front that a NARROW diff needs no approval (§16.11), and the item
-  // carries that as its `Merge:` field. A ceiling is a maximum, not an
+  // The ceiling the executor enforces in code. The task's own policy is the full
+  // `anything` because the REAL decider is per-request: the asker's `Automerge:`
+  // becomes the item's `Merge:` field (§16.11), a policy expression the worker
+  // hands to the policy engine, and the task ceiling must not sit below whatever
+  // an asker may legitimately authorize. A ceiling is a maximum, not an
   // instruction: with no such field the worker opens a pull request and parks at
   // the approval lane exactly as every request did before, and with one it still
-  // parks whenever the diff classifier calls the diff wide.
-  expected_outcome: 'merged-pr',
+  // parks whenever the policy engine says the diff is not covered.
+  expected_outcome: 'pr',
+  automerge: 'anything',
   agent_instructions: 'task.md',
   agent_execution_timeout: 4 * 3600,
   // A run that died mid-flight leaves a branch, a PR, or neither, and only a person

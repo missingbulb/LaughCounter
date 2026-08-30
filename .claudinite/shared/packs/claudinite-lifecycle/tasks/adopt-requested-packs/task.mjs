@@ -48,7 +48,12 @@ export default {
   frequency: 'manual',                   // fired by the fleet enforcer when it places work here — never due on its own
   precondition_signals: [],              // no signal — the work list arrives by push, not by observation
   agent_model: 'sonnet',                 // applies existing packs by an existing skill; confirmation judgment is bounded and reviewed
-  expected_outcome: 'merged-pr',         // lands unattended — see the note below on what that trades away
+  expected_outcome: 'pr',
+  // Lands unattended (see the note above on what that trades away) within what an
+  // adoption actually writes: the declaration, the re-vendored mount (this pack's
+  // merge-rules.json declares both) and the regenerated rules index. A pack whose
+  // adoption scaffolds workflow files parks for review — fail-safe, and rare.
+  automerge: ['claudinite-shared-packs', 'claudinite-settings-updates', 'generated-file-changes'],
   agent_instructions: 'task.md',
   // Adopting packs is a declaration edit, an interview transcription, a re-vendor, a
   // scaffold and a PR. Generous, because it is a runaway bound and not a scheduling

@@ -27,7 +27,7 @@ verbatim in this spelling:
 Blocked-by: #<what this waits on>
 Not-before: <ISO instant this may first run>
 Model: <opus | sonnet | haiku>
-Automerge: if-narrow
+Automerge: <policy>
 Task: <pack>/<task>
 
 <!-- filed by /do-later -->
@@ -81,12 +81,27 @@ only for an author with push access on the repository.
   (claude-code-remote, `session_id` omitted) and map `session_context.model` to
   `opus`, `sonnet` or `haiku`. A model outside those three is left out, and the
   run takes the task's default.
-- **`Automerge: if-narrow`** — the standing authorization to land the change
-  without the owner's approval **when the run's diff turns out to be narrow**
-  (docs, tests, comment-only edits, and code within a single directory; the run
-  measures this, not you). **Withhold it whenever the owner said they want to see
-  this one** — "let me review it", "show me before merging", or any such wording
-  outranks how small the change looks.
+- **`Automerge: <policy>`** — the standing authorization to land the change
+  without the owner's approval **when the run's diff turns out to sit inside the
+  policy** (the run measures this with the policy engine, not you). The value is
+  a policy expression: `anything`, a `;`-joined list of diff classes — built-ins
+  like `comment-only-changes`, `doc-changes`, `test-changes`,
+  `markdown-line-removals`, `markdown-trims`, `file-additions`, `generated-file-changes`, `javascript-changes`,
+  `single-file-code-changes`, `single-folder-code-changes`, plus any class the
+  repo's packs declare — each optionally `reject:`-prefixed, or `narrow-diff`
+  (docs, tests, comment-only edits, and code within a single directory).
+
+  **This field is never left unsettled, and never defaulted silently.** If the
+  owner stated a policy, or said they want to see this one — "let me review it",
+  "show me before merging", or any such wording, which outranks how small the
+  change looks — you have your answer (the review case omits the field). When
+  they said neither, **ask, before filing**: one `AskUserQuestion`, proposing as
+  the recommended option the narrowest policy that plausibly covers the deferred
+  change (a comment sweep suggests `comment-only-changes`, a docs edit
+  `doc-changes`, a one-module fix `single-folder-code-changes;test-changes`),
+  with "leave it for my review" as the alternative. A declined or unanswered
+  question files with no `Automerge:` field — review is the safe default only
+  after the owner had the chance to choose.
 - **`Task: <pack>/<task>`** — only when the deferral is a run of a *named task*
   rather than "implement this issue". Left out, the run is the built-in request
   implementer, which is what a `/do-later` almost always wants.

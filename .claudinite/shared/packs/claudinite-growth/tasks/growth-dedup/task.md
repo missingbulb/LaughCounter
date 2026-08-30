@@ -2,8 +2,8 @@
 
 The growth lifecycle's pruning stage: reconcile this repo's **local packs** against the shared **canon** it
 consumes (Claudinite, vendored read-only), pruning local items — a pack's prose line, or a whole local check —
-the canon now covers. It lands the run's prunes through a single PR against the repo's default branch,
-**delivered to land** per the repo's own delivery settings. Often there's nothing to prune, and that's fine. The run's
+the canon now covers. It lands the run's prunes through a single PR against the repo's default branch.
+Often there's nothing to prune, and that's fine. The run's
 **Context** is **binding scope — not a hint**: do not re-decide or widen it.
 
 > This task only prunes local packs against the canon; lifting local items up into the canon is the central
@@ -69,11 +69,8 @@ worker only frames the unattended run around it.
   whole run's prunes, not one per item — never a direct push. **Title the commit and the PR
   `Claudinite growth: dedup local packs`** — the `growth-write-scope` check keys on that title to certify the
   run pruned only the repo's local packs. Then **deliver it by the shared procedure —
-  [deliver-pr.md](../../../../packs/claudinite-tasks/deliver-pr.md)**. That procedure — never this file — owns every
-  landing nuance: it reads this repo's `maintenance.delivery` (a `review` repo's PR waits for the owner — still
-  a delivered outcome) and arms auto-merge where the repo allows it. Do not assume this run's PR merges
-  unreviewed — that is the repo's setting, not this task's (the declared ceiling is `merged-pr`: it *may*
-  land). What holds the prune bar on the default settings is the quote-the-canon-line discipline above, the
+  [deliver-pr.md](../../../../packs/claudinite-tasks/deliver-pr.md)** — that procedure, never this file, owns
+  whether and how the PR lands. What holds the prune bar is the quote-the-canon-line discipline above, the
   `dedup-prune-integrity` and `growth-write-scope` checks, and CI — never a reviewer's second look, which a
   wrongful prune is easy to wave through anyway. **Put the issue reference in the commit message** —
   `Refs #<n>` for this task's tracking issue (below), in the commit itself, not only the PR body. The repo's
@@ -95,8 +92,7 @@ reviewable where the diff is.
 ## Nothing downstream catches a wrong prune
 
 Proving the mounted canon genuinely covers a local item before pruning it — and telling "the canon now owns
-this" from "the canon states this too generally, keep the local cut" — is a **judgment call**. On the default
-delivery settings the PR carrying a prune lands once CI passes, so there is no reviewer downstream to catch
+this" from "the canon states this too generally, keep the local cut" — is a **judgment call**. The PR carrying a prune can land with no reviewer downstream to catch
 what the run got wrong: a real lesson pruned on a claim the canon does not actually make is gone.
 
 ## What this task must never do
@@ -104,8 +100,7 @@ what the run got wrong: a real lesson pruned on a claim the canon does not actua
 - **Never edit the read-only canon** — it only prunes the repo's *local packs* against it, and the
   `growth-write-scope` check reds a run that touches anything outside them.
 - **Never land a prune outside a PR** — every prune rides the run's single PR, delivered by
-  [deliver-pr.md](../../../../packs/claudinite-tasks/deliver-pr.md); a direct push to `main` is never in scope, and
-  neither is merging past a red check or a repo whose delivery setting says `review`.
+  [deliver-pr.md](../../../../packs/claudinite-tasks/deliver-pr.md); a direct push to `main` is never in scope.
 - **Never prune a local item without quoting the mounted-canon line (or covering check rule id) that covers
   it** — when unsure, leave it.
 - **Never widen the dispatch's Context.** If it named the changed canon packs, a prune citing coverage from

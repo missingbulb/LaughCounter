@@ -27,7 +27,10 @@ export default {
   schedule_after: ['claudinite-lifecycle/update'],
   precondition_signals: ['commits', 'prs', 'issues'],
   agent_model: 'opus',                   // generalizing/curating lessons is the heaviest judgment, and the default delivery lands the PR with no human review
-  expected_outcome: 'merged-pr',            // additive edits to the repo's own local packs; delivered to land per the repo's delivery settings
+  expected_outcome: 'pr',
+  // Lessons land in the repo's own local packs — prose, and the checks the in-run
+  // upgrade pass produces (this pack's merge-rules.json declares both classes).
+  automerge: ['claudinite-local-pack-md-changes', 'claudinite-local-pack-check-changes'],
   agent_instructions: 'task.md',
   agent_execution_timeout: 2700,            // two source passes plus the prose-to-checks upgrade — generous bound, extreme protection
 

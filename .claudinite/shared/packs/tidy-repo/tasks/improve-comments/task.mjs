@@ -39,12 +39,14 @@ export default {
   frequency: 'weekly',                   // the weekly anchor (DESIGN §2); the window's commits are the scope
   precondition_signals: ['commits', 'prs'],
   agent_model: 'opus',                   // whether a comment carries a why the code cannot state is the judgment here, and a wrong call lands in the repo's source
-  // A ceiling, not a plan: the repo's own `maintenance.delivery` decides whether the
-  // PR lands unreviewed, and a `review` member still gets it left open. What makes
-  // the pass safe to land unattended is the scope gate — it strips the comments from
-  // both sides of every changed file and reds anything else — so the diff can only
-  // ever be comment text, and a wrong comment is a comment the next round rereads.
-  expected_outcome: 'merged-pr',
+  // A ceiling, not a plan: the repo's own delivery setting decides whether the
+  // PR lands unreviewed, and a `review` member still gets it left open. The
+  // policy states in the contract what makes the pass safe to land unattended —
+  // the diff can only ever be comment text and README content — and the pass's
+  // own scope gate (the skill's `improve-comments-scope` check) reds the same
+  // boundary on every branch wearing its title, armed or not.
+  expected_outcome: 'pr',
+  automerge: ['comment-only-changes', 'readme-changes'],
   agent_instructions: 'task.md',
   agent_execution_timeout: 1800,
 

@@ -57,20 +57,18 @@ behavior nobody reviews. Report what you found either way.
 
 ## 5. End green, or park
 
-Run this repo's checks. Green: push to the branch, then **land the delivery yourself**,
-per this repo's `maintenance.delivery` in `.claudinite-settings.json`:
-
-- **`auto-merge`** — merge the PR. Nothing else will: the deterministic half arms
-  auto-merge only on a `merge` terminal, and yours was `apply-stage`, so the PR is
-  sitting unarmed. This is the one step that puts your work on `main`.
-- **`review`** — leave it open. A human merges it, and that is the setting's whole
-  meaning.
+Run this repo's checks. Green: push to the branch, then hand the PR to the shared
+delivery procedure — `deliver-pr.md`, at the root of the claudinite-tasks pack
+(`.claudinite/shared/packs/claudinite-tasks/deliver-pr.md`; the canon runs it from
+`packs/claudinite-tasks/`) — and do what it says. Nothing else will land this PR:
+the deterministic half arms auto-merge only on a `merge` terminal, and yours was
+`apply-stage`, so it sits unarmed until you deliver it.
 
 Not green, or a repair you are not sure of: leave the PR open, label
 it `task:status:needs-human-decision`, and say in one comment what is unresolved. A withheld workflow you did
 not deliver is "not green" — it stays owed, and the next cycle will stage it again.
 
-**Why you merge it rather than leaving it.** An unmerged PR is not lost — the next
+**Why the delivery is yours to run rather than left for later.** An unmerged PR is not lost — the next
 cycle's disposal merges a green one. But `update` is a **daily** task, so "the next
 cycle" is up to a day away, and until then a workflow you moved into
 `.github/workflows/` on the branch is not in `.github/workflows/` on `main`. That
@@ -79,10 +77,6 @@ standing ~24h offset between a run's output and the member's `main` is the exact
 `packs/claudinite-tasks/land-pr.mjs`): *the evidence that settles it does not take a day to
 arrive*. The same reasoning binds here — the only difference is that you hold the
 credential, so you are the one who acts on it.
-
-Merging is within this task's ceiling (`expected_outcome: 'merged-pr'`), and a ceiling is
-the most a run may do, never a target — so this is permission, not licence to merge
-something red. Green first, then merge.
 
 Every non-green end looks the same here, and that is the point — a repair nobody
 verified is not a smaller problem than a red check, it is the same problem with less

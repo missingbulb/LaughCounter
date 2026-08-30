@@ -1,7 +1,9 @@
-// Is this run's diff NARROW — small enough that the asker said, up front, they did
-// not want to be asked (tasks-dispatch DESIGN §16.11)? The request task's ceiling
-// allows a merge; THIS is what decides whether one happens, so the call is
-// arithmetic over the diff rather than the session's opinion of its own work.
+// The queue's pre-policy "narrow diff" verdict, kept for the items and callers
+// that still speak it. The general mechanism is `merge-policy.mjs` at this
+// pack's root — `Merge: if-narrow` resolves there to the `narrow-diff` composite
+// policy, and new callers go straight to that module and its CLI. What stays
+// here is the original whole-diff verdict shape (`narrowVerdict`) and its CLI,
+// both built on the primitives merge-policy now owns.
 //
 // Narrow means every changed file is one of:
 //   - documentation — a Markdown/text file;
@@ -10,38 +12,19 @@
 //     comments are stripped;
 //   - code, in at most ONE directory across the whole diff.
 //
-// So a change that edits one module, its tests, a README and a comment in a file
-// somewhere else is narrow; one that edits code in two directories is not.
-//
 // THE LIMIT THAT BOUNDS THE VERDICT: a file `commentOnly` cannot answer for counts
 // as code, so a comment-only edit in a language the parser does not model parks the
 // run rather than merging it. That is the safe end, and it is deliberate — the
 // verdict grants a merge nobody will look at.
 
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { COMMENT_CHECKABLE, commentOnly } from '../../../../../engine/checks/helpers/code-scanning.mjs';
+import {
+  COMMENT_CHECKABLE, commentOnly, classifyPath, diffEntries,
+} from '../../../merge-policy.mjs';
 
-// Re-exported so this module stays the one place a caller asks about a narrow
-// diff; the parser and the safe end are the shared helper's.
-export { COMMENT_CHECKABLE, commentOnly };
-
-const DOC_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.rst']);
-
-const TEST_DIRS = new Set(['test', 'tests', '__tests__', 'spec', 'specs', 'fixtures', 'testdata']);
-
-// A path's kind, from the path alone: 'doc', 'test', or 'code'. Directory names
-// are matched on whole segments (`tests/`), never on substrings, so `latest/` is
-// not a test directory; file names are matched on the conventions every ecosystem
-// here shares.
-export function classifyPath(file) {
-  const segments = file.split('/');
-  const name = segments[segments.length - 1];
-  if (segments.slice(0, -1).some((seg) => TEST_DIRS.has(seg) || seg.endsWith('-tests') || seg.endsWith('_tests'))) return 'test';
-  if (/(^|[.\-_])(test|tests|spec)[.\-_]/i.test(name) || /^test_/i.test(name)) return 'test';
-  if (DOC_EXTENSIONS.has(path.extname(name).toLowerCase())) return 'doc';
-  return 'code';
-}
+// Re-exported so a caller that asked this module keeps getting the same answers
+// the policy engine gives.
+export { COMMENT_CHECKABLE, commentOnly, classifyPath, diffEntries };
 
 // The verdict over a whole diff. `entries` are `{ file, before, after }`, contents
 // null where the file was added or deleted. Returns the verdict and the WHY —
@@ -72,42 +55,6 @@ export function narrowVerdict(entries) {
 }
 
 // --- the CLI ------------------------------------------------------------------
-
-// `stderr: ignore` because the ONE expected failure here — `git show` on a path
-// that does not exist at that ref — is how an added or deleted file answers, and
-// letting git narrate it once per such file buries the verdict the caller reads.
-const git = (args, cwd) => execFileSync('git', args, {
-  cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'],
-});
-
-// The content of `file` at `ref`, or null when it does not exist there (an added
-// file) — the same answer a deleted file's "after" gets.
-function contentAt(ref, file, cwd) {
-  try {
-    return git(['show', `${ref}:${file}`], cwd);
-  } catch {
-    return null;
-  }
-}
-
-// The diff this branch carries against `base`, read from the merge base so
-// commits that landed on the base meanwhile are not counted as this run's work.
-export function diffEntries({ base, cwd = process.cwd() }) {
-  // The checkouts these runs work in are shallow, where `merge-base` has no common
-  // ancestor to find; the base ref itself is then the honest comparison point.
-  let mergeBase;
-  try {
-    mergeBase = git(['merge-base', base, 'HEAD'], cwd).trim();
-  } catch {
-    mergeBase = base;
-  }
-  const names = git(['diff', '--name-only', mergeBase, 'HEAD'], cwd).split('\n').map((l) => l.trim()).filter(Boolean);
-  return names.map((file) => ({
-    file,
-    before: contentAt(mergeBase, file, cwd),
-    after: contentAt('HEAD', file, cwd),
-  }));
-}
 
 async function main() {
   const argv = process.argv.slice(2);

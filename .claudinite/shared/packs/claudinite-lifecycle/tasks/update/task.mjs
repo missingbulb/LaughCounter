@@ -18,7 +18,8 @@ export default {
   frequency: 'daily',                    // the head of the morning chain — everything that reads a converged mount declares `schedule_after:` this
   precondition_signals: ['stamp', 'sharedMount'],
   agent_model: 'sonnet',                 // the apply stage only — most runs are agentless
-  expected_outcome: 'merged-pr',
+  expected_outcome: 'pr',
+  automerge: 'anything',             // the converge replaces the vendored mount wholesale — the one lane whose trust is the repo's delivery setting, not a diff class
   agent_instructions: 'task.md',
 
   code_work: 'node worker.mjs',

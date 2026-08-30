@@ -86,6 +86,10 @@ export function validateDispatchBody(body, { exists, isPackDeclared, loadTask })
     model,
     resolvedModel: resolveModel(model),
     outcome: decl.expected_outcome,
+    // What the task authorizes to land unreviewed ('nothing' | 'anything' | a
+    // rule list) — normalized above, so a legacy ceiling already carries its
+    // equivalent. Null only for a `none` task, which opens nothing to merge.
+    automerge: decl.automerge ?? null,
     // The best-effort run bound (task-code-work DESIGN §6): the executor
     // surfaces it into the subagent's brief as "fail after N minutes". Always set
     // for an agentic task (the contract requires it); null for an agentless one.
