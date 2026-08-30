@@ -19,3 +19,4 @@ forward adds its own row.
 | 60821.2 | 2026-08-21 | This pack's inline version-history comments moved out of `pack.mjs` into this file. |
 | 60822.2 | 2026-08-23 | The manifest stops restating its own tree (#1246): `id`, `prose`, `badge`, `skills`, `worldRules` and `workRules` are resolved from the pack directory and an absent `detect`/`marker` means no fingerprint. Coded rules move into `worldRules/`/`workRules/` and tests into `test/`, which no vendor set ships. `minEngineVersion` rises to the engine release that reads all of it. |
 | 60827.1 | 2026-08-27 | `writing-tasks` states the vocabulary the engine now writes — one `task:status:*` per item, the origin beside it, and a park as one label rather than a pair (#1119). |
+| 60830.1 | 2026-08-30 | `writing-tasks` and the `task-phase-discipline` remedy state today's terminal and park spellings (#1395). |

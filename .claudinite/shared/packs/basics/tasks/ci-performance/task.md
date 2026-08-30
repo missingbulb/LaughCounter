@@ -6,7 +6,7 @@ before/after; the standing tracker — the issue the work item's **Delivered by 
 (`Issue: #<n>`) — carries the full table and the step breakdown of the slowest run, written there by
 code-work before you started.
 
-**That number is a required input.** A work item that does not carry it is a failed run, not a lighter one: converge to `needs-human` naming the missing input.
+**That number is a required input.** A work item that does not carry it is a failed run, not a lighter one: park it (`task:status:needs-human-action`) naming the missing input.
 Do not search for the tracker by title and do not open one — code-work already wrote this run's
 measurements to a specific issue, and any issue you find yourself is a different one.
 

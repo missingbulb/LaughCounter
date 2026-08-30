@@ -85,7 +85,7 @@ worker only frames the unattended run around it.
 
 Code-work has already posted **this window's canon diff** as a comment on your own work item — the issue you
 are reading. That comment is the brief this run starts from. **It is a required input**: a work item carrying
-no such comment is a failed run, not a lighter one, so converge to `needs-human` naming what is missing rather
+no such comment is a failed run, not a lighter one, so park it (`task:status:needs-human-action`) naming what is missing rather
 than re-deriving the window yourself.
 
 Every rule this run actually prunes gets a row at the top of its pack's `VERSIONS.md` table, in the same commit
