@@ -40,7 +40,8 @@ export default {
   frequency: 'daily',                    // see "WHY DAILY" in the header
   precondition_signals: ['commits', 'conversationLogs'],
   agent_model: 'none',                   // pure code — no agent (task-code-work DESIGN §4)
-  expected_outcome: 'merged-pr',         // the regenerated GENERATED aggregate rides a PR landed per the repo's delivery settings
+  expected_outcome: 'pr',
+  automerge: ['generated-file-changes'],  // the regenerated aggregate is the whole delivery — its merge=ours line is seeded at adoption
   code_work: 'node worker.mjs',
   // One tree read plus one blob read per capture file in the ~10-day window, all
   // local git, then four REST reads and one PR. A busy repo captures a few files a

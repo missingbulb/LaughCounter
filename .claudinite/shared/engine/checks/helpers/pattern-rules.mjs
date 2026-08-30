@@ -327,7 +327,9 @@ const scans = new WeakMap();
 
 // The named file sets scanFileClasses/excludeFileClasses may reference —
 // shared here so every declaration means the same thing by "test files".
-const FILE_CLASSES = {
+// Exported: the merge-policy engine's language-scoped diff class reads the same
+// set, so "JavaScript" cannot mean two different things in one repo.
+export const FILE_CLASSES = {
   javascriptFiles: /\.(mjs|cjs|jsx?|mts|cts|tsx?)$/,
   pythonFiles: /\.py$/,
   markdownFiles: /\.md$/,

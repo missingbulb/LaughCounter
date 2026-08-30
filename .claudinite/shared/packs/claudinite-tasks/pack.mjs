@@ -31,11 +31,17 @@
 // Adoption is still a moment a person is present, because it wires two workflow files
 // and the routine endpoints a member cannot converge into place.
 export default {
-  version: '60830.4',
+  version: '60830.5',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'scheduled work — the work-item queue, the executor, the task contract and its signals, run records, code-work, delivery',
     excludes: 'authoring a task — claudinite-growth; this repo\'s Claudinite status — claudinite-lifecycle; rendering queue state — claudinite-dashboard',
   },
   seededByDefault: true,
+  // Seeded once, repo-owned from then on (like every seedOp): the merge=ours
+  // line that keeps `usage.GENERATED.json` conflicts resolving by re-running the
+  // fold. Seeded only where no .gitattributes exists yet; a repo whose own file
+  // predates adoption is driven by the advisory `generated-merge-driver` check,
+  // which names the exact line to add.
+  seedOps: [{ template: 'stubs/gitattributes', dest: '.gitattributes' }],
 };

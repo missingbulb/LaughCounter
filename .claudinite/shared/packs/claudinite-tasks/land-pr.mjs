@@ -1,15 +1,16 @@
 // Land a task's delivered pull request under the REPO's delivery settings — the
 // single home for the auto-merge nuances every PR-delivering task shares. These
 // helpers were built inside the baselining worker (#455/#565/#649/#677/#690);
-// they live here because the other `merged-pr` tasks hit the identical failure
+// they live here because the other landing tasks hit the identical failure
 // shapes (an arm rejected "clean status" on an ungated base stranding a green PR
 // forever), and two copies of this precedence is exactly the drift the corpus
 // forbids.
 //
 // The contract that keeps tasks simple: a task declares only its outcome CEILING
-// (`expected_outcome: 'merged-pr'` — it MAY land a PR). Whether the PR actually
+// (`automerge` — what it MAY land; merge-policy.mjs owns whether a granular
+// policy covers the actual diff). Whether the PR actually
 // lands unreviewed is the MEMBER REPO's call — `dailyClaudiniteUpdatesRequirePrReview`
-// in its settings file, where `true` degrades every merged-pr task to open-pr
+// in its settings file, where `true` degrades every authorized landing to review
 // (member config wins, per-project-scheduling DESIGN §1). Tasks stay
 // unaware of that setting by construction: they hand their PR to landDelivery()
 // (directly, or through deliver-generated.mjs) and the repo-shape nuances stay
@@ -465,11 +466,12 @@ export async function disposeOpenPull({ token, repo, pr, delivery, log = console
 // by the next cycle's disposal, which is exactly the offset #649 closed.
 //
 // The in-flight bound is ceilinged by the PREWORK budget it spends, not by what
-// CI might take: the shortest `prework_timeout` among the merged-pr tasks is
-// 600s, and the poll is the tail of a prework that has already converged a tree
-// and opened a PR. 300s leaves that preamble its room. A member whose CI outruns
-// even this still lands next cycle — but now it SAYS so (failureSummary below),
-// where before the give-up was indistinguishable from a red repo.
+// CI might take: the shortest `prework_timeout` among the tasks that land their
+// own PR is 600s, and the poll is the tail of a prework that has already
+// converged a tree and opened a PR. 300s leaves that preamble its room. A member
+// whose CI outruns even this still lands next cycle — but now it SAYS so
+// (failureSummary below), where before the give-up was indistinguishable from a
+// red repo.
 export const LAND_TIMEOUT_MS = 180_000;
 export const LAND_INFLIGHT_TIMEOUT_MS = 300_000;
 export const LAND_POLL_MS = 5_000;

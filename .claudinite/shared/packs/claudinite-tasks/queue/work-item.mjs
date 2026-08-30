@@ -449,13 +449,40 @@ export const MODEL_FIELD = 'Model';
 // what runs, and a body is editable by whoever opened the issue.
 export const TASK_FIELD = 'Task';
 
-// `Merge` is the asker's standing authorization, copied here from the
-// write-gated `claude-automerge` label. Its one value is `if-narrow`: the run may
-// land its own pull request when the diff classifier calls the diff narrow, and
-// must park for approval otherwise. An absent field is the default — never merge —
-// so an item an older scheduler run wrote reads as unauthorized rather than as authorized.
+// `Merge` is the asker's standing authorization: a POLICY EXPRESSION the run
+// hands to the policy engine (merge-policy.mjs) — `anything`, a `a;b;reject:c`
+// rule list, or the legacy `if-narrow` (the narrow-diff composite). The run may
+// land its own pull request only on that engine's yes, and must park for
+// approval otherwise. An absent field is the default — never merge — so an item
+// an older scheduler run wrote reads as unauthorized rather than as authorized.
 export const MERGE_FIELD = 'Merge';
+// The field's one pre-policy value, still the canonical spelling the legacy
+// `yes`/`true` aliases collapse to on their way in.
 export const MERGE_IF_NARROW = 'if-narrow';
+
+// A Merge/Automerge field value, fenced to what the policy engine can read: the
+// canonical expression, or null for anything else. Fencing here is about SHAPE
+// only — a well-formed policy naming a rule nobody defines rides through and
+// fails closed at the verdict, loudly, which is better feedback than silently
+// ignoring the ask. A policy of `nothing` is the default already, so it reads
+// as absent.
+//
+// The grammar mirrors merge-policy.mjs's normalizePolicy — the semantic
+// authority — and cannot import it: this module is deliberately pure (see the
+// header), so the drift guard is the test that runs a value matrix through both
+// sides (test/queue/request-mode.test.mjs).
+const POLICY_TERM = /^(reject:)?[a-z0-9]+(-[a-z0-9]+)*$/;
+function policyFieldValue(raw) {
+  if (raw == null) return null;
+  const value = String(raw).trim();
+  if (['if-narrow', 'yes', 'true'].includes(value.toLowerCase())) return MERGE_IF_NARROW;
+  if (value.toLowerCase() === 'anything') return 'anything';
+  const terms = value.split(';').map((t) => t.trim());
+  const wellFormed = terms.length > 0
+    && terms.every((t) => POLICY_TERM.test(t) && t !== 'nothing')
+    && terms.some((t) => !t.startsWith('reject:'));
+  return wellFormed ? value : null;
+}
 
 // The heading the delivered-artifacts section carries in a work item body. One
 // home, because it is written in three places and MATCHED when a re-entrant run
@@ -574,11 +601,10 @@ export function parseWorkItemBody(body) {
   // engine can actually dispatch at (§16.7).
   const askedModel = MODEL_RE.exec(text)?.[1] ?? null;
   const model = REQUEST_MODELS.includes(askedModel) ? askedModel : null;
-  // Same fencing as the model: an unrecognised authorization reads as absent, and
-  // absent is the safe end of this field — a run that cannot read its permission
-  // opens a pull request and waits.
-  const askedMerge = MERGE_RE.exec(text)?.[1] ?? null;
-  const merge = askedMerge === MERGE_IF_NARROW ? askedMerge : null;
+  // Same fencing as the model: an authorization that does not read as a policy
+  // expression reads as absent, and absent is the safe end of this field — a run
+  // that cannot read its permission opens a pull request and waits.
+  const merge = policyFieldValue(MERGE_RE.exec(text)?.[1] ?? null);
   return { taskPath, notBefore: nb, blockedBy, request, model, merge };
 }
 
@@ -611,7 +637,7 @@ export function parseRequestFields(body, { gated = false } = {}) {
     // An unrecognised family reads as absent rather than failing the request: a run
     // nobody can start would look accepted forever.
     model: REQUEST_MODELS.includes(asked.model) ? asked.model : null,
-    merge: ['if-narrow', 'yes', 'true'].includes(asked.automerge) ? MERGE_IF_NARROW : null,
+    merge: policyFieldValue(asked.automerge),
     blockedBy,
     notBefore,
     ungated: false,

@@ -1,0 +1,20 @@
+[
+  {
+    "name": "claudinite-local-pack-md-changes",
+    "pathMatching": "/^\\.claudinite\\/(local\\/packs|local_packs)\\/.*\\.md$/",
+    "changeKinds": ["added", "modified"],
+    "editShape": "any"
+  },
+  {
+    "name": "claudinite-local-pack-md-deletions",
+    "pathMatching": "/^\\.claudinite\\/(local\\/packs|local_packs)\\/.*\\.md$/",
+    "changeKinds": ["modified", "deleted"],
+    "editShape": "removals-only"
+  },
+  {
+    "name": "claudinite-local-pack-check-changes",
+    "pathMatching": "/^\\.claudinite\\/(local\\/packs|local_packs)\\/[^/]+\\/(declared-checks\\.json|(workRules|worldRules)\\/[^/]+\\.mjs|skills\\/[^/]+\\/(declared-checks\\.json|checks\\.mjs)|test\\/.*\\.mjs)$/",
+    "changeKinds": ["added", "modified"],
+    "editShape": "any"
+  }
+]

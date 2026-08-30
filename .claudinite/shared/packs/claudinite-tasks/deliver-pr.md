@@ -9,13 +9,36 @@ lane — your PR's checks need no help from you to run.
 
 ## The task sets the ceiling; the repo decides the rest
 
-Your task's declared `expected_outcome` is a **ceiling, not a plan**:
+Your task's declared `automerge` is a **ceiling, not a plan** (the legacy
+`expected_outcome: 'open-pr'` reads as `nothing`, `'merged-pr'` as `anything`).
+On a request item the authorization is the item's **`Merge:` field** instead,
+read within that ceiling: absent means `nothing`, `if-narrow` means the
+`narrow-diff` composite, and any other value is the policy expression itself.
+Whichever source it came from:
 
-- **`open-pr`** — open the PR and stop. Never arm auto-merge, never merge. Nothing below
+- **`nothing`** — open the PR and stop. Never arm auto-merge, never merge. Nothing below
   applies to you.
-- **`merged-pr`** — the task *may* land its PR. Whether it actually lands unreviewed is
+- **`anything`** — the task *may* land its PR. Whether it actually lands unreviewed is
   **this repo's** setting, read in step 1 — never the task's own knowledge. The same task
   lands itself on one repo and waits for an owner on another, and both are correct.
+- **a policy list** (e.g. `['comment-only-changes', 'readme-changes']`) — the task may
+  land its PR only when the diff sits inside the policy, and the policy engine decides
+  that, never your reading of the diff. Before step 2, run it from the repository root —
+  `merge-policy.mjs` at the root of the claudinite-tasks pack (probe
+  `.claudinite/shared/packs/claudinite-tasks/merge-policy.mjs`, falling back to
+  `packs/claudinite-tasks/merge-policy.mjs` in the canon):
+
+  ```
+  node <that file> --base <the PR's base branch> --policy '<the terms, ;-joined>'
+  ```
+
+  `AUTOMERGE: no` — leave the PR open for review, quote the verdict line in your wrap-up,
+  and stop; a diff wider than its policy waiting for a person is a correct outcome, and
+  you never re-shape a change to fit the classifier. `AUTOMERGE: yes` — amend your
+  branch's final commit to carry the arming trailer on its own line,
+  `Claudinite-Automerge-Policy: <the same expression>`, push, and continue below (the
+  `automerge-policy-scope` check re-measures the diff against the trailer, so a
+  mis-measured arm goes red instead of merging).
 
 ## 1. Read the repo's delivery preference
 
@@ -23,8 +46,8 @@ Your task's declared `expected_outcome` is a **ceiling, not a plan**:
 
 - **`auto-merge`** (legacy aliases `auto`, `push`) — go to step 2.
 - **`review`** (legacy alias `pr`) — leave the PR open for the owner and stop. Never arm
-  it, never merge it, and never read the standing PR as a failure: degrading `merged-pr`
-  to open-pr is the repo's stated intent, and member config wins.
+  it, never merge it, and never read the standing PR as a failure: degrading an
+  authorized landing to review is the repo's stated intent, and member config wins.
 - **Missing or empty** — proceed as `auto-merge` (the default). Do **not** write the key:
   materializing it is the update converge's job, not yours.
 - **Anything else** — someone stated an intent you cannot honour, and guessing could
@@ -56,7 +79,7 @@ it once this repo's required checks pass.
     wrap-up comment, naming the repo settings a human should check: Settings → General →
     "Allow auto-merge", and Settings → Actions → General workflow-approval requirements
     (the usual source of the parked `action_required` run). A PR left open with its
-    reason stated is a *delivered* outcome within the `merged-pr` ceiling — the trail
+    reason stated is a *delivered* outcome within the ceiling — the trail
     survives and the task's next cycle (or the owner) picks it up; a merge past a red or
     unseen check does not survive anything.
 

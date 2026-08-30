@@ -77,7 +77,7 @@ Week rows are frozen by that trade: a counting bug found later heals the day win
 
 ## The file is GENERATED
 
-`.claudinite/local/usage.GENERATED.json` is machine-written and never hand-edited — it lives under `.claudinite/local/` because that is the repo-owned area the vendoring refresh never touches. The worker also declares its `merge=ours` `.gitattributes` entry, so a conflicting merge resolves by re-running the fold rather than by hand.
+`.claudinite/local/usage.GENERATED.json` is machine-written and never hand-edited — it lives under `.claudinite/local/` because that is the repo-owned area the vendoring refresh never touches. Its `merge=ours` `.gitattributes` entry is seeded at pack adoption (the pack's `seedOps`), so a conflicting merge resolves by re-running the fold rather than by hand; on a repo whose own `.gitattributes` predates adoption, the advisory `generated-merge-driver` check names the one-line edit.
 
 ## Failure is visible, never silent
 

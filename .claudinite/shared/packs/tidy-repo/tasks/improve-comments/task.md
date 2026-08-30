@@ -42,10 +42,7 @@ commit referencing the tracking issue so the `task-lifecycle` gate passes.
 
 Then hand it to the shared delivery procedure —
 [deliver-pr.md](../../../claudinite-tasks/deliver-pr.md). That procedure, never this file, owns
-every landing nuance: it reads this repo's `maintenance.delivery` (a `review` repo's PR waits for
-its owner — still a delivered outcome), arms auto-merge where the repo allows it, and licenses the
-hand merge where the arm is rejected. Do not assume this round's PR merges unreviewed; that is the
-repo's setting, not this task's.
+whether and how the PR lands.
 
 What makes that safe unattended is the scope check, not a reader: it proves the diff is comment
 text and `README.md` content and nothing else, so the worst a wrong comment can do is stand until

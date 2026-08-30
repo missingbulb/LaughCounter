@@ -5,6 +5,7 @@ the version this file was introduced beside (60821.4); earlier bumps are not bac
 
 | Version | Date | What changed |
 |---|---|---|
+| 60830.3 | 2026-08-30 | `/do-later` must settle the automerge value: the `Automerge:` field takes a policy expression, and a deferral that names none gets one `AskUserQuestion` proposing the narrowest fitting policy, review remaining the default only after the owner had the chance to choose. `ci-performance` declares `pr`/`anything` — CI itself gates a CI-performance fix (#1459). |
 | 60827.2 | 2026-08-27 | `do-later` can defer onto a *moment*: a time-worded ask ("check tomorrow") rides the queue's `Not-before:` wait field instead of falling through to "queues immediately" (#1393). |
 | 60824.1 | 2026-08-24 | The `task-janitor` task moves to the new `claudinite-tasks` pack, which owns the queue it sweeps (#1317). |
 | 60823.1 | 2026-08-23 | Prose and skills name the member settings file by its current name, `.claudinite-settings.json` (#1252). |

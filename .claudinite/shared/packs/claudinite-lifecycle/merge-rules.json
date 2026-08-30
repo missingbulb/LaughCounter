@@ -1,0 +1,15 @@
+[
+  {
+    "name": "claudinite-shared-packs",
+    "pathMatching": "/^\\.claudinite\\/shared\\//",
+    "changeKinds": ["added", "modified", "deleted"],
+    "editShape": "any",
+    "coversMountPolicySources": true
+  },
+  {
+    "name": "claudinite-settings-updates",
+    "pathMatching": "/^(\\.claudinite-settings\\.json|\\.claudinite-checks\\.json)$/",
+    "changeKinds": ["added", "modified"],
+    "editShape": "any"
+  }
+]

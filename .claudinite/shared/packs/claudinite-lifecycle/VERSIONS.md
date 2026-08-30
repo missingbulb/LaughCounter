@@ -8,6 +8,7 @@ own row.
 
 | Version | Date | What changed |
 |---|---|---|
+| 60830.3 | 2026-08-30 | `update` keeps `automerge: 'anything'` — the whole-tree converge lane — while `adopt-requested-packs` narrows to what an adoption writes: `claudinite-shared-packs` (this pack's merge-rules.json, carrying `coversMountPolicySources` for the policy files a vendored tree contains) plus `claudinite-settings-updates` and the regenerated rules index (#1459). |
 | 60830.2 | 2026-08-30 | `adopt-requested-packs` lands its PR instead of holding it for review. The `open-pr` ceiling existed so a human reviewed a change that switches on new checks in the member's CI, but the review never came — one member's adoption sat parked for eleven days and never reached the repo it was for. The member's own checks still gate the merge (#1453). |
 | 60824.6 | 2026-08-24 | The update worker names the flows at their real home, and `scheduler-workflow-shape` requires the pack's scheduler entry now that every member's workflow names it (#1328). |
 | 60824.5 | 2026-08-24 | `scheduler-workflow-shape` stops accepting the legacy hourly cron line, now that every member's workflow carries the two-tick form (#1234). |

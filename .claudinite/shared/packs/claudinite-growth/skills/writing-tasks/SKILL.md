@@ -78,7 +78,18 @@ than by replaying a ledger.
   default-exports `id` (matching its directory), `frequency` (`hourly | daily-2h
   | daily-1h | daily | daily+1h | weekly | monthly | manual`), `precondition_signals` (the collector
   vocabulary), `agent_model` (`opus | sonnet | haiku | none`), `expected_outcome` (`none |
-  open-pr | merged-pr`), and a `precondition`. An agentic task (`agent_model !==
+  pr` — the retired `open-pr`/`merged-pr` normalize to `pr` with a policy of
+  `nothing`/`anything`), and a `precondition`. A `pr` task also carries
+  `automerge` — what it authorizes to land unreviewed: `'nothing'`,
+  `'anything'`, or a list of diff classes, each optionally `reject:`-prefixed.
+  Choose the **narrowest policy that covers the task's whole write surface** — the
+  policy is the contract's statement of why landing unattended is safe, and the
+  policy engine plus the `automerge-policy-scope` check hold every run to it.
+  **Compose the built-in classes first** — they are meant to cover most tasks with
+  no configuration; a pack declares its own class (a `merge-rules.json` beside its
+  `pack.mjs`) only when a task genuinely knows a finer boundary than the built-ins
+  can state. An agentic
+  task (`agent_model !==
   none`) also carries `agent_instructions`, the worker file the agent reads; a
   `none` task runs no agent, so the field is not applicable and is omitted. The
   scheduler run and executor read agent_model/expected_outcome/frequency from this file — never from the work

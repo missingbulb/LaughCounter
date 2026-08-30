@@ -20,6 +20,8 @@ forcing, recovery — is the canon's own tasks-dispatch design document, and aut
 | `shared-code/` | the published import surface — see below |
 | `tasks/` | this pack's own scheduled tasks: `task-janitor` (the queue's sweeps) and `usage-fold` (it folds this mechanism's run records and outcome labels) |
 | `worldRules/` | the task-declaration checks |
+| `workRules/` | the armed-auto-merge gate (`automerge-policy-scope`) |
+| `merge-policy.mjs` | the auto-merge policy engine: what a task's `automerge`, an item's `Merge:` field and the arming trailer mean, the built-in diff classes, and the `merge-rules.json` vocabulary a pack extends them with |
 | `test/` | the unit suite, and `test/sim/` — the simulator and its scenario suite, the mechanism's executable spec |
 | `executor.md`, `queue/instructions.md`, `deliver-pr.md` | operational documents a member's routines and workers read out of their own mount at runtime |
 
@@ -37,6 +39,7 @@ equivalent surface by existing.
 | `github.mjs` | the GitHub client and REST helpers, and the tracker issue a worker records on | any pack whose tasks reach GitHub |
 | `signals.mjs` | the signal shapes a precondition is handed | packs asserting what their own tasks will see |
 | `task-contract.mjs` | task-declaration validation, and precondition evaluation as the executor does it | every pack with tasks, in its own tests |
+| `merge-policy.mjs` | the auto-merge policy verdict (`automerge`, the `Merge:` field, the arming trailer) and the `merge-rules.json` compiler | any pack declaring policies or merge rules, in its own tests |
 | `usage-format.mjs` | the usage aggregate's codec | claudinite-fleet-sheepdog's fleet-wide aggregator |
 
 A pack whose **non-task** code reads any of these declares `requires: ['claudinite-tasks']`. A
@@ -64,8 +67,10 @@ once no fielded member names one.
 |---|---|---|---|
 | `task-declaration-shape` | high | correctness | check: blocking |
 | `task-code-work-env` | high | correctness | check: blocking |
+| `automerge-policy-scope` | high | correctness | check: blocking |
 
-Both are relevance-first — inert until the repo carries a `tasks/<name>/task.mjs` of its own.
+The first two are relevance-first — inert until the repo carries a `tasks/<name>/task.mjs` of its own; the third is self-gating on the branch's own arming trailer.
 
 - `task-declaration-shape` — a task declaration the scheduler reads is incomplete or illegal, so the task never fires or fires wrong.
 - `task-code-work-env` — a task reads a `CLAUDINITE_*` variable code-work never sets, so a parameter (a scope filter, a dry-run switch) silently never arrives and the run goes green in its most dangerous mode.
+- `automerge-policy-scope` — a branch that stamped the `Claudinite-Automerge-Policy` trailer (its run intends to land its own PR) carries a diff its declared policy does not cover, which is exactly the unreviewed change the policy exists to stop.

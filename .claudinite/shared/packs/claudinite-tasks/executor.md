@@ -74,7 +74,7 @@ goes through your GitHub tools.
 
    **Announce your dispatch before you act**: quote the printed `brief:` line prominently in
    chat — bold, on its own line, e.g. **`Task: claudinite-growth/growth-dedup (slot
-   d2026-07-29) — issue #546, model opus, outcome ceiling open-pr, timeout 1800s`** — so
+   d2026-07-29) — issue #546, model opus, outcome ceiling pr (may auto-merge: nothing), timeout 1800s`** — so
    everything after this has one unambiguous subject a human skimming the session sees at a
    glance. Run that issue and nothing else — every other dispatch in the queue already has
    its own session, and two sessions on one issue run the task twice.
@@ -125,8 +125,8 @@ goes through your GitHub tools.
    is a **ceiling, not a target**: it is the most a task may do, and **"no change" is always
    legal** — a run that found nothing worth changing is a success, never a reason to
    manufacture work. Determine what the run did to pull requests and check it against that
-   ceiling with `verify-outcome.mjs` — a `none` task that opened a PR, or an `open-pr` task
-   that merged one, **fails the run**. Then:
+   ceiling with `verify-outcome.mjs` — a `none` task that opened a PR, or a task whose
+   `automerge` authorizes nothing that merged one, **fails the run**. Then:
    - Success within ceiling → comment the result, remove `agent-running`, and **close** the
      issue.
    - Failure → comment naming what failed, remove `agent-running`, add `needs-human`

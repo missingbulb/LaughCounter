@@ -16,7 +16,11 @@ export default {
   frequency: 'weekly',                   // works the STANDING backlog a slice at a time — see the cadence note below
   precondition_signals: [],              // the backlog is standing prose, not a windowed signal
   agent_model: 'opus',                   // judging convertibility and authoring checks + fixtures is heavy judgment
-  expected_outcome: 'open-pr',           // converts prose to checks in an owner-approved PR (a check can break CI, so it's reviewed)
+  expected_outcome: 'pr',
+  // A conversion removes the prose line and writes the check that replaces it —
+  // both classes are this pack's merge-rules.json. In the canon home the sweep
+  // works `packs/`, which neither class covers, so a canon round still parks.
+  automerge: ['claudinite-local-pack-md-deletions', 'claudinite-local-pack-check-changes'],
   agent_instructions: 'task.md',
   agent_execution_timeout: 2700,         // reading the packs + authoring a check with fixtures — generous bound
 

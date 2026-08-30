@@ -725,13 +725,13 @@ async function main() {
           : '')
         + (op.notBefore ? `It waits until ${op.notBefore} before entering the queue.\n\n` : '')
         + (op.merge
-          ? 'The run implements this issue and opens a pull request; it may land that pull request itself only if the diff is narrow, and leaves a wide one for review. '
+          ? `The run implements this issue and opens a pull request; it may land that pull request itself only when the diff sits inside the authorized policy (\`${op.merge}\`), and leaves a wider one for review. `
           : 'The run implements this issue and opens a pull request for review — it never merges one. ')
         + (op.ungated
           ? '\n\nThe `Task:`/`Model:`/`Automerge:` fields in this body were ignored: they are honoured only for an author with push access on this repository, so this run takes the defaults. '
           : '')
         + `To withdraw the request before it starts, remove the \`${ORIGIN_AD_HOC}\` mark and the status beside it.`);
-      console.log(`- adopted #${op.request} for ${op.task} (${op.model ?? 'default model'}${op.blockedBy.length ? `, blocked on ${op.blockedBy.map((n) => `#${n}`).join(' ')}` : ''}${op.merge ? ', merge if-narrow' : ''})`);
+      console.log(`- adopted #${op.request} for ${op.task} (${op.model ?? 'default model'}${op.blockedBy.length ? `, blocked on ${op.blockedBy.map((n) => `#${n}`).join(' ')}` : ''}${op.merge ? `, may merge: ${op.merge}` : ''})`);
     } else if (op.kind === 'supersede') {
       await comment(gh, repo, op.issue, op.reason);
       await addLabel(gh, repo, op.issue, TASK_OBSOLETE);
