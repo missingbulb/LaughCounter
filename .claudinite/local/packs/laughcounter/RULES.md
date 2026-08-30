@@ -59,8 +59,9 @@ do not re-dispatch, and do not read it as a lease you lost. (#149/#150/#151/#152
 
 **`verify-outcome.mjs` is a plain ESM module export (`verifyOutcome()`), not a
 CLI — `--help` returns nothing.** `executor.md` gives `record-exec.mjs` an
-explicit `node <engine>/scheduler/record-exec.mjs …` invocation snippet but
-never shows one for `verify-outcome.mjs`, so a session reaches for `--help` or
-writes a scratchpad file to probe it first. Call it directly:
-`node -e "import('<engine>/scheduler/verify-outcome.mjs')
+explicit invocation snippet but never shows one for `verify-outcome.mjs`, so a
+session reaches for `--help` or writes a scratchpad file to probe it first.
+The `<engine>/scheduler/` prefix those snippets use is itself stale — the
+vendored engine carries no `scheduler/` directory — so call it by its real
+path directly: `node -e "import('./.claudinite/shared/packs/claudinite-tasks/verify-outcome.mjs')
   .then(m => console.log(JSON.stringify(m.verifyOutcome({outcome, openedPr, mergedPr}))))"`. (#185)
