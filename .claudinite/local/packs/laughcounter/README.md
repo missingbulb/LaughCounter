@@ -15,6 +15,7 @@ the canon home repo's own pack is named for it.
 | Test "already covered by another check" before believing it | `RULES.md` prose |
 | Author a check as a positive whitelist, not a ban list | `RULES.md` prose |
 | Ship a stateable version + build number, and bump it per distinguishable build | `RULES.md` prose |
+| Never hand-write a second `v<version> (<build>)` literal outside `AppDelegate` | `single-version-source` check (`mac/Sources/**.swift`) |
 | A green scheduled run that skipped its work is not a pass | `RULES.md` prose |
 | Nothing runs on `pull_request` — the auto-merge arm is always rejected | `RULES.md` prose |
 | The licensed hand-merge always trips a `[Merge Without Review]` warning | `RULES.md` prose |
@@ -26,4 +27,5 @@ the canon home repo's own pack is named for it.
 | `verify-outcome.mjs` is a module export, not a CLI | `RULES.md` prose |
 | A post-merge scratchpad git sync can be classifier-denied — verify read-only | `RULES.md` prose |
 
-Prose-only so far.
+Fixtures: `pack.test.mjs` — `node --test .claudinite/local/packs/laughcounter/pack.test.mjs`.
+The check has a violating fixture it fires on and the repo's real sources it stays quiet on.
