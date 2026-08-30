@@ -86,9 +86,14 @@ than by replaying a ledger.
   policy is the contract's statement of why landing unattended is safe, and the
   policy engine plus the `automerge-policy-scope` check hold every run to it.
   **Compose the built-in classes first** — they are meant to cover most tasks with
-  no configuration; a pack declares its own class (a `merge-rules.json` beside its
-  `pack.mjs`) only when a task genuinely knows a finer boundary than the built-ins
-  can state. An agentic
+  no configuration. Where the boundary is a *folder*, name it inline as
+  `under:<dir>`: it covers any change of any kind inside that directory and
+  nothing outside it, so a run that strays parks. **A list is a union — adding a
+  term widens.** To narrow, intersect within one term with `&&`
+  (`under:product-wiki && doc-changes` is "docs, and only under that folder").
+  A pack declares its own class
+  (a `merge-rules.json` beside its `pack.mjs`) only when a task knows a finer
+  boundary than a class or a folder can state. An agentic
   task (`agent_model !==
   none`) also carries `agent_instructions`, the worker file the agent reads; a
   `none` task runs no agent, so the field is not applicable and is omitted. The
@@ -344,7 +349,9 @@ closing or running anything.
   precondition is re-evaluated at that pickup — which is what makes the retry safe
   even when the failed run half-did its work. The four:
   - `task:status:needs-human-approval` — succeeded, and deliberately left an unmerged PR
-    for a person to merge or close. The only park that is not a fault.
+    for a person to merge or close. The only park that is not a fault. `--pr` names that
+    PR, and any park may name what would end it: the item then closes by itself when
+    the target resolves, `done` if it merged and `rejected` if it did not.
   - `task:status:needs-human-action` — something outside the code must change before this
     can run: a secret set, a scope granted, a routine rewired, an input supplied.
   - `task:status:needs-human-decision` — the run stopped mid-flight and the next step is a

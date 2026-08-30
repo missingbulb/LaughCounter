@@ -18,10 +18,11 @@
 import {
   staleReadyItems, staleReadyComment, deadAgentItems, deadAgentComment,
   stuckBlockedItems, stuckBlockedComment, statelessItems, statelessComment,
-  supersededItems, supersededComment, orphanedParkItems, orphanedParkComment, periodForTasks,
+  supersededItems, supersededComment, orphanedParkItems, orphanedParkComment, taskPathIndex,
+  endedParkItems, endedParkComment, periodForTasks,
 } from '../../../claudinite-tasks/queue/janitor-rules.mjs';
 import {
-  QUEUE_LABELS, HANDOFF_MARKER, TASK_OBSOLETE,
+  QUEUE_LABELS, HANDOFF_MARKER, TASK_OBSOLETE, TASK_DONE, IN_REVIEW_LABEL, isWorkItemTitle,
   NEEDS_HUMAN_ACTION, NEEDS_HUMAN_DECISION,
   STATUS_BLOCKED, STATUS_READY, STATUS_RUNNING_EXECUTOR, STATUS_RUNNING_AGENT,
   isStatus, isParked, statusOf,
@@ -33,7 +34,7 @@ import { clearStatus } from '../../../claudinite-tasks/queue/apply-status.mjs';
 
 export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log } = {}) {
   const open = await listOpenWorkItems(gh, repo);
-  const result = { open: open.length, staleReady: [], deadAgents: [], stuck: [], stateless: [], superseded: [], orphaned: [] };
+  const result = { open: open.length, staleReady: [], deadAgents: [], stuck: [], stateless: [], superseded: [], orphaned: [], ended: [] };
 
   // A `Blocked-by` target need not be a work item, so its state is read directly.
   const known = new Map(open.map((i) => [i.number, i.state]));
@@ -53,7 +54,24 @@ export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log 
   // the others do not share. Read once, indexed by task, newest-done-wins.
   const doneAfter = doneRunLookup(await listDoneWorkItems(gh, repo));
   const superseded = supersededItems(open, { doneAfter });
-  const orphaned = orphanedParkItems(open, { knownTaskIds: new Set(tasks.map((t) => `${t.pack}/${t.id}`)) });
+  const orphaned = orphanedParkItems(open, { tasks });
+  // Rule G's input. An `Ends-when` target is a pull request or an issue in this
+  // repo, read one at a time — there are only ever as many as there are parks
+  // carrying the field. MERGED-NESS, not just state: the issues endpoint carries
+  // `pull_request.merged_at` for a pull request, and it is what separates "the work
+  // landed" from "it was abandoned". An unreadable target answers null, so the park
+  // stands rather than ending on a read that failed.
+  const resolutions = new Map();
+  for (const item of open) {
+    const { endsWhen } = parseWorkItemBody(item.body);
+    if (endsWhen == null || resolutions.has(endsWhen)) continue;
+    const res = await gh(`/repos/${repo}/issues/${endsWhen}`);
+    const target = res.status === 200 ? res.json : null;
+    resolutions.set(endsWhen, target?.state !== 'closed' ? null
+      : (target.pull_request?.merged_at ? 'merged' : 'closed'));
+  }
+  const resolutionOf = (n) => resolutions.get(n) ?? null;
+  const ended = endedParkItems(open, { resolutionOf });
 
   if (stale.length || deadAgents.length || stateless.length) await ensureLabels(gh, repo, QUEUE_LABELS);
 
@@ -124,23 +142,51 @@ export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log 
   }
   // Superseded wins where both apply: naming the run that answered it says more than
   // naming the absence of a task file.
+  const headPath = taskPathIndex(tasks);
   for (const item of orphaned) {
     if (result.superseded.includes(item.number)) continue;
     const p = parseWorkItemTitle(item.title) ?? taskIdFromPath(parseWorkItemBody(item.body).taskPath);
-    await retire(item, orphanedParkComment(`${p.pack}/${p.task}`));
-    log(`orphaned park #${item.number} (${p.pack}/${p.task} is gone) → ${TASK_OBSOLETE}`);
+    const id = `${p.pack}/${p.task}`;
+    const at = headPath.get(id) ?? null;
+    await retire(item, orphanedParkComment(id, at));
+    log(`orphaned park #${item.number} (${id} ${at ? `moved to ${at}` : 'is gone'}) → ${TASK_OBSOLETE}`);
     result.orphaned.push(item.number);
   }
 
+  // Rule G closes on a fact about the world too, but with an outcome of its own: a
+  // merged target means the work LANDED, which `retire`'s obsolete/not_planned pair
+  // would report as a run that never happened.
+  for (const item of ended) {
+    if (result.superseded.includes(item.number) || result.orphaned.includes(item.number)) continue;
+    const { endsWhen } = parseWorkItemBody(item.body);
+    const resolution = resolutionOf(endsWhen);
+    await comment(gh, repo, item.number, endedParkComment(endsWhen, resolution));
+    await clearStatus({ removeLabel }, gh, repo, item, statusOf(item));
+    await addLabel(gh, repo, item.number, resolution === 'merged' ? TASK_DONE : TASK_OBSOLETE);
+    // A MARKED ISSUE IS NOT THE MACHINERY'S TO CLOSE (DESIGN §16.5) — the terminal
+    // status stands on the open issue, and whether the person's own issue is
+    // finished is theirs. Only a filed `[claudinite-work]` item closes here.
+    if (isWorkItemTitle(item.title ?? '')) {
+      await closeIssue(gh, repo, item.number, resolution === 'merged' ? 'completed' : 'not_planned');
+    }
+    // A LEGACY SHADOW ITEM told its request issue it was in review; nothing else
+    // would ever take that back, and the review is over.
+    const { request } = parseWorkItemBody(item.body);
+    if (request && request !== item.number) await removeLabel(gh, repo, request, IN_REVIEW_LABEL);
+    log(`ended park #${item.number} — #${endsWhen} ${resolution} → ${resolution === 'merged' ? TASK_DONE : TASK_OBSOLETE}`);
+    result.ended.push(item.number);
+  }
+
   // The health review — the queue as its subject, computable entirely from issues.
-  const converged = new Set([...result.staleReady, ...result.deadAgents, ...result.stateless, ...result.superseded, ...result.orphaned]);
+  const converged = new Set([...result.staleReady, ...result.deadAgents, ...result.stateless, ...result.superseded, ...result.orphaned, ...result.ended]);
   const count = (status) => open.filter((i) => isStatus(i, status) && !converged.has(i.number)).length;
   log(`health: ${result.open} open work item(s) — ${count(STATUS_BLOCKED)} blocked, ${count(STATUS_READY)} ready, `
     + `${count(STATUS_RUNNING_EXECUTOR)} executing, ${count(STATUS_RUNNING_AGENT)} with an agent, `
     + `${open.filter(isParked).length + converged.size} parked; `
     + `this run escalated ${result.staleReady.length} stale, reclaimed ${result.deadAgents.length} dead agent claim(s), `
     + `surfaced ${result.stuck.length} stuck dependency(ies), repaired ${result.stateless.length} stateless item(s), `
-    + `closed ${result.superseded.length} superseded and ${result.orphaned.length} orphaned park(s)`);
+    + `closed ${result.superseded.length} superseded, ${result.orphaned.length} orphaned `
+    + `and ${result.ended.length} ended park(s)`);
   return result;
 }
 

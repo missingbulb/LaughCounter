@@ -89,7 +89,11 @@ only for an author with push access on the repository.
   `markdown-line-removals`, `markdown-trims`, `file-additions`, `generated-file-changes`, `javascript-changes`,
   `single-file-code-changes`, `single-folder-code-changes`, plus any class the
   repo's packs declare — each optionally `reject:`-prefixed, or `narrow-diff`
-  (docs, tests, comment-only edits, and code within a single directory).
+  (docs, tests, comment-only edits, and code within a single directory). A term
+  can also name a folder inline, `under:<dir>` — any change of any kind inside
+  that directory, and nothing outside it. Listing terms *widens* (a file need
+  only match one); `&&` inside a term narrows, every part having to match:
+  `under:docs && doc-changes`.
 
   **This field is never left unsettled, and never defaulted silently.** If the
   owner stated a policy, or said they want to see this one — "let me review it",
@@ -98,7 +102,9 @@ only for an author with push access on the repository.
   they said neither, **ask, before filing**: one `AskUserQuestion`, proposing as
   the recommended option the narrowest policy that plausibly covers the deferred
   change (a comment sweep suggests `comment-only-changes`, a docs edit
-  `doc-changes`, a one-module fix `single-folder-code-changes;test-changes`),
+  `doc-changes`, a one-module fix `single-folder-code-changes;test-changes`, work
+  confined to one tree `under:<that dir>` or to its documents
+  `under:<that dir> && doc-changes`),
   with "leave it for my review" as the alternative. A declined or unanswered
   question files with no `Automerge:` field — review is the safe default only
   after the owner had the chance to choose.

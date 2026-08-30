@@ -25,6 +25,7 @@ import {
   NEEDS_HUMAN_ACTION, NEEDS_HUMAN_APPROVAL, NEEDS_HUMAN_DECISION, NEEDS_HUMAN_FAILURE,
   QUEUED_LABEL, IN_REVIEW_LABEL,
   parseWorkItemTitle, parseWorkItemBody, spellingsOf, labelNames,
+  editItemBody, withEndsWhen,
 } from './work-item.mjs';
 
 // What a session may claim, and what each one means for the item. `record` is the
@@ -123,6 +124,14 @@ export function convergeOps(item, plan) {
   // never a pair, so nothing can be half-applied (#1385).
   ops.push({ kind: 'addLabel', issue: item.number, name: spec.label });
 
+  // THE PARK'S END CONDITION (#1468). The comment above already tells a person to
+  // merge or close the pull request; this says the same thing where the janitor can
+  // read it, so the item ends when that happens instead of waiting for someone to
+  // notice it already did. Every park that names one gets it, not only `approval`.
+  if (!spec.closes && plan.pr) {
+    ops.push({ kind: 'setBody', issue: item.number, body: editItemBody(item.body, (m) => withEndsWhen(m, plan.pr)) });
+  }
+
   if (spec.closes) {
     // A MARKED ISSUE IS NOT THE SESSION'S TO CLOSE (§16.1, §16.5): the terminal
     // status stands on the open issue, and whether the issue itself is finished
@@ -158,6 +167,7 @@ export async function convergeItem(api, gh, repo, plan, { log = console.log } = 
     else if (op.kind === 'record') log(op.line);
     else if (op.kind === 'removeLabel') await api.removeLabel(gh, repo, op.issue, op.name);
     else if (op.kind === 'addLabel') await api.addLabel(gh, repo, op.issue, op.name);
+    else if (op.kind === 'setBody') await api.setIssueBody(gh, repo, op.issue, op.body);
     else if (op.kind === 'close') { await api.closeIssue(gh, repo, op.issue, op.stateReason); closed = true; }
   }
   const { request } = parseWorkItemBody(item.body ?? '');
@@ -185,6 +195,10 @@ export function sessionScript(item, plan, repo) {
   // would silently drop every label this process never saw.
   const own = new Set(labelNames(item));
   const foreign = [];
+  // The body write folds into the item's own `issue_write`, which is one call
+  // either way. A park never closes, so the step it folds into is the trailing
+  // label write below.
+  let newBody = null;
 
   for (const op of convergeOps(item, plan)) {
     if (op.kind === 'comment') {
@@ -197,6 +211,8 @@ export function sessionScript(item, plan, repo) {
       } else {
         foreign.push(op);
       }
+    } else if (op.kind === 'setBody' && op.issue === item.number) {
+      newBody = op.body;
     } else if (op.kind === 'close') {
       step(`\`issue_write\` — method \`update\`, owner \`${owner}\`, repo \`${name}\`, issue_number \`${op.issue}\`,`
         + ` labels \`${JSON.stringify([...own])}\`, state \`closed\`, state_reason \`${op.stateReason}\``);
@@ -206,7 +222,8 @@ export function sessionScript(item, plan, repo) {
   // A park never closed, so its label write is still owed.
   if (own.size) {
     step(`\`issue_write\` — method \`update\`, owner \`${owner}\`, repo \`${name}\`, issue_number \`${item.number}\`,`
-      + ` labels \`${JSON.stringify([...own])}\``);
+      + ` labels \`${JSON.stringify([...own])}\``
+      + (newBody === null ? '' : `, body exactly:\n\n<<<BODY\n${newBody}\n>>>END\n`));
   }
   for (const op of foreign) {
     step(`On #${op.issue}: ${op.kind === 'addLabel' ? 'ADD' : 'REMOVE'} the label \`${op.name}\`.`

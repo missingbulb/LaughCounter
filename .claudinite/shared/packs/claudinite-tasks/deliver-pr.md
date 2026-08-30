@@ -21,7 +21,9 @@ Whichever source it came from:
 - **`anything`** — the task *may* land its PR. Whether it actually lands unreviewed is
   **this repo's** setting, read in step 1 — never the task's own knowledge. The same task
   lands itself on one repo and waits for an owner on another, and both are correct.
-- **a policy list** (e.g. `['comment-only-changes', 'readme-changes']`) — the task may
+- **a policy list** (e.g. `['comment-only-changes', 'readme-changes']`, a folder
+  scope such as `['under:product-wiki']`, or an intersection of the two,
+  `['under:product-wiki && doc-changes']`) — the task may
   land its PR only when the diff sits inside the policy, and the policy engine decides
   that, never your reading of the diff. Before step 2, run it from the repository root —
   `merge-policy.mjs` at the root of the claudinite-tasks pack (probe
