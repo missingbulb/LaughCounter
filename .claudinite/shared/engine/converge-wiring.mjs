@@ -256,19 +256,6 @@ canon instead, where every repo gets it.
 <!-- Nothing yet. The growth lifecycle writes here; so may you. -->
 `;
 
-const SEED_VERSIONS = (id) => `# ${id} — change record
-
-Every change automatic work makes to this pack, newest first: a prose rule added or removed, a
-check created, a rule corrected against a probe or deleted as irrelevant. The row is written in
-the same PR as the change it describes, so this file diffs beside it.
-
-A run that changed nothing writes no row — this is the log of what happened to the pack, never a
-log of runs.
-
-| Date | Task | Change |
-|---|---|---|
-`;
-
 // Seed `.claudinite/local/packs/<repo>/` and declare it. Returns the pack id when it
 // created one, null when the repo already has that pack or already declares any local
 // pack — a repo that has grown its own home must never get a second, empty one.
@@ -288,7 +275,6 @@ export function seedRepoLocalPack(root, fullName) {
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'pack.mjs'), SEED_MANIFEST(id));
   writeFileSync(join(dir, 'RULES.md'), SEED_PROSE(id));
-  writeFileSync(join(dir, 'VERSIONS.md'), SEED_VERSIONS(id));
 
   // Declared as text, never a JSON round-trip: re-serializing rewrites what it was not
   // asked to — `ensure_ascii` escapes every non-ASCII character in a settings file full

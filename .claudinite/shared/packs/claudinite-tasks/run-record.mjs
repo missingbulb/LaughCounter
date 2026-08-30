@@ -94,13 +94,13 @@ export function parseTaskRuns(text) {
 export const TASK_EXEC_STATUSES = Object.freeze([
   // The dispatch ran to completion within its ceiling; the issue was closed.
   'success',
-  // The run failed (task failure or ceiling violation); converged to needs-human.
+  // The run failed (task failure or ceiling violation); the item parked.
   'failed',
   // The dispatch named a task the repo no longer carries (file gone, pack
   // undeclared) — the executor closed the issue as obsolete. Not a failure.
   'task-gone',
   // The dispatch was malformed (bad path shape, unparseable declaration) and was
-  // converged to needs-human without running.
+  // parked without running.
   'invalid',
 ]);
 

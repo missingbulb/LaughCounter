@@ -10,14 +10,13 @@ lessons into its local packs, and pruning them once the shared canon covers them
 **promote** stage — which lifts portable lessons up into the shared canon — is a home-only duty
 that runs canon-side, not a repo-side task, so it lives outside this pack.
 
-Its scheduled work is five tasks under this pack's own `tasks/`, each discovered by the repo's
+Its scheduled work is four tasks under this pack's own `tasks/`, each discovered by the repo's
 scheduler (`packs/claudinite-tasks/discover.mjs`) wherever the pack is declared:
 
 | Task | Runs when | Where it lands |
 |---|---|---|
 | `growth-extract` ([tasks/growth-extract/task.md](tasks/growth-extract/task.md)) | the project changed in the window | the repo's own local packs, via a PR that auto-merges after CI |
 | `growth-dedup` ([tasks/growth-dedup/task.md](tasks/growth-dedup/task.md)) | weekly, when the canon or the project's local packs moved in the week | the repo's own local packs, via a PR that auto-merges after CI |
-| `growth-discover-packs` ([tasks/growth-discover-packs/task.md](tasks/growth-discover-packs/task.md)) | weekly | a new **local** pack in the repo's own `.claudinite/local/packs/`, via a reviewed PR |
 | `prose-to-checks-sweep` ([tasks/prose-to-checks-sweep/task.md](tasks/prose-to-checks-sweep/task.md)) | weekly (no-ops cheaply on a quiet corpus) | a PR converting always-testable pack prose into checks |
 | `rule-revalidation` ([tasks/rule-revalidation/task.md](tasks/rule-revalidation/task.md)) | weekly | a reviewed PR correcting rules whose environment claim no longer probes true |
 
@@ -157,7 +156,7 @@ here: its subject is Claudinite's own surface, not lesson capture.
 
 | Rule | Severity | Reason | Enforcement |
 |---|---|---|---|
-| Changing a local pack automatically | high | complexity | prose: 65 words |
+| Recording a local pack change | high | complexity | prose: 66 words |
 | Wanting a job to run in Actions | high | complexity | prose: 55 words + check (`scheduler-workflow-shape`) |
 
 ## Coded rules
@@ -170,19 +169,8 @@ here: its subject is Claudinite's own surface, not lesson capture.
 The capture runs' write surface is the local packs and nothing else — a run improves the repo's
 **packs**, never the canon it prunes against or the project's own code. `growth-write-scope` is
 the machine guarantee behind that, keyed on the pinned commit titles of exactly those two runs; the
-lifecycle's wider-surfaced runs have their own gates (promote writes the canon under `packs/` and
-`skills/`, certified by canon-curation's `promote-scope`; pack discovery also writes the repo-root
-declaration that activates the pack it authors).
-
-**Pack discovery** ([tasks/growth-discover-packs/task.md](tasks/growth-discover-packs/task.md)) is
-an ordinary weekly task on the repo's own scheduler. The repo runs the whole pipeline over
-**itself**: manifest its stack, hold it against the canon packs already on its shelf and its own
-existing local packs, and — for genuinely project-specific knowledge neither homes — author a new
-**local** pack populated from its real usage, landed through a **reviewed** PR (a new pack ships new
-`.mjs` checks, and a check can break CI — the same reason `prose-to-checks-sweep` is reviewed, and
-the one place this stage differs from extract). It writes only the repo's own
-`.claudinite/local/packs/`; lifting a local pack up into the shared canon is the central promote
-task's job.
+lifecycle's wider-surfaced promote run has its own gate (it writes the canon under `packs/` and
+`skills/`, certified by canon-curation's `promote-scope`).
 
 ## Rules expire when the environment moves — revalidation
 
@@ -235,29 +223,19 @@ and reads the same subtree over the GitHub API (get-file-contents under `.claudi
 Extract writes into it, promote reads from it, dedup prunes within it — all against the identical,
 `.claudinite/local_packs/`-rooted set.
 
-## The change record: each local pack's own `VERSIONS.md`
+## The change record: the commit, and nothing else
 
-A canon pack's `VERSIONS.md` carries one row per version bump. A local pack is neither versioned nor
-distributed, so its `VERSIONS.md` carries the same thing at the only granularity it has: **one row
-per change automatic work made to it** — a prose rule added or removed, a check created, a rule
-corrected against a probe or deleted as irrelevant.
+A local pack keeps no changelog file. It is neither versioned nor distributed — no member reconciles
+its version against another repo's — so `git log` over the pack directory already carries what a
+changelog would, per change, with the diff attached. A file that aggregates unrelated changes into
+one append-at-the-top table is a merge hazard instead: several growth runs a day write local packs,
+and any two in flight collide on the same line. A **canon** pack's `VERSIONS.md` earns that cost,
+because the row is what tells a member what a version bump shipped.
 
-| Date | Task | Change |
-|---|---|---|
-| 2026-08-23 | `growth-extract` | Added: **Restoring source after a see-it-fail mutation** — `git checkout --`, never a `.bak`. |
-| 2026-08-23 | `prose-to-checks-sweep` | Converted to a check: the entry-point await rule → `pack-discovery-entry-await`. |
-
-Every growth task writes its own rows, in the same PR as the change they describe, so the record
-diffs beside what it records and travels with the pack it is about. A reader looking at a rule and
-wondering where it came from is already in the directory.
-
-This is the growth lifecycle's **whole** record: no growth task keeps a standing tracker issue. An
-issue body is rewritten in place with no history, sits outside the PR that made the change, and is
-one sweep away from being closed as stale — none of which is true of a tracked file. A run that
-changed nothing writes no row at all: the file logs what happened to the pack, never that a run
-happened.
-
-`seedRepoLocalPack` creates the file empty at adoption, so no task has to invent it.
+So every growth task's record is the PR it opens: the rule added, pruned or corrected, and the
+evidence behind it, written in the body beside the diff it explains. No growth task keeps a standing
+tracker issue either — an issue body is rewritten in place with no history, sits outside the PR that
+made the change, and is one sweep away from being closed as stale.
 
 ## Checks
 

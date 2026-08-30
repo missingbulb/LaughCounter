@@ -15,12 +15,10 @@ import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../../engine/p
 // .claudinite/local_packs/ accepted during the rename window).
 //
 // The trigger is the run's whole pinned title, NOT the bare "Claudinite growth:"
-// prefix the whole lifecycle shares, because its other runs have wider surfaces
-// by design: promote writes the canon under packs/ and skills/ (its own gate is
-// canon-curation's promote-scope.mjs), and pack discovery writes the repo-root
-// .claudinite-settings.json declaration that activates the pack it authors.
-// Keying on the prefix would red both. A run whose title this list doesn't
-// carry is simply not this rule's business.
+// prefix the whole lifecycle shares, because its promote run has a wider surface
+// by design: it writes the canon under packs/ and skills/ (its own gate is
+// canon-curation's promote-scope.mjs), so keying on the prefix would red it. A
+// run whose title this list doesn't carry is simply not this rule's business.
 //
 // Sibling of that promote-scope gate. Promote can't self-gate — nothing in a
 // diff marks it as a promote run, so CI keys on its branch prefix — but a

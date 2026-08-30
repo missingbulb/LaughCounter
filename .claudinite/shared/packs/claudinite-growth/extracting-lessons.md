@@ -83,7 +83,7 @@ relocates it. **Prose is rationed, and the ration is small.** Every rule in a `R
 session in every repo that declares the pack, forever, whether or not it ever applies — so a pass adds *at
 most two*, each one sentence: the trigger, the directive, and a consequence clause only where the rule can't
 be applied without it. A candidate that needs a paragraph to land has not been understood well enough to be
-a rule yet; the evidence behind it belongs in the pack's `VERSIONS.md` row and the issue, never in the rule.
+a rule yet; the evidence behind it belongs in the PR body and the issue, never in the rule.
 If more than two candidates clear every bar above, write the two strongest and drop the rest — they will
 recur if they were real.
 

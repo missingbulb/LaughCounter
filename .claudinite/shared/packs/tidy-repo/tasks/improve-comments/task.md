@@ -29,20 +29,27 @@ run if what is left differs. It keys on this run's pinned commit subject, so **c
 subject `Claudinite tidy: improve comments`** — without it the gate does not recognise the run
 and the safety case does not hold.
 
-Two consequences the skill states and this run lives with: a file whose language the parser
-cannot read counts as code, so leave its comments alone; and adding or deleting a code file, or
-deleting a `README.md`, is never within this pass.
+Three consequences the skill states and this run lives with: a file whose language the parser
+cannot read counts as code, so leave its comments alone; adding or deleting a code file, or
+deleting a `README.md`, is never within this pass; and `.claudinite/` is outside it entirely —
+the precondition keeps the mount out of Context, and the gate reds a change there anyway.
 
-## Output: one PR, left for review
+## Output: one PR, delivered to land
 
 If the run changed at least one comment, it lands all of it through a **single PR** — one commit
 for the whole round on a per-run-unique branch, titled `Claudinite tidy: improve comments`, its
 commit referencing the tracking issue so the `task-lifecycle` gate passes.
 
-**Open it and stop.** Never arm auto-merge, never merge it. The scope check proves the diff is
-comment-only, which is what makes this pass safe to run unattended — it says nothing about
-whether the comments it wrote are *right*, and a confidently wrong comment is the exact failure
-this task exists to remove. A human reads the words.
+Then hand it to the shared delivery procedure —
+[deliver-pr.md](../../../claudinite-tasks/deliver-pr.md). That procedure, never this file, owns
+every landing nuance: it reads this repo's `maintenance.delivery` (a `review` repo's PR waits for
+its owner — still a delivered outcome), arms auto-merge where the repo allows it, and licenses the
+hand merge where the arm is rejected. Do not assume this round's PR merges unreviewed; that is the
+repo's setting, not this task's.
+
+What makes that safe unattended is the scope check, not a reader: it proves the diff is comment
+text and `README.md` content and nothing else, so the worst a wrong comment can do is stand until
+a later round rereads that file. The safety case is the boundary below — hold it exactly.
 
 Say in the PR body what the round did **not** cover: the files Context named that you left
 untouched because their comments were already right, and any the precondition dropped from scope

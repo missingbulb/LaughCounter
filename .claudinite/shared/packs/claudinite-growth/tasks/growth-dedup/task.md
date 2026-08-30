@@ -88,9 +88,9 @@ are reading. That comment is the brief this run starts from. **It is a required 
 no such comment is a failed run, not a lighter one, so park it (`task:status:needs-human-action`) naming what is missing rather
 than re-deriving the window yourself.
 
-Every rule this run actually prunes gets a row at the top of its pack's `VERSIONS.md` table, in the same commit
-as the prune: date, `growth-dedup`, what was removed and the canon line that now covers it. That file is the
-record — there is no standing issue, and a run that pruned nothing writes no row.
+The prune's own commit and PR body are the record — there is no changelog file and no standing issue. Name
+in the PR body what each prune removed and the canon line that now covers it, so the claim behind it is
+reviewable where the diff is.
 
 ## Nothing downstream catches a wrong prune
 

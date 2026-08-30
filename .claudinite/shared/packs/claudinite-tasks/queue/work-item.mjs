@@ -586,6 +586,11 @@ export function parseWorkItemBody(body) {
 // person's own text at every adoption, so each ask names its parameters afresh and
 // nothing stale outranks a new one.
 //
+// Whoever files the issue puts these on its FIRST LINES, as one block ahead of the
+// prose — `basics/skills/do-later/SKILL.md` is where that placement is prescribed and
+// argued. The parser does not care where they sit; a person editing the issue, and a
+// retry rewriting `Not-before`, do.
+//
 // `gated` is whether the issue's AUTHOR holds push access. A body is editable by
 // whoever opened the issue where a label was write-gated by the platform, so the
 // three behaviour-defining fields are honoured only for an author who could have

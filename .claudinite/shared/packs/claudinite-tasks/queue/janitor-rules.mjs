@@ -13,10 +13,17 @@ import { periodMs } from './anchors.mjs';
 import {
   READY, AGENT, requeueHint,
   STATUS_READY, STATUS_RUNNING_AGENT, STATUS_BLOCKED, isStatus, statusOf,
+  isParked, parkKindOf,
   parseWorkItemTitle, parseWorkItemBody, taskIdFromPath,
 } from './work-item.mjs';
 
 export const AGENT_LEASH_MS = 3 * 3600e3;
+// The park kinds a later clean run ANSWERS. Both name a broken thing — a failure is
+// "read the trace", an action is "the token is missing" — so a run that converged
+// clean is proof it is not broken any more. `approval` and `decision` are absent on
+// purpose: those parks carry content a person still owes an answer to (an approval
+// park typically holds an open PR), and a later success does not answer them.
+export const SUPERSEDABLE_PARKS = Object.freeze(['failure', 'action']);
 export const STALE_READY_PERIODS = 2;
 export const STUCK_BLOCKED_MS = 2 * 86400e3;
 
@@ -96,6 +103,61 @@ export function statelessItems(open = []) {
 export const statelessComment = () =>
   'This work item carries no state label at all — the leavings of a label swap that tore mid-flight, which puts it outside the state machine. '
   + `Parking it for a human: re-queue it by hand (${requeueHint}) once you have looked at it.`;
+
+// Rule E — THE SUPERSEDED PARK (#1452). A park is a question about a moment: THIS
+// run of this task needs a person. Nothing ever revisits it, so when the cause is
+// later fixed the question stays open, and a person has to read it to find out it
+// is already answered — 22 of them in one member for one unset secret.
+//
+// A later CLEAN run of the same task is that answer, in the queue's own record. The
+// item converges `rejected` naming the run, and the person never reads it.
+//
+// STRICTLY later, and only against the item's own last touch: an equal-or-earlier
+// success says nothing about a failure that came after it. Only parked items — a
+// live one is the machinery working — and only the kinds that named something
+// broken (`SUPERSEDABLE_PARKS`).
+//
+// `doneAfter(taskId, since)` answers "the newest item for this task that converged
+// done strictly after `since`", or null. The worker supplies it from the closed
+// half of the queue; the rule stays pure and knows nothing about how it is read.
+export function supersededItems(open = [], { doneAfter = () => null } = {}) {
+  return open.filter((item) => {
+    if (!isParked(item)) return false;
+    if (!SUPERSEDABLE_PARKS.includes(parkKindOf(item))) return false;
+    const p = parseWorkItemTitle(item.title) ?? taskIdFromPath(parseWorkItemBody(item.body).taskPath);
+    if (!p) return false;
+    return doneAfter(`${p.pack}/${p.task}`, item.updated_at ?? item.created_at) != null;
+  });
+}
+
+export const supersededComment = (run) =>
+  `A later run of this task converged clean — #${run.number}, on ${String(run.closed_at).slice(0, 10)} — so whatever this item `
+  + 'was parked on is resolved. Closing it `task:status:rejected` rather than leaving a question nobody needs to answer. '
+  + `If this park was about something that run did NOT cover, re-queue it (${requeueHint}).`;
+
+// Rule F — THE ORPHANED PARK (#1452). A park whose task this repo no longer carries
+// is asking a person about work that cannot run again. The executor already closes
+// such an item obsolete when it picks one (#1446) — but a PARKED item is never
+// picked, so that verdict could never reach the set that needs it most:
+// ClaudiniteCanary's seven parked `fleet-digest` items, for a task since retired.
+//
+// `knownTaskIds` is the declared task set at HEAD. EMPTY MEANS UNKNOWN, never
+// "everything retired": discovery returning nothing is a broken read, and acting on
+// it would close the whole queue.
+export function orphanedParkItems(open = [], { knownTaskIds = new Set() } = {}) {
+  if (!knownTaskIds.size) return [];
+  return open.filter((item) => {
+    if (!isParked(item)) return false;
+    const p = parseWorkItemTitle(item.title) ?? taskIdFromPath(parseWorkItemBody(item.body).taskPath);
+    if (!p) return false;
+    return !knownTaskIds.has(`${p.pack}/${p.task}`);
+  });
+}
+
+export const orphanedParkComment = (id) =>
+  `\`${id}\` is not a task this repo carries at HEAD — the pack may be undeclared, or the task retired. `
+  + 'This item is parked on work that cannot run again, so it closes `task:status:rejected` rather than '
+  + 'waiting for an answer that would change nothing.';
 
 // The period of a task, for rule A — read from the declaration at HEAD.
 export const periodForTasks = (tasks = []) => {
