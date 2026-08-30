@@ -194,7 +194,7 @@ Declare one only when its rule applies.
   *this cycle*, and picks up the moment it converges. Declare it when your task
   reads what another task produces; never as a general priority hint. It is not a
   `Blocked-by` edge and must not be described as one.
-- **`on_interrupt: 'requeue' | 'needs-human'`** (default `requeue`) — declare `needs-human`
+- **`on_interrupt: 'requeue' | 'needs-human'`** (default `requeue`) — declare `'needs-human'`
   only for a genuinely one-shot side effect (a store submission, an external notification):
   it makes every recovery path that would re-execute the task converge to triage instead.
 - **`invocation_endpoint: '<name>'`** — a key into the repo's `taskScheduler.endpoints`, for a
@@ -233,7 +233,7 @@ runs**. That decision is the precondition's alone:
   precondition, as code over signals, its verdict binding via the item's
   Context.
 - **Failures may stop a run** — a crash, a timeout, an API error park the
-  item at `needs-human`. Discretion may not.
+  item at a `task:status:needs-human-*`. Discretion may not.
 - **A failing worker may say why it failed.** The executor sees an exit code and
   nothing more, so it cannot tell a token missing a scope (a person's five-second
   fix) from an exception in the worker's own code (a bug). A worker that knows
@@ -348,9 +348,9 @@ closing or running anything.
   nobody, and the silence is the signal. The other three do **not** hold the lane —
   they are one person's inbox, not a fault in the task, so the schedule carries on
   around them.
-- **Never ran** → `task:obsolete`, closed as not planned: the precondition
+- **Never ran** → `task:status:rejected`, closed as not planned: the precondition
   declined, or the task is gone (file removed, pack undeclared). An obsolete item
-  is not an anomaly and gets no `needs-human`. A scheduled task's next occurrence
+  is not an anomaly and gets no park. A scheduled task's next occurrence
   is the scheduler run's ask at its next anchor — and most declines never make an
   item at all: the scheduler run asks the precondition when the anchor comes,
   files an item only on a yes, and records a no as a row on the repo's schedule

@@ -12,7 +12,7 @@
         "andLineMatches": "/\\b(if\\b|when\\b|unless\\b|already\\b|still\\s+(open|running|unreviewed)|(nothing|no\\s+new|not?\\s+\\w+)\\s+(changed|has\\s+changed)|before\\s+(anything|starting|researching)|unset\\s+means|absent\\b)\\b/i",
         "unlessLineMatches": "/\\bContext\\b|\\bprecondition\\b|needs-human/",
         "what": "instructs a conditional skip after the precondition already passed: \"{match}\"",
-        "fix": "move the run/no-run decision into the task.mjs precondition, or reword an empty result as an empty outcome; a required input the dispatch lacks is a failure — converge to needs-human"
+        "fix": "move the run/no-run decision into the task.mjs precondition, or reword an empty result as an empty outcome; a required input the dispatch lacks is a failure — park the item at task:status:needs-human-action"
       },
       {
         "whenPathMatches": "/\\.mjs$/",

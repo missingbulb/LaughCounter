@@ -25,7 +25,7 @@ already deletes anything an older cycle left under `.claudinite/pending-workflow
 
 So: **never move a file into `.github/workflows/`**, and never create that staging
 directory. If the branch still carries staged files after the flow ran, that is a canon
-bug — end at `needs-human` (§5) naming what is there, rather than delivering content
+bug — park it (§5) naming what is there, rather than delivering content
 whose lane no longer exists.
 
 ## 3. Apply the new rules
@@ -35,7 +35,7 @@ Only if the issue's reason names a migration record — it names them by path, e
 `.claudinite/shared/<path>/migration.mjs`: its `applyStage.instructions` say what its
 author wanted done, in their words, and are the specific half of this section. The
 record is on the branch you were given because the update that raised it vendored it
-there. A record the issue names but the branch does not carry is a `needs-human` end
+there. A record the issue names but the branch does not carry is a park
 (§5) — guessing at what its author wanted is worse than reporting it missing.
 
 Then, on that branch:
@@ -55,7 +55,7 @@ line pointing at the mounted queue instructions
 session does comes from that file, so a prompt carrying instructions of its own is
 behavior nobody reviews. Report what you found either way.
 
-## 5. End green, or end at `needs-human`
+## 5. End green, or park
 
 Run this repo's checks. Green: push to the branch, then **land the delivery yourself**,
 per this repo's `maintenance.delivery` in `.claudinite-settings.json`:
@@ -67,7 +67,7 @@ per this repo's `maintenance.delivery` in `.claudinite-settings.json`:
   meaning.
 
 Not green, or a repair you are not sure of: leave the PR open, label
-it `needs-human`, and say in one comment what is unresolved. A withheld workflow you did
+it `task:status:needs-human-decision`, and say in one comment what is unresolved. A withheld workflow you did
 not deliver is "not green" — it stays owed, and the next cycle will stage it again.
 
 **Why you merge it rather than leaving it.** An unmerged PR is not lost — the next
