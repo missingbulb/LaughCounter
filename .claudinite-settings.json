@@ -2,7 +2,7 @@
   "packs": [
     {
       "id": "basics",
-      "version": "60831.3"
+      "version": "60831.4"
     },
     {
       "id": "barriers",
@@ -39,7 +39,7 @@
     },
     {
       "id": "claudinite-tasks",
-      "version": "60831.5"
+      "version": "60831.6"
     }
   ],
   "accept": [],

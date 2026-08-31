@@ -8,8 +8,10 @@ description: Decide whether a change that has merged can only be proven in produ
 A change is finished when someone has watched it work. Most changes you can watch **now**, and
 that is the rule — this skill is only for the rest: a change whose proof lives somewhere the
 repo cannot see yet. You are filing the proof, not doing the work — and the proof itself runs
-unattended: an automatic check, end to end, with a person entering
-only where no automatic check can exist.
+unattended: an automatic check, end to end, that the run can make from this repository.
+Where it cannot, the answer is almost always to file nothing and say the change is
+unverified; asking a person is a rare exception, and no automatic check existing is not
+on its own enough to earn one.
 
 ## When it fires: after the merge, never before
 
@@ -57,34 +59,42 @@ one that earned a design doc or a phased tracking issue — the ~week-later revi
 whole design fared is [production-retrospective](../production-retrospective/SKILL.md)'s
 separate call, made beside this one.
 
-## Second: can the RUN read it?
+## Second: can the RUN read it? If not, file nothing
 
 The run is an unattended session on this repository, and its reach is narrower than
 yours: **GitHub, through its own tools, in the repositories its routine's scope names**
 — and nothing else. There is no browser and no general egress, so a `*.github.io` page,
 a live site's `/version.json`, a console, a dashboard and a login-walled report are all
-unreadable to it, and so is a repository outside that scope.
+unreadable to it, and so is a repository outside that scope. **Another repo is the
+standard trap**, because the read looks ordinary and the wall is invisible from here:
+#1349, #1351 and #1396 each named a member repo, and each parked minutes after being
+picked, on `repository "…" is not configured for this session`.
 
 So take the read you are about to write into `Verify:` and answer, in one sentence,
-*which tool call makes it*. If you cannot name one, the run cannot make it either — and
-filing it anyway spends a session rediscovering that wall and then parks
-`needs-human-action`, which is the human's-memory outcome this skill exists to avoid.
-One executor batch spent five of its seven claimed items exactly that way (#1184, #1253,
-#1268, #1288, #1291).
+*which tool call the run makes, in which repository*.
+**If you cannot name one, file nothing** — say in your reply that the change is
+unverified and what would prove it.
+That is a filter, not a fork: an unreadable artifact is a reason not to file, and the
+forms below are not two equal options. Filing anyway spends a session rediscovering the
+wall and then parks `needs-human-action`, which is the human's-memory outcome this skill
+exists to avoid — one executor batch spent five of its seven claimed items exactly that
+way (#1184, #1253, #1268, #1288, #1291).
 
-| the read | which form |
-|---|---|
-| this repo's files, issues, PRs, labels, workflow runs, checks | the automatic form below |
-| another repo's, **only** where the routine's scope names it | the automatic form below |
-| a web page, a site, a console, a dashboard, a login wall | the human-step form |
+Where the subject is the **fleet** rather than this repo — every member's stamp, every
+member's CI — this queue is the wrong runner for it whatever you file. It belongs to a
+routine that holds fleet scope, if the project has one, and to nobody otherwise.
 
-**The human-step form** is an ordinary issue, not a queue item: title it the same
-`Verify in production: …`, carry `Original-issue:` and attach it as that issue's
-sub-issue, and write the body as a checkbox per step — the exact URL to open, what to
-look for, what counts as a pass, and what to do if it fails. **No mark, no
-`Not-before:`, no `Retry-every:`, no `Model:`**: nothing in it is the queue's, and a
-mark would buy only a session that parks. Assign it to whoever owns the release, and say
-in your reply that this one needs their eyes because no runner can see the artifact.
+**Asking a person is the rare exception**, not the fallback. The bar is not "no
+automatic check exists" — most changes clear that and still get nothing. It is that a
+silent failure here would be **costly**, and you would be willing to interrupt the
+person today to have them look. If you would not, the change goes unverified and you say
+so. When it does clear that bar, file an ordinary issue — never a queue item: title it
+the same `Verify in production: …`, carry `Original-issue:` and attach it as that
+issue's sub-issue, and write the body as a checkbox per step — the exact URL to open,
+what to look for, what counts as a pass, and what to do if it fails. **No mark, no
+`Not-before:`, no `Retry-every:`, no `Model:`**: nothing in it is the queue's, and a mark
+would buy only a session that parks. Assign it to whoever owns the release, and say in
+your reply that you are spending their attention and why it was worth it.
 
 ## What you file
 
@@ -124,7 +134,7 @@ there is nothing left to wait on but the release itself.
   actually make (the gate above): a file's content, an issue's state, a run's conclusion.
   "Issue #100 on that repo is closed with a comment citing the scheduler runs" beats "check
   tidy-issues works". A `Verify:` naming a person's step does not belong in this form at all —
-  that is the human-step form, and it never carries the mark.
+  that is the rare human step above, an ordinary issue that never carries the mark.
 - **`Not-before:`** is the queue's own wait field: adoption holds the run until the moment has
   passed. Aim it just past the release you expect — the re-arm covers a miss, so don't pad it.
 - **`Retry-every:`** is the extension you are prescribing: when the run finds the change not
