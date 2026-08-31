@@ -36,9 +36,9 @@ The baseline pack — the `RULES.md` prose every session loads (injected by the 
 | Working around a vendored check's finding | medium | complexity | prose: 29 words |
 | Deferring a warning you can't fix now | medium | complexity | prose: 282 words |
 | Spotting a change that should wait | medium | complexity | prose: 46 words + skill (`do-later`) |
-| Filing anything into the ad-hoc queue | high | correctness | prose: 103 words |
+| Filing anything into the ad-hoc queue | high | correctness | prose: 125 words |
 | Filing an issue under another | medium | complexity | prose: 69 words |
-| Handing over a human-only step | high | complexity | prose: 142 words |
+| Handing over a human-only step | high | complexity | prose: 161 words + skill (`writing-handover-issues`) |
 | Naming a file, module, or symbol | low | complexity | prose: 22 words |
 | Referring to a value from two places | high | correctness | prose: 117 words + check (`shared-constants`) |
 | Writing a file that depends on another | medium | complexity | prose: 97 words |

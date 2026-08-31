@@ -15,14 +15,11 @@ import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../../engine/p
 // .claudinite/local_packs/ accepted during the rename window).
 //
 // The trigger is the run's whole pinned title, NOT the bare "Claudinite growth:"
-// prefix the whole lifecycle shares, because its promote run has a wider surface
-// by design: it writes the canon under packs/ and skills/ (its own gate is
-// canon-curation's promote-scope.mjs), so keying on the prefix would red it. A
-// run whose title this list doesn't carry is simply not this rule's business.
+// prefix the whole lifecycle shares, because a sibling run under that prefix has a
+// wider write surface by design, and keying on the prefix would red it. A run whose
+// title this list doesn't carry is simply not this rule's business.
 //
-// Sibling of that promote-scope gate. Promote can't self-gate — nothing in a
-// diff marks it as a promote run, so CI keys on its branch prefix — but a
-// capture run marks ITSELF via its title, so this rule self-gates and runs
+// A capture run marks ITSELF via that title, so this rule self-gates and runs
 // everywhere the pack is active: at the session Stop hook (work scope), and as
 // a CLI on every PR in the canon repo's CI.
 //
@@ -63,11 +60,8 @@ const rule = {
 
 export default rule;
 
-// CLI body — a CI gate runs this on every PR (self-gating, ~nothing on a
-// branch that is not a capture run). In the canon repo the entrypoint is
-// canon-curation's growth-scope-gate.mjs (core CI must not name a specific
-// pack — the barriers rule); a consumer wiring its own CI would invoke this
-// module directly:
+// CLI body — a CI gate runs this on every PR (self-gating, ~nothing on a branch
+// that is not a capture run):
 // `node .claudinite/shared/packs/claudinite-growth/workRules/growth-write-scope.mjs [root]`.
 //   exit 0 — not a capture run, or every touched path is under the local packs
 //   exit 1 — a capture run touched a path outside the local packs
@@ -75,10 +69,9 @@ export function runCli(root = process.cwd()) {
   const ctx = buildContext({ root, mode: 'changed' });
   if (!ctx.mergeBase) {
     // Without a merge-base there is no diff — and no branch commits — to read,
-    // so there is nothing to self-gate on. Unlike promote-scope (whose CI step
-    // already KNOWS it faces a promote PR), refusing here would fail every
-    // history-less checkout on ordinary PRs; the Stop-hook run still covers
-    // the session side.
+    // so there is nothing to self-gate on. This step runs on EVERY PR, so
+    // refusing here would fail every history-less checkout on an ordinary one;
+    // the Stop-hook run still covers the session side.
     console.log('growth-write-scope: no merge-base with the base branch — nothing to scope.');
     process.exit(0);
   }

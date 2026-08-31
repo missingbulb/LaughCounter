@@ -186,10 +186,12 @@ For every new task:
 
 - **Filing anything into the ad-hoc queue** (a deferral, a verification, any marked issue) — it
   asks an unattended session **on this repository** to do the work, so only file what such a
-  session can actually do here. A read of another repository, a web page or a console is not
-  work it can do: that item parks minutes after it is picked, and a park is a person's problem
-  filed under a mechanism's name. Where the work is out of reach, do it now, hand it to a
-  routine that has the reach, or do not file it — and say which.
+  session can actually do here. A read of another repository or a console is not work it can
+  do: that item parks minutes after it is picked, and a park is a person's problem filed under
+  a mechanism's name. A public URL is the one exception, and only through the coded
+  verification form (`verify-in-production`'s probes) — never by asking a session to fetch it.
+  Where the work is out of reach, do it now, hand it to a routine that has the reach, or do
+  not file it — and say which.
 
 - **Filing an issue that belongs under another** — a phase of a plan, a verification of a change,
   a follow-up its parent tracks — attach it as a **sub-issue** (`mcp__github__sub_issue_write`,
@@ -201,7 +203,9 @@ For every new task:
   granting a permission, adding a secret) — first confirm you genuinely can't do it yourself, then
   give it **its own issue**, never a note in the PR body, with a checkbox per step, what breaks
   while each is off, and its closing condition. The exception is a step whose home is an artifact
-  the human is already editing.
+  the human is already editing. How that issue is *written* — the checklist as the whole artifact,
+  every explanation below it — is
+  [writing-handover-issues](skills/writing-handover-issues/SKILL.md).
 
 # Engineering practices
 

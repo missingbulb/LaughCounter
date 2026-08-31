@@ -17,16 +17,23 @@ work item names the branch and says which packs moved.
 The item's **Why the agent is here** section names the terminal and the packs
 whose versions moved. That is binding scope — do not widen it.
 
-## 2. Sweep the retired staging directory
+## 2. Deliver the withheld workflow files
 
-Nothing withholds a workflow file any more: a member's two workflow files are static after
-adoption, so no flow computes or stages one (tasks-dispatch DESIGN §18). The update flow
-already deletes anything an older cycle left under `.claudinite/pending-workflows/`.
+Only if the item's reason names them. A file under `.claudinite/pending-workflows/` is
+content the deterministic half already computed and decided; it sits there because the
+Action token that pushed the branch may not write under `.github/workflows/` and GitHub
+rejects the WHOLE ref for trying, so putting it in the pushed tree would have failed the
+entire update. You hold a credential that may write there. That is the only reason this
+step is yours.
 
-So: **never move a file into `.github/workflows/`**, and never create that staging
-directory. If the branch still carries staged files after the flow ran, that is a canon
-bug — park it (§5) naming what is there, rather than delivering content
-whose lane no longer exists.
+For each staged file: move `.claudinite/pending-workflows/<name>` to
+`.github/workflows/<name>`, and leave the staging directory empty.
+
+**Do not edit the content, and do not judge it.** It is what the canon computed for this
+member, secrets and all; a session rewriting it is a second author of a file that has
+exactly one. If the move is not obviously right — the branch carries a staged file the
+item's reason does not name, or the destination already differs in a way you cannot
+explain — that is the case for §5, not for improvising.
 
 ## 3. Apply the new rules
 

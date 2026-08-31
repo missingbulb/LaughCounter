@@ -18,7 +18,7 @@
 //    one place that can tell "unset" from "empty", and the item converges to
 //    triage naming exactly which one is missing.
 
-import { runCodeWork, codeWorkFailure, agentRequestPath, clearAgentRequest, agentRequested, readAgentRequest, readTriageMarker } from '../code-work.mjs';
+import { runCodeWork, codeWorkFailure, agentRequestPath, clearAgentRequest, agentRequested, readAgentRequest, readTriageMarker, readRequeueMarker } from '../code-work.mjs';
 import { SECRETS_BAG_ENV, secretsBag, secretValue, secretsFor } from './secrets-bag.mjs';
 import { VARS_BAG_ENV, varsEnv } from './vars-bag.mjs';
 
@@ -110,6 +110,11 @@ export function codeWorkRunner({ root, repo, defaultBranch, env = process.env })
     return {
       ok: true,
       agentRequested: requested,
+      // The worker's come-back-later ask, honoured only on this OK path — a failed
+      // run is a failure whatever it printed. Read over both streams like the
+      // triage marker, and null for the workers that never ask, which is all of
+      // them before #1530.
+      requeue: readRequeueMarker(`${result.stdout}\n${result.stderr}`),
       delivered: deliveredLines(payload?.delivered),
       // The unmerged PR, structured, beside its rendered line: an item whose run
       // left one parks for approval instead of closing, and that decision cannot

@@ -54,7 +54,8 @@ step that reads the secret and stops until someone is available.
 
 Front-load all of it into phase zero, before the first line of code. Write it as its own issue
 with a checkbox per step (basics' *Handing over a human-only step*), stating for each what stays
-broken while it is off. And before writing it down, confirm you genuinely cannot do it yourself —
+broken while it is off, and written per
+[writing-handover-issues](../writing-handover-issues/SKILL.md). And before writing it down, confirm you genuinely cannot do it yourself —
 a step handed to a human that you could have taken is the most expensive kind of block there is.
 
 The exception is the genuinely destructive step — deleting the old store, revoking the old

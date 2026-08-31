@@ -128,8 +128,10 @@ per the pack's own README template; the pack's rules are the checklist.
 A pack may declare `adoptionHandover` — steps only a human can perform (a repository or
 console setting, a permission, a secret). The install runner prints them; they are not
 optional and they are not PR-body notes. **Open one tracking issue per adopting repo**,
-a checkbox per step, carrying each step's `breaks` (what is broken while it is off) and
-`done` (its closing condition) verbatim. Per-repo manual work reliably does not happen,
+a checkbox per step, written per
+[writing-handover-issues](../../../basics/skills/writing-handover-issues/SKILL.md) — so
+each step's `breaks` (what is broken while it is off) and `done` (its closing condition)
+travel in the section below the checklist, never between the boxes. Per-repo manual work reliably does not happen,
 so an unfiled step is a capability that dies silently in that member.
 
 Say on the adoption PR that the issue exists and link it. If the repo already has an
