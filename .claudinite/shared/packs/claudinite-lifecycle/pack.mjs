@@ -14,7 +14,7 @@
 // so `claudinite-lifecycle-declared` reports a member that has lost the entry rather
 // than being what puts it there.
 export default {
-  version: '60831.1',
+  version: '60831.3',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'using Claudinite itself — the vendored mount, the pack declaration, bootstrapping, adopting packs, the self-refresh update',

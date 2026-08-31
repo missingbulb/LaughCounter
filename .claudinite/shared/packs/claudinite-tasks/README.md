@@ -18,7 +18,7 @@ forcing, recovery — is the canon's own tasks-dispatch design document, and aut
 | `signals/` | the signal collectors a precondition is handed |
 | `stubs/` | the two workflow files an adopting repo receives |
 | `shared-code/` | the published import surface — see below |
-| `tasks/` | this pack's own scheduled tasks: `task-janitor` (the queue's sweeps) and `usage-fold` (it folds this mechanism's run records and outcome labels) |
+| `tasks/` | this pack's own tasks: `task-janitor` (the queue's sweeps), `usage-fold` (it folds this mechanism's run records and outcome labels) and `verify-production` (coded production validations — URL probes judged as code-work) |
 | `worldRules/` | the task-declaration checks |
 | `workRules/` | the armed-auto-merge gate (`automerge-policy-scope`) |
 | `merge-policy.mjs` | the auto-merge policy engine: what a task's `automerge`, an item's `Merge:` field and the arming trailer mean, the built-in diff classes, the inline `under:<dir>` folder scope, the `&&` intersection, and the `merge-rules.json` vocabulary a pack extends them with |

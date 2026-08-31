@@ -26,6 +26,10 @@ export const AGENT_LEASH_MS = 3 * 3600e3;
 // DOES answer an approval park is that pull request resolving — rule G.
 export const SUPERSEDABLE_PARKS = Object.freeze(['failure', 'action']);
 export const STALE_READY_PERIODS = 2;
+// How long a terminal status may stand on an open issue before rule H reads it as
+// torn rather than in flight. A converge writes the label and the close within
+// seconds of each other, so an hour is far past any live transition.
+export const TERMINAL_OPEN_MS = 3600e3;
 export const STUCK_BLOCKED_MS = 2 * 86400e3;
 
 const ms = (t) => (t == null ? null : new Date(t).getTime());
@@ -233,3 +237,36 @@ export const periodForTasks = (tasks = []) => {
   const byId = new Map(tasks.map((t) => [`${t.pack}/${t.id}`, t]));
   return (id) => periodMs(byId.get(id)?.decl?.frequency);
 };
+
+// Rule H — THE UNCLOSED TERMINAL (#1526). A terminal status says the item is over:
+// `done` means nothing is left for anyone to act on, `rejected` that nothing will
+// happen. Every writer closes the issue in the same breath — so an open one wearing
+// one is a transition that TORE, or a session that improvised its converge by hand
+// and stopped at the label (#1220, #1265). Either way the item then reads as
+// finished to every rule here and to the leash, while sitting open in the queue's
+// count forever: the one state nothing else recovers.
+//
+// The close is the whole of the repair, and the outcome is the status's own — a
+// `done` item closes `completed`, a `rejected` one `not_planned`. Nothing is
+// relabelled: the status was already right, it was the close that never happened.
+//
+// TWO GUARDS, because this rule's premise is a torn write and a write in flight
+// looks identical (#1104). The clock is the first: an item still inside
+// `TERMINAL_OPEN_MS` is a converge that may simply not have reached its close call
+// yet. The second is the worker's, a fresh read of the item immediately before
+// acting — the snapshot this runs on is seconds old, and by now the converge may
+// have finished on its own.
+export function unclosedTerminalItems(open = [], now, { boundMs = TERMINAL_OPEN_MS } = {}) {
+  return open.filter((item) => {
+    if (item.state !== 'open') return false;
+    const status = statusOf(item);
+    if (status !== STATUS_DONE && status !== STATUS_REJECTED) return false;
+    return idle(item, now) >= boundMs;
+  });
+}
+
+export const unclosedTerminalComment = (status) => (status === STATUS_DONE
+  ? `This item carries \`${STATUS_DONE}\` — its run finished and nothing is left for anyone to act on — but it was never closed, `
+    + 'so it has been sitting in the open queue looking like live work. Closing it, which is all the terminal was missing.'
+  : `This item carries \`${STATUS_REJECTED}\` — it was taken out of the queue — but it was never closed, `
+    + `so it has been sitting open looking like live work. Closing it; if the work is still wanted, re-queue it (${requeueHint}).`);

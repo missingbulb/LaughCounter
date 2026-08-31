@@ -18,6 +18,13 @@
 //   check there does not annoy anyone: it stops the repo updating, permanently
 //   and quietly. So they are skipped, out loud.
 //
+//   THE PUSH ONTO THE BASE BRANCH. Sitting on the base branch used to mean
+//   "nothing to judge", and on a developer's clone it does. In CI it is a PUSH
+//   EVENT — a merge landing — and that is the one place two branches that each
+//   moved a shared number are visible at once, so it is the only place a rule
+//   about the change can see them collide (#1482). Judged against what the
+//   branch held BEFORE the push, it is an ordinary work scope.
+//
 //   THE EMPTY SCOPE. The runner prints nothing on a clean sweep and nothing on a
 //   sweep that judged nothing. This prints the scope either way, so a green step
 //   says what it actually looked at.
@@ -33,6 +40,7 @@
 // Options: --root DIR (default cwd), --branch NAME (default: the checkout's
 // branch — CI checks out a detached head, so a workflow passes it explicitly).
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE_REF_CANDIDATES } from './helpers/repo-context.mjs';
@@ -67,21 +75,42 @@ export function resolveBase(root, { fetch = true } = {}) {
   return null;
 }
 
+// Where the base branch stood before the push that produced this HEAD, or null
+// when this is not a push in CI. `GITHUB_EVENT_PATH` is the payload GitHub
+// Actions writes for every event and names in the environment unasked, so a
+// member's workflow needs no new input to reach it — this converges with the
+// engine and starts working. `before` is absent outside a push and all-zero on a
+// branch's first push; `HEAD^` covers those and a manual re-run, and a root
+// commit has neither.
+const ZERO_SHA = /^0+$/;
+export function pushedFrom(root, { eventPath = process.env.GITHUB_EVENT_PATH } = {}) {
+  if (!eventPath) return null;
+  const resolvable = (ref) => (ref && git(root, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`) ? ref : null);
+  let before = null;
+  try { before = JSON.parse(readFileSync(eventPath, 'utf8'))?.before ?? null; } catch { before = null; }
+  if (before && ZERO_SHA.test(before)) before = null;
+  return resolvable(before) || resolvable('HEAD^');
+}
+
 // What this invocation should do, as a decision separate from doing it: every
 // outcome is one of these four, and each names why in words a log reader can act
 // on. `code` is the process exit; `run` is the only outcome that sweeps.
-export function decide(root, { branch, fetch = true } = {}) {
+export function decide(root, { branch, fetch = true, eventPath = process.env.GITHUB_EVENT_PATH } = {}) {
   if (isAutomationBranch(branch)) {
     return { run: false, code: 0, say: `work scope: skipped on ${branch} — an engine-authored branch has no session and no issue behind it` };
   }
-  const base = resolveBase(root, { fetch });
+  let base = resolveBase(root, { fetch });
   if (!base) {
     return { run: false, code: 1, say: `work scope: no base branch resolved (tried ${BASE_REF_CANDIDATES.join(', ')}) — the sweep would judge an empty diff and pass` };
   }
   const head = git(root, 'rev-parse', 'HEAD');
   const baseSha = git(root, 'rev-parse', `${base}^{commit}`);
   if (head && head === baseSha) {
-    return { run: false, code: 0, say: `work scope: skipped — HEAD is ${base}, so there is no change to judge` };
+    const pushed = pushedFrom(root, { eventPath });
+    if (!pushed) {
+      return { run: false, code: 0, say: `work scope: skipped — HEAD is ${base}, so there is no change to judge` };
+    }
+    base = pushed;
   }
   const changed = (git(root, 'diff', '--name-only', `${base}...HEAD`) || '').split('\n').filter(Boolean);
   if (!changed.length) {

@@ -59,26 +59,35 @@ one that earned a design doc or a phased tracking issue — the ~week-later revi
 whole design fared is [production-retrospective](../production-retrospective/SKILL.md)'s
 separate call, made beside this one.
 
-## Second: can the RUN read it? If not, file nothing
+## Second: which runner can read it? If neither, file nothing
 
-The run is an unattended session on this repository, and its reach is narrower than
-yours: **GitHub, through its own tools, in the repositories its routine's scope names**
-— and nothing else. There is no browser and no general egress, so a `*.github.io` page,
-a live site's `/version.json`, a console, a dashboard and a login-walled report are all
-unreadable to it, and so is a repository outside that scope. **Another repo is the
-standard trap**, because the read looks ordinary and the wall is invisible from here:
-#1349, #1351 and #1396 each named a member repo, and each parked minutes after being
-picked, on `repository "…" is not configured for this session`.
+There are two runners, and the artifact's address decides which one a verification
+gets — never preference:
 
-So take the read you are about to write into `Verify:` and answer, in one sentence,
-*which tool call the run makes, in which repository*.
-**If you cannot name one, file nothing** — say in your reply that the change is
-unverified and what would prove it.
-That is a filter, not a fork: an unreadable artifact is a reason not to file, and the
-forms below are not two equal options. Filing anyway spends a session rediscovering the
-wall and then parks `needs-human-action`, which is the human's-memory outcome this skill
-exists to avoid — one executor batch spent five of its seven claimed items exactly that
-way (#1184, #1253, #1268, #1288, #1291).
+- **A public URL** — a Pages site, a deployed config, a published module, a live
+  `/version.json` — files the **coded form**: declarative probes an agentless queue
+  task (`claudinite-tasks/verify-production`) fetches and judges Action-side, where
+  egress exists. No session ever runs, so there is no egress wall to hit — this is
+  the lane for exactly the class that used to park (#1184, #1288).
+- **A GitHub read** — an issue's state, a file at HEAD, a workflow run's conclusion —
+  files the **agentic form**: an unattended session on this repository, whose reach
+  is narrower than yours — **GitHub, through its own tools, in the repositories its
+  routine's scope names** — and nothing else. Take the read you are about to write
+  into `Verify:` and answer, in one sentence, *which tool call the run makes, in
+  which repository*. **Another repo is the standard trap**, because the read looks
+  ordinary and the wall is invisible from here: #1349, #1351 and #1396 each named a
+  member repo, and each parked minutes after being picked, on
+  `repository "…" is not configured for this session`. A cross-repo artifact with a
+  public URL — a member's stamp on `raw.githubusercontent.com`, its Pages site — is
+  not walled at all: it is a URL, and the coded form reads it.
+- **Neither** — a login-walled console, a private dashboard, a repository outside
+  scope with no public surface — **file nothing**: say in your reply that the change
+  is unverified and what would prove it. That is a filter, not a fork: an unreadable
+  artifact is a reason not to file. Filing anyway spends a session rediscovering the
+  wall and then parks `needs-human-action`, which is the human's-memory outcome this
+  skill exists to avoid — one executor batch spent five of its seven claimed items
+  exactly that way (#1184, #1253, #1268, #1288, #1291), before the coded form
+  existed for the URL-readable ones among them.
 
 Where the subject is the **fleet** rather than this repo — every member's stamp, every
 member's CI — this queue is the wrong runner for it whatever you file. It belongs to a
@@ -90,8 +99,9 @@ silent failure here would be **costly**, and you would be willing to interrupt t
 person today to have them look. If you would not, the change goes unverified and you say
 so. When it does clear that bar, file an ordinary issue — never a queue item: title it
 the same `Verify in production: …`, carry `Original-issue:` and attach it as that
-issue's sub-issue, and write the body as a checkbox per step — the exact URL to open,
-what to look for, what counts as a pass, and what to do if it fails. **No mark, no
+issue's sub-issue, and write the body per
+[writing-handover-issues](../writing-handover-issues/SKILL.md) — somebody else runs it,
+so the checklist is the artifact. **No mark, no
 `Not-before:`, no `Retry-every:`, no `Model:`**: nothing in it is the queue's, and a mark
 would buy only a session that parks. Assign it to whoever owns the release, and say in
 your reply that you are spending their attention and why it was worth it.
@@ -106,6 +116,30 @@ block on the first lines of the description**, ahead of your prose — the same 
 [`/do-later`](../do-later/SKILL.md) files under, and what gives the retry below one place to
 rewrite `Not-before:`. Then say what changed and why it could not be watched now.
 
+### The coded form — for a URL-readable artifact
+
+```
+Original-issue: #<the change's issue>
+Task: claudinite-tasks/verify-production
+Live-probe: <url> :: <assertion that becomes true when the release lands>
+Verify-probe: <url> :: <the assertion being verified>
+Retry-every: <how often to re-probe while not yet live, e.g. 6 hours>
+```
+
+The probes are the whole check, executed in code by the task the `Task:` line names —
+no session, no `Model:`. `Live-probe:` is `In-production-when:` made executable and
+`Verify-probe:` is `Verify:`; both classes are required, repeat either line for more
+probes, and the assertion grammar (`status`, `contains`, `matches`, the `json` value
+ops) is documented at its one home,
+[`probes.mjs`](../../../claudinite-tasks/tasks/verify-production/probes.mjs). A
+liveness probe failing re-arms the item by `Retry-every:`; a verify probe failing
+against a live release reopens `Original-issue:` with what was asserted and what was
+read; all passing closes the item with that evidence. No `Not-before:` is needed: a
+coded run costs seconds, so probing from the moment of filing is the point, not a
+waste — see the watch-it-fail step below.
+
+### The agentic form — for a GitHub read
+
 ```
 Original-issue: #<the change's issue>
 In-production-when: <the concrete artifact to read, and what makes it true>
@@ -115,8 +149,8 @@ Retry-every: <how far to push Not-before when not yet live, e.g. 1 day>
 Model: sonnet
 ```
 
-No `Blocked-by:`. You are filing after the merge, so the change's PR has already closed and
-there is nothing left to wait on but the release itself.
+In either form, no `Blocked-by:`. You are filing after the merge, so the change's PR has
+already closed and there is nothing left to wait on but the release itself.
 
 - **`Original-issue:`** is where a failure lands — the issue the change was done under, which
   the run reopens if the verification fails. Make the verification that issue's **sub-issue**
@@ -143,15 +177,20 @@ there is nothing left to wait on but the release itself.
   minutes.
 
 Then the mark, as `/do-later` applies it: **`task:origin:ad-hoc`**, the one label the scheduler
-run adopts. `Model: sonnet` is in the block above because that is the work: reading a live
-artifact and judging an assertion against it. Never `Automerge:` — a verification has nothing to
+run adopts — both forms alike. The agentic form's `Model: sonnet` is in its block because that
+is the work: reading a live artifact and judging an assertion against it; the coded form names
+no model, because nothing runs but code. Never `Automerge:` — a verification has nothing to
 merge. If the mark doesn't exist in the repo yet, say so and leave the issue — it appears on the
 next scheduler run.
 
-## Tell the run how to converge
+## Tell the agentic run how to converge
 
-End the body with instructions to the run itself — the issue is its whole brief, and the run
-decides nothing: it executes this playbook.
+The coded form needs none of this: its verdicts — requeue, pass, reopen — are the machinery's,
+so its body ends with your prose and the playbook below would only be read as instructions by
+something that takes none.
+
+For the agentic form, end the body with instructions to the run itself — the issue is its whole
+brief, and the run decides nothing: it executes this playbook.
 
 **The transition off this issue is `converge-item.mjs`** — the command your instructions'
 converge step names — **and never your own hand.** It reaches no network and needs none: it
@@ -184,6 +223,15 @@ item is not yours to converge — say so and stop.
    behind — old + `Retry-every: 1 day` lands in the past again, the item goes ready on the very
    next pass, and a daily retry spends a session an hour.
 
-## Then say what you filed
+## Then watch it fail, and say what you filed
+
+A coded verification runs for seconds, so its first execution is not left to faith: dispatch
+the scheduler workflow (its `workflow_dispatch`) and
+watch the first run report **not yet live** — proof the probes execute and fail for the right
+reason instead of passing vacuously;
+the same item then flips on its own once the release lands. A first run that *passes* before
+the release you expected deserves a hard look, because a probe that cannot fail proves
+nothing. The agentic form sleeps until its `Not-before:` and has no cheap forced run; filing
+it correctly is the watch.
 
 One line back to the owner: the issue link, what it waits on, and its retry cadence.

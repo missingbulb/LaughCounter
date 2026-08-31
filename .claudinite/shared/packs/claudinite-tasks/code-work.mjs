@@ -156,3 +156,31 @@ export function readTriageMarker(text) {
   if (!last) return null;
   return { kind: last[1], detail: last[2].replace(/^[—\-:\s]+/, '').trim() || null };
 }
+
+// THE WORKER'S REQUEUE ASK (#1530). An exit code has two answers — 0 closes the
+// item done, non-zero parks it — and a worker whose subject is NOT YET THERE (a
+// production verification whose release has not landed) needs the third: the run
+// happened, found nothing wrong, and must come back later. So, before a clean
+// exit, it may say when:
+//
+//     claudinite-requeue: 2026-09-01T12:00:00Z — not yet live: mode unstamped
+//
+// The executor stamps the instant as the item's `Not-before` and returns it to
+// blocked; the scheduler's ordinary readiness pass releases it when the moment
+// comes. Honoured only on an OK exit — a failed run is a failure whatever it
+// printed — and read off the output like the triage marker, last one winning, so
+// a worker may revise its wake as it works. The instant is normalized to UTC
+// ISO; one that does not parse comes back as `until: null`, an ask the executor
+// must refuse loudly rather than drop — the worker said "wait", and closing done
+// on it would record a pass nobody measured.
+const REQUEUE_MARKER = /^claudinite-requeue:[ \t]*(\S+)[ \t]*(.*)$/gm;
+export function readRequeueMarker(text) {
+  let last = null;
+  for (const m of String(text ?? '').matchAll(REQUEUE_MARKER)) last = m;
+  if (!last) return null;
+  const at = new Date(last[1]);
+  return {
+    until: Number.isNaN(at.getTime()) ? null : at.toISOString(),
+    reason: last[2].replace(/^[—\-:\s]+/, '').trim() || null,
+  };
+}

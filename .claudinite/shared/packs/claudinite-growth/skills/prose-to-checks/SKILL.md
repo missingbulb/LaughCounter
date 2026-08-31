@@ -32,8 +32,7 @@ how we work, or state what the product does?** A pack — canon or local — hom
 gotchas and review discipline that recur across tasks whatever the feature happens to be. A rule
 asserting which entities exist, what a surface must render, or that a feature's parts are wired to
 each other is a **requirement**; its home is the project's executable spec and the suite that proves
-it (the full rule lives in
-[generate-project-instructions](../generate-project-instructions/SKILL.md)).
+it.
 
 This gate comes **first** because product statements sail through the check-the-world test below —
 "this module must export `X`" has an obvious static signature. Converting one splits a feature's

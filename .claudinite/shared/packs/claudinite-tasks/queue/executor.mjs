@@ -22,7 +22,7 @@ import { HEARTBEAT_MS, heartbeatComment, withHeartbeat } from './heartbeat.mjs';
 import { renderTaskExec } from '../run-record.mjs';
 import { swapStatus, clearStatus } from './apply-status.mjs';
 import {
-  READY, URGENT, EXECUTING, AGENT, requeueHint,
+  BLOCKED, READY, URGENT, EXECUTING, AGENT, requeueHint,
   STATUS_READY, STATUS_RUNNING_EXECUTOR, STATUS_RUNNING_AGENT, isStatus,
   TASK_DONE, TASK_OBSOLETE, QUEUE_LABELS, QUEUED_LABEL, isStandingItem,
   NEEDS_HUMAN_ACTION, NEEDS_HUMAN_APPROVAL, NEEDS_HUMAN_FAILURE,
@@ -430,6 +430,28 @@ async function executeItem({
       return 'needs-human';
     }
     if (!result.agentRequested) {
+      // THE WORKER'S REQUEUE ASK (#1530): the run happened, found its subject not
+      // yet there, and prescribed its own wake — neither done nor broken. Stamp
+      // the instant as the item's `Not-before` (into the machine half, the only
+      // half `parseWorkItemBody` reads) and return it to blocked; the scheduler's
+      // readiness pass releases it when the moment comes. Silent on the timeline,
+      // like the roll this replaces: the bumped field is the record, and a retry
+      // cadence must not grow a comment per wake. An ask whose instant could not
+      // be read is refused loudly — the worker said "wait", and closing done on
+      // it would record a pass nobody measured.
+      if (result.requeue) {
+        if (!result.requeue.until) {
+          await converge(api, gh, repo, item, STATUS_RUNNING_EXECUTOR, NEEDS_HUMAN_FAILURE, claim,
+            `Code-work asked to requeue this item but its \`claudinite-requeue:\` instant could not be read${result.requeue.reason ? ` (${result.requeue.reason})` : ''}. Fix the worker's marker, then re-queue this item (${requeueHint}).`);
+          return 'needs-human';
+        }
+        const body = editItemBody(item.body, (machine) => withNotBefore(machine, result.requeue.until));
+        await gh(`/repos/${repo}/issues/${item.number}`, { method: 'PATCH', body: { body } });
+        await strikeClaim(api, gh, repo, claim);
+        await swapStatus(api, gh, repo, item, STATUS_RUNNING_EXECUTOR, BLOCKED);
+        log(`- #${item.number} ${id}: requeued until ${result.requeue.until}${result.requeue.reason ? ` — ${result.requeue.reason}` : ''}`);
+        return 'requeued';
+      }
       // A run that deliberately left an UNMERGED PR is not finished, it is waiting
       // on a person — so the item stays OPEN at `task:needs-human-approval` rather
       // than closing as delivered. It does not hold the task's lane while it waits

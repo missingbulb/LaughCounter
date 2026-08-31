@@ -142,8 +142,7 @@ Each stage's **method** lives in a skill, so the task doc frames the unattended 
 method is available to an owner asking in-session. Extract's three are listed above;
 [**growth-dedup**](skills/growth-dedup/SKILL.md) is the dedup stage's — what to prune, strip, or
 rephrase, the keep-test, and the shrink-only discipline. The pack also bundles
-[unattended-agents](skills/unattended-agents/SKILL.md),
-[generate-project-instructions](skills/generate-project-instructions/SKILL.md) and
+[unattended-agents](skills/unattended-agents/SKILL.md) and
 [**writing-tasks**](skills/writing-tasks/SKILL.md) — the contract a `tasks/<name>/task.mjs` and
 its worker are written to: the declaration's fields, the code-work and agentic phases, the
 precondition as the only place a task may decide not to run, and how a work item converges. That
@@ -168,9 +167,7 @@ here: its subject is Claudinite's own surface, not lesson capture.
 
 The capture runs' write surface is the local packs and nothing else — a run improves the repo's
 **packs**, never the canon it prunes against or the project's own code. `growth-write-scope` is
-the machine guarantee behind that, keyed on the pinned commit titles of exactly those two runs; the
-lifecycle's wider-surfaced promote run has its own gate (it writes the canon under `packs/` and
-`skills/`, certified by canon-curation's `promote-scope`).
+the machine guarantee behind that, keyed on the pinned commit titles of exactly those two runs.
 
 ## Rules expire when the environment moves — revalidation
 
@@ -207,8 +204,8 @@ the rest of `.claudinite/` is the **read-only mounted canon** and is never a cap
 promote target. So "a project's local packs" means precisely *everything under
 `.claudinite/local_packs/`, and nothing else under `.claudinite/`*. This is the normalized capture
 surface — a structural set the stages read the same way, not a `CLAUDE.md`-graph walk over stray
-Markdown (a repo with no local packs yet simply has nothing to extract, dedup, or promote here; a
-project adopts the structure via the `generate-project-instructions` skill).
+Markdown (a repo with no local packs yet simply has nothing to extract, dedup, or promote here;
+adoption seeds the structure).
 
 Prefer the strongest mechanism the lesson allows — the **local promotion ladder**, applied at the
 project's own level: a deterministic rule becomes a **check** whose failure message carries the lesson —
