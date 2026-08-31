@@ -184,6 +184,13 @@ For every new task:
   comes back on its own rather than doing it now or trusting anyone to remember it: the
   [do-later](skills/do-later/SKILL.md) skill, which queues it behind what it waits on.
 
+- **Filing anything into the ad-hoc queue** (a deferral, a verification, any marked issue) — it
+  asks an unattended session **on this repository** to do the work, so only file what such a
+  session can actually do here. A read of another repository, a web page or a console is not
+  work it can do: that item parks minutes after it is picked, and a park is a person's problem
+  filed under a mechanism's name. Where the work is out of reach, do it now, hand it to a
+  routine that has the reach, or do not file it — and say which.
+
 - **Filing an issue that belongs under another** — a phase of a plan, a verification of a change,
   a follow-up its parent tracks — attach it as a **sub-issue** (`mcp__github__sub_issue_write`,
   method `add`, `sub_issue_id` the **id** the create call returned, not its number), never only a
