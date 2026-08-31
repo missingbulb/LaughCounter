@@ -13,7 +13,7 @@ import { periodMs } from './anchors.mjs';
 import {
   READY, AGENT, requeueHint,
   STATUS_READY, STATUS_RUNNING_AGENT, STATUS_BLOCKED, STATUS_DONE, STATUS_REJECTED, isStatus, statusOf,
-  isParked, parkKindOf,
+  isParked, parkKindOf, originOf, ORIGIN_AD_HOC,
   parseWorkItemTitle, parseWorkItemBody, taskIdFromPath,
 } from './work-item.mjs';
 
@@ -118,12 +118,24 @@ export const statelessComment = () =>
 // live one is the machinery working — and only the kinds that named something
 // broken (`SUPERSEDABLE_PARKS`).
 //
+// NEVER AN AD-HOC ITEM (#1498). The whole rule rests on one item being a FUNGIBLE
+// OCCURRENCE of a repeating task: a later clean run did the same work, so this
+// park's question is answered. An ad-hoc item is the opposite — it is somebody's
+// own issue, adopted as itself, and every one of them runs the SAME task
+// (`implement-request`), so any later ad-hoc run at all reads as evidence about
+// every parked one. That is not a near miss: two verification issues were closed
+// citing a third issue's run, their own `Verify:` assertion never executed and the
+// owed verification silently discarded (#1161, #1253, on #1154's evidence). What
+// answers an ad-hoc park is its own work being done, which is rule G's `Ends-when`
+// or a person.
+//
 // `doneAfter(taskId, since)` answers "the newest item for this task that converged
 // done strictly after `since`", or null. The worker supplies it from the closed
 // half of the queue; the rule stays pure and knows nothing about how it is read.
 export function supersededItems(open = [], { doneAfter = () => null } = {}) {
   return open.filter((item) => {
     if (!isParked(item)) return false;
+    if (originOf(item) === ORIGIN_AD_HOC) return false;
     if (!SUPERSEDABLE_PARKS.includes(parkKindOf(item))) return false;
     const p = parseWorkItemTitle(item.title) ?? taskIdFromPath(parseWorkItemBody(item.body).taskPath);
     if (!p) return false;

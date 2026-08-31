@@ -29,6 +29,7 @@ import { mostRecentAnchor, nextAnchor } from './anchors.mjs';
 import { EXECUTING_LEASH_MS } from './leases.mjs';
 import { swapStatus } from './apply-status.mjs';
 import { isReleasable } from './readiness.mjs';
+import { isQueueItem } from './read.mjs';
 import { pickOrder } from './executor.mjs';
 import { lastLivenessAt } from './heartbeat.mjs';
 import {
@@ -36,7 +37,7 @@ import {
   NEEDS_HUMAN_DECISION, isBlockingPark,
   STATUS_BLOCKED, STATUS_READY, STATUS_RUNNING_EXECUTOR, STATUS_RUNNING_AGENT,
   isStatus, isParked, statusOf,
-  QUEUE_LABELS, EPISODE_MARKER, workItemTitle, parseWorkItemTitle, parseWorkItemBody,
+  QUEUE_LABELS, EPISODE_MARKER, workItemTitle, parseWorkItemTitle, parseWorkItemBody, taskIdFromPath,
   workItemBody, labelNames, hasLabel, parseLastVerdict,
   ORIGIN_AD_HOC, ORIGIN_PLANNED, ORIGIN_LABELS, REQUEST_LABEL, parseRequestFields,
   parseBlockedBy, withMachineBlock,
@@ -366,7 +367,12 @@ export async function planSchedulerRun({
     const lastSign = ms(item.livenessAt) ?? ms(item.updated_at) ?? ms(item.created_at) ?? nowMs;
     const silentFor = nowMs - lastSign;
     if (silentFor < executingLeashMs) continue;
-    const parsed = parseWorkItemTitle(item.title);
+    // WHICH TASK, on a marked issue: its title is the person's own, so the id comes
+    // from the worker path its machine block names — the same fallback the janitor's
+    // rules use. Without it every ad-hoc item reads as an unknown task and re-queues,
+    // and `implement-request`, the one task that declares `needs-human`, is exactly
+    // the task every ad-hoc item runs.
+    const parsed = parseWorkItemTitle(item.title) ?? taskIdFromPath(parseWorkItemBody(item.body).taskPath);
     const minutes = Math.round(executingLeashMs / 60e3);
     // `on_interrupt: 'needs-human'` is the at-most-once dial: a task that cannot
     // promise a safe re-run is not re-queued by a recovery path — it goes to a
@@ -459,11 +465,20 @@ const IN_FLIGHT = [STATUS_READY, STATUS_RUNNING_EXECUTOR, STATUS_RUNNING_AGENT];
 // GITHUB_TOKEN. Dormancy is the first gate, before any read — a project that has
 // said it is out of the recurring work should not pay for the list that proves it.
 
-// Every `[claudinite-work]` issue, state=all, via the ISSUES list API — never the
-// search index (S6/F11: search is eventually consistent, and a family list that
-// misses a just-created item mints a duplicate standing item). Bounded by the
-// scheduled families' need for closed history: closed items are only interesting
-// back to the widest period, so the listing stops once it is past that.
+// Every WORK ITEM, state=all, via the ISSUES list API — never the search index
+// (S6/F11: search is eventually consistent, and a family list that misses a
+// just-created item mints a duplicate standing item). Bounded by the scheduled
+// families' need for closed history: closed items are only interesting back to the
+// widest period, so the listing stops once it is past that.
+//
+// MEMBERSHIP IS `isQueueItem`, the shared predicate, and not the title prefix
+// (#1497). An adopted marked issue IS an item under the one-issue model (DESIGN
+// §16.1) and keeps the person's own title forever, so a prefix test drops exactly
+// that class — and job 2 is the ONLY site that releases a blocked item, so an
+// ad-hoc item born blocked on a `Not-before:` sat sleeping past its instant with
+// nothing left to wake it (#1267, #1349, #1351, #1396). The executor and the
+// janitor already read the queue through this predicate; this list was the one that
+// did not.
 export async function listWorkItems(gh, repo, { since = null } = {}) {
   const out = [];
   for (let page = 1; ; page += 1) {
@@ -480,7 +495,7 @@ export async function listWorkItems(gh, repo, { since = null } = {}) {
     if (json.length === 0) break;
     for (const i of json) {
       if (i.pull_request) continue;
-      if (!(i.title ?? '').startsWith(WORK_PREFIX)) continue;
+      if (!isQueueItem(i)) continue;
       out.push({
         number: i.number, title: i.title, body: i.body ?? '', state: i.state,
         labels: labelNames(i), created_at: i.created_at, closed_at: i.closed_at,
