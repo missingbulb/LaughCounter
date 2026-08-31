@@ -101,13 +101,24 @@ only for an author with push access on the repository.
   change looks — you have your answer (the review case omits the field). When
   they said neither, **ask, before filing**: one `AskUserQuestion`, proposing as
   the recommended option the narrowest policy that plausibly covers the deferred
-  change (a comment sweep suggests `comment-only-changes`, a docs edit
-  `doc-changes`, a one-module fix `single-folder-code-changes;test-changes`, work
-  confined to one tree `under:<that dir>` or to its documents
-  `under:<that dir> && doc-changes`),
-  with "leave it for my review" as the alternative. A declined or unanswered
-  question files with no `Automerge:` field — review is the safe default only
-  after the owner had the chance to choose.
+  change, with "leave it for my review" as the alternative. A declined or
+  unanswered question files with no `Automerge:` field — review is the safe
+  default only after the owner had the chance to choose.
+
+  **Start that proposal from the folder.** You are deferring a *specific*
+  change, so you almost always know the tree it lands in — and a folder bound
+  holds where a kind bound does not: `doc-changes` authorizes Markdown anywhere
+  in the repo, the root `README.md` and `CLAUDE.md` included, where
+  `under:docs` authorizes one tree. So propose `under:<that dir>`, intersected
+  with the kind wherever the kind is known too — `under:docs && doc-changes`
+  for a documentation edit, `under:<that dir> && comment-only-changes` for a
+  comment pass in one place. Leave the scope bare where the change legitimately
+  carries more than one kind: `under:src/auth` covers the fix *and* the test
+  beside it, where intersecting a code class would park the moment the test
+  file joined the diff. Reach for a bare kind class only where no single tree
+  bounds the change, as a repo-wide comment sweep is `comment-only-changes`. And a
+  change spanning several unrelated trees has no scope at all: propose review,
+  never a policy widened until it fits.
 - **`Task: <pack>/<task>`** — only when the deferral is a run of a *named task*
   rather than "implement this issue". Left out, the run is the built-in request
   implementer, which is what a `/do-later` almost always wants.

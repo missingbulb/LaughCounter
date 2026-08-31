@@ -22,19 +22,14 @@
 // reader is gated on no member still stamping a bag — a converge-confirmable
 // condition, never a date.
 
+import { parseBag } from './env-bag.mjs';
+
 export const SECRETS_BAG_ENV = 'CLAUDINITE_SECRETS';
 
 // The parsed bag, or null when this job carries none. A malformed bag is null too:
 // the caller's own "declared but not configured" posture then names the secret, which
 // is a better answer than a crash inside a JSON parse.
-export function secretsBag(env = process.env) {
-  const raw = env[SECRETS_BAG_ENV];
-  if (typeof raw !== 'string' || !raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
-  } catch { return null; }
-}
+export const secretsBag = (env = process.env) => parseBag(env[SECRETS_BAG_ENV]);
 
 // One secret's value, or undefined.
 //

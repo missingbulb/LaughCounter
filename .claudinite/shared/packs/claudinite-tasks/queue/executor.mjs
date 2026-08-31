@@ -610,10 +610,11 @@ async function close(api, gh, repo, item, from, outcome, stateReason, body, stat
   await api.comment(gh, repo, item.number, body + recordFor(item, status));
   await clearStatus(api, gh, repo, item, from);
   await api.addLabel(gh, repo, item.number, outcome);
-  // A MARKED ISSUE IS NOT THE RUN'S TO CLOSE (§16.1, §16.5). The item's terminal
-  // status stands on the still-open issue: the run's verdict is about the run, and
-  // whether the issue is finished belongs to the person who opened it.
-  if (!isWorkItemTitle(item.title)) return;
+  // A REJECTED TERMINAL IS NOT THE RUN'S TO CLOSE A MARKED ISSUE ON (§16.5): the
+  // run's verdict is about the run, not the issue's validity, so the status stands
+  // on the still-open issue and clearing it is the asker's lever. `done` is the
+  // other half and closes either shape (#1489) — nothing is left to act on.
+  if (outcome !== TASK_DONE && !isWorkItemTitle(item.title)) return;
   await api.closeIssue(gh, repo, item.number, stateReason);
 }
 

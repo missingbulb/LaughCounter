@@ -163,12 +163,12 @@ export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log 
     await comment(gh, repo, item.number, endedParkComment(endsWhen, resolution));
     await clearStatus({ removeLabel }, gh, repo, item, statusOf(item));
     await addLabel(gh, repo, item.number, resolution === 'merged' ? TASK_DONE : TASK_OBSOLETE);
-    // A MARKED ISSUE IS NOT THE MACHINERY'S TO CLOSE (DESIGN §16.5) — the terminal
-    // status stands on the open issue, and whether the person's own issue is
-    // finished is theirs. Only a filed `[claudinite-work]` item closes here.
-    if (isWorkItemTitle(item.title ?? '')) {
-      await closeIssue(gh, repo, item.number, resolution === 'merged' ? 'completed' : 'not_planned');
-    }
+    // THE RESOLUTION DECIDES, NOT THE SHAPE (#1489). A merged target is a `done`
+    // terminal, and a done terminal closes the issue it stands on, marked or filed.
+    // Unmerged, nothing landed: the rejected terminal stands on a marked issue and
+    // leaves it open, because the run's verdict is not the issue's validity.
+    if (resolution === 'merged') await closeIssue(gh, repo, item.number, 'completed');
+    else if (isWorkItemTitle(item.title ?? '')) await closeIssue(gh, repo, item.number, 'not_planned');
     // A LEGACY SHADOW ITEM told its request issue it was in review; nothing else
     // would ever take that back, and the review is over.
     const { request } = parseWorkItemBody(item.body);

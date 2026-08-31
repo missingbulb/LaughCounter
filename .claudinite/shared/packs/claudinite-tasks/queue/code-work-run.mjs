@@ -20,6 +20,7 @@
 
 import { runCodeWork, codeWorkFailure, agentRequestPath, clearAgentRequest, agentRequested, readAgentRequest, readTriageMarker } from '../code-work.mjs';
 import { SECRETS_BAG_ENV, secretsBag, secretValue, secretsFor } from './secrets-bag.mjs';
+import { VARS_BAG_ENV, varsEnv } from './vars-bag.mjs';
 
 // The declared secrets this environment does not carry. Absent is missing; a
 // set-but-empty one is the repo's own choice and is passed through. Read through
@@ -27,18 +28,24 @@ import { SECRETS_BAG_ENV, secretsBag, secretValue, secretsFor } from './secrets-
 export const missingSecrets = (names = [], env = process.env) =>
   names.filter((n) => secretValue(n, env) === undefined);
 
-// The environment a task's work step runs under: this job's, minus every secret,
-// plus the ones this task declared. Selecting rather than inheriting is the point —
-// the bag carries the whole repository's secrets, and a task's blast radius should
-// be the list it wrote down (#1336). Under a workflow that names its secrets there is no
-// bag to subtract, so the stamped names stay inherited until that member's own
-// executor workflow lands; the fallback in secrets-bag.mjs states the retirement
-// condition.
+// The environment a task's work step runs under: this job's, minus every secret, plus
+// the ones this task declared, plus every repository variable.
+//
+// The two bags are treated differently on purpose. Secrets are SELECTED — the bag
+// carries the whole repository's, and a task's blast radius should be the list it wrote
+// down (#1336). Variables are not: `vars` is non-sensitive by construction, so there is
+// no blast radius to narrow and a declaration would buy nothing but a second place to
+// keep in sync. vars-bag.mjs states why they are additive rather than overriding.
+//
+// Under a workflow that names its secrets there is no bag to subtract, so the stamped
+// names stay inherited until that member's own executor workflow lands; the fallback in
+// secrets-bag.mjs states the retirement condition. Neither raw blob is ever handed on.
 export function taskEnv(names = [], env = process.env) {
   const out = { ...env };
   delete out[SECRETS_BAG_ENV];
+  delete out[VARS_BAG_ENV];
   for (const name of Object.keys(secretsBag(env) ?? {})) delete out[name];
-  return { ...out, ...secretsFor(names, env) };
+  return { ...out, ...varsEnv(env), ...secretsFor(names, env) };
 }
 
 // The CLAUDINITE_* variables code-work is handed, and the whole of them: a worker
