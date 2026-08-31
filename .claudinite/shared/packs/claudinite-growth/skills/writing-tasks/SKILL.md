@@ -85,15 +85,22 @@ than by replaying a ledger.
   Choose the **narrowest policy that covers the task's whole write surface** — the
   policy is the contract's statement of why landing unattended is safe, and the
   policy engine plus the `automerge-policy-scope` check hold every run to it.
-  **Compose the built-in classes first** — they are meant to cover most tasks with
-  no configuration. Where the boundary is a *folder*, name it inline as
-  `under:<dir>`: it covers any change of any kind inside that directory and
-  nothing outside it, so a run that strays parks. **A list is a union — adding a
-  term widens.** To narrow, intersect within one term with `&&`
-  (`under:product-wiki && doc-changes` is "docs, and only under that folder").
-  A pack declares its own class
-  (a `merge-rules.json` beside its `pack.mjs`) only when a task knows a finer
-  boundary than a class or a folder can state. An agentic
+  **Start from the folder.** A task's write surface is almost always a *place* —
+  the tree its worker is told to write in, which you know exactly while writing
+  this declaration — and a folder bound holds where a kind bound does not:
+  `doc-changes` authorizes Markdown anywhere in the repo, the root `README.md`
+  included, where `under:<dir>` authorizes one tree and a run that strays parks.
+  So name the tree inline first, then narrow it by kind where the task writes
+  only one — **a list is a union, so adding a term widens; `&&` inside a term
+  narrows**, every part having to match (`under:product-wiki && doc-changes` is
+  "docs, and only under that folder"). Leave the scope bare where the task
+  legitimately writes more than one kind: a bare `under:<dir>` covers the code
+  and the test beside it, where intersecting a code class would park the run the
+  moment its own test file joined the diff. Reach for a bare kind class only
+  where the task genuinely writes repo-wide, as a comment sweep does. A pack
+  declares its own class (a `merge-rules.json` beside its `pack.mjs`) only when a
+  task knows a finer boundary than a class or a folder can state — a file-name
+  matcher, or a grant like the mount rewrite's. An agentic
   task (`agent_model !==
   none`) also carries `agent_instructions`, the worker file the agent reads; a
   `none` task runs no agent, so the field is not applicable and is omitted. The

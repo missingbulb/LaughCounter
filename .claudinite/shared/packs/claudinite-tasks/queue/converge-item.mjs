@@ -9,21 +9,38 @@
 // formality; both of the first two live agentic runs got part of it wrong,
 // silently, in different ways.
 //
-// The split is the same one the executor already draws: THE SESSION SUPPLIES THE
-// JUDGMENT — which outcome, and the prose of what happened — and the CODE
-// performs the transition. A session that stops early now leaves an item that is
-// visibly unconverged, rather than one that looks finished and is not.
+// THIS FILE RUNS IN ONE PLACE: INSIDE A WORK-ITEM SESSION. `queue/instructions.md`
+// step 6 is its only caller — no workflow invokes it, no module imports it. The
+// Actions side converges through `executor.mjs`, which owns that path entirely.
 //
-// Usage:
+// SO EVERY LINE HERE ASSUMES MCP, AND NOTHING HERE MAY REACH THE NETWORK. A session
+// holds its GitHub access through its own tools; a subprocess it spawns has no route
+// to them and none to the REST API. This file therefore PLANS a transition and
+// PRINTS it addressed to those tools — it never performs one. Printing the calls is
+// the successful outcome, on stdout, exit 0. That is not a fallback: it is the only
+// path, and it must never read as a failure. A REST executor lived here once and did
+// (#1491) — a session met its `console.error` before it met the path written for it,
+// reported that it could not converge, and left the item to the janitor's 3h leash,
+// which parks a finished run as a human decision. Five sampled items across five
+// repos were exactly that.
+//
+// The split is the same one the executor already draws: THE SESSION SUPPLIES THE
+// JUDGMENT — which outcome, and the prose of what happened — and the CODE decides
+// every step of the transition. A session that stops early now leaves an item that
+// is visibly unconverged, rather than one that looks finished and is not.
+//
+// Usage — the item is handed in, because this process cannot read it:
 //   node converge-item.mjs --issue <n> --outcome <done|approval|action|decision|failure>
 //                          --summary <text> [--pr <n>]
+//                          --repo <owner/name> --item-file <path to the issue as JSON>
 
+import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { renderTaskExec } from '../run-record.mjs';
 import {
-  AGENT, TASK_DONE, STATUS_RUNNING_AGENT, isStatus, isWorkItemTitle, machineBlockOf,
+  AGENT, TASK_DONE, STATUS_RUNNING_AGENT, isStatus, machineBlockOf,
   NEEDS_HUMAN_ACTION, NEEDS_HUMAN_APPROVAL, NEEDS_HUMAN_DECISION, NEEDS_HUMAN_FAILURE,
-  QUEUED_LABEL, IN_REVIEW_LABEL,
+  QUEUED_LABEL, IN_REVIEW_LABEL, ORIGIN_LABELS, hasLabel,
   parseWorkItemTitle, parseWorkItemBody, spellingsOf, labelNames,
   editItemBody, withEndsWhen,
 } from './work-item.mjs';
@@ -55,7 +72,10 @@ export function parseArgs(argv) {
   if (args.outcome === 'approval' && !args.pr) {
     return { error: '--pr must name the pull request an approval park is waiting on — a park nobody can act on is not a park' };
   }
-  return { issue, outcome: args.outcome, summary: args.summary, pr: args.pr ? Number(args.pr) : null };
+  return {
+    issue, outcome: args.outcome, summary: args.summary, pr: args.pr ? Number(args.pr) : null,
+    repo: args.repo || null, itemFile: args['item-file'] || null,
+  };
 }
 
 // Why an item may NOT be converged by this call. Refusing loudly beats writing a
@@ -66,7 +86,15 @@ export function refusal(item, issue) {
   // A marked issue IS its own item (DESIGN §16.1), so the title test cannot be the
   // membership test any more: what says this is one is the machine block adoption
   // wrote — never the body's first line, which on a marked issue is a person's prose.
-  if (!parseWorkItemTitle(item.title ?? '') && machineBlockOf(item.body ?? '') === null) {
+  //
+  // THREE SIGNALS, ANY ONE SUFFICIENT. A membership test gated on the single artifact
+  // it exists to validate refuses exactly the items that artifact is missing from: an
+  // issue adopted before the block delimiters existed carries its fields bare, and was
+  // refused here into a by-hand convergence that dropped half the transition
+  // (missingbulb/Shepherd#360). The origin label is the independent one — carried for
+  // life, and platform-write-gated like the block was.
+  const marked = ORIGIN_LABELS.some((name) => hasLabel(item, name));
+  if (!parseWorkItemTitle(item.title ?? '') && machineBlockOf(item.body ?? '') === null && !marked) {
     return `#${issue} is not a Claudinite work item`;
   }
   if (item.state !== 'open') return `#${issue} is already closed — it was converged once already`;
@@ -133,10 +161,12 @@ export function convergeOps(item, plan) {
   }
 
   if (spec.closes) {
-    // A MARKED ISSUE IS NOT THE SESSION'S TO CLOSE (§16.1, §16.5): the terminal
-    // status stands on the open issue, and whether the issue itself is finished
-    // belongs to the person who opened it.
-    if (isWorkItemTitle(item.title ?? '')) ops.push({ kind: 'close', issue: item.number, stateReason: spec.stateReason });
+    // A DONE TERMINAL CLOSES THE ISSUE IT STANDS ON, marked or filed (#1489,
+    // reversing §16.1/§16.5's "never a marked issue"). `done` is the one outcome
+    // that means nothing is left for anyone to act on, so an issue left open under
+    // it asks its author to come and agree with what the run already settled. Every
+    // other outcome parks, and a park leaves the issue open to be waited on.
+    ops.push({ kind: 'close', issue: item.number, stateReason: spec.stateReason });
     return ops;
   }
 
@@ -153,25 +183,6 @@ export function convergeOps(item, plan) {
     ops.push({ kind: 'addLabel', issue: request, name: IN_REVIEW_LABEL });
   }
   return ops;
-}
-
-// THE REST EXECUTOR — what an Actions run does, unchanged in behaviour.
-export async function convergeItem(api, gh, repo, plan, { log = console.log } = {}) {
-  const item = await api.readIssue(gh, repo, plan.issue);
-  const no = refusal(item, plan.issue);
-  if (no) return { ok: false, error: no };
-
-  let closed = false;
-  for (const op of convergeOps(item, plan)) {
-    if (op.kind === 'comment') await api.comment(gh, repo, op.issue, op.body);
-    else if (op.kind === 'record') log(op.line);
-    else if (op.kind === 'removeLabel') await api.removeLabel(gh, repo, op.issue, op.name);
-    else if (op.kind === 'addLabel') await api.addLabel(gh, repo, op.issue, op.name);
-    else if (op.kind === 'setBody') await api.setIssueBody(gh, repo, op.issue, op.body);
-    else if (op.kind === 'close') { await api.closeIssue(gh, repo, op.issue, op.stateReason); closed = true; }
-  }
-  const { request } = parseWorkItemBody(item.body ?? '');
-  return { ok: true, closed, request: request ?? null };
 }
 
 // THE SESSION EXECUTOR'S SCRIPT. Same ops, addressed to the GitHub tools a session
@@ -233,59 +244,47 @@ export function sessionScript(item, plan, repo) {
   return lines.join('\n');
 }
 
-// CAN THIS PROCESS ACTUALLY REACH THE REPO? Read the status, never the body: a
-// token that is absent, expired, or simply not a REST credential all answer with a
-// plausible JSON object and a 401/403, and a body-only test reads that as a repo.
-// One request, before any write, because the alternative is discovering it halfway
-// through a sequence that was meant to be atomic.
-export async function canReachRepo(gh, repo) {
-  const { status } = await gh(`/repos/${repo}`);
-  return status === 200;
-}
-
 async function main() {
   const plan = parseArgs(process.argv.slice(2));
   if (plan.error) {
     console.error(`converge-item: ${plan.error}`);
     process.exit(2);
   }
-  const { makeGh, actionRepoContext } = await import('../signals/gh.mjs');
-  const api = await import('../github.mjs');
-  const { repo } = actionRepoContext();
-  const gh = repo ? makeGh() : null;
 
-  if (repo && await canReachRepo(gh, repo)) {
-    const res = await convergeItem(api, gh, repo, plan);
-    if (!res.ok) { console.error(`converge-item: ${res.error}`); process.exit(1); }
-    console.log(res.closed
-      ? `converged #${plan.issue}: closed ${OUTCOMES[plan.outcome].label}`
-      : `converged #${plan.issue}: parked ${OUTCOMES[plan.outcome].label}, left open for a person`);
-    return;
-  }
-
-  // NO REST ROUTE — the normal case for a session, not a breakage. The session has
-  // GitHub access of its own; what it lacks is a way to reach it from a
-  // subprocess. So the same plan is emitted addressed to the tools it does have,
-  // and the session performs its own convergence. Nothing is deferred and nobody
-  // else is involved: one run finishes one item.
-  const sessionRepo = repo ?? process.env.CLAUDINITE_ITEM_REPO ?? null;
-  if (!sessionRepo) {
-    console.error('converge-item: no repository — pass GITHUB_REPOSITORY or CLAUDINITE_ITEM_REPO');
+  // The repo this item lives in. `--repo` is what instructions.md passes; the two
+  // environment names answer for a session whose harness sets one of them.
+  const repo = plan.repo ?? process.env.CLAUDINITE_ITEM_REPO ?? process.env.GITHUB_REPOSITORY ?? null;
+  if (!repo) {
+    console.error('converge-item: --repo <owner/name> names the repository this item lives in');
     process.exit(2);
   }
-  const item = JSON.parse(process.env.CLAUDINITE_ITEM_JSON ?? 'null');
+
+  // THE ITEM IS HANDED IN. This process cannot read it — that is the whole premise
+  // of the file — so the session reads it with its own tools and passes it through.
+  // A file rather than an argument: an item's body is prose of arbitrary length, and
+  // a shell-quoted one is a quoting bug waiting for the first apostrophe.
+  // `CLAUDINITE_ITEM_JSON` stays readable for a member whose instructions.md is a
+  // cycle behind, since a mount updates on its own schedule.
+  const raw = plan.itemFile
+    ? await readFile(plan.itemFile, 'utf8')
+    : (process.env.CLAUDINITE_ITEM_JSON ?? '');
+  let item = null;
+  try { item = JSON.parse(raw || 'null'); } catch { item = null; }
   if (!item) {
-    console.error('converge-item: this process cannot reach the REST API, so it cannot read the item either.\n'
-      + 'Re-run with CLAUDINITE_ITEM_JSON set to the issue as your GitHub tools returned it'
-      + ' (number, title, body, state, labels), and it will print the exact calls to make.');
+    console.error('converge-item: --item-file must hold the issue as your GitHub tools returned it'
+      + ' (number, title, body, state, labels).\n'
+      + `Read it first: \`issue_read\` method \`get\` on ${repo} #${plan.issue}, save the JSON, pass the path.`);
     process.exit(2);
   }
+
   const no = refusal(item, plan.issue);
   if (no) { console.error(`converge-item: ${no}`); process.exit(1); }
 
-  console.log(`converge-item: no REST route from this session, so the transition is yours to execute.\n`
-    + `Make these calls with your GitHub tools, in this order, changing nothing. Then stop.\n`);
-  console.log(sessionScript(item, plan, sessionRepo));
+  // The successful outcome. Everything below is the transition, decided here and
+  // performed by the session — so it goes to stdout and the process exits clean.
+  console.log('converge-item: the transition below is yours to execute.\n'
+    + 'Make these calls with your GitHub tools, in this order, changing nothing. Then stop.\n');
+  console.log(sessionScript(item, plan, repo));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

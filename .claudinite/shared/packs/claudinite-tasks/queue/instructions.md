@@ -83,15 +83,24 @@ instructions.
    `packs/claudinite-tasks/queue/` in the canon, the same path under
    `.claudinite/shared/` in a member's mount — and `<engine>` is
    `<here>/../../../engine`. Derive both from where you found this file rather
-   than from any root you were told. One command
-   performs every side effect the transition needs: the comment, the label swap,
-   the outcome label, the `claudinite-task-exec` record on the item, the close
-   with the right state reason, and the request write-back.
+   than from any root you were told.
+
+   **The command decides the transition; you perform it.** It does not touch
+   GitHub, and it is not trying to: your GitHub access is yours, and a subprocess
+   you spawn cannot reach it. So it plans every side effect the transition needs
+   — the comment, the label swap, the outcome label, the `claudinite-task-exec`
+   record, the close with the right state reason, the request write-back — and
+   prints them as the exact calls to make. That printout **is** the successful
+   run.
+
+   Two calls, in this order. First read the item with your own GitHub tools and
+   save it as JSON — `issue_read`, method `get` — then:
 
    ```bash
    node <here>/converge-item.mjs --issue <n> \
      --outcome done|approval|action|decision|failure \
-     --summary '<what happened>' [--pr <n>]
+     --summary '<what happened>' [--pr <n>] \
+     --repo <owner/name> --item-file <path to that JSON>
    ```
 
    **You supply the judgment — which outcome, and the prose.** Everything below
@@ -99,26 +108,11 @@ instructions.
    read what it says: it means this item is not yours to converge, and doing it
    by hand anyway is how an item ends up closed wearing a live status.
 
-   **If it says it has no REST route from this session**, that is the ordinary
-   case — a session's GitHub access belongs to the session, and a subprocess
-   cannot reach it. Nothing is broken and nothing is deferred: you finish this
-   item yourself, with the command still deciding every step. Give it the issue
-   you already read and it prints the exact calls:
-
-   ```bash
-   CLAUDINITE_ITEM_REPO=<owner/repo> CLAUDINITE_ITEM_JSON='<the issue as your GitHub
-     tools returned it: number, title, body, state, labels>' \
-   node <here>/converge-item.mjs --issue <n> \
-     --outcome done|approval|action|decision|failure \
-     --summary '<what happened>' [--pr <n>]
-   ```
-
-   Then **make those calls with your GitHub tools, in the order given, changing
-   nothing** — the bodies verbatim, the label sets exactly as written. They are
-   computed, not suggested: the label sets already carry every label the issue
-   should still have, so writing your own is how one gets dropped. One step asks
-   you to output a line in your reply; do that too, it is the run's only census
-   record.
+   Then **make the calls it printed, in the order given, changing nothing** — the
+   bodies verbatim, the label sets exactly as written. They are computed, not
+   suggested: each label set already carries every label the issue should still
+   have, so writing your own is how one gets dropped. One step asks you to output
+   a line in your reply; do that too, it is the run's only census record.
 
    | label | when |
    |---|---|

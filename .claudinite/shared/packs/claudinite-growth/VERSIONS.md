@@ -7,6 +7,7 @@ forward adds its own row.
 
 | Version | Date | What changed |
 |---|---|---|
+| 60830.8 | 2026-08-30 | `writing-tasks` chooses a task's `automerge` from the folder first — the write surface is a place the author knows while declaring it, where a kind class is repo-wide — intersecting by kind only where the task writes one, leaving the scope bare where it writes several, and reaching for a bare kind class only where the task genuinely writes repo-wide (#1486). |
 | 60830.7 | 2026-08-30 | The growth policies say the folder they are bounded to: `growth-dedup` authorizes Markdown trims only inside the local packs it prunes, where `markdown-trims` alone authorized a trim to any Markdown in the repo, and `prose-to-checks-sweep` says its prose side inline (`under:<local packs> && markdown-line-removals`), retiring the `claudinite-local-pack-md-deletions` rule that meant exactly that. Both build the scope from the engine's own local-pack root constants rather than a third copy of the paths (#1479). |
 | 60830.6 | 2026-08-30 | `writing-tasks` names the inline folder scope `under:<dir>` and the `&&` intersection as how a task states a folder boundary, and spells out that a policy list is a union (#1473). |
 | 60830.5 | 2026-08-30 | `writing-tasks` names a park's end condition beside the park it describes: `--pr` is what lets an item close by itself when its pull request resolves, `done` if it merged and `rejected` if it did not (#1468). |
