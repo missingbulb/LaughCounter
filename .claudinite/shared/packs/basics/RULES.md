@@ -75,6 +75,14 @@ change, independent of any one project.
   already the mechanism), and the issue that states what puts the change in production and what
   proves it works there.
 
+- **Finishing a larger element** — one that earned a design doc or a phased tracking issue — a
+  point verification is not enough: schedule the review that comes back once the element has
+  lived in production about a week, asking whether it is working, misused, overused or underused
+  against its real record — with the brief written at design time, expected amounts, signals and
+  the metrics that measure them included, never improvised when the review runs.
+  [production-retrospective](skills/production-retrospective/SKILL.md) owns the trigger, the
+  brief, and the lane's other classes — canon, local-pack and fleet alike.
+
 - **Receiving feedback that flags a misunderstanding** — check whether the artifact is already
   correct before expanding it; if it is, say so and push back rather than edit.
 

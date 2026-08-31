@@ -112,6 +112,13 @@ blocked item is released when its blocker closes, which is exactly "the step bef
 Filing the chain up front is what makes it a mechanism rather than a habit — a chain that depends
 on each run remembering to file its successor breaks silently the first time a run parks.
 
+The chain's **last link is the plan's retrospective**, filed in the same pass with its brief
+written now, while the design's expectations are still in front of you, `Blocked-by:` the final
+execution step — so once the migration has lived in production for a while, something comes back
+to read whether the design survived contact.
+[production-retrospective](../production-retrospective/SKILL.md) owns what that brief answers and
+its horizon.
+
 Each link is a **sub-issue of the tracking issue** ([RULES.md](../../RULES.md)' *Filing an issue
 that belongs under another*), so the plan and its chain are one hierarchy read two ways rather
 than two lists that can disagree. Where a link is a PR's merge rather than a run, that PR's body

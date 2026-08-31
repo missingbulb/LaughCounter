@@ -133,13 +133,23 @@ export async function applyMaterializations(migration, { readTemplate, read, wri
 // The pattern must be global, because every replacement here means replace-ALL:
 // a non-global regex would silently rewrite only the first occurrence and leave a
 // half-migrated file that reads as migrated.
-export async function applyRewrites(migration, { read, write }) {
+export async function applyRewrites(migration, { read, write, env = process.env }) {
   if (!migration.rewrite?.length) return [];
   if (migration.appliesTo && !(await migration.appliesTo(read))) return [];
   const done = [];
   for (const { file, replace } of migration.rewrite) {
     const text = await read(file);
     if (text == null) continue;
+    // The same gate `applyMaterializations` applies above, for the same reason and on
+    // the same surface: a rewrite naming a path under `.github/workflows/` is a workflow
+    // delivery too. It went unguarded until #1509 because no record rewrote one — and an
+    // unguarded rewrite is worse than an unguarded materialization, because the caller's
+    // `write` drops the path silently while `done` still names the file, so a run that
+    // delivered nothing reported that it had.
+    if (file.startsWith(WORKFLOW_DEST) && !callerCanDeliverWorkflows(env)) {
+      done.push(`SKIPPED ${file} (workflow file; this caller cannot deliver one)`);
+      continue;
+    }
     let next = text;
     for (const r of replace ?? []) {
       if (r.pattern !== undefined) {
