@@ -141,7 +141,12 @@ it belongs to the fleet-enforcer repo, the only place that knows who the members
 Each stage's **method** lives in a skill, so the task doc frames the unattended run and the same
 method is available to an owner asking in-session. Extract's three are listed above;
 [**growth-dedup**](skills/growth-dedup/SKILL.md) is the dedup stage's — what to prune, strip, or
-rephrase, the keep-test, and the shrink-only discipline. The pack also bundles
+rephrase, the keep-test, and the shrink-only discipline.
+[**writing-pack-prose**](skills/writing-pack-prose/SKILL.md) owns how pack prose is *written* —
+the rule format, findability, and the per-pack `references.md` that carries each rule's
+reaffirmable rationale behind an end-of-line `(n)` marker (checks join via `check:<id>` entries);
+`references-integrity` below is its machine half, and `rule-revalidation` its consumer. The pack
+also bundles
 [unattended-agents](skills/unattended-agents/SKILL.md) and
 [**writing-tasks**](skills/writing-tasks/SKILL.md) — the contract a `tasks/<name>/task.mjs` and
 its worker are written to: the declaration's fields, the code-work and agentic phases, the
@@ -241,6 +246,7 @@ made the change, and is one sweep away from being closed as stale.
 | `dedup-prune-integrity` | high | correctness | check: blocking |
 | `growth-write-scope` | high | correctness | check: blocking |
 | `in-session-github-access` | high | correctness | check: blocking |
+| `references-integrity` | high | correctness | check: blocking |
 | `routine-structure` | medium | complexity | check: blocking |
 | `task-declaration-matches-folder` | high | correctness | check: blocking |
 | `task-md-only-when-agentic` | high | correctness | check: blocking |

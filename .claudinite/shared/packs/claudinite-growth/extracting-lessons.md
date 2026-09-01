@@ -79,13 +79,11 @@ exists or still reads a particular way (it pins a point in time and reds the nex
 derivable from the product's own requirements (that is a requirement — it belongs in the tests).
 
 Write **more checks and less prose**: a check relieves every session's context completely, where prose only
-relocates it. **Prose is rationed, and the ration is small.** Every rule in a `RULES.md` is paid for by every
-session in every repo that declares the pack, forever, whether or not it ever applies — so a pass adds *at
-most two*, each one sentence: the trigger, the directive, and a consequence clause only where the rule can't
-be applied without it. A candidate that needs a paragraph to land has not been understood well enough to be
-a rule yet; the evidence behind it belongs in the PR body and the issue, never in the rule.
-If more than two candidates clear every bar above, write the two strongest and drop the rest — they will
-recur if they were real.
+relocates it. **Prose is rationed, and the ration is small** — a pass adds at most two rules, each one
+sentence. How a rule is phrased and sized, and where its rationale goes — the brief rule in `RULES.md`, the
+reaffirmable reason in the pack's `references.md` — is the
+[writing-pack-prose](skills/writing-pack-prose/SKILL.md) skill's; load it before writing any. The full
+evidence trail stays in the PR body and the issue.
 
 When no pack's scope fits, the lesson lands in the repo's general local pack. A **new** local
 pack is justified only by the repo's own **project structure** — a segment of the repo's tree whose work is

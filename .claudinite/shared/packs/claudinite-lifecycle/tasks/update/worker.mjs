@@ -196,8 +196,15 @@ export async function main() {
       return;
     }
 
+    // AN APPLY STAGE IS NOT "NOTHING CHANGED" (#1545). A run that withheld a workflow
+    // file leaves the pack unstamped, precisely so the record stays in range — so on a
+    // cycle that re-stages content the branch already carries, the tree can be clean
+    // while a delivery is still owed. Returning here would skip the PR, and the
+    // apply-stage request is written below it, so nobody would ever be asked to deliver:
+    // the silent loss this whole fix exists to end, one step further along. The empty
+    // commit is the point — the apply stage's own move is what fills the PR.
     const changed = git(['-C', root, 'status', '--porcelain']).trim();
-    if (!changed && terminal.action !== 'needs-human') {
+    if (!changed && terminal.action !== 'needs-human' && terminal.action !== 'apply-stage') {
       console.log('update: nothing changed — no branch, no PR');
       return;
     }

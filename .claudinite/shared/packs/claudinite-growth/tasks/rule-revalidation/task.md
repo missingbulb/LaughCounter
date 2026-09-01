@@ -20,6 +20,16 @@ Also fair game: any rule naming a version floor, a runtime's behaviour, or an ex
 
 **Not** in scope, and left alone without a probe: judgment and taste rules; rules about how *this* repo is organized (a check already guards those, and a stale one fails loudly); product requirements; anything whose truth a reviewer could settle by reading the tree.
 
+## The referenced rules — reaffirm against the recorded reason
+
+A pack's `references.md` (the writing-pack-prose convention: a rule ending `(n)` cites entry *n*; a `- **(check:<id>)**` entry covers a check) widens what this task can judge, because the entry records **what would retire the rule** — the one thing a probe of the environment alone cannot know. For each marked rule and each covered check in the scoped packs:
+
+- A **workaround** entry re-probes the recorded issue where the probe rules below allow: if the problem it routed around no longer reproduces, the rule (or check) is a retirement candidate — proposed in the PR for the owner, never deleted on this run's own verdict, since the entry's evidence may exceed what one probe can re-create.
+- A **technology guideline** entry is re-checked against the documentation it cites: a moved or contradicting source is corrected like any stale claim; an unreachable one is `unprobed`.
+- An **owner decision** entry is not probeable — verify only that the decision hasn't been superseded in this repo's own record, and otherwise report it `doc-verified`.
+
+A rule with no marker is judged exactly as before — the mechanism is opt-in per rule, and an unmarked rule is never flagged for lacking one. Correct a stale *entry* in the same PR as its rule, and keep the entry's number (numbers are stable identifiers; `references-integrity` holds the marker↔entry resolution, not this task).
+
 ## The probe
 
 A claim is revalidated by **executing the smallest thing that would distinguish true from false**, and reporting what actually happened — never by recalling what you know, and never by reasoning from the rule's own wording.

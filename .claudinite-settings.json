@@ -2,7 +2,7 @@
   "packs": [
     {
       "id": "basics",
-      "version": "60901.2"
+      "version": "60901.3"
     },
     {
       "id": "barriers",
@@ -13,7 +13,7 @@
     },
     {
       "id": "claudinite-growth",
-      "version": "60831.1"
+      "version": "60901.1"
     },
     {
       "id": "tidy-repo",
@@ -35,7 +35,7 @@
     },
     {
       "id": "claudinite-lifecycle",
-      "version": "60831.3"
+      "version": "60901.1"
     },
     {
       "id": "claudinite-tasks",
