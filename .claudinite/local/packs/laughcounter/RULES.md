@@ -65,3 +65,11 @@ The `<engine>/scheduler/` prefix those snippets use is itself stale — the
 vendored engine carries no `scheduler/` directory — so call it by its real
 path directly: `node -e "import('./.claudinite/shared/packs/claudinite-tasks/verify-outcome.mjs')
   .then(m => console.log(JSON.stringify(m.verifyOutcome({outcome, openedPr, mergedPr}))))"`. (#185)
+
+**A command block handed to the owner to paste straight into an interactive terminal
+must carry no trailing `# comment`.** Interactive zsh — the owner's default shell —
+only treats `#` as a comment start under `setopt interactive_comments`, which is off
+by default, unlike a script file; `pmset displaysleepnow      # screen goes dark, wake
+it whenever you like` (from the display-sleep repro this repo's own audio diagnostics
+use) ran `wake it whenever you like` as a second command and errored `command not
+found: wake`. Put the explanation in prose around the block instead of inline. (#76)
