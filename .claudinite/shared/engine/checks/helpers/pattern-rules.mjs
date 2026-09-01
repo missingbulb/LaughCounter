@@ -41,9 +41,16 @@ import { normalizeEdges, barrierFindings, staleFindings } from './reference-scan
 // pattern rule the runner reaches pays for the whole family and the rest are
 // lookups. Regexes must be non-global (`.test` on a /g regex is stateful).
 //
-// Every key at every level is validated against the vocabulary at load — an
-// unknown key is an authoring error (a typo'd key would otherwise assert
-// nothing, silently), reported with the container's valid keys.
+// A key the vocabulary cannot place is DROPPED at load, not thrown on: it is a
+// typo (asserting nothing, silently) or a key a newer engine knows, and the load
+// cannot tell them apart. Refusing it would wedge the second case — a member's
+// pack lane and engine lane converge on separate cycles, so a declaration can
+// legitimately reach an engine older than its vocabulary, and the converge that
+// would deliver the newer engine is itself gated on the load (#1400). The typo is
+// caught instead by the `declared-check-spec-keys` world rule, advisory where the
+// skew is possible and blocking in the canon, where engine and declarations ship
+// from one commit. A key the engine DOES place keeps its loud failure on a broken
+// value (an uncompilable regex, a malformed date): that is not skew, it is broken.
 //
 // The spec vocabulary — everything beyond the rule metadata is optional:
 //   fix                rule-level default: any assertion declaring `what` but
@@ -344,10 +351,11 @@ const excludedByOne = (path, exclude) =>
 const excluded = (path, exclude) =>
   Array.isArray(exclude) ? exclude.some((e) => excludedByOne(path, e)) : excludedByOne(path, exclude);
 
-// --- spec-key validation ------------------------------------------------------
+// --- the spec vocabulary --------------------------------------------------------
 // Every container key's allowed children. A key absent from this table is a
-// leaf (its value is never descended into); an unknown key inside a listed
-// container throws at load, so a typo cannot silently assert nothing.
+// leaf (its value is never descended into); a key inside a listed container that
+// the container does not allow is dropped from the compiled spec and reported by
+// the `declared-check-spec-keys` world rule (see the header).
 const MSG = ['what', 'fix'];
 const SPEC_KEYS = {
   spec: ['id', 'severity', 'since', 'failureMessage', 'fix', 'scope', 'scanFiles', 'scanTracked', 'excludeFiles',
@@ -436,18 +444,31 @@ const SPEC_KEYS = {
   newestDatedBulletWithinDays: ['days', ...MSG],
 };
 
-function validateSpecKeys(value, containerKey, where) {
-  if (Array.isArray(value)) { for (const v of value) validateSpecKeys(v, containerKey, where); return; }
+// A declaration split against the vocabulary: the copy holding only the keys this
+// engine can place is returned, and every key it could not is pushed onto
+// `unplaced` as { key, container, allowed }. A dropped key's value is not
+// descended into at all — an assertion a newer engine understands may nest a
+// pattern key whose value this engine would refuse to compile, and refusing it is
+// the wedge this lane exists to avoid.
+function partitionSpecKeys(value, containerKey, unplaced) {
+  if (Array.isArray(value)) return value.map((v) => partitionSpecKeys(v, containerKey, unplaced));
   const allowed = SPEC_KEYS[containerKey];
-  if (!allowed || value === null || typeof value !== 'object' || value instanceof RegExp) return;
+  if (!allowed || value === null || typeof value !== 'object' || value instanceof RegExp) return value;
+  const placed = {};
   for (const [k, v] of Object.entries(value)) {
-    if (!allowed.includes(k)) {
-      throw new Error(containerKey === 'spec'
-        ? `${where}: "${k}" is not a spec key — the vocabulary here is: ${allowed.join(', ')}`
-        : `${where}: "${k}" is not a key of "${containerKey}" — its keys are: ${allowed.join(', ')}`);
-    }
-    validateSpecKeys(v, k, where);
+    if (!allowed.includes(k)) unplaced.push({ key: k, container: containerKey, allowed });
+    else placed[k] = partitionSpecKeys(v, k, unplaced);
   }
+  return placed;
+}
+
+// The keys of one raw declaration this engine's vocabulary cannot place, in the
+// order they appear. Read by the `declared-check-spec-keys` world rule, which is
+// where an unplaced key becomes a finding.
+export function unplacedSpecKeys(declaration) {
+  const unplaced = [];
+  partitionSpecKeys(declaration, 'spec', unplaced);
+  return unplaced;
 }
 
 // The LEGACY SPELLINGS of the two merged assertion families, normalized into
@@ -1440,8 +1461,7 @@ export function patternRule(declaration, { selfExclude = null } = {}) {
   if (declaration.since !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(declaration.since)) {
     throw new Error(`${where}: "since" is the date this check was added, as YYYY-MM-DD, not ${JSON.stringify(declaration.since)}`);
   }
-  validateSpecKeys(declaration, 'spec', where);
-  const spec = compileSpec(declaration, null, where);
+  const spec = compileSpec(partitionSpecKeys(declaration, 'spec', []), null, where);
   normalizeLegacySpellings(spec);
   validateEntryShapes(spec, where);
   const classPatterns = (names) => (names ?? []).map((n) => {
