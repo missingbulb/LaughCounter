@@ -71,6 +71,7 @@ The working-discipline rules with a deterministic signature. The world rules rea
 |---|---|---|---|
 | `markdown-link-labels` | low | complexity | check: blocking |
 | `declared-check-messages` | medium | complexity | check: blocking |
+| `declared-check-spec-keys` | medium | correctness | check: advisory |
 | `file-placement` | medium | complexity | check: advisory |
 | `shared-constants` | high | correctness | check: blocking |
 | `warning-suppression` | medium | complexity | check: blocking |
