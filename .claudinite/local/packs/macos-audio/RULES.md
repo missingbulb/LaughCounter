@@ -38,13 +38,13 @@ this: whatever it reads, ask what that field says while the mic is absent.
 
 **A duration is a claim about a span you observed.** "It has been present for N
 seconds" is only as good as the watching behind it, and the sampling timer does
-not fire while the Mac sleeps — which is why the settle gate was inert on exactly
-the wake path it was built for (#107). Hence `inputAvailability` distinguishes
+not fire while the Mac sleeps — which is why the settle gate was inert on
+exactly the wake path it was built for. Hence `inputAvailability` distinguishes
 `.absent` from `.unobserved`, `noteObservationInterrupted()` is called from
 `willSleep` so a sleep is declared rather than inferred, and the run is keyed on
 the device's UID so a swap counts as a new arrival. Any future "X has been true
 for N seconds" state gets the same three questions: was I watching, is it the
-same device, and what does a gap in observation do to the claim?
+same device, and what does a gap in observation do to the claim? (1)
 
 **Pick the clock by whether the span may contain a sleep.** `systemUptime` for
 "how long has the stream been silent *while we were awake*" (buffer accounting,
@@ -63,20 +63,18 @@ stay stuck and block all future starts. Coalesce the wake fan-in with an **id**,
 not a bool — a bool deadlocks when a re-sleep lands during the delay.
 
 **Never claim to be listening on the strength of `engine.start()` returning.**
-That is what let the menu bar say 😄 *listening* through an entire evening of a
-dead device, and it is why both wedge investigations had to be reconstructed from
-logs instead of noticed. State shown to the user is derived from
-`AudioDiagnostics.health` (`ok` / `stalled` / `noSignal`) — measured buffers —
-and when a state has exactly one known remedy the UI names *that* remedy
-(no-signal says unplug the mic; "Restart listening" is measured not to work).
+State shown to the user is derived from `AudioDiagnostics.health` (`ok` /
+`stalled` / `noSignal`) — measured buffers — and when a state has exactly one
+known remedy the UI names *that* remedy (no-signal says unplug the mic;
+"Restart listening" is measured not to work). (2)
 
 **Compile-green is not a gate for this code.** CI runs `swift build` and nothing
 else, and every raise-vs-throw bug in this area is invisible to the compiler and
-reachable in the first second of a run — two crash-on-launch builds shipped past
-it. A change to `AudioHub`, the restart machinery, or the sleep/wake path is not
-verified until it has actually started on a Mac. Reproduce the interesting case
-without waiting for hardware to misbehave: let the display sleep, and coreaudiod
-tears its contexts down seconds later.
+reachable in the first second of a run. A change to `AudioHub`, the restart
+machinery, or the sleep/wake path is not verified until it has actually started
+on a Mac. Reproduce the interesting case without waiting for hardware to
+misbehave: let the display sleep, and coreaudiod tears its contexts down
+seconds later. (3)
 
 **Assume no toolchain on the machine that runs it.** The owner's Mac installs the
 DMG from CI and has no Xcode command line tools, so anything needed to diagnose a
