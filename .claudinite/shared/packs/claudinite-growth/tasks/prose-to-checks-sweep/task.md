@@ -4,7 +4,7 @@ Mine the **existing** prose of this repo's packs — each pack's `RULES.md` / `S
 
 **Weekly, deliberately.** Fresh prose is handled the night it is written, so what reaches this sweep is a slow-moving corpus; a daily re-read of it spent an opus dispatch and an owner-gated PR on a backlog that had not changed.
 
-The run's **Context section is binding scope**: it names the **pack paths** to sweep. Work only those paths — a consuming repo's own local packs by default; Claudinite also its core `packs/`. **Never** edit a read-only mounted canon pack under `.claudinite/shared/`.
+**Which pack paths to sweep** is this repo's own setting: `claudinite-growth`'s `pack_paths` in `.claudinite-settings.json`, defaulting to `.claudinite/local/packs` when it is unset, empty, or not a list. Read it at the start of the run and work only those paths — a consuming repo sweeps its own local packs; Claudinite also sets its core `packs/`. **Never** edit a read-only mounted canon pack under `.claudinite/shared/`: the next converge replaces that tree whole.
 
 Convert prose to checks in a single PR.
 

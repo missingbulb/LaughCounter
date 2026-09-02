@@ -16,8 +16,7 @@
 //
 // WHY sonnet: the finding arrives already localized to a workflow and a delta, and
 // the skill states the method step by step; what remains is profiling and a bounded
-// fix. Ceilinged at `open-pr`, so a change to how this repo builds or tests always
-// lands in front of a reviewer.
+// fix. Ceilinged at `pr`; what it may land unattended is the `automerge` policy below.
 //
 // Self-contained (imports nothing): the whole contract is this default export.
 
@@ -25,9 +24,9 @@ export default {
   id: 'ci-performance',
   frequency: 'weekly',
   // Movement, not standing state: CI runtime only changes when something lands, so
-  // a week with no commits and no PR activity has nothing new to measure — the same
-  // runs, the same medians, the same verdict as last week.
-  precondition_signals: ['commits', 'prs'],
+  // a week where nothing moved has the same runs, the same medians and the same
+  // verdict as last week.
+  preconditions: ['substantive-change || prs-touched'],
   agent_model: 'sonnet',
   expected_outcome: 'pr',
   automerge: 'anything',             // CI itself is the gate: a fix that turns anything red cannot merge, and a green one is the point (owner, 2026-08-30)
@@ -38,13 +37,4 @@ export default {
   code_work_timeout: 300,
   // Profiling a suite means running it, more than once, in both arms of an A/B.
   agent_execution_timeout: 3600,
-
-  precondition(signals) {
-    const commits = signals.commits?.count ?? 0;
-    const prs = (signals.prs?.touched ?? []).length;
-    if (commits === 0 && prs === 0) {
-      return { run: false, reason: 'no commits and no PR activity this week — CI ran on nothing new, so its timings cannot have moved' };
-    }
-    return { run: true, reason: `${commits} commit(s) and ${prs} touched PR(s) this week — re-measure CI timings and compare against the previous window` };
-  },
 };

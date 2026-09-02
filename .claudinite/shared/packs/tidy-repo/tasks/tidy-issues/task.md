@@ -1,15 +1,23 @@
 # tidy-issues worker
 
-The **acting** half of the repo tidy-up: triage the issues in scope, then record what you did. The run's
-**Context section is binding scope** — it lists the issues to triage. Work only those; don't enumerate the
-repo yourself. GitHub access is **MCP-only** (`mcp__github__*`).
+The **acting** half of the repo tidy-up: triage the issues in scope, then record what you did. GitHub
+access is **MCP-only** (`mcp__github__*`).
+
+**Your scope.** The run's Context lists the issues that moved in the window — always in scope. Then ask
+one question: **did the default branch move substantively in the window?** If it did, widen to **every
+open issue**, because a real change to `main` can have implemented or invalidated an issue nobody
+touched. If it did not, the Context list is the whole scope: re-reading untouched issues against an
+unchanged `main` reaches last run's verdict again. Never widen further than that.
+
+**Claudinite's own issues are not project work**, whichever way you got here: an issue wearing a
+`task:`-prefixed label is a scheduler work item, and neither triggers a run nor enters its scope.
 
 This task writes **issues only** (its triage actions and its own tracker). It never opens, closes, merges,
 or comments on a PR — that dimension belongs to `tidy-prs`, which is assess-only.
 
 ## 1. Triage each issue
 
-For each issue in the Context list, run the [single-issue-triage](../../skills/single-issue-triage/SKILL.md)
+For each issue in scope, run the [single-issue-triage](../../skills/single-issue-triage/SKILL.md)
 skill. The skill owns the action ladder and the safeguards: "implemented in `main`" means the issue's actual
 ask is true of `main`'s content **now** — verified there and cited, never inferred — and when the check is
 inconclusive it **comments, doesn't close** — and an issue whose verdict is the one the skill

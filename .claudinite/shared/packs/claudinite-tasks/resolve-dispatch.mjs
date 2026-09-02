@@ -381,11 +381,19 @@ async function main() {
   const mjsRelative = firstLine.replace(/task\.md$/, 'task.mjs');
   let loaded = null;
   let loadError = null;
+  let terms = new Map();
+  let termsError = null;
   if (DISPATCH_PATH_RE.test(firstLine) && existsSync(join(root, mjsRelative))) {
     try {
       loaded = (await import(pathToFileURL(join(root, mjsRelative)).href)).default;
     } catch (e) {
       loadError = e;
+    }
+    try {
+      const { loadTaskTerms } = await import('./task-terms.mjs');
+      terms = await loadTaskTerms(dirname(join(root, mjsRelative)));
+    } catch (e) {
+      termsError = e;
     }
   }
 
@@ -393,6 +401,7 @@ async function main() {
     exists: (p) => existsSync(join(root, p)),
     isPackDeclared: (id) => declared.has(id),
     loadTask: () => { if (loadError) throw loadError; return loaded; },
+    loadTerms: () => { if (termsError) throw termsError; return terms; },
   });
 
   const slotForRecord = parseDispatchTitle(title)?.slotId ?? null;

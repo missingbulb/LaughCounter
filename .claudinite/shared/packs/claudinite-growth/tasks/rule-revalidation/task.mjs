@@ -13,36 +13,16 @@
 // re-probed in the one repo that can fix them, exactly once across the fleet.
 //
 // Self-contained (imports nothing): the whole contract is this default export.
-
-// The repo's own capture surface — a consumer revalidates only its LOCAL packs.
-const DEFAULT_PACK_PATHS = ['.claudinite/local/packs'];
-
 export default {
   id: 'rule-revalidation',
   frequency: 'weekly',             // the environment moves on a platform's clock, not this repo's — see the cadence note
-  precondition_signals: [],              // nothing in the repo signals that the world changed; the trigger is the calendar
+  // The claims are about the world, but a repo nobody works in has nothing riding
+  // on them: the sweep sleeps while it is silent and resumes on the first active
+  // window. Which pack paths it revalidates is task.md's.
+  preconditions: ['repo-active'],
   agent_model: 'opus',                   // designing a safe probe per claim, and reading a null result correctly, is heavy judgment
   expected_outcome: 'pr',
   automerge: ['claudinite-local-pack-md-changes'], // rewrites confined to the repo's own local-pack prose land themselves; anything wider parks
   agent_instructions: 'task.md',
   agent_execution_timeout: 2700,         // reading the corpus + running real probes — a generous bound
-
-  // WEEKLY, and with no signal arm at all. Every other growth task waits for the
-  // repo to move; this one exists precisely because the repo does NOT move when
-  // its claims expire — the harness ships, a token's scope narrows, an MCP server
-  // drops a tool, and the only local evidence is a session failing later. So the
-  // calendar is the whole trigger, and the slice-per-run discipline in task.md is
-  // what keeps a standing corpus affordable.
-  precondition(_signals, config) {
-    const paths = Array.isArray(config?.pack_paths) && config.pack_paths.length ? config.pack_paths : DEFAULT_PACK_PATHS;
-    return {
-      run: true,
-      reason: `weekly revalidation of environment-dependent claims in ${paths.join(', ')} (no-ops cheaply when every probe still passes)`,
-      context: [
-        `Pack paths to revalidate (these, and only these): ${paths.join(', ')}.`,
-        'Probe read-only. A claim whose probe would write, delete, merge, publish, or notify is verified from authoritative documentation instead — never by performing it.',
-        'A probe this session lacks the reach to run is UNPROBED, not disproven: leave the rule exactly as it stands and log it.',
-      ],
-    };
-  },
 };

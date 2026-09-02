@@ -28,17 +28,13 @@
 //
 // Self-contained (imports nothing): the whole contract is this default export.
 
-// The signal window a task is judged over: its own period plus the scheduler's hour of slack. A
-// log stamped inside it is a session that ran since the last fold. This MUST track the declared
-// frequency — sized to an hour while the task anchors daily, the "a session captured" arm never
-// fires (a log is ~23h old by the next anchor) and a repo whose only movement is commit-less
-// sessions silently stops folding altogether.
-const WINDOW_DAYS = 25 / 24;
-
 export default {
   id: 'usage-fold',
   frequency: 'daily',                    // see "WHY DAILY" in the header
-  precondition_signals: ['commits', 'conversationLogs'],
+  // `any-commit`, not `substantive-change`: this task measures the MACHINERY, so a
+  // task's own output is exactly what the aggregate folds rather than something to
+  // be blind to.
+  preconditions: ['any-commit || session-captured'],
   agent_model: 'none',                   // pure code — no agent (task-code-work DESIGN §4)
   expected_outcome: 'pr',
   // The regenerated aggregate is the whole delivery — scoped to the tree it
@@ -52,34 +48,4 @@ export default {
   // on a first fold still completes while a hung run is killed well inside the hourly
   // cadence.
   code_work_timeout: 600,
-
-  // Gated on the repo having MOVED this hour, which is the whole difference between an
-  // hourly fold and an hourly PR. Two movements are visible to a collector and both
-  // change the numbers: a commit on the default branch (the git series, and whatever
-  // landed with it), and a conversation log stamped inside the window (a session ran).
-  //
-  // Deliberately NOT gated on the scheduler having run: it runs every hour by
-  // definition, so that gate would be no gate at all. Its runs are not lost by
-  // declining — they sit past the watermark and the next fold that does run reads
-  // them, and the dashboard tops up the freshest hours from the live run listing it
-  // already fetches.
-  precondition(signals) {
-    const commits = signals.commits ?? {};
-    const logs = signals.conversationLogs ?? {};
-    const moved = [];
-    if (commits.count > 0) moved.push(`${commits.count} commit(s) on the default branch`);
-    // `newestLogAgeDays` is null when the branch does not exist or carries no readable
-    // stamp — unknown, which is not movement.
-    if (logs.newestLogAgeDays !== null && logs.newestLogAgeDays !== undefined && logs.newestLogAgeDays <= WINDOW_DAYS) {
-      moved.push('a session captured');
-    }
-    if (!moved.length) {
-      return {
-        run: false,
-        reason: 'nothing moved this period — no commit on the default branch and no new conversation log; '
-          + 'the run and queue reads stay past their watermarks for the next fold that has something to do',
-      };
-    }
-    return { run: true, reason: `fold ${moved.join(' and ')} into the usage aggregate` };
-  },
 };

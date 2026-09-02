@@ -17,32 +17,10 @@
 export default {
   id: 'tidy-prs',
   frequency: 'weekly',                      // the weekly anchor (DESIGN §2); the full sweep is the declaration
-  precondition_signals: ['prs'],            // the open set is the scope; `touched` is the gate
+  // A PR moved in the window. Which PRs the granted run then assesses is task.md's.
+  preconditions: ['prs-touched'],
   agent_model: 'sonnet',                    // superseded / already-in-main are judgment calls on the diff
   expected_outcome: 'none',                 // assess-only: never closes, merges, or comments on a PR; writes only its tracker
   agent_instructions: 'task.md',
   agent_execution_timeout: 900,             // a full sweep, but one cheap read-only verdict per PR
-
-  // Two gates, in order. Is there anything open to assess — a repo with no open PRs
-  // stays silent. Then: did any open PR get opened or updated in the window. If none
-  // did, the picture is the one the tracker already holds and another pass would
-  // rewrite it with itself. When one did move, scope is still the FULL open set: a
-  // PR verdict is relative to the others (superseded-by), so the mover cannot be
-  // judged alone. `touched` counts the newly OPENED ones too — the collector derives
-  // it from the open listing's `updated_at`, which a new PR carries.
-  precondition(signals) {
-    const open = (signals.prs?.open ?? []).map((p) => p.number);
-    if (!open.length) return { run: false, reason: 'no open PRs' };
-
-    const touched = signals.prs?.touched ?? [];
-    if (!touched.length) {
-      return { run: false, reason: `no PR opened or updated in the window — the standing picture over ${open.length} open PR(s) is unchanged` };
-    }
-
-    return {
-      run: true,
-      reason: `${touched.length} PR(s) moved in the window — full sweep over ${open.length} open PR(s)`,
-      context: [`PRs to assess (read-only — recommend closes, never close): ${open.map((n) => `#${n}`).join(', ')}.`],
-    };
-  },
 };

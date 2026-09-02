@@ -1,16 +1,20 @@
 # tidy-prs worker
 
 The **assess-only** PR half of the repo tidy-up: a weekly pass over every open PR — run only when a PR
-actually moved in the window — then record the picture. The run's **Context section is binding scope**
-— it lists the PRs to assess. Work only
-those; don't enumerate the repo yourself. GitHub access is **MCP-only** (`mcp__github__*`).
+actually moved in the window — then record the picture. GitHub access is **MCP-only**
+(`mcp__github__*`).
+
+**Your scope is every OPEN PR**, not only the ones that moved: movement is what makes the picture worth
+re-deriving, and the picture is of the whole open set. The Context names the PRs that moved, which is
+where the change since last week is. A **merged** PR is not in scope at all — you cannot recommend
+closing what has landed.
 
 This dimension is read-only: **never close, merge, comment on, or push to a PR.** You recommend; a human
 acts. The only thing you write is this task's own tracker issue.
 
 ## 1. Assess each PR
 
-For each PR in the Context list, run the [single-pr-status](../../skills/single-pr-status/SKILL.md) skill
+For each open PR, run the [single-pr-status](../../skills/single-pr-status/SKILL.md) skill
 for its verdict — judged by its commits and diff, never its title. Collect:
 
 - one line each for the PRs that should **stay open** (`#N — why it's live`);

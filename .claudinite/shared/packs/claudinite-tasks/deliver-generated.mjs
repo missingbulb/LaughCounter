@@ -36,6 +36,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { deliveryForText, pullCreateError, landDelivery } from './land-pr.mjs';
 import { SETTINGS_FILES } from '../../engine/settings-file.mjs';
+import { withTaskTrailer } from './task-trailer.mjs';
 
 const API = 'https://api.github.com';
 
@@ -115,7 +116,7 @@ export function pushGenerated(root, { remote, baseSha, branch, files, message })
 // land stays open — the next run rebuilds it from the base, so nothing is lost.
 //
 // Returns { branch, number, reused, delivery, merged }.
-export async function deliverGenerated({ root, repo, base, token, branchPrefix, stamp, files, title, body, message, log = console.log }) {
+export async function deliverGenerated({ root, repo, base, token, branchPrefix, stamp, files, title, body, message, task = null, log = console.log }) {
   const { json: pulls } = await gh(token, `/repos/${repo}/pulls?state=open&per_page=100`);
   let pr = (Array.isArray(pulls) ? pulls : []).find((p) => p.head?.ref?.startsWith(`${branchPrefix}/`));
   const reused = Boolean(pr);
@@ -130,7 +131,10 @@ export async function deliverGenerated({ root, repo, base, token, branchPrefix, 
   const settingsText = SETTINGS_FILES.map((f) => readAt(root, baseSha, f)).find((t) => t != null);
   const delivery = deliveryForText(settingsText);
 
-  const commit = pushGenerated(root, { remote, baseSha, branch, files, message });
+  // Every commit this lane writes says which task wrote it. That trailer is what
+  // the movement signals classify as machinery rather than the project moving, so
+  // one task's delivery can never be the activity that wakes another.
+  const commit = pushGenerated(root, { remote, baseSha, branch, files, message: withTaskTrailer(message, task) });
 
   if (!reused) {
     const created = await gh(token, `/repos/${repo}/pulls`, { method: 'POST', body: { head: branch, base, title, body } });
@@ -147,7 +151,7 @@ export async function deliverGenerated({ root, repo, base, token, branchPrefix, 
     // The head sha must be THIS run's commit: a reused PR's listing still carries
     // the previous push, and polling a stale sha waits on runs that never come.
     const landed = await landDelivery({
-      token, repo, base, delivery, log,
+      token, repo, base, delivery, log, task,
       pr: { ...pr, head: { ...pr.head, ref: branch, sha: commit } },
     });
     merged = landed.merged;

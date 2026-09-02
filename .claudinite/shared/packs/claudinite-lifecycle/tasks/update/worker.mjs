@@ -21,12 +21,14 @@ import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { removeTree } from '../../../../engine/remove-tree.mjs';
 import {
-  deliveryFor, pullCreateError, landDelivery, openDeliveredPull, disposeOpenPull,
+  deliveryFor, pullCreateError, landDelivery, openDeliveredPull, disposeOpenPull, withTaskTrailer,
 } from '../../../claudinite-tasks/shared-code/delivery.mjs';
 import { settingsPath, SETTINGS_FILE } from '../../../../engine/settings-file.mjs';
 
 const CANON_URL = 'https://github.com/missingbulb/Claudinite.git'; // public — no token
 const UPDATE_PREFIX = 'claudinite/update';
+// What this worker stamps on everything it commits and merges (task-trailer.mjs).
+const UPDATE_TASK_ID = 'claudinite-lifecycle/update';
 const API = 'https://api.github.com';
 
 const git = (args, opts = {}) =>
@@ -136,6 +138,7 @@ export async function main() {
   const incumbent = openDeliveredPull(open.json, UPDATE_PREFIX);
   if (incumbent) {
     const disposal = await disposeOpenPull({
+      task: UPDATE_TASK_ID,
       token, repo, pr: incumbent, delivery, log: (s) => console.log(`update: ${s}`),
     }).catch((e) => { console.log(`update: disposing of PR #${incumbent.number} failed: ${e.message}`); return 'kept'; });
     if (disposal === 'kept') {
@@ -217,7 +220,9 @@ export async function main() {
     const staged = git(['-C', root, 'diff', '--cached', '--name-only']).split('\n').filter(Boolean);
     const { title, body } = updatePullText(terminal, { engine, packs });
     git(['-C', root, '-c', 'user.name=claudinite[bot]', '-c', 'user.email=claudinite@users.noreply.github.com',
-      'commit', ...(staged.length ? [] : ['--allow-empty']), '-m', title]);
+      // The trailer is what classifies this converge as machinery to every
+      // movement-gated task: the mount refreshing is not the project moving.
+      'commit', ...(staged.length ? [] : ['--allow-empty']), '-m', withTaskTrailer(title, UPDATE_TASK_ID)]);
     git(['-C', root, 'push', '--force', `https://x-access-token:${token}@github.com/${repo}.git`, `HEAD:refs/heads/${branch}`]);
 
     const created = await gh(token, `/repos/${repo}/pulls`, { method: 'POST', body: { head: branch, base, title, body } });
@@ -230,7 +235,7 @@ export async function main() {
     // already judged green — everything else leaves the PR standing, labelled or
     // handed to the agent stage.
     if (terminal.action === 'merge') {
-      await landDelivery({ token, repo, base, pr, delivery });
+      await landDelivery({ token, repo, base, pr, delivery, task: UPDATE_TASK_ID });
     } else if (terminal.action === 'needs-human') {
       await gh(token, `/repos/${repo}/issues/${pr.number}/labels`, { method: 'POST', body: { labels: [terminal.label] } });
       console.error(`update: left PR #${pr.number} open and labelled ${terminal.label} — ${terminal.why}`);

@@ -21,6 +21,9 @@ forcing, recovery — is the canon's own tasks-dispatch design document, and aut
 | `tasks/` | this pack's own tasks: `task-janitor` (the queue's sweeps), `usage-fold` (it folds this mechanism's run records and outcome labels) and `verify-production` (coded production validations — URL probes judged as code-work) |
 | `worldRules/` | the task-declaration checks |
 | `workRules/` | the armed-auto-merge gate (`automerge-policy-scope`) |
+| `precondition-policy.mjs` | the precondition engine: the `preconditions` expression grammar (a conjunction, `\|\|` inside a term, `none` as the empty precondition, inline `:` arguments), the built-in term vocabulary and its three-valued semantics, the derived signal union, and the loud fail direction |
+| `task-terms.mjs`, `tasks/<name>/preconditions.mjs` | a task's OWN precondition terms — the extension point beside the declaration that names them |
+| `task-trailer.mjs` | the `Claudinite-Task:` commit trailer the delivery lanes stamp and the movement signals classify by — how a task's own output is told from the project moving |
 | `merge-policy.mjs` | the auto-merge policy engine: what a task's `automerge`, an item's `Merge:` field and the arming trailer mean, the built-in diff classes, the inline `under:<dir>` folder scope, the `&&` intersection, and the `merge-rules.json` vocabulary a pack extends them with |
 | `test/` | the unit suite, and `test/sim/` — the simulator and its scenario suite, the mechanism's executable spec |
 | `executor.md`, `queue/instructions.md`, `deliver-pr.md` | operational documents a member's routines and workers read out of their own mount at runtime |
@@ -38,7 +41,8 @@ equivalent surface by existing.
 | `delivery.mjs` | `landPr`, `deliverGenerated` — how a task's output becomes a landed PR or a regenerated file | any pack whose tasks deliver |
 | `github.mjs` | the GitHub client and REST helpers, and the tracker issue a worker records on | any pack whose tasks reach GitHub |
 | `signals.mjs` | the signal shapes a precondition is handed | packs asserting what their own tasks will see |
-| `task-contract.mjs` | task-declaration validation, and precondition evaluation as the executor does it | every pack with tasks, in its own tests |
+| `task-contract.mjs` | task-declaration validation, and the signal union either precondition form resolves to | every pack with tasks, in its own tests |
+| `preconditions.mjs` | the precondition vocabulary, the expression grammar, and the one seam that turns a task plus its signals into a verdict — the call the executor makes at pick | every pack with tasks, in its own tests |
 | `merge-policy.mjs` | the auto-merge policy verdict (`automerge`, the `Merge:` field, the arming trailer) and the `merge-rules.json` compiler | any pack declaring policies or merge rules, in its own tests |
 | `usage-format.mjs` | the usage aggregate's codec | claudinite-fleet-sheepdog's fleet-wide aggregator |
 

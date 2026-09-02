@@ -10,9 +10,17 @@
 
 import { periodMs } from './anchors.mjs';
 import { parseWorkItemBody } from './work-item.mjs';
+import { taskSignalNames } from '../task-contract.mjs';
+
+const lookbackMs = (task) => (periodMs(task.decl.frequency) ?? 86400e3) + 3600e3;
 
 export const windowStart = (task, now) =>
-  new Date(new Date(now).getTime() - (periodMs(task.decl.frequency) ?? 86400e3) - 3600e3).toISOString();
+  new Date(new Date(now).getTime() - lookbackMs(task)).toISOString();
+
+// The same lookback in DAYS — what a precondition term needs when its dimension
+// carries an age rather than a windowed flag of its own (the conversation-logs
+// branch reports how old its newest capture is, not whether one landed).
+export const windowDays = (task) => lookbackMs(task) / 86400e3;
 
 // A collector factory bound to this run's repo context; the returned function is
 // the `collectSignalsFor` seam the executor calls.
@@ -20,7 +28,7 @@ export function collectSignalsForTask({ gh, repo, root, config, defaultBranch })
   return async function collectFor(task, now, item = null) {
     const { collectSignals } = await import('../signals/index.mjs');
     const { buildSignalContext } = await import('../signals/context.mjs');
-    const names = task.decl.precondition_signals ?? [];
+    const names = taskSignalNames(task.decl, task.terms);
     const packConfigFor = (packId) => config.packConfig?.[packId] ?? {};
     const sinceIso = windowStart(task, now);
 

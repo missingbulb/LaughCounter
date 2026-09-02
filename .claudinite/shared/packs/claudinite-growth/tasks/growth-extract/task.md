@@ -7,8 +7,11 @@ normalized capture surface) at the repo's own level, without straining to genera
 edits through a single PR, handed to the shared delivery procedure; finding nothing to add
 on a given run is a perfectly good outcome.
 
-The run's **Context section is binding scope**: it names the substantive commit shas and the
-PRs/issues touched in the window. That is the work; do not widen it.
+**The window is the scope.** The run's Context names the substantive commits that triggered it; the rest
+of the window is yours to read from the same lookback — the PRs merged and touched in it, and the issues
+touched in it. The lookback is this task's own period plus an hour, so a daily run reads the last ~25
+hours. Both halves are always live: a substantive merge means fresh captures on `origin/conversation-logs`
+too. Do not widen past that window.
 
 > This is the **unattended daily** capture. It writes only the repo's *own* local packs, so — **unlike** an
 > owner-requested, in-session retrospective — it opens a PR and hands it to the shared delivery
@@ -36,7 +39,9 @@ The **method** for each source lives in its skill; this worker only frames the r
 re-derive any of it here.
 
 1. **Activity half — the [extract-from-activity](../../skills/extract-from-activity/SKILL.md) skill**, over
-   exactly the commits, merged PRs and issues named in Context.
+   the window's substantive commits (Context names them), the PRs merged and touched in the window, and
+   the issues touched in it. A **merged PR** carries the review discussion and the "what changed and why"
+   — usually the richest lesson material in a window — so read each one's diff and its thread.
 2. **Conversation half — the [extract-from-conversations](../../skills/extract-from-conversations/SKILL.md)
    skill**, over the repo's captured logs. `git fetch origin conversation-logs`, then list its files
    (`git ls-tree --name-only origin/conversation-logs`); no branch, or no `*.jsonl`, and this half is done.
@@ -94,9 +99,9 @@ in the loop.
   up into the canon is the central promote task's job. A lesson tied to one call site is dropped, not landed
   as its pack's entry naming the site. The `growth-write-scope` check keys on this run's pinned title
   (below) and reds any path outside the local packs.
-- **Never widen past the Context window** — the halves it declares live, the substantive commits and the
-  touched PRs/issues named there are the scope; do not re-decide it. That includes the upgrade pass: this
-  run's own additions, never the standing backlog.
+- **Never widen past the window** — its substantive commits, its merged and touched PRs, its touched
+  issues, and the captures on the logs branch inside it. That includes the upgrade pass: this run's own
+  additions, never the standing backlog.
 - **Never paste the conversation onto an issue** — not raw JSONL, not a rendered transcript, not the turns
   themselves. Each landed rule gets one ≤200-word summary of the exchange behind it, and nothing more.
 - **Never write to the `conversation-logs` branch at all** — reading it is this run's whole business with

@@ -25,7 +25,9 @@ export default {
   // cycle and runs the moment it converges — or rolls. The offset only ever implied this; the
   // declaration enforces it.
   schedule_after: ['claudinite-lifecycle/update'],
-  precondition_signals: ['commits', 'prs', 'issues'],
+  // A substantive default-branch change is the whole trigger — the term names the
+  // commits, and task.md says what else the window puts in scope.
+  preconditions: ['substantive-change'],
   agent_model: 'opus',                   // generalizing/curating lessons is the heaviest judgment, and the default delivery lands the PR with no human review
   expected_outcome: 'pr',
   // Lessons land in the repo's own local packs — prose, and the checks the in-run
@@ -33,42 +35,4 @@ export default {
   automerge: ['claudinite-local-pack-md-changes', 'claudinite-local-pack-check-changes'],
   agent_instructions: 'task.md',
   agent_execution_timeout: 2700,            // two source passes plus the prose-to-checks upgrade — generous bound, extreme protection
-
-  // ONE reason to run: a SUBSTANTIVE default-branch change. A bot bump / [skip ci] /
-  // nightly-baselining commit advancing main is not a lesson to extract, and neither
-  // is a commit that touched nothing outside `.claudinite/` — this lifecycle's own
-  // landed output, which would otherwise re-arm it every night and keep a quiet repo
-  // firing forever. `commits.substantiveChange` already applies that classification.
-  // It arms the activity half AND means a fresh capture now sits on the logs branch,
-  // so the conversation half runs too.
-  //
-  // There WAS a second arm — a log actually past retention, which existed only so
-  // the retention prune still fired on a repo gone quiet. The prune is its own
-  // agentless task now (../logs-prune/), so that arm left with it and this opus
-  // dispatch no longer happens on nights with nothing to extract.
-  //
-  // The activity half is scoped by the substantive shas + touched PR/issue numbers
-  // passed as binding scope — INCLUDING the PRs merged during the window, whose
-  // review discussion is usually its richest lesson source. Context is binding
-  // scope and task.md forbids widening past it, so a merged PR the precondition
-  // does not name is unreadable to the worker.
-  precondition(signals) {
-    const commits = signals.commits ?? {};
-    if (commits.substantiveChange !== true) {
-      return { run: false, reason: 'no substantive default-branch change in the window — nothing to extract' };
-    }
-
-    const shas = (commits.list ?? []).filter((c) => c.substantive).map((c) => c.sha.slice(0, 7));
-    const prs = signals.prs?.touched ?? [];
-    const merged = (signals.prs?.merged ?? []).map((p) => p.number);
-    const issues = signals.issues?.touched ?? [];
-
-    const context = [`Activity half IS in scope: the ${shas.length} substantive commit(s) in the window — ${shas.join(', ')}.`];
-    if (merged.length) context.push(`PRs merged in the window — read each one's diff and its review discussion: ${merged.map((n) => `#${n}`).join(', ')}.`);
-    if (prs.length) context.push(`PRs touched in the window: ${prs.map((n) => `#${n}`).join(', ')}.`);
-    if (issues.length) context.push(`Issues touched in the window: ${issues.map((n) => `#${n}`).join(', ')}.`);
-    context.push('Conversation half IS in scope: a substantive merge means fresh captures on origin/conversation-logs — run the fresh pass over the recent window.');
-
-    return { run: true, reason: `${shas.length} substantive commit(s) in the window`, context };
-  },
 };

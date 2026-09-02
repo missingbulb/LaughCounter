@@ -20,6 +20,8 @@ import { pathToFileURL } from 'node:url';
 import { isSuspended, readSuspendedNow, suspendedNotice, SUSPEND_ALL_VAR } from './suspend.mjs';
 import { HEARTBEAT_MS, heartbeatComment, withHeartbeat } from './heartbeat.mjs';
 import { renderTaskExec } from '../run-record.mjs';
+import { evaluatePreconditions } from '../precondition-policy.mjs';
+import { windowDays } from './signals.mjs';
 import { swapStatus, clearStatus } from './apply-status.mjs';
 import {
   BLOCKED, READY, URGENT, EXECUTING, AGENT, requeueHint,
@@ -486,9 +488,26 @@ async function executeItem({
 // written to take `{ signals }` passed its own direct-call test and threw on every
 // real run, which is the failure this seam exists to make impossible.
 //
+// Both forms come through here: the declarative `preconditions` expression the
+// canon writes, and the legacy `precondition` function a member's own local task
+// file may keep forever. The declaration carries exactly one of them (the
+// contract), so the branch is a read, never a precedence.
+//
 // A throwing precondition converges to a no-go with the error as its reason: one
-// task's bad verdict is that item's problem, never the executor's.
+// task's bad verdict is that item's problem, never the executor's. The expression
+// path has no such fallback and needs none — it fails LOUD by construction, and
+// an `{ error }` from it is a run failure the caller parks.
 export function evaluatePrecondition(task, signals, packConfig = {}, item = null) {
+  if (task.decl.preconditions !== undefined) {
+    return evaluatePreconditions({
+      preconditions: task.decl.preconditions,
+      signals,
+      config: packConfig,
+      item,
+      terms: task.terms,
+      windowDays: windowDays(task),
+    });
+  }
   try {
     return task.decl.precondition(signals, packConfig, item) ?? {};
   } catch (e) {

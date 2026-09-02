@@ -16,7 +16,12 @@
 export default {
   id: 'update',
   frequency: 'daily',                    // the head of the morning chain — everything that reads a converged mount declares `schedule_after:` this
-  precondition_signals: ['stamp', 'sharedMount'],
+  // The input is the CANON, which moves when this repo does not — so no repo-side
+  // condition may gate it, and a silent repo is exactly when the mount most needs
+  // the pass. A repo with no vendored mount to update is a fact adoption settled,
+  // not a nightly question: such a repo names `claudinite-lifecycle/update` in its
+  // `taskScheduler.disabledTasks`.
+  preconditions: ['none'],
   agent_model: 'sonnet',                 // the apply stage only — most runs are agentless
   expected_outcome: 'pr',
   automerge: 'anything',             // the converge replaces the vendored mount wholesale — the one lane whose trust is the repo's delivery setting, not a diff class
@@ -25,39 +30,4 @@ export default {
   code_work: 'node worker.mjs',
   code_work_timeout: 900,
   agent_execution_timeout: 1800,
-
-  // PURE over the collected signals. It gates only that the worker RUNS; the worker
-  // owns every decision after that — and that division is why this asks almost nothing.
-  //
-  // THE ONE QUESTION WORTH ASKING IS UNAVAILABLE HERE. "Is this member behind the
-  // canon?" needs the canon's versions, and the scheduler Action deliberately does not
-  // read canon (DESIGN §3.3): `stamp.canonHead` is always null and no signal carries
-  // them. Two proxies have stood in for it and both answered a different question. A
-  // datetime in the declaration recorded the last FULL re-vendor, so a member converging
-  // nightly read as months overdue forever (#1252). Local movement in the window —
-  // "the mount converged and no declared pack's files changed" — reads as "nothing
-  // happened here lately", which is equally true of a member that is current and one
-  // that canon moved past an hour after its own converge (#1344). The second proxy left
-  // LaughCounter and TLDR four packs behind for a day, declining their own updates,
-  // with no way out: a forced wake mints the item and the precondition is re-evaluated
-  // at pick, so the force converges to a no-op.
-  //
-  // So it no longer guesses. The asymmetry settles it: declining wrongly costs
-  // permanent, silent staleness nothing in the member can repair, while running
-  // wrongly costs one converge that finds nothing and exits. A daily no-op is the
-  // cheaper mistake by a wide margin.
-  precondition(signals) {
-    const stamp = signals.stamp ?? {};
-    if (!stamp.present) {
-      return { run: false, reason: 'no vendored mount (no installed versions) — nothing to update' };
-    }
-    return {
-      run: true,
-      reason: 'the mount is due an update pass',
-      context: [
-        'The deterministic flows have already run: the mount is converged, the version-ranged migrations applied, and the update PR is open.',
-        'Your job is only the apply stage — bring this repo\'s own content in line with the updated pack rules on that branch, and verify the executor routine. Do not re-run the mechanical converge.',
-      ],
-    };
-  },
 };

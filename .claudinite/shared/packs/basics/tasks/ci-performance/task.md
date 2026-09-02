@@ -30,9 +30,9 @@ Don't re-derive it here.
 
 ## Landing it
 
-One PR, ceilinged at `open-pr` — a change to how this repo builds or tests is always reviewed.
-Reference the tracker issue in the PR body, and comment the PR link on the tracker so the week the
-regression was open is legible afterwards.
+One PR. CI itself is the gate: a run that turns anything red cannot merge, and a green one may land
+unattended. Reference the tracker issue in the PR body, and comment the PR link on the tracker so
+the week the regression was open is legible afterwards.
 
 If the honest answer is that the regression is real and not worth fixing — the suite grew because
 the repo grew — write that on the tracker with the numbers behind it and open no PR. A measurement
