@@ -26,11 +26,12 @@ const PACK_DIR = /(^|.*\/)(?:local_)?packs\/[^/]+\//;
 // `<skill-name>-3` entry.
 const MARKER = /\((\d+(?:\s*,\s*\d+)*)\)\s*$/;
 const ENTRY = /^\s*-\s+\*\*\(([A-Za-z][\w-]*-\d+)\)\*\*/;
-const CHECK_ENTRY = /^\s*-\s+\*\*\(check:([\w-]+)\)\*\*/;
+const CHECK_ENTRY = /^\s*-\s+\*\*\(check:([\w/-]+)\)\*\*/;
 
 // A check id as pack files spell it: declared-checks.json's `"id": "x"` or a
-// coded rule module's `id: 'x'`.
-const CHECK_IDS = /\bid['"]?\s*:\s*['"]([\w-]+)['"]/g;
+// coded rule module's `id: 'x'` — a pack-prefixed id (`aws-sam/handler-path`)
+// carries a slash.
+const CHECK_IDS = /\bid['"]?\s*:\s*['"]([\w/-]+)['"]/g;
 
 const rule = {
   id: 'references-integrity',

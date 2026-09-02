@@ -25,6 +25,9 @@ import { packEntryId } from '../../../engine/pack_loader/pack-registry.mjs';
 // the legacy dual root. One definition, shared with the per-repo probes.
 import { LOCAL_PACK_ROOTS as LOCAL_ROOTS } from './local.mjs';
 import { SETTINGS_FILES } from '../../../engine/settings-file.mjs';
+// The one definition of dormancy, shared with every other fleet reader: a second
+// notion of it would sweep exactly the members that had already opted out.
+import { isDormant } from '../../../engine/checks/helpers/repo-context.mjs';
 
 async function paged(gh, path) {
   const out = [];
@@ -63,6 +66,7 @@ function readDeclaration(checks) {
   const schedulesItself = checks?.taskScheduler !== undefined && checks?.taskScheduler !== null;
   const stamp = checks?.claudinite ?? null;
   return {
+    dormant: isDormant(checks),
     activePacks,
     packConfigs,
     schedulesItself,
@@ -85,32 +89,24 @@ async function localPacksChangedInWindow(gh, fullName, defaultBranch, sinceIso) 
   return false;
 }
 
-// Does the member track any local packs of its own (a directory under either local
-// root)? A cheap contents read that avoids the per-commit window scan for a repo
-// that has none (promote and dedup have nothing to do without local packs).
-async function hasLocalPacks(gh, fullName) {
-  for (const root of LOCAL_ROOTS) {
-    const { status, json } = await gh(`/repos/${fullName}/contents/${root.replace(/\/$/, '')}`);
-    if (status === 200 && Array.isArray(json) && json.some((e) => e && e.type === 'dir')) return true;
-  }
-  return false;
-}
-
-// Build one member's record from its declaration + local-pack probes. `sinceIso`
-// bounds the window; `localPacksChanged` is only meaningful (and only worth the
-// per-commit reads) for a repo that carries local packs.
+// Build one member's record from its declaration plus the local-pack window scan.
+// `sinceIso` bounds the window. Whether the member HAS local packs is not probed:
+// adoption seeds `.claudinite/local/packs/<repo>/` and the nightly deliberately
+// never re-seeds or removes it, so the answer was yes for every member and the
+// probe was one contents read per member per collection. An undeclared repo is
+// still skipped — it is not a member anything plans for.
 async function buildMember(gh, repo, sinceIso) {
   const fullName = repo.full_name;
   const defaultBranch = repo.default_branch || 'main';
   const decl = readDeclaration(repo.checks);
-  const local = decl.activePacks.length ? await hasLocalPacks(gh, fullName) : false;
-  const localChanged = local ? await localPacksChangedInWindow(gh, fullName, defaultBranch, sinceIso) : false;
+  const localChanged = decl.activePacks.length
+    ? await localPacksChangedInWindow(gh, fullName, defaultBranch, sinceIso)
+    : false;
   return {
     repo: fullName,
     defaultBranch,
     activePacks: decl.activePacks,
     packConfigs: decl.packConfigs,
-    hasLocalPacks: local,
     localPacksChanged: localChanged,
     schedulesItself: decl.schedulesItself,
     stamp: decl.stamp,
@@ -118,7 +114,8 @@ async function buildMember(gh, repo, sinceIso) {
 }
 
 // Read the fleet aggregate: every COVERED member the owner owns (excluding the
-// canon repo itself, forks, and archived repos), each with its declaration +
+// canon repo itself, forks, archived repos, and members declaring themselves
+// dormant), each with its declaration +
 // local-pack window probe. Pure over `fleetGh`. Returns `{ owner, members, error }`;
 // `error` is set (and `members` empty) when enumeration itself failed or returned
 // nothing — a fleet task's precondition treats an errored/empty fleet as "no work
@@ -148,6 +145,10 @@ export async function readFleet(fleetGh, { owner, canonRepo, sinceIso }) {
     if (!res) continue; // uncovered — no tracked declaration
     const checks = parseChecks(res.json.content);
     if (!checks) continue; // unparsable declaration → not a member we can plan for
+    // Declared dormant → out of the recurring work, which is the only thing this
+    // signal feeds. Skipped HERE rather than in each consuming precondition, so a
+    // dormant member costs neither an opus sweep nor the per-member probes below.
+    if (isDormant(checks)) continue;
     members.push(await buildMember(fleetGh, { full_name: fullName, default_branch: r.default_branch, checks }, sinceIso));
   }
   return { owner: ownerLc, members };

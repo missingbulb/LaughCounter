@@ -22,7 +22,7 @@ closure whose questions cannot exist until it is declared — and never more, be
 stored verbatim, so an open-ended one needs no clarifying popup. And the executor routine is
 **unfinished, not human-only**: `create_trigger` makes it, the SETUP block in its own prompt
 carries the model and repo binding the API cannot set, and only the `CCR_ROUTINE_TOKEN` secret is
-a step the hand-over issue takes (#1167).
+a step the hand-over issue takes. (1)
 
 Bootstrap is the one place `apply-vendor-set.mjs` is the right tool, and only because the repo is at
 version zero: it stamps every declared pack at the newest version, and with no older state there is

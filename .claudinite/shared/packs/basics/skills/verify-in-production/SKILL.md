@@ -22,8 +22,7 @@ when the PR opens, not while review is in flight.
 The reason is that a PR can be **rejected**, and a branch that is still open can be rewritten
 under you. Both leave a verification whose premise never reached `main`:
 
-- A **rewritten branch** makes the brief describe a change that no longer exists. #1121 was filed
-  against a scope its PR then dropped; the verification was moot before the merge it waited on.
+- A **rewritten branch** makes the brief describe a change that no longer exists. (1)
 - A **rejected PR** is worse, because the queue cannot tell it from a merge. A blocked item
   releases on its blocker being *closed*, and nothing reads `merged` — so the item goes ready,
   reads an `In-production-when:` that can never become true, pushes `Not-before:` forward by
@@ -39,10 +38,9 @@ merge, then read **what actually landed** — the merged diff, not the branch yo
 Most changes **file nothing.** Run the test in this order and stop at the first answer:
 
 1. **Can you watch it work in this session — now, or after a wait you can sit through?**
-   Then do that and file nothing. Not only "did you already": #1460 was filed and then
-   hand-verified twelve minutes later, which means the artifact was readable all along and
-   the issue was pure overhead. If it becomes readable inside the session you are in,
-   waiting for it is cheaper than every mechanism below.
+   Then do that and file nothing — the bar is "could you", not "did you already". If it
+   becomes readable inside the session you are in, waiting for it is cheaper than every
+   mechanism below. (2)
 2. **Did a test that ran prove it?** A unit test, a CI job, an executable-requirements or UI
    test covering exactly the behaviour that changed. File nothing — the suite is the mechanism
    that comes back.
@@ -68,16 +66,16 @@ gets — never preference:
   `/version.json` — files the **coded form**: declarative probes an agentless queue
   task (`claudinite-tasks/verify-production`) fetches and judges Action-side, where
   egress exists. No session ever runs, so there is no egress wall to hit — this is
-  the lane for exactly the class that used to park (#1184, #1288).
+  the lane for exactly the class that used to park. (3)
 - **A GitHub read** — an issue's state, a file at HEAD, a workflow run's conclusion —
   files the **agentic form**: an unattended session on this repository, whose reach
   is narrower than yours — **GitHub, through its own tools, in the repositories its
   routine's scope names** — and nothing else. Take the read you are about to write
   into `Verify:` and answer, in one sentence, *which tool call the run makes, in
   which repository*. **Another repo is the standard trap**, because the read looks
-  ordinary and the wall is invisible from here: #1349, #1351 and #1396 each named a
-  member repo, and each parked minutes after being picked, on
-  `repository "…" is not configured for this session`. A cross-repo artifact with a
+  ordinary and the wall is invisible from here — a `Verify:` naming a member repo
+  parks minutes after being picked, on a scope denial. (4)
+  A cross-repo artifact with a
   public URL — a member's stamp on `raw.githubusercontent.com`, its Pages site — is
   not walled at all: it is a URL, and the coded form reads it.
 - **Neither** — a login-walled console, a private dashboard, a repository outside
@@ -85,9 +83,7 @@ gets — never preference:
   is unverified and what would prove it. That is a filter, not a fork: an unreadable
   artifact is a reason not to file. Filing anyway spends a session rediscovering the
   wall and then parks `needs-human-action`, which is the human's-memory outcome this
-  skill exists to avoid — one executor batch spent five of its seven claimed items
-  exactly that way (#1184, #1253, #1268, #1288, #1291), before the coded form
-  existed for the URL-readable ones among them.
+  skill exists to avoid. (3)
 
 Where the subject is the **fleet** rather than this repo — every member's stamp, every
 member's CI — this queue is the wrong runner for it whatever you file. It belongs to a
@@ -199,8 +195,8 @@ tools to make. A session with no route to `api.github.com` runs it exactly like 
 that is what it is for, so there is nothing here to improvise. **Never write a
 `task:status:*` label by hand**: a hand-set `task:status:done` on an issue left open is a pass
 recorded nowhere the queue reads, and the done label then hides the item from the leash, so
-nothing ever comes back for it (#1220, #1265). If the command refuses, it is telling you this
-item is not yours to converge — say so and stop.
+nothing ever comes back for it. (5)
+If the command refuses, it is telling you this item is not yours to converge — say so and stop.
 
 1. Read `In-production-when:` against the real artifact. Never infer it from a merge, a green
    run, or elapsed time. If it turns out you cannot read it at all from here, that is
@@ -218,10 +214,10 @@ item is not yours to converge — say so and stop.
    for life), and leave the issue open. The next scheduler run re-adopts it, and the bumped
    field holds it until the new moment. No comment; the bumped field is the record.
 
-   Measuring from the old value is what #1160 did: the queue releases a sleeping item on the
-   first hourly pass past its instant, so by the time a run reads the field it is already
-   behind — old + `Retry-every: 1 day` lands in the past again, the item goes ready on the very
-   next pass, and a daily retry spends a session an hour.
+   Measure from the instant you read, because the queue releases a sleeping item on the
+   first hourly pass past its moment, so by the time a run reads the field it is already
+   behind — old + `Retry-every: 1 day` lands in the past again, the item goes ready on the
+   very next pass, and a daily retry spends a session an hour. (6)
 
 ## Then watch it fail, and say what you filed
 

@@ -243,11 +243,13 @@ const COLLECTORS = {
 
   // Whether the repo carries local packs, and whether a window commit touched
   // one (under either local root during the rename window).
+  // Whether the repo HAS local packs is not a question: adoption seeds
+  // `.claudinite/local/packs/<repo>/` and the nightly deliberately never re-seeds
+  // or removes it, so movement is the only thing left to report.
   async localPacks(gh, ctx) {
     const commits = ctx.commits ?? await windowCommits(gh, ctx.repo, ctx.defaultBranch, ctx.sinceIso);
     const touches = (f) => LOCAL_PACK_ROOTS.some((r) => f.startsWith(r));
-    const present = ctx.hasLocalPacks ?? null;
-    return { present, changedInWindow: commits.some((c) => c.files.some(touches)) };
+    return { changedInWindow: commits.some((c) => c.files.some(touches)) };
   },
 
   // Which DECLARED packs' vendored files changed in the window — the local echo
