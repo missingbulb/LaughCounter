@@ -7,10 +7,9 @@
 // exactly why a key nothing here populates can read as "collector works" forever.
 // Assert against THIS, not a hand-built shape.
 //
-// `root` is the Action-side checkout: the manifest version, the local-pack
-// presence and the configured retention are all read from it (signals/local.mjs),
-// because a scheduled run already has the tree on disk and an API round-trip would
-// buy nothing.
+// `root` is the Action-side checkout: the manifest version and the configured
+// retention are read from it (signals/local.mjs), because a scheduled run already
+// has the tree on disk and an API round-trip would buy nothing.
 
 import { localSignalContext } from './local.mjs';
 
@@ -25,7 +24,6 @@ export function buildSignalContext({ root, repo, defaultBranch, now, sinceIso, c
     activePacks: config.packs, fleet,
     manifestVersion: local.manifestVersion,
     shipsReleasePipeline: local.shipsReleasePipeline,
-    hasLocalPacks: local.hasLocalPacks,
     retentionDays: local.retentionDays,
   };
 }

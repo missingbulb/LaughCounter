@@ -52,19 +52,15 @@ export default {
   code_work: 'node worker.mjs',
   code_work_timeout: 600,                     // one commit listing plus a read per window commit
 
-  // Gate: the repo must actually track local packs (no local packs → nothing to
-  // prune, self-skip). Given local packs, run when the mounted canon this repo
-  // CARES about moved — a declared pack's vendored files changed (`sharedMount`),
-  // which can newly cover a local item — or the repo's own local packs changed in
-  // the window (a fresh local item to re-check against the canon). A quiet repo
-  // with local packs but no relevant movement skips.
+  // Gate: run when the mounted canon this repo CARES about moved — a declared
+  // pack's vendored files changed (`sharedMount`), which can newly cover a local
+  // item — or the repo's own local packs changed in the window (a fresh local item
+  // to re-check against the canon). A quiet repo with no relevant movement skips.
+  // Whether the repo HAS local packs is not asked: adoption seeds
+  // `.claudinite/local/packs/<repo>/` and the nightly never removes it, so the
+  // answer is yes everywhere and the probe only ever cost a read.
   precondition(signals) {
     const local = signals.localPacks ?? {};
-    // `present` is null when the scheduler couldn't determine it; treat only an
-    // explicit false as "definitely no local packs to prune".
-    if (local.present === false) {
-      return { run: false, reason: 'no local packs — nothing to prune' };
-    }
     const changedPacks = signals.sharedMount?.changedPacks ?? [];
     const canonMoved = changedPacks.length > 0;
     const localChanged = local.changedInWindow === true;

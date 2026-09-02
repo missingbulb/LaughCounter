@@ -12,7 +12,7 @@
 // carried was a second copy of that same fact, kept in a place a repo had to
 // re-declare (#1079).
 export default {
-  version: '60822.2',
+  version: '60901.1',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'git and GitHub procedure and platform: commit layering, branch and merge mechanics, workflow YAML, triggers, secrets, scheduling',

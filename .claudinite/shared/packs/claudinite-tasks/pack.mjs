@@ -31,7 +31,7 @@
 // Adoption is still a moment a person is present, because it wires two workflow files
 // and the routine endpoints a member cannot converge into place.
 export default {
-  version: '60901.1',
+  version: '60901.2',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'scheduled work — the work-item queue, the executor, the task contract and its signals, run records, code-work, delivery',

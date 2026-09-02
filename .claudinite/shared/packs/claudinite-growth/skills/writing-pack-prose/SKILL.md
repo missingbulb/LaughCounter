@@ -76,8 +76,7 @@ forever, whether or not it ever applies — so prose is rationed, and the ration
 - **Telling the reader to *run* something** — ship the literal invocation in a fenced block, not
   the file's name. The reader is composing a call rather than looking a mechanism up, so a bare
   filename buys a probe every time — the `--help` that prints nothing, then the `cat`, then a
-  hand-built command. Measured on two adjacent instructions in one spec: the one naming a file
-  was got right first try 0 runs in 5, the one shipping a fenced command 5 in 5.
+  hand-built command. (1)
 - **Closing a block** — say what the other clauses make unnecessary ("don't also comment the
   duplication — the guard covers it"), so nobody adds belt-and-braces.
 - **Keeping an exception** — an exception that changes what the reader would do is part of the

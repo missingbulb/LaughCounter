@@ -38,7 +38,7 @@ Task: <pack>/<task>
 Write only the lines the deferral actually has; each is explained below. A field
 further down the body still parses, but nobody editing the issue can then see what
 the run will do, and a retry that rewrites `Not-before:` has no one place to write
-it — #1160 carried its model six paragraphs below its waits.
+it. (1)
 
 The two waits compose: an issue carrying both sleeps until every blocker has
 closed **and** the moment has passed.

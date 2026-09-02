@@ -1,10 +1,9 @@
 // The LOCAL-DISK half of the signal collectors' `ctx` (per-project-scheduling
-// DESIGN §3.3). Three collectors read facts off `ctx` that no GitHub read can
+// DESIGN §3.3). Two collectors read facts off `ctx` that no GitHub read can
 // supply — the shipped manifest version and whether this repo publishes at all
-// (`release.manifestVersion`, `release.shipsPipeline`), whether the
-// repo tracks local packs (`localPacks.present`), and the configured log
+// (`release.manifestVersion`, `release.shipsPipeline`), and the configured log
 // retention (`conversationLogs.retentionDays`). The scheduler runs Action-side
-// INSIDE the repo checkout, so all three are readable from the checkout itself:
+// INSIDE the repo checkout, so both are readable from the checkout itself:
 // no API call, no rate budget, no base64 round-trip, and the tree read is the
 // same tree the run would ship.
 //
@@ -19,10 +18,9 @@ import { join } from 'node:path';
 
 // A repo's own packs live under either local root — the canonical
 // `.claudinite/local/packs/` or the pre-rename `.claudinite/local_packs/`, both
-// live until the rename's cleanup. One definition: the `localPacks` collector's
-// path test and the fleet reader's per-member probe both read it from here, so
-// "where a local pack lives" cannot drift between the presence probe and the
-// changed-in-window probe.
+// live until the rename's cleanup. One definition, shared by the `localPacks`
+// collector's path test and the fleet reader's per-member window scan, so "where
+// a local pack lives" cannot drift between the two.
 export const LOCAL_PACK_ROOTS = ['.claudinite/local/packs/', '.claudinite/local_packs/'];
 
 // Where a browser-extension manifest may sit, in the order the retired gate
@@ -63,18 +61,6 @@ function readShipsReleasePipeline(root) {
   });
 }
 
-// Does the checkout carry any local pack? A pack is a DIRECTORY under a local
-// root; an absent or empty root is "none". Explicit `false` (not null) is the
-// point — the consuming precondition self-skips only on a definite no.
-function readHasLocalPacks(root) {
-  for (const dir of LOCAL_PACK_ROOTS) {
-    let entries;
-    try { entries = readdirSync(join(root, dir), { withFileTypes: true }); } catch { continue; }
-    if (entries.some((e) => e.isDirectory())) return true;
-  }
-  return false;
-}
-
 // The log-retention window, in days, from the declared packs' entry config
 // (`retention_days` in .claudinite-settings.json). Read through the caller's
 // existing per-pack config reader rather than a second settings parser, and
@@ -95,7 +81,6 @@ export function localSignalContext(root, { packIds = [], packConfigFor = () => (
   return {
     manifestVersion: readManifestVersion(root),
     shipsReleasePipeline: readShipsReleasePipeline(root),
-    hasLocalPacks: readHasLocalPacks(root),
     retentionDays: readRetentionDays(packIds, packConfigFor),
   };
 }

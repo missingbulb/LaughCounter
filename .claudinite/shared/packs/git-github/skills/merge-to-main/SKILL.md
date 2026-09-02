@@ -17,7 +17,8 @@ points below (merge method, CI gating). Don't go hunting for one it doesn't name
 6. Capture the conversation:
    `node .claudinite/shared/packs/claudinite-growth/capture-log.mjs --issue <n>`
    (in the canon repo: `node packs/claudinite-growth/capture-log.mjs --issue <n>`). Skip only if
-   the repo doesn't declare `claudinite-growth`. A later merge in the same session runs it again.
+   the repo doesn't declare `claudinite-growth`. A later merge in the same session runs it
+   again. (1)
 7. Run the basics pack's
    [verify-in-production](../../../basics/skills/verify-in-production/SKILL.md) skill, unasked.
    This step is that skill's **only** trigger — it files against what the squash actually landed,
