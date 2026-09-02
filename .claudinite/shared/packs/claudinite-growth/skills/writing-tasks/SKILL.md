@@ -75,11 +75,11 @@ than by replaying a ledger.
   safety, or manual runs.
 
 - **Every task declaration carries the full contract.** A `tasks/<name>/task.mjs`
-  default-exports `id` (matching its directory), `frequency` (`hourly | daily-2h
-  | daily-1h | daily | daily+1h | weekly | monthly | manual`), `precondition_signals` (the collector
-  vocabulary), `agent_model` (`opus | sonnet | haiku | none`), `expected_outcome` (`none |
+  default-exports `id` (matching its directory), `frequency` (`daily | weekly |
+  monthly | manual`), `preconditions` (the conditions that must hold for it to run —
+  below), `agent_model` (`opus | sonnet | haiku | none`), `expected_outcome` (`none |
   pr` — the retired `open-pr`/`merged-pr` normalize to `pr` with a policy of
-  `nothing`/`anything`), and a `precondition`. A `pr` task also carries
+  `nothing`/`anything`). A `pr` task also carries
   `automerge` — what it authorizes to land unreviewed: `'nothing'`,
   `'anything'`, or a list of diff classes, each optionally `reject:`-prefixed.
   Choose the **narrowest policy that covers the task's whole write surface** — the
@@ -170,9 +170,9 @@ they are a no-op.
 ## The task folder
 
 One directory per task — `<pack>/tasks/<name>/` — holding **`task.mjs`** (the
-self-contained declaration + `precondition(signals, config, item)`, the eligibility
-gate as pure code) beside its worker, plus any deterministic helpers. The
-precondition both asserts need-to-run and pre-decides scope: its `context` lines
+self-contained declaration) beside its worker, plus any deterministic helpers and,
+where the task's gate is its own, a **`preconditions.mjs`** exporting its terms.
+The conditions that grant a run also contribute the run's `context` lines, which
 join the item's own Context as binding constraints the agent may not re-litigate.
 
 **The worker is code by default, and the agent is the escalation.** An
@@ -233,27 +233,94 @@ A task's `code_work_timeout` must stay under the executor's one-hour claim leash
 that can outlive it is reclaimed while still running, and the item livelocks. The declaration
 contract enforces this; do not raise a timeout past it, split the work instead.
 
+## Writing `preconditions`
+
+**`preconditions` is a list of named conditions, and every one must hold.**
+`['X', 'Y || Z']` is `X && (Y || Z)`: the comma is `&&`, `||` joins alternatives
+inside one entry, and a parameterized condition carries its argument inline after
+a colon (`no-open-pr-touching:product-wiki/`). It is deliberately the opposite of
+an `automerge` list, which is a union — one field grants, the other requires.
+
+```js
+preconditions: ['substantive-change', 'no-open-pr-titled:Claudinite tidy: improve comments'],
+```
+
+**`['none']` is the empty precondition** — the task runs unconditionally, because
+its trigger is the calendar or the filed work item itself. It is legal only as the
+sole entry: any real condition beside it would be the actual precondition.
+
+**Do not declare `precondition_signals`.** The signal union is derived from the
+conditions, each of which names what it reads, so the collector can never disagree
+with the gate.
+
+**Three things are NOT preconditions**, and putting them there is the common
+mistake:
+
+- **Repo shape.** "This repo ships the release pipeline", "this repo has a
+  vendored mount" are facts adoption settled, not questions worth re-asking every
+  night. A repo that carries a pack but not one task's subject names that task in
+  its own `.claudinite-settings.json` — `taskScheduler.disabledTasks:
+  ['<pack>/<task>']` — which the scheduler reads before instantiating anything.
+- **Scope.** Which files, PRs or members a granted run works on is the worker's
+  decision, made in the work sections from the same signals. The conditions decide
+  run or no-run, nothing else.
+- **Standing instruction and config** — a `pack_paths` list, a read-only
+  constraint. Those belong in `task.md`, where they hold on every run.
+
+### No task runs on a silent repo unless its declaration says so
+
+A repo is *silent* over a window when no substantive commit landed, no issue or PR
+of its own moved, and no session was captured — **and a scheduled task's own output
+counts as silence**: a task-authored commit or PR is the machinery running, not the
+project moving, and a fleet of tasks must not keep each other awake. The delivery
+lanes stamp `Claudinite-Task: <pack>/<task>` on what they commit and merge, and the
+movement conditions read it, so this holds for a task added tomorrow with nothing
+to remember.
+
+The vocabulary carries the gate; no operator or marker states it:
+
+- **Movement conditions are non-task by construction** — `substantive-change`,
+  `issues-touched`, `prs-touched` — so a movement-gated task is already
+  silence-safe.
+- **A calendar-triggered task that should sleep on a silent repo states
+  `repo-active`**, the positive umbrella over all four activity dimensions.
+- **A task whose trigger is not repo movement states its own condition or
+  `['none']`**, and that absence is visible where a reader audits the trigger.
+
+### When no built-in condition fits
+
+Ship a **`preconditions.mjs` beside the `task.mjs`**, exporting `terms`: a map from
+term name to `{ signals, takesArg?, holds(signals, { arg, config, item }) }`, where
+`holds` returns `{ holds, reason?, context? }` or `{ error }`. Names resolve
+against the built-ins first, then the task's own, in one flat namespace where a
+collision is loud. Reach for it when the gate is genuinely this task's — an age
+against a configured retention, a manifest against a release tag, a permission
+check about one named issue — never to re-spell a condition the vocabulary has.
+
+A term is handed **this occurrence's own facts** as `item`, for a verdict about one
+target where the signals describe a window: a request item's verdict is about the
+issue it names, which no signal bundle can single out.
+
+### It fails LOUD, never closed
+
+An unknown condition, a malformed argument, or a signal that could not be read
+returns `{ error }` — a failed run parked in the failure lane, where the re-queue
+lever retries it — never a decline. A decline is a decision about the world, and
+one taken on data that was not there is permanent, silent staleness: nothing in the
+repo goes red when a task quietly stops running.
+
 ## The precondition is the ONLY decision point
 
 Task execution is **two similar, consecutive phases**: deterministic **code-work**
 (a subprocess the executor runs, Action-side) and **agentic work** (the session
 the executor hands off to, following task.md). Neither phase is "preparation" for the
 other, and — the rule that matters — **neither may decide whether the task
-runs**. That decision is the precondition's alone:
+runs**. That decision is the preconditions' alone:
 
-- **The precondition sees the occurrence, not just the repo.** Its third argument is
-  this item's own facts, for a verdict about one target where the signals describe a
-  window of activity — a fan-out item's precondition can tell which target it is
-  about. Declare the argument only if you read it.
-- **A precondition that cannot answer says so**, with `{ error: '…' }` rather than a
-  decline: a decline is a decision about the world, and one taken on an API that
-  would not answer is a guess. The item parks open in the failure lane and the
-  ordinary re-queue lever retries it.
-- A task that passes its precondition **runs**. The later phases must not find
+- A task whose preconditions hold **runs**. The later phases must not find
   "new reasons to skip" — not timing, not repo state, not "already handled", not
-  an open PR elsewhere. If a condition should stop the run, it belongs in the
-  precondition, as code over signals, its verdict binding via the item's
-  Context.
+  an open PR elsewhere. If a condition should stop the run, it belongs in
+  `preconditions`, as a named condition over signals.
 - **Failures may stop a run** — a crash, a timeout, an API error park the
   item at a `task:status:needs-human-*`. Discretion may not.
 - **A failing worker may say why it failed.** The executor sees an exit code and

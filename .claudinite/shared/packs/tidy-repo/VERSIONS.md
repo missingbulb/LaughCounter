@@ -5,6 +5,7 @@ the version this file was introduced beside (60820.1); earlier bumps are not bac
 
 | Version | Date | What changed |
 |---|---|---|
+| 60902.1 | 2026-09-02 | The three tidy tasks convert to declarative `preconditions`. `tidy-issues` becomes `['issues-touched']` and `tidy-prs` `['prs-touched']`, with what a granted run then works on — widening a triage to every open issue after a substantive `main` move, sweeping every open PR — moving into their worker docs, since scope is the worker's decision and the conditions decide only run or no-run. `improve-comments` becomes the three-condition conjunction its gate always was (#1578). |
 | 60830.3 | 2026-08-30 | `improve-comments` declares its safety case as policy — `automerge: ['comment-only-changes', 'readme-changes']` — so the landing verdict is measured by the policy engine, with the skill's own scope gate still redding the same boundary on every branch wearing its title (#1459). |
 | 60830.2 | 2026-08-30 | `improve-comments` ignores `.claudinite/`: the precondition drops the mount from a round's scope (and declines a window that changed nothing else), and the scope gate reds any change under it, comment-only or not (#1443). |
 | 60830.1 | 2026-08-30 | `improve-comments` delivers its PR through the shared procedure (`merged-pr`) instead of parking it for a human: the repo's `maintenance.delivery` decides whether it lands, and the scope gate — not a reader — is the safety case (#1437). |

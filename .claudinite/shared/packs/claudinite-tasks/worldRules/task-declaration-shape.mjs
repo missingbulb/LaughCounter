@@ -3,6 +3,7 @@ import { stripComments } from '../../../engine/checks/helpers/code-scanning.mjs'
 import { FREQUENCIES } from '../../claudinite-tasks/calendar.mjs';
 import { MODEL_FAMILIES } from '../../claudinite-tasks/model-map.mjs';
 import { OUTCOMES, LEGACY_OUTCOMES, SIGNAL_NAMES } from '../../claudinite-tasks/task-contract.mjs';
+import { validatePreconditions, BUILTIN_TERM_NAMES, termsMap } from '../../claudinite-tasks/precondition-policy.mjs';
 
 // Every scheduler task is a `tasks/<name>/task.mjs` whose default export carries
 // the full declaration contract (per-project-scheduling DESIGN §1) with legal
@@ -15,6 +16,35 @@ import { OUTCOMES, LEGACY_OUTCOMES, SIGNAL_NAMES } from '../../claudinite-tasks/
 // the self-contained module (task.mjs imports nothing), keyed off the canonical
 // enum lists so the legal values never drift from the runtime validator.
 const TASK_MJS = /(^|\/)tasks\/[^/]+\/task\.mjs$/;
+
+// The `preconditions` value as an array of strings, or null when it is not a
+// literal list this check can read. Deliberately strict: a declaration whose
+// trigger is computed cannot be audited by anyone reading it, which is the whole
+// reason the field is data.
+function preconditionsLiteral(code) {
+  const m = /\bpreconditions:\s*\[([^\]]*)\]/.exec(code);
+  if (!m) return null;
+  const body = m[1].trim().replace(/,$/, '');
+  if (body === '') return [];
+  const entries = body.split(',').map((e) => e.trim()).filter((e) => e !== '');
+  const literal = entries.map((e) => /^'([^']*)'$/.exec(e) ?? /^"([^"]*)"$/.exec(e));
+  return literal.every(Boolean) ? literal.map((x) => x[1]) : null;
+}
+
+// The term names the task's own `preconditions.mjs` exports, read as text: the
+// check runs over a file listing, not a module graph, so it recognises a
+// task-local condition by the key that defines it. A term the file computes
+// rather than spells is not found, and its declaration reads as unknown — which
+// is the same "write it so a reader can see it" the literal rule above states.
+function siblingTerms(ctx, taskFile) {
+  const text = ctx.read(taskFile.replace(/task\.mjs$/, 'preconditions.mjs'));
+  if (text === null) return new Map();
+  const body = stripComments(text);
+  const start = body.indexOf('export const terms');
+  if (start === -1) return new Map();
+  const names = [...body.slice(start).matchAll(/^  '([^']+)':/gm)].map((m) => m[1]);
+  return termsMap(Object.fromEntries(names.map((n) => [n, { signals: [] }])));
+}
 
 // A file that only re-exports another module declares nothing of its own — a
 // legacy-path shim left behind by a relocation is the shape. The declaration it
@@ -34,7 +64,7 @@ const strField = (text, key) => {
 const rule = {
   id: 'task-declaration-shape',
   severity: 'blocking',
-  description: 'A tasks/<name>/task.mjs default-exports the full task contract (id, frequency, precondition_signals, agent_model, expected_outcome, agent_instructions, precondition) with legal enum values; a pr task pairs its ceiling with a automerge policy, an agentic task bounds its run with agent_execution_timeout, and any code_work carries a timeout and stays task-local',
+  description: 'A tasks/<name>/task.mjs default-exports the full task contract (id, frequency, preconditions, agent_model, expected_outcome, agent_instructions) with legal enum values and a well-formed precondition expression; a pr task pairs its ceiling with a automerge policy, an agentic task bounds its run with agent_execution_timeout, and any code_work carries a timeout and stays task-local',
   doc: 'packs/claudinite-tasks/README.md',
   why: 'the scheduler run and executor read agent_model/expected_outcome/frequency from this file, not the work item — an illegal or missing value means a task never fires, fires wrong, or writes past its ceiling',
 
@@ -47,7 +77,7 @@ const rule = {
       const model = strField(text, 'agent_model');
 
       if (!/export\s+default\s*\{/.test(text)) {
-        flag('does not default-export a declaration object', 'export default { id, frequency, precondition_signals, agent_model, expected_outcome, agent_instructions, precondition }');
+        flag('does not default-export a declaration object', 'export default { id, frequency, preconditions, agent_model, expected_outcome, agent_instructions }');
         continue;
       }
       const enumField = (key, legal) => {
@@ -88,11 +118,34 @@ const rule = {
       if (model !== 'none' && !/\bagent_instructions:\s*['"]/.test(text)) {
         flag('an agentic task (agent_model !== "none") declares no string "agent_instructions"', 'add "agent_instructions": the worker file beside task.mjs (e.g. "task.md")');
       }
-      if (!/\bprecondition_signals:\s*\[/.test(text)) {
-        flag('declares no "precondition_signals" array', `add "precondition_signals": an array of ${SIGNAL_NAMES.join(', ')}`);
-      }
-      if (!/\bprecondition\s*[:(]/.test(text)) {
-        flag('declares no "precondition" function', 'add a precondition(signals, config) that returns { run, reason, context? }');
+      // The precondition, in exactly one of its two forms. The declarative
+      // `preconditions` expression is what the canon writes and what this check
+      // can actually READ — an expression is text, where a function body is
+      // opaque — so unknown terms and malformed arguments are author-time
+      // findings here. The legacy function stays accepted forever for a member's
+      // own local task files, which nothing converges; it is only never both.
+      const code = stripComments(text);
+      const declaresExpression = /\bpreconditions:\s*\[/.test(code);
+      const declaresFunction = /\bprecondition\s*[:(]/.test(code.replace(/\bpreconditions\b/g, ''));
+      if (declaresExpression && declaresFunction) {
+        flag('declares both "preconditions" and a "precondition" function', 'keep one: the declarative "preconditions" expression, or the legacy function');
+      } else if (declaresExpression) {
+        if (/\bprecondition_signals:\s*\[/.test(code)) {
+          flag('declares "precondition_signals" beside "preconditions"', 'drop "precondition_signals" — the signal union is derived from the conditions, each of which names what it reads');
+        }
+        const expression = preconditionsLiteral(code);
+        if (expression === null) {
+          flag('"preconditions" is not a literal list of condition strings', `write it as a literal, e.g. preconditions: ['substantive-change'] — a computed expression is unreadable to this check and to the next person`);
+        } else {
+          for (const problem of validatePreconditions(expression, siblingTerms(ctx, file))) flag(problem.what, problem.fix);
+        }
+      } else if (declaresFunction) {
+        if (!/\bprecondition_signals:\s*\[/.test(code)) {
+          flag('declares a "precondition" function but no "precondition_signals" array', `add "precondition_signals": an array of ${SIGNAL_NAMES.join(', ')}`);
+        }
+      } else {
+        flag('declares neither "preconditions" nor a "precondition" function',
+          `add "preconditions": a list of conditions that must all hold — built-ins are ${BUILTIN_TERM_NAMES.join(', ')}, plus 'none' for a task the calendar or a filed item triggers`);
       }
 
       // The code-work/timeout guards (task-code-work DESIGN §2). Numeric presence is

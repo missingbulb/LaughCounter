@@ -18,13 +18,15 @@ import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadPacks, isActive } from '../../engine/pack_loader/pack-registry.mjs';
 import { normalizeTaskDeclaration, validateTaskDeclaration } from './task-contract.mjs';
+import { loadTaskTerms } from './task-terms.mjs';
 import { BUILT_IN_PACK, builtInTasksRoot } from './built-in-tasks.mjs';
 
 // Discover every task the repo's active packs contribute. Returns
 // `{ tasks, errors }` where each task is
-// `{ pack, id, taskDir, taskPath, decl }` — `taskPath` is the repo-relative
+// `{ pack, id, taskDir, taskPath, decl, terms }` — `taskPath` is the repo-relative
 // path to the worker file's directory's task.md (the work item's first
-// line), `decl` the validated declaration.
+// line), `decl` the validated declaration, and `terms` whatever precondition
+// terms the task ships of its own (an empty map for most).
 export async function discoverTasks(root, config) {
   const errors = [];
   const packs = await loadPacks({ localRoot: root });
@@ -64,7 +66,18 @@ export async function discoverTasks(root, config) {
         errors.push({ pack: pack.id, task: name, what: `${relative(root, mjs)} failed to import: ${e.message}`, fix: 'fix or remove the task' });
         continue;
       }
-      const problems = validateTaskDeclaration(decl);
+      // The task's own precondition terms, loaded BEFORE validation: a
+      // declaration naming one is well-formed only against the file that defines
+      // it, so a terms file that will not import fails the task rather than
+      // making its own conditions look like typos.
+      let terms;
+      try {
+        terms = await loadTaskTerms(taskDir);
+      } catch (e) {
+        errors.push({ pack: pack.id, task: name, what: `${relative(root, join(taskDir, 'preconditions.mjs'))} failed to import: ${e.message}`, fix: 'fix or remove the task\'s precondition terms' });
+        continue;
+      }
+      const problems = validateTaskDeclaration(decl, terms);
       if (problems.length) {
         errors.push({ pack: pack.id, task: name, what: `${relative(root, mjs)} is not a valid task declaration: ${problems.map((p) => p.what).join('; ')}`, fix: problems[0].fix });
         continue;
@@ -82,6 +95,7 @@ export async function discoverTasks(root, config) {
         taskDir,
         taskPath: `${relative(root, taskDir).split('\\').join('/')}/task.md`,
         decl,
+        terms,
       });
     }
   }

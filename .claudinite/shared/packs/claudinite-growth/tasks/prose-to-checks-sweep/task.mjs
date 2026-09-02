@@ -9,9 +9,6 @@
 // The whole contract is this default export; the only imports are the shared
 // constants the local-pack policy scope is built from, never task logic.
 
-// The repo's own capture surface — a consumer improves only its LOCAL packs.
-const DEFAULT_PACK_PATHS = ['.claudinite/local/packs'];
-
 import { sep } from 'node:path';
 import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../../../engine/pack_loader/pack-registry.mjs';
 
@@ -23,7 +20,10 @@ const LOCAL_PACK_ROOTS = [LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR]
 export default {
   id: 'prose-to-checks-sweep',
   frequency: 'weekly',                   // works the STANDING backlog a slice at a time — see the cadence note below
-  precondition_signals: [],              // the backlog is standing prose, not a windowed signal
+  // The subject is the world's, but the value is zero on a repo nobody works in:
+  // no new prose is written where nothing happens, and the first active window
+  // resumes the sweep. Which pack paths it sweeps is task.md's.
+  preconditions: ['repo-active'],
   agent_model: 'opus',                   // judging convertibility and authoring checks + fixtures is heavy judgment
   expected_outcome: 'pr',
   // A conversion removes the prose line and writes the check that replaces it —
@@ -38,20 +38,4 @@ export default {
   ],
   agent_instructions: 'task.md',
   agent_execution_timeout: 2700,         // reading the packs + authoring a check with fixtures — generous bound
-
-  // WEEKLY, not daily. Freshly written prose no longer waits for this task at all:
-  // growth-extract runs the prose-to-checks skill over its OWN additions as the last
-  // step of every capture run, so a convertible rule is converted the night it is
-  // learned. What is left here is the standing backlog — prose that has already
-  // survived at least one upgrade pass — and that set changes on a weekly clock, not
-  // a daily one. Daily re-read the same dry corpus with an opus dispatch and an
-  // owner-gated PR nobody was waiting on.
-  precondition(_signals, config) {
-    const paths = Array.isArray(config?.pack_paths) && config.pack_paths.length ? config.pack_paths : DEFAULT_PACK_PATHS;
-    return {
-      run: true,
-      reason: `weekly prose-to-checks backlog sweep over ${paths.join(', ')} (no-ops cheaply when dry)`,
-      context: [`Pack paths to sweep (work ONLY these; never a read-only mounted canon pack under .claudinite/shared/): ${paths.join(', ')}.`],
-    };
-  },
 };

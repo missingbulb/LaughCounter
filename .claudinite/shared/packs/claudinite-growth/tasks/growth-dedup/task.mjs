@@ -32,7 +32,10 @@ const LOCAL_PACK_ROOTS = [LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR]
 export default {
   id: 'growth-dedup',
   frequency: 'weekly',             // the weekly anchor — prunes against the mounted canon that morning's 02:00 baselining converged (DESIGN §2)
-  precondition_signals: ['localPacks', 'sharedMount', 'commits'],
+  // Either side of the comparison moving is worth a re-check: the mounted canon
+  // gained content that may now cover a local item, or the local packs gained
+  // items to check against it.
+  preconditions: ['mount-moved || commits-under:.claudinite/local'],
   agent_model: 'opus',                   // proving the canon genuinely covers a local item — and telling coverage from "stated too generally" — is a judgment call
   expected_outcome: 'pr',
   // A prune may remove lines or cut one down, never grow one — and only inside
@@ -51,26 +54,4 @@ export default {
   // the precondition below is the only place this run may be declined.
   code_work: 'node worker.mjs',
   code_work_timeout: 600,                     // one commit listing plus a read per window commit
-
-  // Gate: run when the mounted canon this repo CARES about moved — a declared
-  // pack's vendored files changed (`sharedMount`), which can newly cover a local
-  // item — or the repo's own local packs changed in the window (a fresh local item
-  // to re-check against the canon). A quiet repo with no relevant movement skips.
-  // Whether the repo HAS local packs is not asked: adoption seeds
-  // `.claudinite/local/packs/<repo>/` and the nightly never removes it, so the
-  // answer is yes everywhere and the probe only ever cost a read.
-  precondition(signals) {
-    const local = signals.localPacks ?? {};
-    const changedPacks = signals.sharedMount?.changedPacks ?? [];
-    const canonMoved = changedPacks.length > 0;
-    const localChanged = local.changedInWindow === true;
-
-    if (canonMoved) {
-      return { run: true, reason: `declared pack(s) changed in the mounted canon: ${changedPacks.join(', ')} — local items may now be covered`, context: [`Re-check local items against these newly-changed canon packs: ${changedPacks.join(', ')}.`] };
-    }
-    if (localChanged) {
-      return { run: true, reason: 'local packs changed in the window — re-check the fresh items against the mounted canon' };
-    }
-    return { run: false, reason: 'local packs present but no relevant canon or local movement in the window' };
-  },
 };

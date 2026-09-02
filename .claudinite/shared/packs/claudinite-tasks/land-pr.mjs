@@ -45,7 +45,24 @@
 // keep the promise, so a PR its cycle could not land was superseded by a duplicate
 // the next cycle opened instead. One precedence, one home.
 
+import { taskTrailer } from './task-trailer.mjs';
+
 const API = 'https://api.github.com';
+
+// The squash-merge request body. THE MERGE COMMIT is what lands on the default
+// branch, so it — not only the branch's own commits — has to say which task
+// wrote it, or the `commits` collector reads a task's own delivery as the
+// project moving and every task keeps its neighbours awake. `commit_message`
+// replaces the squash body GitHub would compose; the title it leaves alone, so
+// the merge still reads as the PR it was.
+//
+// A caller with no task to name (a member's own script, a hand-run worker) sends
+// the plain merge, and the older author/title exclusions classify it as they
+// always did.
+const squashBody = (task) => {
+  const trailer = taskTrailer(task);
+  return { merge_method: 'squash', ...(trailer ? { commit_message: trailer } : {}) };
+};
 
 async function gh(token, path, { method = 'GET', body } = {}) {
   const res = await fetch(`${API}${path}`, {
@@ -404,7 +421,7 @@ export function openDeliveredPull(pulls, prefix) {
 // Best-effort throughout: anything unreadable or unmergeable leaves the PR as it was
 // found, because a cycle that cannot dispose of the incumbent must skip rather than
 // pile a second PR on top of it.
-export async function disposeOpenPull({ token, repo, pr, delivery, log = console.log }) {
+export async function disposeOpenPull({ token, repo, pr, delivery, task = null, log = console.log }) {
   const { status, json } = await gh(token, `/repos/${repo}/actions/runs?head_sha=${pr.head?.sha ?? ''}&per_page=100`);
   if (status !== 200) {
     log(`could not read the runs for PR #${pr.number}'s head (HTTP ${status}) — leaving it`);
@@ -420,7 +437,7 @@ export async function disposeOpenPull({ token, repo, pr, delivery, log = console
 
   if (disposition === 'merge') {
     const res = await gh(token, `/repos/${repo}/pulls/${pr.number}/merge`, {
-      method: 'PUT', body: { merge_method: 'squash' },
+      method: 'PUT', body: squashBody(task),
     });
     if (res.status === 200) {
       log(`merged PR #${pr.number} — ${mergeReason(runs)}`);
@@ -529,7 +546,7 @@ const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 // concluded, then merge on the same evidence disposal would use a cycle later.
 // Returns true iff it merged. Best-effort throughout — every failure path leaves
 // the PR exactly as the arm left it, which is what the next run expects.
-export async function landNow({ token, repo, pr, delivery, expected = 0, log = console.log }) {
+export async function landNow({ token, repo, pr, delivery, expected = 0, task = null, log = console.log }) {
   const started = Date.now();
   for (;;) {
     const { status, json } = await gh(token, `/repos/${repo}/actions/runs?head_sha=${pr.head?.sha ?? ''}&per_page=100`);
@@ -548,7 +565,7 @@ export async function landNow({ token, repo, pr, delivery, expected = 0, log = c
     }
 
     const res = await gh(token, `/repos/${repo}/pulls/${pr.number}/merge`, {
-      method: 'PUT', body: { merge_method: 'squash' },
+      method: 'PUT', body: squashBody(task),
     });
     if (res.status === 200) {
       log(`merged PR #${pr.number} in-cycle — ${mergeReason(runs)}`);
@@ -570,7 +587,7 @@ export async function landNow({ token, repo, pr, delivery, expected = 0, log = c
 //
 // Returns { merged, action }. `action: 'none'` is the review member — the PR
 // stands, deliberately, and that is a delivered outcome, not a failure.
-export async function landDelivery({ token, repo, base, pr, delivery, log = console.log }) {
+export async function landDelivery({ token, repo, base, pr, delivery, task = null, log = console.log }) {
   // Start the PR's checks FIRST — the GITHUB_TOKEN push/open emitted no
   // pull_request event, so without this the PR has no runs (#565). AFTER the
   // push, so the dispatched runs execute the branch's own head. Best-effort: a
@@ -592,7 +609,7 @@ export async function landDelivery({ token, repo, base, pr, delivery, log = cons
 
   if (action === 'merge') {
     const res = await gh(token, `/repos/${repo}/pulls/${pr.number}/merge`, {
-      method: 'PUT', body: { merge_method: 'squash' },
+      method: 'PUT', body: squashBody(task),
     });
     if (res.status === 200) { merged = true; log(`merged PR #${pr.number} directly — this repo has no pull_request CI to gate on`); }
     else log(`could not merge PR #${pr.number} (${res.status}: ${res.json?.message ?? 'no message'})`);
@@ -603,7 +620,7 @@ export async function landDelivery({ token, repo, base, pr, delivery, log = cons
     // evidence and land on it. Delivery must land every cycle, not heal next cycle.
     log(`${base} requires nothing to merge — skipping the doomed auto-merge arm;`
       + ` waiting for this run's ${expected} dispatched run(s) and landing PR #${pr.number} here`);
-    merged = await landNow({ token, repo, pr, delivery, expected, log });
+    merged = await landNow({ token, repo, pr, delivery, expected, task, log });
   } else if (action === 'arm' && pr.node_id) {
     // Surfaced, not swallowed: a failed arm is why a delivered PR sits open
     // forever, and the two usual causes are both fixable repo settings.
@@ -617,7 +634,7 @@ export async function landDelivery({ token, repo, base, pr, delivery, log = cons
       });
     // Only where the arm failed. A member that armed is GitHub's to land, and
     // waiting on it here would add a poll to every healthy repo for nothing.
-    if (!armed) merged = await landNow({ token, repo, pr, delivery, expected, log });
+    if (!armed) merged = await landNow({ token, repo, pr, delivery, expected, task, log });
   }
   return { merged, action };
 }

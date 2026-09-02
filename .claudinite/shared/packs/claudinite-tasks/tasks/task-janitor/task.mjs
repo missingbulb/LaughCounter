@@ -21,18 +21,12 @@
 export default {
   id: 'task-janitor',
   frequency: 'daily',
-  precondition_signals: [],
+  // The queue's own health is what this reads, and the queue is exactly what keeps
+  // moving on a repo that is otherwise silent — so no repo-side condition gates it.
+  preconditions: ['none'],
   agent_model: 'none',                   // pure code — cleanup needs no judgment
   expected_outcome: 'none',              // labels and comments only, never a PR
   code_work: 'node worker.mjs',
   // One repo-wide issue search plus a handful of label/comment writes — seconds.
   code_work_timeout: 300,
-
-  // Unconditional, and honestly so: the sweep itself is the cheap way to learn
-  // whether anything needs cleaning, and a quiet repo costs one search. The
-  // precondition is the ONLY decision point in a task's life — this one simply
-  // always decides yes.
-  precondition() {
-    return { run: true, reason: 'daily dispatch-issue cleanup and health review' };
-  },
 };

@@ -46,7 +46,9 @@
 export default {
   id: 'adopt-requested-packs',
   frequency: 'manual',                   // fired by the fleet enforcer when it places work here — never due on its own
-  precondition_signals: [],              // no signal — the work list arrives by push, not by observation
+  // Never due on its own: an item exists only because a work list was pushed here,
+  // and that IS the request.
+  preconditions: ['none'],
   agent_model: 'sonnet',                 // applies existing packs by an existing skill; confirmation judgment is bounded and reviewed
   expected_outcome: 'pr',
   // Lands unattended (see the note above on what that trades away) within what an
@@ -59,14 +61,4 @@ export default {
   // scaffold and a PR. Generous, because it is a runaway bound and not a scheduling
   // knob.
   agent_execution_timeout: 3600,
-
-  // Never due on its own — `manual` means the scheduler run never instantiates this task,
-  // so an item exists ONLY because the fleet enforcer (or a human) created one,
-  // and that IS the request. Hence run: true. The queue evaluates this verdict at
-  // pick (tasks-dispatch DESIGN §6.4), unlike the slot mechanism where a forced
-  // run bypassed it; a no-go here has no anchor to roll to, so it would close the
-  // enforcer's own item `task:obsolete` without running.
-  precondition() {
-    return { run: true, reason: 'a work item for this manual lever exists, which is the request to run it' };
-  },
 };

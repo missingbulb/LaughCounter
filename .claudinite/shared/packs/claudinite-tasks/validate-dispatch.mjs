@@ -44,7 +44,7 @@ const reject = (reason, extra = {}) => ({ ok: false, reason, ...extra });
 // anomaly a human needs to triage — or { ok:false, reason } for a genuinely
 // malformed dispatch (bad path shape, unparseable declaration), which stays a
 // needs-human convergence since it may be forgery or a broken task.
-export function validateDispatchBody(body, { exists, isPackDeclared, loadTask }) {
+export function validateDispatchBody(body, { exists, isPackDeclared, loadTask, loadTerms = () => new Map() }) {
   const firstLine = dispatchFirstLine(body);
   // Two legal shapes: a pack task, and the engine's own built-in root (DESIGN
   // §16.2). The built-in one is not a pack and is never declared — wherever the
@@ -69,7 +69,16 @@ export function validateDispatchBody(body, { exists, isPackDeclared, loadTask })
   } catch (e) {
     return reject(`${mjsPath} did not parse: ${e.message}`, { pack, task });
   }
-  const problems = validateTaskDeclaration(decl);
+  // The task's own precondition terms, prefetched by the shell exactly as the
+  // declaration is: without them a task-local condition reads as a typo, and a
+  // dispatch naming a perfectly good task would be rejected as malformed.
+  let terms;
+  try {
+    terms = loadTerms(mjsPath);
+  } catch (e) {
+    return reject(`${mjsPath}'s preconditions.mjs did not parse: ${e.message}`, { pack, task });
+  }
+  const problems = validateTaskDeclaration(decl, terms);
   if (problems.length) return reject(`${mjsPath} is not a valid task declaration: ${problems.map((p) => p.what).join('; ')}`, { pack, task });
 
   // The model a task that reads its item's choice runs at (DESIGN §16.7). The field

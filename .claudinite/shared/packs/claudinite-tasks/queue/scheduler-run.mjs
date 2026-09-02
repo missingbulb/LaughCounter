@@ -44,6 +44,8 @@ import {
 } from './work-item.mjs';
 import { VERDICT_NO, VERDICT_GO, VERDICT_FAIL_OPEN, SCHEDULE_PREFIX } from './schedule-board.mjs';
 import { REQUEST_TASK_ID } from '../built-in-tasks.mjs';
+import { taskSignalNames } from '../task-contract.mjs';
+import { evaluatePreconditions } from '../precondition-policy.mjs';
 
 // The scheduler run owns the executing-leash reclaim because it is deterministic and
 // hourly, which recovers a dead executor's item in ~2h rather than the janitor's
@@ -93,6 +95,14 @@ export async function planSchedulerRun({
 }) {
   const nowMs = ms(now);
   const ops = [];
+  // REPO SHAPE IS NOT A PRECONDITION (task-preconditions DESIGN, "What is not a
+  // precondition"). "This repo ships the store pipeline", "this repo is a canon
+  // home with a fleet token" are facts adoption settled, not questions worth
+  // re-asking every night — so a repo that carries a pack but not one task's
+  // subject names that task in `taskScheduler.disabledTasks` and it is never
+  // instantiated. Read here rather than at pick, because the cheapest run is the
+  // one that files no item at all.
+  const disabled = new Set(schedule?.disabledTasks ?? []);
   const closedByThisRun = new Set();
   const boardRows = new Map(board?.rows ?? []);
   let boardChanged = false;
@@ -139,13 +149,16 @@ export async function planSchedulerRun({
       const { notBefore, blockedBy } = parseWorkItemBody(item.body);
       if (blockedBy.length) continue;
 
-      if (!byId.has(key)) {
+      if (!byId.has(key) || disabled.has(key)) {
         if (!tasks.length) continue;
         closedByThisRun.add(item.number);
         ops.push({
           kind: 'retire-orphan', issue: item.number, pack: parsed.pack, task: parsed.task,
-          reason: `Closing: \`${key}\` is no longer declared on this repository, so this item names a task `
-            + 'that is not at HEAD and can never run. If the task came back under a new id, its own item is the live one.',
+          reason: disabled.has(key)
+            ? `Closing: \`${key}\` is named in this repository's \`taskScheduler.disabledTasks\`, so it is not `
+              + 'instantiated here. Remove it from that list to bring the task back.'
+            : `Closing: \`${key}\` is no longer declared on this repository, so this item names a task `
+              + 'that is not at HEAD and can never run. If the task came back under a new id, its own item is the live one.',
         });
         continue;
       }
@@ -175,6 +188,7 @@ export async function planSchedulerRun({
   for (const task of tasks) {
     if (task.decl.frequency === 'manual') continue;
     const key = `${task.pack}/${task.id}`;
+    if (disabled.has(key)) continue;
     const title = workItemTitle({ pack: task.pack, task: task.id });
     // The family is title-EXACT, which is also what makes it STRUCTURALLY the
     // standing family (§15.26): this task is on a calendar and the title carries no
@@ -659,11 +673,12 @@ async function main() {
   // any read the scheduler cannot make is an `error`, which fails OPEN in the
   // plan. The scheduler stub holds no FLEET_GITHUB_TOKEN (unlike the executor
   // workflow), so a fleet task always fails open here and the executor decides.
-  const { collectSignalsForTask } = await import('./signals.mjs');
+  const { collectSignalsForTask, windowDays } = await import('./signals.mjs');
   const collectFor = collectSignalsForTask({ gh, repo, root, config, defaultBranch });
   const evaluate = async (task) => {
-    if (typeof task.decl.precondition !== 'function') return { error: 'the task declares no precondition' };
-    const names = task.decl.precondition_signals ?? [];
+    const declarative = task.decl.preconditions !== undefined;
+    if (!declarative && typeof task.decl.precondition !== 'function') return { error: 'the task declares no precondition' };
+    const names = taskSignalNames(task.decl, task.terms);
     if (names.includes('fleet')) {
       const { makeFleetGh } = await import('../signals/fleet.mjs');
       if (!makeFleetGh()) return { error: 'the `fleet` signal needs FLEET_GITHUB_TOKEN, which the scheduler run does not hold' };
@@ -674,11 +689,21 @@ async function main() {
     for (const n of names) {
       if (signals?.[n]?.error) return { error: `the \`${n}\` signal failed: ${signals[n].error}` };
     }
+    const packConfig = config.packConfig?.[task.pack] ?? {};
+    if (declarative) {
+      return evaluatePreconditions({
+        preconditions: task.decl.preconditions,
+        signals,
+        config: packConfig,
+        terms: task.terms,
+        windowDays: windowDays(task),
+      });
+    }
     // NOT the executor's evaluatePrecondition: that seam turns a throw into a
     // decline, which is right at pick (one task's bad verdict is that item's
     // problem) and wrong here — at the anchor an error is never a verdict, it
     // fails open.
-    try { return task.decl.precondition(signals, config.packConfig?.[task.pack] ?? {}, null) ?? {}; }
+    try { return task.decl.precondition(signals, packConfig, null) ?? {}; }
     catch (e) { return { error: `precondition threw: ${e.message}` }; }
   };
 

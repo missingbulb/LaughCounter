@@ -7,6 +7,18 @@ the other in the same commit. Your GitHub writes go through the session's MCP to
 your pushes ride a credential whose events start workflows normally, so — unlike the code
 lane — your PR's checks need no help from you to run.
 
+## Say which task wrote it
+
+**Every commit you push on a task's behalf carries `Claudinite-Task: <pack>/<task>` on
+its own line** — the pack and task id from the work item's first line. When you merge,
+put the same line in the squash commit's message too: the merge commit is what lands on
+the default branch, and it is the one the signal collectors read.
+
+That trailer is how the scheduler tells the project moving from the machinery running. A
+task's own delivery must never count as the repo activity that wakes the next task, and
+a title is not a reliable way to say so — every new task's title is a new leak. Yours
+says it in the commit.
+
 ## The task sets the ceiling; the repo decides the rest
 
 Your task's declared `automerge` is a **ceiling, not a plan** (the legacy

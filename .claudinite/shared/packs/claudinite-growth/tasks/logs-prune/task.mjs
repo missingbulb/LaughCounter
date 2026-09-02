@@ -19,12 +19,15 @@
 // so a capture reaches retention having been read. The extract-from-conversations
 // skill owns that window; this task owns the arithmetic.
 //
-// Self-contained (imports nothing): the whole contract is this default export.
+// The whole contract is this default export; the retention arithmetic it names is
+// in preconditions.mjs beside it.
 
 export default {
   id: 'logs-prune',
   frequency: 'daily',                    // a log ages out on wall time; the branch is read locally, so a run costs seconds
-  precondition_signals: ['conversationLogs'],
+  // A CLOCK crossing a boundary, not repo movement (the term beside this file):
+  // the prune must keep firing on exactly the repos that went quiet.
+  preconditions: ['log-past-retention'],
   agent_model: 'none',                   // pure code — no agent (task-code-work DESIGN §4)
   // It opens no PR: its whole write is remove commits on the non-default logs
   // branch, which is outside the outcome taxonomy (per-project-scheduling DESIGN §1).
@@ -35,23 +38,4 @@ export default {
   // hung network call, not headroom for work, so it sits just past the slowest
   // plausible fetch rather than at the leash.
   code_work_timeout: 60,
-
-  // The AGE arm, inherited from growth-extract's second precondition arm — which
-  // existed only to fire the prune on a quiet repo and left with it.
-  //
-  // It tests the age, not "a branch exists and retention is configured": that pair
-  // is true on every capturing repo every day. The worker is cheap enough that a
-  // run finding nothing costs seconds, but a precondition that is true forever
-  // once true is not a trigger at all.
-  precondition(signals) {
-    const logs = signals.conversationLogs ?? {};
-    const retention = logs.retentionDays;
-    const oldest = logs.oldestLogAgeDays;
-    if (logs.present !== true) return { run: false, reason: 'no conversation-logs branch — nothing captured yet' };
-    if (typeof retention !== 'number') return { run: false, reason: 'retention_days is unset — capture-only adoption, the prune deletes nothing' };
-    if (!(typeof oldest === 'number' && oldest > retention)) {
-      return { run: false, reason: `no log older than retention ${retention}d — nothing to prune` };
-    }
-    return { run: true, reason: `oldest log ${oldest.toFixed(1)}d old vs retention ${retention}d` };
-  },
 };

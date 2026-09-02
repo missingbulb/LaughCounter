@@ -13,6 +13,7 @@ import { SHARED_SUBDIR } from '../../../engine/pack_loader/pack-registry.mjs';
 import { LOCAL_PACK_ROOTS } from './local.mjs';
 import { QUEUED_LABEL, ORIGIN_AD_HOC, REQUEST_LABEL } from '../queue/work-item.mjs';
 import { APPROVAL_RE } from '../built-in-tasks.mjs';
+import { taskFromMessage } from '../task-trailer.mjs';
 
 // A default-branch commit is genuine project work unless it is bot/CI
 // housekeeping or one of Claudinite's own automated writes — the same exclusions
@@ -39,9 +40,17 @@ const HOUSEKEEPING = /\[skip ci\]|(^|\n)\s*baselin(e|ing)\b|claudinite[ -](basel
 // silently retire the trigger for every commit the API would not detail. Require
 // at least one known path before the exclusion can apply.
 const CORPUS_ONLY = (files) => files.length > 0 && files.every((f) => f.startsWith('.claudinite/'));
+
+// …and the AUTHORITY over all of them for anything written after the trailer
+// exists: a commit a scheduled task wrote says so itself
+// (`Claudinite-Task: <pack>/<task>`, task-trailer.mjs). The message and author
+// exclusions above stay because history predating the trailer still needs
+// classifying and because they also cover non-task housekeeping — but a NEW task
+// no longer has to be spelled into a regex to stop waking its neighbours.
 const isSubstantive = (c, files) => {
   const login = c.author?.login ?? '';
   if (login.endsWith('[bot]')) return false;
+  if (taskFromMessage(c.commit?.message ?? '')) return false;
   if (CORPUS_ONLY(files)) return false;
   return !HOUSEKEEPING.test(c.commit?.message ?? '');
 };
@@ -121,7 +130,17 @@ async function windowCommits(gh, repo, branch, sinceIso) {
   for (const c of list) {
     const d = await gh(`/repos/${repo}/commits/${c.sha}`);
     const files = d.status === 200 ? (d.json?.files ?? []).map((f) => f.filename).filter(Boolean) : [];
-    detailed.push({ sha: c.sha, message: c.commit?.message ?? '', author: c.author?.login ?? null, substantive: isSubstantive(c, files), files });
+    detailed.push({
+      sha: c.sha,
+      message: c.commit?.message ?? '',
+      author: c.author?.login ?? null,
+      // Which scheduled task wrote it, or null — the silence gate's structural
+      // classification, carried through so a consumer can say WHY a commit did
+      // not count rather than only that it did not.
+      task: taskFromMessage(c.commit?.message ?? ''),
+      substantive: isSubstantive(c, files),
+      files,
+    });
   }
   return detailed;
 }
@@ -154,8 +173,32 @@ const COLLECTORS = {
       `/repos/${ctx.repo}/pulls?state=closed&sort=updated&direction=desc`,
       (p) => new Date(p.updated_at) >= since,
     );
-    const merged = closed
-      .filter((p) => p.merged_at && new Date(p.merged_at) >= since && isMinablePr(p))
+    const mergedCandidates = closed.filter((p) => p.merged_at && new Date(p.merged_at) >= since && isMinablePr(p));
+
+    // WHICH OF THE WINDOW'S PRs A SCHEDULED TASK WROTE, read structurally rather
+    // than off its title: one commit read per PR that moved in the window, for its
+    // head's `Claudinite-Task:` trailer (task-trailer.mjs). This is what makes the
+    // silence gate hold for a task added tomorrow — a title regex has to learn
+    // each new task's name, and only ever learns it after that task re-armed a
+    // neighbour with its own output.
+    //
+    // Scoped to the window's PRs, never the whole open set: `open` is other tasks'
+    // TARGET set (the PR tidy sweep acts on it, the pending-round conditions read
+    // its paths), and only MOVEMENT is what the trailer reclassifies.
+    const inWindow = open.filter((p) => new Date(p.updated_at) >= since);
+    const taskAuthored = new Map();
+    for (const p of [...inWindow, ...mergedCandidates]) {
+      if (taskAuthored.has(p.number)) continue;
+      const sha = p.head?.sha;
+      if (!sha) { taskAuthored.set(p.number, false); continue; }
+      const head = await gh(`/repos/${ctx.repo}/commits/${sha}`);
+      // An unreadable head is UNKNOWN, and unknown is not task-authored: a PR a
+      // person opened must never be classified as machinery over a failed read.
+      taskAuthored.set(p.number, head.status === 200 && taskFromMessage(head.json?.commit?.message ?? '') !== null);
+    }
+
+    const merged = mergedCandidates
+      .filter((p) => !taskAuthored.get(p.number))
       .map((p) => ({ number: p.number, title: p.title, mergedAt: p.merged_at }));
 
     // Each open PR's changed paths — the pending work itself, so a precondition
@@ -183,7 +226,7 @@ const COLLECTORS = {
 
     return {
       open: withPaths,
-      touched: open.filter((p) => new Date(p.updated_at) >= since).map((p) => p.number),
+      touched: inWindow.filter((p) => !taskAuthored.get(p.number)).map((p) => p.number),
       merged,
     };
   },

@@ -279,6 +279,9 @@ export async function main() {
 
   const pr = await deliverGenerated({
     root, repo, base, token, stamp: today, branchPrefix: PR_BRANCH_PREFIX, log,
+    // Which task wrote this, stamped onto the branch commit and the merge commit:
+    // the fold's own delivery must read as machinery, never as the repo moving.
+    task: 'claudinite-tasks/usage-fold',
     files: { [USAGE_PATH]: text },
     // The arming trailer carries the task's own automerge, so the
     // automerge-policy-scope check re-measures this delivery's diff wherever the
