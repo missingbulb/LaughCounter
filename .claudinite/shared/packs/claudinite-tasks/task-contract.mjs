@@ -126,17 +126,13 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
   if (!ACCEPTED_FREQUENCIES.includes(decl.frequency)) {
     bad(`"frequency" ${JSON.stringify(decl.frequency)} is not a legal frequency`, `set one of: ${ACCEPTED_FREQUENCIES.join(', ')}`);
   }
-  // `precondition_signals` belongs to the LEGACY function form alone. Under
-  // `preconditions` the union is DERIVED from the expression's terms (each names
-  // what it reads), so the collector can never disagree with what the gate
-  // actually consults — and a declaration that still carries the field is stating
-  // something nothing reads.
-  if (decl.preconditions === undefined) {
-    if (!Array.isArray(decl.precondition_signals) || !decl.precondition_signals.every((s) => SIGNAL_NAMES.includes(s))) {
-      bad(`"precondition_signals" must be an array of known signal names`, `use only: ${SIGNAL_NAMES.join(', ')}`);
-    }
-  } else if (decl.precondition_signals !== undefined) {
-    bad('"preconditions" is declared beside "precondition_signals"', 'drop "precondition_signals" — the signal union is derived from the conditions, each of which names what it reads');
+  // `precondition_signals` is retired with the function form it belonged to
+  // (#1617). The union is DERIVED from the expression's terms, each of which
+  // names what it reads, so the collector can never disagree with what the gate
+  // actually consults — a declared list can, and that is the whole reason the
+  // derived one replaced it.
+  if (decl.precondition_signals !== undefined) {
+    bad('"precondition_signals" is retired', 'drop it — the signal union is derived from the conditions, each of which names what it reads');
   }
   if (!MODEL_FAMILIES.includes(decl.agent_model)) {
     bad(`"agent_model" ${JSON.stringify(decl.agent_model)} is not a legal model family`, `set one of: ${MODEL_FAMILIES.join(', ')}`);
@@ -167,28 +163,24 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
   if (decl.agent_model !== 'none' && (typeof decl.agent_instructions !== 'string' || decl.agent_instructions.trim() === '')) {
     bad('an agentic task (agent_model !== "none") declares no string "agent_instructions"', 'point "agent_instructions" at the worker file beside task.mjs (e.g. "task.md")');
   }
-  // precondition(signals, config, item). The third argument is THIS occurrence's own
-  // facts — its `Request`, its `Model`, its `Not-before` — for a verdict that is
-  // about one target rather than about the repo: a request item's verdict is about
-  // the issue it names, which no signal bundle can single out. Backwards compatible
-  // by construction, since a precondition simply does not declare an argument it
-  // does not read.
+  // ONE MECHANISM (#1617). `preconditions` — a list of named conditions, all of
+  // which must hold — is the only gate a task declares. The `precondition`
+  // function it replaced is retired rather than tolerated: two forms meant every
+  // reader, every check and the evaluator itself had to ask which one was the
+  // gate, and a task-local term does everything the function did while staying
+  // pure over its inputs and testable at a chosen instant.
   //
-  // Three answers, not two: `{ run: true }`, `{ run: false, reason }`, and
-  // `{ error }` — the precondition COULD NOT ANSWER. The third is a run failure
-  // rather than a verdict (F27): a decline is a decision about the world, and one
-  // taken on an API that would not answer is a guess whose write-backs cannot land.
-  //
-  // EXACTLY ONE OF THE TWO FORMS. `preconditions` is the declarative expression
-  // the canon writes; the `precondition` function stays accepted forever, for a
-  // member's own local task files, which nothing converges. Declaring both leaves
-  // the reader — and the evaluator — with no way to tell which is the gate.
-  if (decl.preconditions !== undefined && decl.precondition !== undefined) {
-    bad('the task declares both "preconditions" and a "precondition" function', 'keep one: the declarative "preconditions" expression, or the legacy function');
-  } else if (decl.preconditions !== undefined) {
+  // A term answers three ways, not two: holds, does not hold, and `{ error }` —
+  // it COULD NOT ANSWER. The third is a run failure rather than a verdict (F27):
+  // a decline is a decision about the world, and one taken on an API that would
+  // not answer is a guess whose write-backs cannot land.
+  if (decl.precondition !== undefined) {
+    bad('the task declares a "precondition" function, which is retired', 'move the gate into "preconditions" — a built-in condition, or a term this task\'s preconditions.mjs exports');
+  }
+  if (decl.preconditions === undefined) {
+    bad('the task declares no "preconditions"', 'add "preconditions": a list of named conditions, all of which must hold (e.g. ["substantive-change"], or ["none"] for a task the calendar triggers)');
+  } else {
     for (const problem of validatePreconditions(decl.preconditions, terms)) bad(problem.what, problem.fix);
-  } else if (typeof decl.precondition !== 'function') {
-    bad('the task declares neither "preconditions" nor a "precondition" function', 'add "preconditions": a list of named conditions, all of which must hold (e.g. ["substantive-change"], or ["none"] for a task the calendar triggers)');
   }
 
   /**
@@ -285,6 +277,26 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
     bad('"required_secrets" is not an array of secret names', 'list the repo Actions secret names this task needs, e.g. ["SOME_API_KEY"]');
   }
 
+  // The one exception to "whether the repo has them is not our business": GitHub
+  // reserves the `GITHUB_` prefix, answering "Secret names must not start with
+  // GITHUB_" on the secret form. Such a name cannot be configured by anyone, so the
+  // task parks forever on a secret its owner is refused — and only the declaration
+  // can catch it, since the park reads as ordinary missing configuration.
+  for (const name of (Array.isArray(decl.required_secrets) ? decl.required_secrets : [])) {
+    if (typeof name === 'string' && name.toUpperCase().startsWith('GITHUB_')) {
+      bad(`required secret "${name}" cannot be created — GitHub reserves the GITHUB_ prefix`,
+        'rename it without that prefix, e.g. one carrying the pack\'s own name');
+    }
+    // The other namespace a secret cannot borrow. `CLAUDINITE_*` in a task file is the
+    // code-work contract, and `task-code-work-env` reads every name outside that
+    // contract as a variable nobody sets — which a delivered secret is not, so the
+    // finding would be unfixable without renaming the secret anyway.
+    if (typeof name === 'string' && name.toUpperCase().startsWith('CLAUDINITE_')) {
+      bad(`required secret "${name}" sits in the code-work namespace, which its task's own code may not read`,
+        'rename it outside CLAUDINITE_* — that prefix belongs to the variables code_work is handed');
+    }
+  }
+
   // Execution bound (task-code-work DESIGN §2, §6) — an agentic task MUST
   // declare a positive-integer agent_execution_timeout. There is always a bound
   // on an agentic run; enforcement is best-effort (the executor surfaces the
@@ -303,11 +315,9 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
   return problems;
 }
 
-// The signals to collect for one task: the derived union under `preconditions`,
-// the declared list under the legacy function. THE one place the two forms are
-// reconciled, so every caller asks the same question of both.
+// The signals to collect for one task, derived from the terms its conditions
+// name. There is nothing to reconcile: a declared list could disagree with what
+// the gate actually consults, and the derived union cannot.
 export function taskSignalNames(decl, terms = new Map()) {
-  return decl?.preconditions !== undefined
-    ? preconditionSignals(decl.preconditions, terms)
-    : (decl?.precondition_signals ?? []);
+  return preconditionSignals(decl?.preconditions ?? [], terms);
 }

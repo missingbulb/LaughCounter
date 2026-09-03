@@ -18,6 +18,9 @@ The baseline pack — the `RULES.md` prose every session loads (injected by the 
 | Finishing a change | high | correctness | prose: 33 words |
 | Changing scheduled or unattended machinery | high | correctness | prose: 36 words |
 | Planning a migration | medium | complexity | prose: 95 words + skill (`writing-migration-plans`) |
+| Choosing an automerge policy | high | correctness | prose: 65 words |
+| Predicting an irreversible change | critical | correctness | prose: 42 words |
+| Handing over a wider diff than asked | medium | complexity | prose: 63 words |
 | When verifying now is genuinely impossible | high | correctness | prose: 138 words + skill (`verify-in-production`) |
 | Finishing a larger element | medium | correctness | prose: 94 words + skill (`production-retrospective`) |
 | Receiving feedback that flags a misunderstanding | medium | complexity | prose: 29 words |
@@ -34,11 +37,11 @@ The baseline pack — the `RULES.md` prose every session loads (injected by the 
 | Suppressing a warning | medium | complexity | prose: 74 words + check (`warning-suppression`) |
 | Waiving a finding on text | low | complexity | prose: 26 words |
 | Working around a vendored check's finding | medium | complexity | prose: 29 words |
-| Deferring a warning you can't fix now | medium | complexity | prose: 282 words |
+| Deferring a warning you can't fix now | medium | complexity | prose: 255 words |
 | Spotting a change that should wait | medium | complexity | prose: 46 words + skill (`do-later`) |
 | Filing anything into the ad-hoc queue | high | correctness | prose: 125 words |
 | Filing an issue under another | medium | complexity | prose: 69 words |
-| Handing over a human-only step | high | complexity | prose: 161 words + skill (`writing-handover-issues`) |
+| Handing over a human-only step | high | complexity | prose: 96 words + skill (`writing-handover-issues`) |
 | Naming a file, module, or symbol | low | complexity | prose: 22 words |
 | Referring to a value from two places | high | correctness | prose: 117 words + check (`shared-constants`) |
 | Writing a file that depends on another | medium | complexity | prose: 97 words |

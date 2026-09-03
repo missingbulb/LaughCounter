@@ -1,6 +1,6 @@
 import { sep } from 'node:path';
 import { finding } from '../../../engine/checks/helpers/findings.mjs';
-import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../../engine/pack_loader/pack-registry.mjs';
+import { LOCAL_PACKS_SUBDIR } from '../../../engine/pack_loader/pack-registry.mjs';
 
 // The machine backstop for the growth-dedup task doc's rule: a dedup edit only ever REMOVES
 // portable text. The routine has instead reworded partially-covered items —
@@ -29,13 +29,10 @@ import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../../engine/p
 //      is that it never edits the canon it prunes against. A branch reaching
 //      outside local packs is canon work that merely mentions dedup.
 //
-// Local packs live under either root during the rename transition; git emits
-// '/'-separated paths, so the platform-joined constants are normalized.
-const LOCAL_ROOTS = [LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR]
-  .map((s) => `${s.split(sep).join('/')}/`);
+// git emits '/'-separated paths, so the platform-joined constant is normalized.
+const LOCAL_ROOT = `${LOCAL_PACKS_SUBDIR.split(sep).join('/')}/`;
 
-const isLocalPackProse = (file) =>
-  file.endsWith('.md') && LOCAL_ROOTS.some((root) => file.startsWith(root));
+const isLocalPackProse = (file) => file.endsWith('.md') && file.startsWith(LOCAL_ROOT);
 
 const RESTATES_CANON = /\b(?:is|are) portable\s*\(canon\)|\bpack owns\b|\bcanon (?:now )?owns\b|\bowned by (?:the )?canon\b/i;
 const DEDUP_RUN = /\bdedup\b|\bcanon now (?:covers|owns)\b/i;
@@ -69,7 +66,7 @@ const rule = {
 
     // (2) A dedup run must shrink the pack it prunes, never grow it.
     const isDedupRun = work.commits.some((m) => DEDUP_RUN.test(m)) &&
-      work.changedFiles.every((f) => LOCAL_ROOTS.some((root) => f.startsWith(root)));
+      work.changedFiles.every((f) => f.startsWith(LOCAL_ROOT));
     if (isDedupRun) {
       for (const file of prose) {
         const base = work.readBase(file);

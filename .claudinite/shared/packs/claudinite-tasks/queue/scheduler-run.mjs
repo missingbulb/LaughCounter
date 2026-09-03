@@ -676,8 +676,7 @@ async function main() {
   const { collectSignalsForTask, windowDays } = await import('./signals.mjs');
   const collectFor = collectSignalsForTask({ gh, repo, root, config, defaultBranch });
   const evaluate = async (task) => {
-    const declarative = task.decl.preconditions !== undefined;
-    if (!declarative && typeof task.decl.precondition !== 'function') return { error: 'the task declares no precondition' };
+    if (task.decl.preconditions === undefined) return { error: 'the task declares no "preconditions"' };
     const names = taskSignalNames(task.decl, task.terms);
     if (names.includes('fleet')) {
       const { makeFleetGh } = await import('../signals/fleet.mjs');
@@ -690,21 +689,17 @@ async function main() {
       if (signals?.[n]?.error) return { error: `the \`${n}\` signal failed: ${signals[n].error}` };
     }
     const packConfig = config.packConfig?.[task.pack] ?? {};
-    if (declarative) {
-      return evaluatePreconditions({
-        preconditions: task.decl.preconditions,
-        signals,
-        config: packConfig,
-        terms: task.terms,
-        windowDays: windowDays(task),
-      });
-    }
-    // NOT the executor's evaluatePrecondition: that seam turns a throw into a
-    // decline, which is right at pick (one task's bad verdict is that item's
-    // problem) and wrong here — at the anchor an error is never a verdict, it
-    // fails open.
-    try { return task.decl.precondition(signals, packConfig, null) ?? {}; }
-    catch (e) { return { error: `precondition threw: ${e.message}` }; }
+    return evaluatePreconditions({
+      preconditions: task.decl.preconditions,
+      signals,
+      config: packConfig,
+      terms: task.terms,
+      windowDays: windowDays(task),
+      // The anchor this ask is for, so a clock-reading term answers about the
+      // occurrence being planned rather than about the moment the run happens to
+      // reach it.
+      now,
+    });
   };
 
   const { ops } = await planSchedulerRun({

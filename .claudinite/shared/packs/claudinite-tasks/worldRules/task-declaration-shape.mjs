@@ -125,27 +125,26 @@ const rule = {
       // findings here. The legacy function stays accepted forever for a member's
       // own local task files, which nothing converges; it is only never both.
       const code = stripComments(text);
-      const declaresExpression = /\bpreconditions:\s*\[/.test(code);
-      const declaresFunction = /\bprecondition\s*[:(]/.test(code.replace(/\bpreconditions\b/g, ''));
-      if (declaresExpression && declaresFunction) {
-        flag('declares both "preconditions" and a "precondition" function', 'keep one: the declarative "preconditions" expression, or the legacy function');
-      } else if (declaresExpression) {
-        if (/\bprecondition_signals:\s*\[/.test(code)) {
-          flag('declares "precondition_signals" beside "preconditions"', 'drop "precondition_signals" — the signal union is derived from the conditions, each of which names what it reads');
-        }
+      // `preconditions` is the only gate a task declares (#1617). Both retired
+      // spellings are flagged by NAME rather than merely going unrecognised, so a
+      // declaration carrying one is told what replaced it instead of reading as a
+      // task that simply forgot its gate.
+      if (/\bprecondition\s*[:(]/.test(code.replace(/\bpreconditions\b/g, '').replace(/\bprecondition_signals\b/g, ''))) {
+        flag('declares a "precondition" function, which is retired', 'move the gate into "preconditions" — a built-in condition, or a term this task\'s preconditions.mjs exports');
+      }
+      if (/\bprecondition_signals:\s*\[/.test(code)) {
+        flag('declares "precondition_signals", which is retired', 'drop it — the signal union is derived from the conditions, each of which names what it reads');
+      }
+      if (!/\bpreconditions:\s*\[/.test(code)) {
+        flag('declares no "preconditions"',
+          `add "preconditions": a list of conditions that must all hold — built-ins are ${BUILTIN_TERM_NAMES.join(', ')}, plus 'none' for a task the calendar or a filed item triggers`);
+      } else {
         const expression = preconditionsLiteral(code);
         if (expression === null) {
           flag('"preconditions" is not a literal list of condition strings', `write it as a literal, e.g. preconditions: ['substantive-change'] — a computed expression is unreadable to this check and to the next person`);
         } else {
           for (const problem of validatePreconditions(expression, siblingTerms(ctx, file))) flag(problem.what, problem.fix);
         }
-      } else if (declaresFunction) {
-        if (!/\bprecondition_signals:\s*\[/.test(code)) {
-          flag('declares a "precondition" function but no "precondition_signals" array', `add "precondition_signals": an array of ${SIGNAL_NAMES.join(', ')}`);
-        }
-      } else {
-        flag('declares neither "preconditions" nor a "precondition" function',
-          `add "preconditions": a list of conditions that must all hold — built-ins are ${BUILTIN_TERM_NAMES.join(', ')}, plus 'none' for a task the calendar or a filed item triggers`);
       }
 
       // The code-work/timeout guards (task-code-work DESIGN §2). Numeric presence is

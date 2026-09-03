@@ -14,7 +14,10 @@
 //      `runsFoldedThrough` watermark (read-runs.mjs) — how often the machinery ran,
 //      including the runs that opened no session at all;
 //   4. list the work items that CLOSED past the `queueFoldedThrough` watermark
-//      (read-queue.mjs) — what each occurrence came to;
+//      (read-queue.mjs) — what each occurrence came to, and the parks each collected;
+//   4b. list the pull requests MERGED past the `prsFoldedThrough` watermark
+//      (read-prs.mjs) — what each one took from opening, from its issue and from the
+//      session that did the work;
 //   5. read the local git history and the releases listing for the day series neither
 //      of the above can answer — commits, lines and releases;
 //   6. fold: hour rows over the last three days, day rows recomputed from scratch,
@@ -41,6 +44,7 @@ import {
 import { renderUsageFile, withoutStamp } from './usage-format.mjs';
 import { makeReader, readRuns } from './read-runs.mjs';
 import { makeReader as makeQueueReader, readQueueOutcomes } from './read-queue.mjs';
+import { readMergedPrs, prRecordsFrom } from './read-prs.mjs';
 import { settingsPath } from '../../../../engine/settings-file.mjs';
 
 const BRANCH = 'conversation-logs';
@@ -128,6 +132,30 @@ export function parseCommitLog(text) {
     if (m[2] !== '-') days[date].linesRemoved += Number(m[2]);
   }
   return days;
+}
+
+// DEEPEN BEFORE READING. An Actions checkout is shallow — usually one commit — so the
+// history the series below reads stops immediately and every day but today is unknown.
+// One `git fetch --shallow-since` over the window fixes that for the price of a single
+// git operation and no REST at all; the alternative, the commits API, costs one read
+// per commit for its stats and is unbounded on a busy day.
+//
+// Guarded on the repo actually BEING shallow, because on a complete clone the same
+// flag is not a deepen — it would truncate the history to the window.
+//
+// Returns which path ran, so the log says whether the deepen engaged: a fetch that
+// silently did nothing and a checkout that never needed one produce the same series
+// and must not read the same in the log.
+export function deepenHistory(git, root, remote, base, sinceIso) {
+  try {
+    if (git(root, ['rev-parse', '--is-shallow-repository']).trim() !== 'true') return 'complete';
+    git(root, ['fetch', '--quiet', `--shallow-since=${sinceIso}`, remote, base]);
+    return 'deepened';
+  } catch {
+    // A server that will not deepen, or a window with no commits in it: the series is
+    // read from whatever history is here, and `coveredFrom` still states where it starts.
+    return 'unchanged';
+  }
 }
 
 export function commitSeries(git, root, sha, sinceIso) {
@@ -244,8 +272,13 @@ export async function main() {
   });
   if (queue.error) log(`${queue.error} — the queue outcome rows are unchanged this run`);
 
+  const prs = await readMergedPrs({ reader, repo, since: prior.prsFoldedThrough ?? null, now });
+  if (prs.error) log(`${prs.error} — the merged-PR rows are unchanged this run`);
+
   const ladder = dayLadder(now);
-  const commits = commitSeries(git, root, baseSha, `${ladder[0]}T00:00:00Z`);
+  const windowStart = `${ladder[0]}T00:00:00Z`;
+  log(`git history: ${deepenHistory(git, root, remote, base, windowStart)} for the window from ${ladder[0]}`);
+  const commits = commitSeries(git, root, baseSha, windowStart);
   if (commits === null) log('the local git history could not be read — the commit and line rows are absent this run');
   else if (commits.coveredFrom > ladder[0]) {
     log(`this checkout's history starts at ${commits.coveredFrom} — days before it carry no commit or line counts`);
@@ -265,6 +298,8 @@ export async function main() {
     runsFoldedThrough: runs.watermark,
     queueRecords: queue.records,
     queueFoldedThrough: queue.watermark,
+    prRecords: prRecordsFrom({ prs: prs.prs, files }),
+    prsFoldedThrough: prs.watermark,
     dayFields: dayFieldsFrom({ commits, releases, ladder }),
   })));
 
@@ -291,17 +326,19 @@ export async function main() {
     title: 'Claudinite: usage fold',
     body: [
       `Regenerated \`${USAGE_PATH}\` from this repo's captured conversation logs, its`,
-      "workflow run listings, the queue's own closed work items, and its git history.",
+      "workflow run listings, the queue's own closed work items, its merged pull",
+      'requests, and its git history.',
       '',
       'Hour rows cover the last three days; day rows are recomputed from scratch every',
       'run from the sources still readable; week rows are appended once, past the',
-      '`foldedThrough` watermark. The run and queue rows are appended once past their',
-      'own watermarks — both are rate-limited REST reads, not a local branch.',
+      '`foldedThrough` watermark. The run, queue and merged-PR rows are appended once',
+      'past their own watermarks — all are rate-limited REST reads, not a local branch.',
       'A recompute that differs only in its `generated` stamp opens no PR at all.',
       'Machine-written — never hand-edit it.',
     ].join('\n'),
   });
-  log(`${files.length} capture file(s), ${runs.runs.length} run(s) and ${queue.records.length} closed item(s) folded — `
+  log(`${files.length} capture file(s), ${runs.runs.length} run(s), ${queue.records.length} closed item(s) `
+    + `and ${prs.prs.length} merged PR(s) folded — `
     + `${pr.reused ? 'updated' : 'opened'} PR ${pr.number !== null ? `#${pr.number}` : `on ${pr.branch}`}`
     + `${pr.merged ? ' (landed)' : pr.delivery === 'review' ? ' (left for review)' : ''}`);
 }

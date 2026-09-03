@@ -30,7 +30,7 @@ import { TASK_EXEC_STATUSES, parseTaskExecs } from '../../../claudinite-tasks/ru
 // functions at the foot of this file.
 import {
   USAGE_FIELDS, USAGE_VERSION, CAPTURE_DAY_FIELDS, WEEK_FROM_DAY, QUEUE_OUTCOMES,
-  hourKey, encodeUsageFile, decodeUsageFile,
+  COUNTER_GROUPS, BARE_MAPS, USAGE_CAPS, hourKey, encodeUsageFile, decodeUsageFile,
 } from './usage-format.mjs';
 
 // --- entry classification -----------------------------------------------------
@@ -461,11 +461,136 @@ export function tokensIn(entries) {
   return seen ? { input, output } : null;
 }
 
+// The same spend, split by the model that was billed for it — and with the four usage
+// counters kept APART, where `tokensIn` sums the first three. Pricing is per model and
+// per counter (a cache read is not an input token at the same rate), so a total cannot
+// be priced and a split that had already summed them could not be either.
+//
+// An entry carrying usage and no model id keys as `(unknown)`: the spend is real and
+// its rate is not knowable, which is a different state from an unpriced model.
+export const TOKENS_BY_MODEL_UNKNOWN = '(unknown)';
+
+export function tokensByModelIn(entries) {
+  const out = {};
+  for (const entry of entries) {
+    const u = entry?.type === 'assistant' ? entry?.message?.usage : null;
+    if (!u || typeof u !== 'object') continue;
+    const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+    const row = {
+      input: n(u.input_tokens),
+      cacheRead: n(u.cache_read_input_tokens),
+      cacheCreate: n(u.cache_creation_input_tokens),
+      output: n(u.output_tokens),
+    };
+    // The same "an entry that was billed for nothing is not a record" test `tokensIn`
+    // makes, so the two agree about which entries they saw.
+    if (!row.input && !row.cacheRead && !row.cacheCreate && !row.output) continue;
+    const model = typeof entry?.message?.model === 'string' && entry.message.model
+      ? entry.message.model : TOKENS_BY_MODEL_UNKNOWN;
+    const into = (out[model] ??= { input: 0, cacheRead: 0, cacheCreate: 0, output: 0 });
+    for (const field of Object.keys(row)) into[field] += row[field];
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// How the session's wall-clock divided between the person and the agent, from the
+// entry timestamps alone.
+//
+// A turn's span is the gap from the previous entry to it: the time spent producing it.
+// So a HUMAN turn's gap is the person's thinking-and-typing time, and an ASSISTANT
+// entry's gap is the agent's. Every other entry shape — a tool result, an injected
+// turn — closes the gap for whatever comes next rather than claiming it.
+//
+// THE CAP is on the human side only, and it is what makes `humanSeconds` a floor: a
+// session left open overnight shows a twelve-hour gap before its next human turn, and
+// that is not twelve hours of a person's attention. The agent side needs no cap — an
+// assistant entry follows its request in machine time — and capping it would hide the
+// long runs that are exactly what the figure is for.
+//
+// SIDECHAIN ENTRIES ARE EXCLUDED from both: a subagent runs inside a main-stream turn
+// whose span is already counted, so counting it again would bill the same seconds
+// twice and could exceed the wall clock.
+//
+// Absent, never zero, for a transcript shape whose entries carry no timestamp: the
+// session's own time is unknown, and a zero would read as an instant one.
+export function turnSeconds(entries, cap = USAGE_CAPS.humanSeconds) {
+  const stamped = entries
+    .filter((e) => e?.isSidechain !== true && typeof e?.timestamp === 'string')
+    .map((entry) => ({ entry, at: Date.parse(entry.timestamp) }))
+    .filter(({ at }) => Number.isFinite(at))
+    .sort((a, b) => a.at - b.at);
+  if (!stamped.length) return null;
+  let human = 0;
+  let agent = 0;
+  let prev = null;
+  for (const { entry, at } of stamped) {
+    // A clock that went backwards between two entries yields no span rather than a
+    // negative one.
+    const gap = prev === null ? null : Math.max(0, (at - prev) / 1000);
+    if (gap !== null) {
+      if (isUserMessage(entry)) human += Math.min(cap, gap);
+      else if (entry?.type === 'assistant') agent += gap;
+    }
+    prev = at;
+  }
+  return { human: Math.round(human), agent: Math.round(agent) };
+}
+
+// The per-pack split of the same session-start line `ruleTokensIn` reads its total
+// from — `rule tokens by pack: basics 4200 · claudinite 5200`. Written without
+// thousands separators on purpose: the facet sits in a comma-joined line, so a comma
+// is the segment's own terminator and cannot also appear inside a number.
+//
+// No facet is `null` — no opinion — which is what a member whose engine predates the
+// split reports, while its total stands.
+//
+// The segment runs to the line's end, and the line is a SENTENCE — so the last pair
+// carries the full stop that closes it, which is why the pair pattern tolerates one.
+const RULE_TOKENS_BY_PACK_RE = /rule tokens by pack:\s*([^\n,]+)/;
+const PACK_TOKENS_RE = /^\s*([A-Za-z0-9][A-Za-z0-9_-]*)\s+([\d,]+)\s*\.?\s*$/;
+
+export function ruleTokensByPackIn(text) {
+  const m = RULE_TOKENS_BY_PACK_RE.exec(String(text ?? ''));
+  if (!m) return null;
+  const out = {};
+  for (const part of m[1].split('\u00b7')) {
+    const pair = PACK_TOKENS_RE.exec(part);
+    if (!pair) continue;
+    const n = Number(pair[2].replace(/,/g, ''));
+    if (Number.isFinite(n)) out[pair[1]] = n;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// Which task a captured session belongs to, for the per-task cost split. The join is
+// the executor's own `claudinite-task-exec` record, already counted into `taskExec` by
+// the same pass — so this costs nothing beyond reading its keys.
+//
+// The two synthetic keys are states, not fallbacks: `(none)` is a session a PERSON
+// started (its capture names no issue), which is the human-driven share and worth
+// seeing; `(unresolved)` is a session that names an issue but attests no execution
+// record, which is a gap in the record rather than a person at the keyboard, and must
+// never be quietly filed as one.
+export const TASK_COST_NONE = '(none)';
+export const TASK_COST_UNRESOLVED = '(unresolved)';
+
+export function taskCostKey(counts, issue) {
+  const named = Object.keys(counts?.taskExec ?? {}).sort();
+  if (named.length) return named[0];
+  return issue > 0 ? TASK_COST_UNRESOLVED : TASK_COST_NONE;
+}
+
+// How much a key is worth when a session's captures disagree: a named task beats
+// "this ran for an issue and named no record", which beats "nobody filed this at all".
+export const taskCostRank = (key) =>
+  (key === null || key === undefined ? 0 : key === TASK_COST_NONE ? 1 : key === TASK_COST_UNRESOLVED ? 2 : 3);
+
 export function countEntries(entries, mounted = new Set()) {
   const skillLoads = {};
   let userMessages = 0;
   let userCommands = 0;
   let ruleTokens = null;
+  let ruleTokensByPack = null;
   const load = (name) => { skillLoads[name] = (skillLoads[name] ?? 0) + 1; };
 
   for (const entry of entries) {
@@ -476,14 +601,21 @@ export function countEntries(entries, mounted = new Set()) {
       userCommands += 1;
       if (mounted.has(command)) load(command);
     }
-    if (ruleTokens === null) ruleTokens = ruleTokensIn(entryText(entry).join('\n'));
+    if (ruleTokens === null || ruleTokensByPack === null) {
+      const text = entryText(entry).join('\n');
+      if (ruleTokens === null) ruleTokens = ruleTokensIn(text);
+      if (ruleTokensByPack === null) ruleTokensByPack = ruleTokensByPackIn(text);
+    }
   }
   return {
     userMessages,
     userCommands,
     skillLoads,
     ruleTokens,
+    ruleTokensByPack,
     tokens: tokensIn(entries),
+    tokensByModel: tokensByModelIn(entries),
+    seconds: turnSeconds(entries),
     taskExec: countTaskExecs(entries),
     ...countChecks(entries),
   };
@@ -498,7 +630,9 @@ export function countEntries(entries, mounted = new Set()) {
 // zero written for it would read as a quiet day.
 const emptyDay = () => ({
   ...Object.fromEntries(CAPTURE_DAY_FIELDS.map((f) => [f, 0])),
-  skillLoads: {}, checks: {}, checkFindings: {}, tasks: {}, taskExec: {}, queue: {},
+  skillLoads: {}, ruleTokensByPack: {},
+  checks: {}, checkFindings: {}, tasks: {}, taskExec: {}, queue: {},
+  tokensByModel: {}, prs: {}, taskCost: {}, parks: {},
 });
 
 // An empty hour row. All four counters are zeroed: an hour inside the window with no
@@ -535,8 +669,12 @@ export function foldDays(files) {
   // are collected per (day, session) and reduced at the end — the rule tokens the
   // session started with, and the largest token spend any of its captures attests.
   const perSession = {};
+  const blankSession = () => ({
+    ruleTokens: null, ruleTokensByPack: null, tokens: null, tokensByModel: null,
+    seconds: null, task: null, userMessages: 0,
+  });
   const session = (date, id) => ((perSession[date] ??= new Map()).get(id)
-    ?? (perSession[date].set(id, { ruleTokens: null, tokens: null }), perSession[date].get(id)));
+    ?? (perSession[date].set(id, blankSession()), perSession[date].get(id)));
 
   for (const file of files) {
     const day = (days[file.date] ??= emptyDay());
@@ -554,8 +692,30 @@ export function foldDays(files) {
     if (s.ruleTokens === null && file.counts.ruleTokens !== null && file.counts.ruleTokens !== undefined) {
       s.ruleTokens = file.counts.ruleTokens;
     }
+    if (s.ruleTokensByPack === null && file.counts.ruleTokensByPack) {
+      s.ruleTokensByPack = file.counts.ruleTokensByPack;
+    }
     const t = file.counts.tokens;
-    if (t && (s.tokens === null || t.input + t.output > s.tokens.input + s.tokens.output)) s.tokens = t;
+    // The per-model split rides the SAME winning capture as the total it splits, so
+    // the two can never describe different captures of one session.
+    if (t && (s.tokens === null || t.input + t.output > s.tokens.input + s.tokens.output)) {
+      s.tokens = t;
+      s.tokensByModel = file.counts.tokensByModel ?? null;
+    }
+    const secs = file.counts.seconds;
+    if (secs && (s.seconds === null || secs.human + secs.agent > s.seconds.human + s.seconds.agent)) {
+      s.seconds = secs;
+    }
+    // The task the session belongs to, resolved ACROSS its captures rather than per
+    // capture: a session has one dispatch, but its captures disagree about the evidence
+    // — the tail capture is filed under issue 0 where the merge capture named the
+    // issue, and a capture written mid-run can predate the execution record the tail
+    // carries. So the most-informed answer any of them gives wins.
+    const key = taskCostKey(file.counts, file.issue);
+    if (taskCostRank(key) > taskCostRank(s.task)) s.task = key;
+    // Summed over the session's captures rather than deduped, so the per-task column
+    // adds up to the day's own `userMessages` scalar, which is summed the same way.
+    s.userMessages += file.counts.userMessages;
   }
 
   // Distinct sessions, not capture count: one session can capture more than once
@@ -564,8 +724,9 @@ export function foldDays(files) {
 
   for (const [date, bySession] of Object.entries(perSession)) {
     const day = days[date];
-    for (const { ruleTokens, tokens } of bySession.values()) {
+    for (const { ruleTokens, ruleTokensByPack, tokens, tokensByModel, seconds, task, userMessages } of bySession.values()) {
       if (ruleTokens !== null) { day.ruleTokens += ruleTokens; day.ruleTokenSessions += 1; }
+      if (ruleTokensByPack) addLoads(day.ruleTokensByPack, ruleTokensByPack);
       // Absent until one session on this day attested a spend — the fields stay off
       // the row entirely on a day whose transcripts carried no usage records, which is
       // what makes "this shape does not record it" distinguishable from "it was free".
@@ -573,6 +734,24 @@ export function foldDays(files) {
         day.tokensIn = (day.tokensIn ?? 0) + tokens.input;
         day.tokensOut = (day.tokensOut ?? 0) + tokens.output;
         day.tokenSessions = (day.tokenSessions ?? 0) + 1;
+      }
+      if (tokensByModel) addCounters(day.tokensByModel, tokensByModel);
+      // Same absence rule for the two wall-clock scalars: a day whose sessions carried
+      // no entry timestamps keeps no key rather than reporting nobody worked.
+      if (seconds) {
+        day.humanSeconds = (day.humanSeconds ?? 0) + seconds.human;
+        day.agentSeconds = (day.agentSeconds ?? 0) + seconds.agent;
+      }
+      // `sessions` and `userMessages` are counted off the capture files and are always
+      // real; the two token columns stay ABSENT until a session of this task attested a
+      // spend, so a task whose transcripts record no usage reads as unknown rather than
+      // as having run for free.
+      const cost = (day.taskCost[task] ??= { sessions: 0, userMessages: 0 });
+      cost.sessions += 1;
+      cost.userMessages += userMessages;
+      if (tokens) {
+        cost.tokensIn = (cost.tokensIn ?? 0) + tokens.input;
+        cost.tokensOut = (cost.tokensOut ?? 0) + tokens.output;
       }
     }
   }
@@ -601,19 +780,59 @@ export function foldDayFields(days, bySource = {}) {
 // and safe to append because a closed item is settled: its outcome label is written at
 // convergence and nothing later moves it.
 //
-// `records` is `[{ date, pack, task, outcome }]`, already filtered by the reader to
-// items that closed past the mark.
+// `records` is `[{ date, pack, task, outcome, parks }]`, already filtered by the reader
+// to items that closed past the mark. `parks` is the kinds the item was parked for at
+// any point in its life, each counted ONCE for it — an item bounced between a person
+// and the machine twice is one park of that kind, not two — or `null` where the item's
+// event listing could not be read, which costs its parks and not its outcome.
 export function foldQueueOutcomes(days, priorDays = {}, records = [], today) {
   for (const [date, row] of Object.entries(priorDays)) {
-    const queue = row?.queue;
-    if (!queue || !Object.keys(queue).length || !withinTaskWindow(date, today, DAY_WINDOW_DAYS)) continue;
-    (days[date] ??= emptyDay()).queue = structuredClone(queue);
+    if (!withinTaskWindow(date, today, DAY_WINDOW_DAYS)) continue;
+    for (const group of ['queue', 'parks']) {
+      const prior = row?.[group];
+      if (!prior || !Object.keys(prior).length) continue;
+      (days[date] ??= emptyDay())[group] = structuredClone(prior);
+    }
   }
-  for (const { date, pack, task, outcome } of records) {
-    if (!QUEUE_OUTCOMES.includes(outcome)) continue;
+  for (const { date, pack, task, outcome, parks } of records) {
     const day = (days[date] ??= emptyDay());
-    const row = (day.queue[`${pack}/${task}`] ??= Object.fromEntries(QUEUE_OUTCOMES.map((o) => [o, 0])));
-    row[outcome] += 1;
+    const id = `${pack}/${task}`;
+    if (QUEUE_OUTCOMES.includes(outcome)) {
+      const row = (day.queue[id] ??= Object.fromEntries(QUEUE_OUTCOMES.map((o) => [o, 0])));
+      row[outcome] += 1;
+    }
+    if (!Array.isArray(parks)) continue;
+    const row = (day.parks[id] ??= Object.fromEntries(USAGE_FIELDS.parks.map((k) => [k, 0])));
+    for (const kind of new Set(parks)) if (kind in row) row[kind] += 1;
+  }
+  return days;
+}
+
+// --- merged pull requests ---------------------------------------------------------
+
+// What each merged PR took, filed under the day it merged. APPEND-ONCE past
+// `prsFoldedThrough` for the reason the queue read is: a paged REST resource where the
+// capture files are local git, and a merge is settled — `merged_at` never moves.
+//
+// The rows carry DURATIONS, never percentiles: a week's p50 is not the mean of its
+// days' p50s, so the quantile is the reader's reduction over whatever window it draws
+// and the fold's job is to carry the sample. `merged` is the key count.
+//
+// `records` is `[{ date, number, leadHours, issueLeadHours, sessionToMergeHours }]`; a
+// slot whose far end is unknown is `null` and keeps no key, which is not a zero lead.
+export function foldPrs(days, priorDays = {}, records = [], today) {
+  for (const [date, row] of Object.entries(priorDays)) {
+    const prior = row?.prs;
+    if (!prior || !Object.keys(prior).length || !withinTaskWindow(date, today, DAY_WINDOW_DAYS)) continue;
+    (days[date] ??= emptyDay()).prs = structuredClone(prior);
+  }
+  for (const { date, number, ...hours } of records) {
+    const day = (days[date] ??= emptyDay());
+    const row = {};
+    for (const field of USAGE_FIELDS.prs) {
+      if (typeof hours[field] === 'number' && Number.isFinite(hours[field])) row[field] = hours[field];
+    }
+    day.prs[String(number)] = row;
   }
   return days;
 }
@@ -781,20 +1000,22 @@ export function addDayToWeek(week, day) {
     const value = day[WEEK_FROM_DAY[field] ?? field];
     if (typeof value === 'number' && Number.isFinite(value)) add(field, value);
   }
+  // The bare maps a week row can carry, so a week frozen before one existed reads
+  // back the same shape a fresh fold builds. `ruleTokensByPack` is present and stays
+  // EMPTY: it is a day-tier field — a week's sum of it would count the same mount once
+  // per session in the week — and an empty map is never written, so the file is
+  // unchanged by its being here.
+  for (const map of BARE_MAPS) w[map] ??= {};
   addLoads(w.skillLoads, day.skillLoads);
-  // A week folded before the checks were counted has no `checks` key at all —
-  // default rather than crash, so the first fold after this shipped extends the
-  // existing weeks instead of refusing to advance the watermark past them.
-  addCounters((w.checks ??= {}), day.checks);
-  addCounters((w.checkFindings ??= {}), day.checkFindings);
-  // Same default-rather-than-crash treatment for the task invocations: a week
-  // folded before they were counted has no `tasks` key, and grows one from the day
-  // it closes forward instead of wedging the watermark behind it.
-  addCounters((w.tasks ??= {}), day.tasks);
-  // …and for the executor-side execution statuses (the conversation-log census).
-  addCounters((w.taskExec ??= {}), day.taskExec);
-  // …and for the queue's own outcome record, which arrived later still.
-  addCounters((w.queue ??= {}), day.queue);
+  // Every counter group folds key-wise, driven off the vocabulary rather than a
+  // hand-written list here — which is where a newly appended group would otherwise be
+  // silently dropped out of the week tier.
+  //
+  // A week frozen before a group existed carries no key for it: defaulted rather than
+  // crashed, so the first fold after the group ships extends those weeks from the day
+  // it closes forward instead of wedging the watermark behind them.
+  //
+  for (const group of COUNTER_GROUPS) addCounters((w[group] ??= {}), day[group]);
   return w;
 }
 
@@ -821,7 +1042,8 @@ function sortKeys(obj) {
 // longer change.
 export function foldUsage({
   files, prior = {}, today, now = null, runsFoldedThrough = null,
-  queueRecords = [], queueFoldedThrough = null, runs = [], dayFields = {}, generated = null,
+  queueRecords = [], queueFoldedThrough = null, prRecords = [], prsFoldedThrough = null,
+  runs = [], dayFields = {}, generated = null,
 }) {
   const days = foldDays(files);
   // The appended rows are accumulated BEFORE the week fold, so a day that closed since
@@ -831,6 +1053,7 @@ export function foldUsage({
   // one weeks state for themselves.)
   carryTaskRuns(days, prior.days ?? {}, today);
   foldQueueOutcomes(days, prior.days ?? {}, queueRecords, today);
+  foldPrs(days, prior.days ?? {}, prRecords, today);
   foldDayFields(days, dayFields);
   const weeks = structuredClone(prior.weeks ?? {});
   let foldedThrough = prior.foldedThrough ?? null;
@@ -852,6 +1075,9 @@ export function foldUsage({
     // reason the run ledger has one: a different source on a different clock, and one
     // outage must not read as the other's.
     queueFoldedThrough: queueFoldedThrough ?? prior.queueFoldedThrough ?? null,
+    // …and the merged-PR listing's own mark, bounded on `merged_at` for the same
+    // reason the queue's is bounded on `closed_at`.
+    prsFoldedThrough: prsFoldedThrough ?? prior.prsFoldedThrough ?? null,
     hours: sortKeys(foldHours({
       prior: prior.hours ?? {}, runs, captureHours: captureHours(files), now: now ?? `${today}T23:59:59Z`,
     })),

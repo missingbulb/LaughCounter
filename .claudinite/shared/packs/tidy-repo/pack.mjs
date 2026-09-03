@@ -16,7 +16,7 @@
 // scope, none depends on another's result, so there is no ordering barrier and a
 // dimension with nothing to do stays silent.
 export default {
-  version: '60902.1',
+  version: '60902.2',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'housekeeping of one repo — triage verdicts over its issues and pull requests, the comments in its source, standing trackers',

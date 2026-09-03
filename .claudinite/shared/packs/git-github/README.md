@@ -17,6 +17,12 @@ The workflow-YAML and Actions-runner behaviours a repo cannot get wrong. Each ri
 failure message *is* the rule, and each selects its inputs from `.github/workflows/` — so a repo
 that ships no workflows hears from none of them.
 
+Most also read `packs/<pack>/stubs/workflows/`, since a stub is copied verbatim into every repo
+adopting its pack and is judged there by these same checks. The two that do not are
+`gha/no-scheduled-fleet-executor` and `gha/scheduled-failure-escalation`: each asserts a fact
+about an adopting repo — who owns its one cron, who watches its scheduled runs — rather than
+about the file, so neither has an answer about a fragment. (1)
+
 | Check | Severity | Reason | Enforcement |
 |---|---|---|---|
 | `gha/secrets-in-job-if` | high | correctness | check: blocking |

@@ -19,6 +19,11 @@ export default {
   // The claims are about the world, but a repo nobody works in has nothing riding
   // on them: the sweep sleeps while it is silent and resumes on the first active
   // window. Which pack paths it revalidates is task.md's.
+  //
+  // Never narrow this to a movement gate: the repo does not move when its claims
+  // expire, so movement is exactly the wrong evidence. And never gate on the
+  // previous round still being open — the round runs and appends to that PR, which
+  // is what makes one review cover several weeks of corrections.
   preconditions: ['repo-active'],
   agent_model: 'opus',                   // designing a safe probe per claim, and reading a null result correctly, is heavy judgment
   expected_outcome: 'pr',

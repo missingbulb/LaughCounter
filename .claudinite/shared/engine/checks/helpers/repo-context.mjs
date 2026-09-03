@@ -172,7 +172,7 @@ export const isDormant = (config) => config?.dormant === true;
 // The keys a `schedule` object may carry, and the canonical weekday vocabulary
 // (mirrored from the scheduler's own WEEKDAYS — kept as a literal here so the checks
 // layer does not import the scheduler).
-const SCHEDULE_KEYS = ['dailyHour', 'weeklyDay', 'monthlyDay', 'dispatch', 'agenticTaskInvocationEndpoints', 'endpoints'];
+const SCHEDULE_KEYS = ['dailyHour', 'weeklyDay', 'monthlyDay', 'dispatch', 'agenticTaskInvocationEndpoints', 'endpoints', 'disabledTasks'];
 
 // What the endpoint map is called. `endpoints` said nothing about WHICH endpoints —
 // a scheduler has several kinds it could mean — where these are exactly one thing:
@@ -366,6 +366,24 @@ export function loadConfig(root) {
       if (monthlyDay !== undefined && !(Number.isInteger(monthlyDay) && monthlyDay >= 1 && monthlyDay <= 31)) {
         errors.push({ what: `"taskScheduler.monthlyDay" must be an integer 1–31, got ${JSON.stringify(monthlyDay)}`, fix: 'set a day of the month, 1 through 31 (clamped to the month length)' });
       }
+      // The tasks this repo does not want instantiated (task-preconditions DESIGN,
+      // "What is not a precondition"). Repo shape — "this repo ships the store
+      // pipeline", "this repo has a vendored mount" — is a fact adoption settled,
+      // so it is answered once here rather than re-asked by a precondition every
+      // night. Validated as a shape only: whether the named task exists is a
+      // question about the repo's declared packs, answered where tasks are
+      // discovered, and a member may legitimately disable a task it has not
+      // adopted yet.
+      const { disabledTasks } = raw.taskScheduler;
+      if (disabledTasks !== undefined
+          && !(Array.isArray(disabledTasks)
+            && disabledTasks.every((id) => typeof id === 'string' && /^[^/\s]+\/[^/\s]+$/.test(id)))) {
+        errors.push({
+          what: `"taskScheduler.disabledTasks" must be an array of "<pack>/<task>" ids, got ${JSON.stringify(disabledTasks)}`,
+          fix: 'list the tasks this repo does not run, e.g. ["claudinite-lifecycle/update"]',
+        });
+      }
+
       const { dispatch } = raw.taskScheduler;
       const endpoints = raw.taskScheduler[ENDPOINTS_KEY] ?? raw.taskScheduler[LEGACY_ENDPOINTS_KEY];
       if (dispatch !== undefined && !DISPATCH_MODES.includes(dispatch)) {
@@ -519,7 +537,7 @@ export function buildContext({ root, mode = 'changed', baseOverride = null, tran
   // The vendored corpus under the shared mount is canon-owned, never the
   // project's own code — structurally out of scope for every check, on any git
   // host and any checkout (deliberately not attribute-driven). The consumer's
-  // own .claudinite/local_packs/ sits BESIDE the shared mount and stays fully
+  // own .claudinite/local/packs/ sits BESIDE the shared mount and stays fully
   // in scope.
   // git emits '/'-separated paths on every platform; SHARED_SUBDIR is joined
   // with the platform separator, so normalize before prefix-matching.

@@ -19,14 +19,21 @@ an optional `config.path`, default `preferences`) name the store that holds one 
 person. Every miss — no identity, no configured store, no file, a failed fetch — is one plain-text
 note and the session proceeds on default interaction behaviour.
 
+Preferences are **personal, not project conventions**: conventions belong to the packs that own
+each subject and load as prose, while these travel with a person across every project they work
+in, and two people on one project can want different things. Reading is local-first — when this
+repo *is* the store, the working copy wins over the default branch, so an edit in progress is
+what the session sees. Being the store also constrains the tree: the file name is the whole
+address, so the store is flat and each name is one person's exact identity, which
+[`worldRules/store-file-names.mjs`](worldRules/store-file-names.mjs) explains and audits.
+
 ## Rules (`RULES.md`)
 
 | Rule | Severity | Reason | Enforcement |
 |---|---|---|---|
-| Personal interaction preferences | medium | complexity | prose: 277 words |
-| If this repo is the store | high | correctness | prose: 104 words + check (`preferences-store-file-names`) |
-| Adding or changing a preference | medium | complexity | prose: 67 words |
-| The web environment's Setup script | medium | complexity | prose: 98 words |
+| Changing a person's preferences | medium | complexity | prose: 53 words |
+| A person's first preferences file | high | correctness | prose: 44 words + check (`preferences-store-file-names`) |
+| A web session's missing toolchain | medium | complexity | prose: 38 words |
 
 ## Checks
 

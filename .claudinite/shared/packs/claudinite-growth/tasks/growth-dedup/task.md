@@ -28,8 +28,8 @@ Often there's nothing to prune, and that's fine. The run's
   precondition emits the list only when the mounted canon moved, and its other arm — the repo's own local packs
   changed — deliberately emits none, so that run compares the fresh local items against the whole mounted canon.
 - **The repo's local packs.** The set identified in [this pack's README](../../README.md#identifying-a-projects-capture-surface-its-local-packs) —
-  everything under `.claudinite/local/packs/` (the legacy `.claudinite/local_packs/` accepted during the
-  rename window). That's the corpus this task prunes within; the read-only mounted canon elsewhere under
+  everything under `.claudinite/local/packs/`. That's the corpus this task prunes within; the
+  read-only mounted canon elsewhere under
   `.claudinite/` is never a prune target, only the yardstick you prune *against*.
 
 ## Start by reading the canon window diff

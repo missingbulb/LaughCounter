@@ -98,7 +98,9 @@ forever, whether or not it ever applies — so prose is rationed, and the ration
 A pack keeps **one** `references.md` beside its `RULES.md`, servicing all of the pack's prose
 files and its checks. It exists for maintenance and review — the periodic pass that asks
 whether a rule still earns its place needs the reason it was written — never for daily agentic
-work: no rule sends its reader there, and no session loads it.
+work: no rule sends its reader there, and no session loads it. So it stays in the repo that
+owns the pack and never vendors: a member mounting a canon pack receives the rules, not the
+reasoning behind them, and the pass that reaffirms them runs where the pack lives.
 
 - **Adding a rule that has a rationale** — write the brief rule in `RULES.md` (or the skill),
   and put the reason in `references.md`. End the rule with the bare marker — `… never a

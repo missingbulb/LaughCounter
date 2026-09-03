@@ -87,9 +87,9 @@ export const resolveTerm = (name, taskTerms) => BUILTIN_TERMS.get(name) ?? taskT
 
 // --- the signal union, derived ------------------------------------------------
 
-// Every signal the expression's terms read. This is what replaced the declared
-// `precondition_signals`: the collector union can never disagree with what the
-// gate actually consults, because it IS what the gate consults.
+// Every signal the expression's terms read. The collector union cannot disagree
+// with what the gate actually consults, because it IS what the gate consults —
+// which a separately declared list could not guarantee.
 export function preconditionSignals(preconditions, taskTerms) {
   const parsed = parsePreconditions(preconditions);
   if (parsed.kind !== 'conditions') return [];
@@ -141,9 +141,17 @@ export function validatePreconditions(preconditions, taskTerms = new Map()) {
 // --- the built-in vocabulary --------------------------------------------------
 // A term is `{ signals, takesArg?, argName?, holds(signals, opts) }`, where
 // `holds` returns `{ holds, reason?, context? }` or `{ error }`. `opts` carries
-// the inline `arg`, the pack's `config`, this occurrence's `item` fields, and
+// the inline `arg`, the pack's `config`, this occurrence's `item` fields,
 // `windowDays` — the lookback the signals were collected over, which the
-// dimensions with no windowed field of their own (the logs branch) need.
+// dimensions with no windowed field of their own (the logs branch) need — and
+// `now`, the instant this verdict is being taken at.
+//
+// `now` is passed rather than read, because a term whose subject IS the instant
+// ("are we inside the festival month") has nothing in the signal bundle to read:
+// a term reaching for the process clock would be untestable at a chosen moment
+// and impure, in the one module that promises to be neither. Both callers already
+// hold the instant they are deciding for, so passing it costs nothing and keeps
+// every term a pure function of its inputs.
 //
 // EVERY MOVEMENT TERM IS NON-TASK BY CONSTRUCTION: the fields they read are
 // already classified by the collectors, which drop a commit or a PR carrying the
@@ -339,7 +347,7 @@ export const BUILTIN_TERM_NAMES = [...BUILTIN_TERMS.keys()];
 
 // Evaluate a declaration over collected signals. Returns `{ run, reason, context }`
 // — or `{ error }`, which is a failed run rather than a decline.
-export function evaluatePreconditions({ preconditions, signals = {}, config = {}, item = null, terms = new Map(), windowDays = null }) {
+export function evaluatePreconditions({ preconditions, signals = {}, config = {}, item = null, terms = new Map(), windowDays = null, now = null }) {
   const parsed = parsePreconditions(preconditions);
   if (parsed.kind === 'invalid') return { error: `the "preconditions" declaration is not legal: ${parsed.reason}` };
   if (parsed.kind === NONE) {
@@ -361,7 +369,7 @@ export function evaluatePreconditions({ preconditions, signals = {}, config = {}
       const unreadable = (term.signals ?? []).find((n) => signals?.[n]?.error);
       if (unreadable) return { error: `${ref.name}: the \`${unreadable}\` signal could not be read — ${signals[unreadable].error}` };
       let out;
-      try { out = term.holds(signals, { arg: ref.arg, config, item, windowDays }) ?? {}; }
+      try { out = term.holds(signals, { arg: ref.arg, config, item, windowDays, now }) ?? {}; }
       catch (e) { return { error: `the precondition "${ref.name}" threw: ${e.message}` }; }
       if (out.error) return { error: `${ref.name}: ${out.error}` };
       outcomes.push({ ref, out });

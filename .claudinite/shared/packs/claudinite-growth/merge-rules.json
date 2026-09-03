@@ -1,13 +1,13 @@
 [
   {
     "name": "claudinite-local-pack-md-changes",
-    "pathMatching": "/^\\.claudinite\\/(local\\/packs|local_packs)\\/.*\\.md$/",
+    "pathMatching": "/^\\.claudinite\\/local\\/packs\\/.*\\.md$/",
     "changeKinds": ["added", "modified"],
     "editShape": "any"
   },
   {
     "name": "claudinite-local-pack-check-changes",
-    "pathMatching": "/^\\.claudinite\\/(local\\/packs|local_packs)\\/[^/]+\\/(declared-checks\\.json|(workRules|worldRules)\\/[^/]+\\.mjs|skills\\/[^/]+\\/(declared-checks\\.json|checks\\.mjs)|test\\/.*\\.mjs)$/",
+    "pathMatching": "/^\\.claudinite\\/local\\/packs\\/[^/]+\\/(declared-checks\\.json|(workRules|worldRules)\\/[^/]+\\.mjs|skills\\/[^/]+\\/(declared-checks\\.json|checks\\.mjs)|test\\/.*\\.mjs)$/",
     "changeKinds": ["added", "modified"],
     "editShape": "any"
   }

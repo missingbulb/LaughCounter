@@ -1,8 +1,5 @@
 # core — working with Claudinite itself
 
-Claudinite's own surface in a repo that runs it: the vendored mount, the declaration, adoption and
-the self-refresh. The contract a scheduled task is written to is claudinite-growth's.
-
 - **Reading a rule, check or skill that arrived from Claudinite** — it is vendored, under
   `.claudinite/shared/`, and the update flows replace that whole tree. Never edit anything there:
   change it in the canon, or carry the difference in this repo's own `.claudinite/local/packs/`.

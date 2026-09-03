@@ -202,12 +202,12 @@ claim is reported in the run's PR body as explicitly as a corrected one.
 ## Identifying a project's capture surface: its local packs (the same way in every stage)
 
 Every growth stage operates on a project's **local packs** — the tracked packs a repo keeps under
-`.claudinite/local_packs/<pack>/` (prose in `RULES.md`, checks in the pack's `rules`, activity
+`.claudinite/local/packs/<pack>/` (prose in `RULES.md`, checks in the pack's `rules`, activity
 procedures as the pack's skills, scheduled tasks under its `tasks/`). That subtree **is** the
 project's own content;
 the rest of `.claudinite/` is the **read-only mounted canon** and is never a capture, prune, or
 promote target. So "a project's local packs" means precisely *everything under
-`.claudinite/local_packs/`, and nothing else under `.claudinite/`*. This is the normalized capture
+`.claudinite/local/packs/`, and nothing else under `.claudinite/`*. This is the normalized capture
 surface — a structural set the stages read the same way, not a `CLAUDE.md`-graph walk over stray
 Markdown (a repo with no local packs yet simply has nothing to extract, dedup, or promote here;
 adoption seeds the structure).
@@ -221,9 +221,9 @@ context completely where prose only relocates it, so capture writes *more checks
 
 The stages differ only in *how they read that set*, never in *which set it is*: extract and dedup
 run against the member repo and read the local packs from the working tree; promote runs centrally
-and reads the same subtree over the GitHub API (get-file-contents under `.claudinite/local_packs/`).
+and reads the same subtree over the GitHub API (get-file-contents under `.claudinite/local/packs/`).
 Extract writes into it, promote reads from it, dedup prunes within it — all against the identical,
-`.claudinite/local_packs/`-rooted set.
+`.claudinite/local/packs/`-rooted set.
 
 ## The change record: the commit, and nothing else
 

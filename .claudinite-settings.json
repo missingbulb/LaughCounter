@@ -2,7 +2,7 @@
   "packs": [
     {
       "id": "basics",
-      "version": "60902.2"
+      "version": "60902.6"
     },
     {
       "id": "barriers",
@@ -13,33 +13,33 @@
     },
     {
       "id": "claudinite-growth",
-      "version": "60902.1"
+      "version": "60902.6"
     },
     {
       "id": "tidy-repo",
-      "version": "60902.1"
+      "version": "60902.2"
     },
     {
       "id": "git-github",
-      "version": "60901.1"
+      "version": "60902.1"
     },
     "local/on-device-privacy",
     "local/macos-audio",
     "local/laughcounter",
     {
       "id": "claude-code-web-users-support",
-      "version": "60823.1",
+      "version": "60902.1",
       "config": {
         "repo": "missingbulb/Shepherd"
       }
     },
     {
       "id": "claudinite-lifecycle",
-      "version": "60902.1"
+      "version": "60902.3"
     },
     {
       "id": "claudinite-tasks",
-      "version": "60902.2"
+      "version": "60902.9"
     }
   ],
   "accept": [],
@@ -54,5 +54,5 @@
     "weeklyDay": "Sun",
     "monthlyDay": 1
   },
-  "engineVersion": "60823.1"
+  "engineVersion": "60902.1"
 }

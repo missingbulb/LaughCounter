@@ -33,9 +33,9 @@ export const WINDOW_DAYS = 7;
 
 // A canon pack's file, in the two-root form: the mount prefix is optional because
 // the canon home runs this same code from its repo root, where the shared packs
-// ARE `packs/`. A local pack (`.claudinite/local/packs/…`, or the pre-rename
-// `.claudinite/local_packs/…`) matches neither root — deliberately: it is what
-// this task prunes, never the yardstick it prunes against.
+// ARE `packs/`. A local pack (`.claudinite/local/packs/…`) matches neither root
+// — deliberately: it is what this task prunes, never the yardstick it prunes
+// against.
 const CANON_PACK_FILE = /^(?:\.claudinite\/shared\/)?packs\/([^/]+)\/.+/;
 
 // A rule id as a pack's declared-checks.json spells it — `id`, the key that file

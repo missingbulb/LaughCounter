@@ -249,9 +249,12 @@ preconditions: ['substantive-change', 'no-open-pr-titled:Claudinite tidy: improv
 its trigger is the calendar or the filed work item itself. It is legal only as the
 sole entry: any real condition beside it would be the actual precondition.
 
-**Do not declare `precondition_signals`.** The signal union is derived from the
-conditions, each of which names what it reads, so the collector can never disagree
-with the gate.
+**`preconditions` is the only gate there is.** The `precondition` function and its
+`precondition_signals` companion are retired: both are rejected by name, and the
+signal union is derived from the conditions — each names what it reads, so the
+collector can never disagree with the gate. A gate the built-ins cannot express is
+a **task-local term** in a `preconditions.mjs` beside the declaration, which is
+handed `{ arg, config, item, windowDays, now }` and stays pure over them.
 
 **Three things are NOT preconditions**, and putting them there is the common
 mistake:

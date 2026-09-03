@@ -10,14 +10,14 @@ import { finding } from '../../../engine/checks/helpers/findings.mjs';
 // writing-pack-prose skill.
 //
 // Two-root form: the path pattern keys on the `packs/<pack>/` suffix, so it
-// matches the canon home's `packs/`, a member's `.claudinite/local/packs/` and
-// the legacy `.claudinite/local_packs/` alike (a member's vendored
-// `.claudinite/shared/` copy is linguist-vendored and never in the file set).
+// matches the canon home's `packs/` and a member's `.claudinite/local/packs/`
+// alike (a member's vendored `.claudinite/shared/` copy is linguist-vendored and
+// never in the file set).
 //
 // RELEVANCE FIRST (engine/checks/README.md): the convention is opt-in per rule,
 // so a pack with no markers and no check entries produces nothing.
-const PROSE = /(^|\/)(?:local_)?packs\/[^/]+\/(?:RULES\.md|skills\/[^/]+\/SKILL\.md)$/;
-const PACK_DIR = /(^|.*\/)(?:local_)?packs\/[^/]+\//;
+const PROSE = /(^|\/)packs\/[^/]+\/(?:RULES\.md|skills\/[^/]+\/SKILL\.md)$/;
+const PACK_DIR = /(^|.*\/)packs\/[^/]+\//;
 
 // A citation marker: a line ENDING with `(3)` or `(3, 7)` — an inline issue id
 // `(#1119)` or a worded parenthetical never matches, and a trailing period puts

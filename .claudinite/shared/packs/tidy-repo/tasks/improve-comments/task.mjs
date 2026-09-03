@@ -19,9 +19,9 @@
 export default {
   id: 'improve-comments',
   frequency: 'weekly',                   // the weekly anchor (DESIGN §2); the window's commits are the scope
-  // Something moved, some of it in this repo's OWN source, and the previous round
-  // has landed — the third condition is what stops a second sweep stacking on an
-  // unreviewed one.
+  // Something moved, and some of it in this repo's OWN source. Never gate on the
+  // previous round still being open — the round runs and appends to that PR, which
+  // is what makes one review cover several weeks of comment work.
   //
   // `.claudinite/` is the mount, not the repo's source: `shared/` is vendored and
   // the next converge replaces it whole, so a comment improved there is gone by
@@ -29,13 +29,9 @@ export default {
   // the WRITE in this pack's `improve-comments-scope` check, and the test beside
   // that check pins the two together — a scope this declaration hands out but the
   // gate then refuses is the failure the pin exists for.
-  //
-  // The title is the pinned commit subject that gate keys on, which is also why the
-  // previous round is recognisable from its PR alone.
   preconditions: [
     'substantive-change',
     'commits-outside:.claudinite/',
-    'no-open-pr-titled:Claudinite tidy: improve comments',
   ],
   agent_model: 'opus',                   // whether a comment carries a why the code cannot state is the judgment here, and a wrong call lands in the repo's source
   // A ceiling, not a plan: the repo's own delivery setting decides whether the

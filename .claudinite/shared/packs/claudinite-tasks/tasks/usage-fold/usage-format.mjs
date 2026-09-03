@@ -34,6 +34,7 @@
 // different questions on different clocks; see the task's README.
 
 import { TASK_RUN_OUTCOMES, TASK_EXEC_STATUSES, LEGACY_TASK_RUN_OUTCOMES } from '../../../claudinite-tasks/run-record.mjs';
+import { PARK_KINDS } from '../../../claudinite-tasks/queue/work-item.mjs';
 
 export const USAGE_VERSION = 3;
 
@@ -63,6 +64,7 @@ export const USAGE_FIELDS = Object.freeze({
     'ruleTokens', 'ruleTokenSessions',
     'tokensIn', 'tokensOut', 'tokenSessions',
     'commits', 'linesAdded', 'linesRemoved', 'releases',
+    'humanSeconds', 'agentSeconds',
   ]),
   // A week row's — `days` is how many day rows it absorbed, and `sessionDays` is the
   // sum of the day-level distinct-session counts, which is not a distinct count.
@@ -71,6 +73,7 @@ export const USAGE_FIELDS = Object.freeze({
     'ruleTokens', 'ruleTokenSessions',
     'tokensIn', 'tokensOut', 'tokenSessions',
     'commits', 'linesAdded', 'linesRemoved', 'releases',
+    'humanSeconds', 'agentSeconds',
   ]),
   // An hour row's. `scheduler` and `executor` are workflow runs STARTED in the hour,
   // `agentic` the sessions that captured in it, and `failed` the subset of the two
@@ -78,6 +81,24 @@ export const USAGE_FIELDS = Object.freeze({
   hour: Object.freeze(['scheduler', 'executor', 'agentic', 'failed']),
   checks: Object.freeze(['runs', 'failures', 'errors', 'blocking', 'advisory', 'ciRuns', 'ciFailures']),
   checkFindings: Object.freeze(['blocking', 'advisory']),
+  // Keyed by MODEL ID. The four usage counters are kept apart here where `tokensIn`
+  // is their first three summed, so a reader can price a day per model without
+  // anything else in the file changing meaning.
+  tokensByModel: Object.freeze(['input', 'cacheRead', 'cacheCreate', 'output']),
+  // Keyed by PR NUMBER, in hours. Durations rather than percentiles because a
+  // percentile does not fold: a week's p50 is not derivable from its days', so the
+  // file carries what a reader needs to compute the quantile over whatever window it
+  // is showing. A slot whose far end is unknown — a PR that closes no issue, one
+  // whose session never captured — is `null`, which is not a zero lead time.
+  prs: Object.freeze(['leadHours', 'issueLeadHours', 'sessionToMergeHours']),
+  // Keyed by `pack/task`, plus `(none)` for a session a person started and
+  // `(unresolved)` for one whose issue names no execution record.
+  taskCost: Object.freeze(['sessions', 'tokensIn', 'tokensOut', 'userMessages']),
+  // Keyed by `pack/task`. The park kinds are imported rather than re-spelled: they
+  // are this pack's own vocabulary, delivered in the same version as this file, and
+  // a counter key that drifted from the label a park actually wears would count
+  // nothing.
+  parks: PARK_KINDS,
   // Owned by the scheduler, imported rather than re-spelled: the counter keys cannot
   // drift from the outcome words the runs actually emit.
   tasks: TASK_RUN_OUTCOMES,
@@ -100,15 +121,33 @@ export const CAPTURE_DAY_FIELDS = Object.freeze([
 // week spells differently, and `days`, which counts rows rather than summing one.
 export const WEEK_FROM_DAY = Object.freeze({ sessionDays: 'sessions' });
 
-// The row's sub-maps that carry a counter TUPLE per key. `skillLoads` is deliberately
-// not among them — its values are bare numbers, so it needs no vocabulary.
-export const COUNTER_GROUPS = Object.freeze(['checks', 'checkFindings', 'tasks', 'taskExec', 'queue']);
+// The row's sub-maps that carry a counter TUPLE per key — the ones a vocabulary is
+// declared for. The sub-maps whose values are bare numbers are BARE_MAPS below.
+export const COUNTER_GROUPS = Object.freeze([
+  'checks', 'checkFindings', 'tasks', 'taskExec', 'queue', 'tokensByModel', 'prs', 'taskCost', 'parks',
+]);
+
+// The row's sub-maps whose values are BARE NUMBERS — no vocabulary, nothing to expand,
+// written and read as they stand. Keyed by a name that varies (a skill, a pack), like
+// the counter groups beside them.
+export const BARE_MAPS = Object.freeze(['skillLoads', 'ruleTokensByPack']);
+
+// The bounds a reader would otherwise have to guess, declared in the file beside
+// `fields` for the same reason: a figure computed under a cap means nothing without
+// it. `humanSeconds` counts the gap before each human turn, and an overnight gap is
+// not the person's time — ten minutes is the bound above which a gap is a break, and
+// the cap is what makes the figure a floor rather than a fiction.
+export const USAGE_CAPS = Object.freeze({ humanSeconds: 600 });
 
 const sortKeys = (obj) => Object.fromEntries(Object.keys(obj ?? {}).sort().map((k) => [k, obj[k]]));
 const nonEmpty = (obj) => obj !== undefined && obj !== null && Object.keys(obj).length > 0;
 
 // The `fields` header for a file this module's code writes.
 export const usageFieldsHeader = () => Object.fromEntries(Object.entries(USAGE_FIELDS).map(([k, v]) => [k, [...v]]));
+
+// The `caps` header for a file this module's code writes. A file without one was
+// written before the capped fields existed.
+export const usageCapsHeader = () => ({ ...USAGE_CAPS });
 
 // One counter row, object → tuple. An absent key becomes `null` (unknown), never 0.
 export function encodeCounters(row, fields) {
@@ -133,7 +172,7 @@ export function decodeCounters(tuple, fields) {
 // map carries nothing a reader cannot derive.
 export function encodeRow(row, totalsFields) {
   const out = { totals: encodeCounters(row, totalsFields) };
-  if (nonEmpty(row.skillLoads)) out.skillLoads = sortKeys(row.skillLoads);
+  for (const map of BARE_MAPS) if (nonEmpty(row[map])) out[map] = sortKeys(row[map]);
   for (const group of COUNTER_GROUPS) {
     if (!nonEmpty(row[group])) continue;
     const fields = USAGE_FIELDS[group];
@@ -149,7 +188,8 @@ export function encodeRow(row, totalsFields) {
 // hand-written or truncated header gets). Group maps always come back present, empty
 // when the row omitted them, because every consumer folds them key-wise.
 export function decodeRow(row, totalsFields, fields = {}) {
-  const out = { ...decodeCounters(row?.totals, totalsFields), skillLoads: { ...(row?.skillLoads ?? {}) } };
+  const out = { ...decodeCounters(row?.totals, totalsFields) };
+  for (const map of BARE_MAPS) out[map] = { ...(row?.[map] ?? {}) };
   for (const group of COUNTER_GROUPS) {
     const vocab = fields[group] ?? USAGE_FIELDS[group];
     out[group] = Object.fromEntries(
@@ -202,7 +242,7 @@ export const hourKey = (iso) => String(iso ?? '').slice(0, 13);
 // Named rows → the on-disk file.
 export function encodeUsageFile({
   generated = null, foldedThrough = null, runsFoldedThrough = null, queueFoldedThrough = null,
-  hours = {}, days = {}, weeks = {},
+  prsFoldedThrough = null, hours = {}, days = {}, weeks = {},
 } = {}) {
   return {
     version: USAGE_VERSION,
@@ -215,9 +255,11 @@ export function encodeUsageFile({
     foldedThrough,
     runsFoldedThrough,
     queueFoldedThrough,
+    prsFoldedThrough,
     // The vocabularies this file's tuples are spelled in, written per file so a reader
     // never has to guess which code wrote it.
     fields: usageFieldsHeader(),
+    caps: usageCapsHeader(),
     hours: Object.fromEntries(Object.entries(hours).map(([k, v]) => [k, encodeRow(v, USAGE_FIELDS.hour)])),
     days: Object.fromEntries(Object.entries(days).map(([k, v]) => [k, encodeRow(v, USAGE_FIELDS.day)])),
     weeks: Object.fromEntries(Object.entries(weeks).map(([k, v]) => [k, encodeRow(v, USAGE_FIELDS.week)])),
@@ -241,7 +283,9 @@ export function renderUsageFile(file) {
     `  "foldedThrough": ${JSON.stringify(file.foldedThrough ?? null)},`,
     `  "runsFoldedThrough": ${JSON.stringify(file.runsFoldedThrough ?? null)},`,
     `  "queueFoldedThrough": ${JSON.stringify(file.queueFoldedThrough ?? null)},`,
+    `  "prsFoldedThrough": ${JSON.stringify(file.prsFoldedThrough ?? null)},`,
     ...block('fields', file.fields, ','),
+    ...block('caps', file.caps, ','),
     ...block('hours', file.hours, ','),
     ...block('days', file.days, ','),
     ...block('weeks', file.weeks, ''),
@@ -264,7 +308,7 @@ export const withoutStamp = (text) => String(text ?? '')
 export function decodeUsageFile(file) {
   const empty = {
     generated: null, foldedThrough: null, runsFoldedThrough: null, queueFoldedThrough: null,
-    hours: {}, days: {}, weeks: {},
+    prsFoldedThrough: null, hours: {}, days: {}, weeks: {},
   };
   if (!file || typeof file !== 'object') return empty;
   const marks = {
@@ -275,6 +319,8 @@ export function decodeUsageFile(file) {
     // "never folded" — the first fold under this code then starts the series from its
     // own lookback rather than claiming to have covered history it never read.
     queueFoldedThrough: file.queueFoldedThrough ?? null,
+    // Likewise for the merged-PR read, which arrived later still.
+    prsFoldedThrough: file.prsFoldedThrough ?? null,
   };
   if (!isTupleFormat(file)) {
     return { ...marks, hours: {}, days: file.days ?? {}, weeks: file.weeks ?? {} };

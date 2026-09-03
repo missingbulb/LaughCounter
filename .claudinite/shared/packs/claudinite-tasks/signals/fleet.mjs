@@ -23,7 +23,7 @@ import { packEntryId } from '../../../engine/pack_loader/pack-registry.mjs';
 // Local-pack roots, canonical first — a window commit touching either is a local
 // -pack change (promote's trigger). Both are live until the Phase 4 cleanup drops
 // the legacy dual root. One definition, shared with the per-repo probes.
-import { LOCAL_PACK_ROOTS as LOCAL_ROOTS } from './local.mjs';
+import { LOCAL_PACK_ROOT } from './local.mjs';
 import { SETTINGS_FILES } from '../../../engine/settings-file.mjs';
 // The one definition of dormancy, shared with every other fleet reader: a second
 // notion of it would sweep exactly the members that had already opted out.
@@ -84,7 +84,7 @@ async function localPacksChangedInWindow(gh, fullName, defaultBranch, sinceIso) 
     if (!c?.sha) continue;
     const detail = await gh(`/repos/${fullName}/commits/${c.sha}`);
     const files = detail.status === 200 ? (detail.json?.files ?? []) : [];
-    if (files.some((f) => typeof f.filename === 'string' && LOCAL_ROOTS.some((r) => f.filename.startsWith(r)))) return true;
+    if (files.some((f) => typeof f.filename === 'string' && f.filename.startsWith(LOCAL_PACK_ROOT))) return true;
   }
   return false;
 }

@@ -38,13 +38,9 @@ try {
   // skill AND bundle its own under <pack>/skills/, mounted from the tracked pack
   // dir rather than the corpus mount.
   const packs = await loadPacks({ localRoot: projectRoot });
-  // Both local roots: the canonical .claudinite/local/packs and the pre-rename
-  // .claudinite/local_packs, so a mount from either is recognized as ours during
-  // the migration window (skills themselves resolve off each pack's own dir).
-  const localPacksRoots = [
-    join(projectRoot, '.claudinite', 'local', 'packs'),
-    join(projectRoot, '.claudinite', 'local_packs'),
-  ];
+  // The repo's own pack root, so a mount from it is recognized as ours (skills
+  // themselves resolve off each pack's own dir).
+  const localPacksRoot = join(projectRoot, '.claudinite', 'local', 'packs');
 
   // The union over the active packs' bundled skills (pack-registry's one
   // definition of the mounted set). Canon packs sort before local ones, so a name
@@ -59,13 +55,13 @@ try {
 
   const lstatOrNull = (p) => { try { return lstatSync(p); } catch { return null; } };
   // A mount is ours iff it is a symlink into a pack's bundled skills — the
-  // corpus's packs/ tree or the project's own local_packs (#383) — lexical
+  // corpus's packs/ tree or the project's own local packs (#383) — lexical
   // resolve, so a dangling leftover still matches and gets cleaned. (The
   // pre-#385 legacy skills roots retired with phase 3 — every member mounts
   // from pack trees.)
   const ownedRoots = [
     join(corpusRoot, 'packs'),
-    ...localPacksRoots,
+    localPacksRoot,
   ];
   const owned = (entry) => {
     const st = lstatOrNull(join(mountDir, entry));

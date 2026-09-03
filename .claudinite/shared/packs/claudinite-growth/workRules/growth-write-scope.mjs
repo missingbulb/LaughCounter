@@ -4,15 +4,14 @@ import { realpathSync } from 'node:fs';
 import { finding } from '../../../engine/checks/helpers/findings.mjs';
 import { runRule } from '../../../engine/checks/helpers/work.mjs';
 import { buildContext } from '../../../engine/checks/helpers/repo-context.mjs';
-import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../../engine/pack_loader/pack-registry.mjs';
+import { LOCAL_PACKS_SUBDIR } from '../../../engine/pack_loader/pack-registry.mjs';
 
 // The write-surface gate for the growth lifecycle's two CAPTURE runs — extract
 // and dedup. Their docs bound every edit to the repo's own local packs, and
 // extract's PR auto-merges with no human review, so the boundary needs a
 // machine guarantee, not a prose request: when a branch carries one of those
 // runs' pinned commit subjects, every path it touches — added, modified, or
-// deleted — must sit under .claudinite/local/packs/ (the legacy
-// .claudinite/local_packs/ accepted during the rename window).
+// deleted — must sit under .claudinite/local/packs/.
 //
 // The trigger is the run's whole pinned title, NOT the bare "Claudinite growth:"
 // prefix the whole lifecycle shares, because a sibling run under that prefix has a
@@ -23,17 +22,15 @@ import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../../engine/p
 // everywhere the pack is active: at the session Stop hook (work scope), and as
 // a CLI on every PR in the canon repo's CI.
 //
-// Local packs live under either root during the rename transition; git emits
-// '/'-separated paths, so the platform-joined constants are normalized.
-const LOCAL_ROOTS = [LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR]
-  .map((s) => `${s.split(sep).join('/')}/`);
+// git emits '/'-separated paths, so the platform-joined constant is normalized.
+const LOCAL_ROOT = `${LOCAL_PACKS_SUBDIR.split(sep).join('/')}/`;
 
 // The capture runs, by the exact titles their task docs pin. `conversation
 // extract` is the pre-merge title of extract's conversation half, still in use
 // wherever a consumer mounts a canon older than the one-task merge.
 const CAPTURE_RUN = /^Claudinite growth: (?:extract lessons|conversation extract|dedup\b)/;
 
-const inSurface = (p) => LOCAL_ROOTS.some((root) => p.startsWith(root));
+const inSurface = (p) => p.startsWith(LOCAL_ROOT);
 
 const rule = {
   id: 'growth-write-scope',
@@ -52,7 +49,7 @@ const rule = {
       .sort()
       .map((p) => finding(rule, {
         file: p,
-        what: `a growth capture run touched ${p}, outside ${LOCAL_ROOTS[0]}`,
+        what: `a growth capture run touched ${p}, outside ${LOCAL_ROOT}`,
         fix: 'a capture run improves the repo\'s packs, never the canon or the project\'s code — keep the whole write surface inside the local packs; a site-tied lesson lands as the owning pack\'s entry naming the site, and lifting one into the canon is the promote stage\'s job',
       }));
   },
@@ -77,7 +74,7 @@ export function runCli(root = process.cwd()) {
   }
   const findings = runRule(rule, ctx);
   if (findings.length) {
-    console.error(`growth-write-scope: FAIL — a growth capture run may write only under ${LOCAL_ROOTS[0]}, but this branch also touches ${findings.length} path(s):`);
+    console.error(`growth-write-scope: FAIL — a growth capture run may write only under ${LOCAL_ROOT}, but this branch also touches ${findings.length} path(s):`);
     for (const f of findings) console.error(`  - ${f.file}`);
     console.error('\nA capture run improves the repo\'s packs, never the canon or the project\'s code — keep the whole write surface inside the local packs.');
     process.exit(1);

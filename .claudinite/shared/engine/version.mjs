@@ -15,7 +15,7 @@
 // passed the live canary rehearsal once (DESIGN §2.1), and the bump is what declares
 // that happened. An engine migration is written against the version it lands in — it
 // applies to repos below that value.
-export const ENGINE_VERSION = '60823.1';
+export const ENGINE_VERSION = '60902.1';
 
 // THE VERSION FORMAT — how every engine and pack version in the corpus is written,
 // read and ordered. The helpers below are imported by every side that creates a
