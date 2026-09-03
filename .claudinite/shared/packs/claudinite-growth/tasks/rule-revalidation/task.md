@@ -1,8 +1,9 @@
 # Rule revalidation — re-probe the claims whose truth lives outside this repo
 
-Most of a pack's prose is judgment: how to approach a change, what to do first, what never to do. Judgment does not expire. A smaller set of rules is different — each one asserts a **fact about the environment**: that the harness accepts a call in a certain shape, that the Action's token can or cannot reach a path, that an MCP tool exists, that a platform behaves a particular way. Those were true on the day they were written and are true today only by luck, because nothing in this repo turns red when a platform moves under them. The prose stays green, sessions keep obeying it, and the cost arrives as a session spent on a route that closed.
-
-This task re-runs the probe behind each such claim, weekly, and corrects what no longer holds.
+Re-run the probe behind every rule that asserts a **fact about the environment** — the shape a harness
+call accepts, what the Action's token may reach, that an MCP tool exists, how a platform behaves — and
+correct what no longer holds. Nothing in this repo turns red when a platform moves under such a rule, so
+the prose stays green and the cost lands on a session spent on a route that closed.
 
 The run's **Context section is binding scope**: it names the **pack paths** to revalidate and the two probe rules below. Work those paths — a consuming repo's own local packs by default; Claudinite also its core `packs/`. A canon pack a repo only mounts is revalidated in the repo that owns it, on this same task.
 

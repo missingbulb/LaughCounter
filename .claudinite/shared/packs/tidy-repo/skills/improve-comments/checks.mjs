@@ -37,7 +37,7 @@ export const IMPROVE_COMMENTS_RUN = /^Claudinite tidy: improve comments/;
 const isReadme = (p) => basename(p).toLowerCase() === 'readme.md';
 
 // The same prefix the task's precondition filters its scope by (MOUNT_PREFIX in
-// tasks/improve-comments/task.mjs); that task imports nothing, so the two are held
+// tasks/improve-comments/task.json); that task imports nothing, so the two are held
 // in step by the test beside this check rather than by a shared constant.
 const MOUNT_PREFIX = '.claudinite/';
 const inMount = (p) => p.startsWith(MOUNT_PREFIX);

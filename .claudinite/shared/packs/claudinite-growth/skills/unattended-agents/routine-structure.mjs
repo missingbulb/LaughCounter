@@ -5,7 +5,7 @@ import { finding } from '../../../../engine/checks/helpers/findings.mjs';
 // `routine.md` OR `task.md`, alongside the deterministic scripts it invokes. This
 // check asserts the prose↔script wiring that the unattended-agents skill mandates,
 // for both shapes: a legacy `dev/routines/<name>/routine.md` and a converted
-// `.../tasks/<name>/task.md` earn the same guard (a task folder's `task.mjs`
+// `.../tasks/<name>/task.md` earn the same guard (a task folder's `task.json`
 // carries the declaration; its `task.md` is the worker prose the scripts hang off).
 //
 // RELEVANCE FIRST (see engine/checks/README.md "Adding a rule"): a skill check has no

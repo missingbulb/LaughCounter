@@ -5,11 +5,10 @@ description: Prune a repo's local packs of items the mounted Claudinite canon no
 
 # Dedup local packs against the canon
 
-The **method** of the growth lifecycle's pruning stage: reconcile a repo's own **local packs**
-(`.claudinite/local/packs/`) against the shared canon it consumes, pruning local items the canon now covers. Two
-callers share it: the unattended [growth-dedup task](../../tasks/growth-dedup/task.md) (which
-frames the run — dispatch, the human-gated PR, tracking issue), and an owner asking in-session
-to reconcile local packs against the canon. Often there's nothing to prune, and that's fine.
+Prune a repo's own **local packs** (`.claudinite/local/packs/`) of items the canon it consumes now
+covers. Often there is nothing to prune, and that is a finished run, not a failed one. Run under the
+unattended [growth-dedup task](../../tasks/growth-dedup/task.md), that task frames dispatch, the
+human-gated PR and the tracking issue.
 
 **The yardstick is the mounted canon** — the exact revision the repo currently consumes, what
 `.claudinite/shared/` holds at the mount's stamp — never a live fetch (a promotion is visible

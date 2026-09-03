@@ -38,7 +38,7 @@
 //     with no allow term is an authoring error, not "anything except" — spell
 //     that as `['anything', 'reject:<name>']`.
 //   - THE SELF-WIDENING GUARD: under a list policy, a change to the files that
-//     define policies (`merge-rules.json`, `tasks/<name>/task.mjs`, this module,
+//     define policies (`merge-rules.json`, `tasks/<name>/task.json`, this module,
 //     its work-scope gate) is never coverable unless it is comment-only — a run
 //     must not be able to grant itself a wider authorization than it started
 //     with. Only the plain `'anything'` (the trusted lane: the vendored-mount
@@ -438,7 +438,7 @@ export const policyExpression = (policy) =>
 // it copies. The flag rides merge-rules.json, which is itself guarded and
 // owner-committed, so a run cannot grant it to itself; repo-owned policy
 // sources (everything outside the mount) stay absolute.
-const POLICY_SOURCES = /(^|\/)(merge-rules\.json|merge-policy\.mjs|workRules\/automerge-policy-scope\.mjs|tasks\/[^/]+\/task\.mjs)$/;
+const POLICY_SOURCES = /(^|\/)(merge-rules\.json|merge-policy\.mjs|workRules\/automerge-policy-scope\.mjs|tasks\/[^/]+\/task\.(json|mjs))$/;
 const VENDORED_MOUNT = /^\.claudinite\/shared\//;
 
 // The whole verdict over a diff. `entries` are `{ file, before, after }` (null

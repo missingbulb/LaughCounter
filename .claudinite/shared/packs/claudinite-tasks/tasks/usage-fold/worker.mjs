@@ -37,7 +37,11 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { deliverGenerated, baseTip, readAt, remoteUrl } from '../../../claudinite-tasks/deliver-generated.mjs';
 import { AUTOMERGE_TRAILER, policyExpression } from '../../../claudinite-tasks/merge-policy.mjs';
-import task from './task.mjs';
+import taskJson from './task.json' with { type: 'json' };
+import { normalizeTaskDeclaration } from '../../task-contract.mjs';
+
+// The declaration as the loader sees it, defaults filled.
+const task = normalizeTaskDeclaration(taskJson);
 import {
   countEntries, foldUsage, encodeUsage, decodeUsage, mountedSkillNames, DAY_WINDOW_DAYS,
 } from './fold-usage.mjs';

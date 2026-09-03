@@ -1,5 +1,5 @@
 // The task declaration contract (per-project-scheduling DESIGN §1) — the single
-// source of truth for what a `tasks/<name>/task.mjs` default export must carry.
+// source of truth for what a `tasks/<name>/task.json` must carry.
 // Both the author-time `task-declaration-shape` check and the executor-side
 // `validate-dispatch` validate against this one function, so the accepted shape
 // can never drift between the two surfaces.
@@ -9,6 +9,7 @@ import { MODEL_FAMILIES } from './model-map.mjs';
 import { EXECUTING_LEASH_MS } from './queue/leases.mjs';
 import { normalizePolicy } from './merge-policy.mjs';
 import { validatePreconditions, preconditionSignals } from './precondition-policy.mjs';
+import { applyTaskDefaults } from './task-defaults.mjs';
 
 // A declared timeout is always a whole number of seconds, > 0.
 const isPositiveInt = (n) => Number.isInteger(n) && n > 0;
@@ -24,25 +25,40 @@ const escapesTaskDir = (cmd) => /(^|\s)\//.test(cmd) || cmd.includes('..');
 // of two peers, and a task may declare only it.
 //
 // Two renames have reached these fields (2026-08-06 agent_preprocessing →
-// prework, 2026-08-18 prework → code-work); both legacy spellings stay accepted
-// here, since a consumer's own local packs rename on their own clock. Every
-// legacy key maps straight to today's canonical name rather than to its
-// immediate successor, so a declaration written for the oldest vocabulary
-// normalizes in one pass. Canonical names win when both are present.
-const LEGACY_FIELDS = {
+// prework, 2026-08-18 prework → code-work). Every legacy key maps straight to
+// today's canonical name rather than to its immediate successor, so a declaration
+// written for the oldest vocabulary normalizes in one pass, and a canonical name
+// wins where both are present.
+//
+// Scaffolding, not a second vocabulary the contract keeps: `legacy-task-fields`
+// reports a declaration still on an old spelling, and the acceptance ends one
+// convergence window after that advisory ships (#1642). Not "once nobody declares
+// them" — nothing here can count that.
+// @legacy-tolerance advisory:legacy-task-fields retire:#1642
+export const LEGACY_FIELDS = {
   agent_preprocessing: 'code_work',
   agent_preprocessing_timeout: 'code_work_timeout',
   prework: 'code_work',
   prework_timeout: 'code_work_timeout',
   after: 'schedule_after',
+  // 2026-09-03: the secrets a task needs are the CODE-WORK phase's (that is the
+  // only phase that runs Action-side, where a secret exists), and the name says so.
+  required_secrets: 'code_work_required_secrets',
 };
 
-// Return the declaration with canonical field names. Non-objects pass through
-// untouched so validateTaskDeclaration still reports them. Loaders (discover,
-// resolve-dispatch) normalize once; everything downstream sees only `code_work`.
+// The defaults live in task-defaults.mjs — a module with no imports, so the
+// dashboard's browser bundle can fill them the way the loader does.
+export { DEFAULT_PRECONDITIONS, DEFAULT_AUTOMERGE, DEFAULT_AGENT_MODEL } from './task-defaults.mjs';
+
+// Return the declaration with canonical field names and the defaults filled in.
+// Non-objects pass through untouched so validateTaskDeclaration still reports
+// them. Loaders (discover, resolve-dispatch) normalize once; everything
+// downstream sees only `code_work` and never an absent defaulted field.
 export function normalizeTaskDeclaration(decl) {
   if (decl === null || typeof decl !== 'object' || Array.isArray(decl)) return decl;
   const out = { ...decl };
+  // The editor's schema pointer, when a caller hands over a parsed task.json whole.
+  delete out.$schema;
   for (const [legacy, canonical] of Object.entries(LEGACY_FIELDS)) {
     if (out[legacy] !== undefined) {
       if (out[canonical] === undefined) out[canonical] = out[legacy];
@@ -59,7 +75,7 @@ export function normalizeTaskDeclaration(decl) {
     if (out.automerge === undefined) out.automerge = LEGACY_OUTCOMES[out.expected_outcome];
     out.expected_outcome = 'pr';
   }
-  return out;
+  return applyTaskDefaults(out);
 }
 
 // The write ceiling a task declares (DESIGN §1, §4). A declared MAXIMUM, not a
@@ -69,10 +85,12 @@ export function normalizeTaskDeclaration(decl) {
 // diff against. "No change" is always legal.
 export const OUTCOMES = ['none', 'pr'];
 
-// The retired one-word ceilings, each carrying the policy it always meant. They
-// stay accepted forever — a member's own task files rename on their own clock —
-// and normalize at the door like the code-work renames: `open-pr` is a pr task
-// that merges nothing, `merged-pr` a pr task authorized for anything.
+// The retired one-word ceilings, each carrying the policy it always meant, and
+// normalizing at the door like the code-work renames above: `open-pr` is a pr task
+// that merges nothing, `merged-pr` a pr task authorized for anything. Accepted on
+// the same terms as the renames above — one convergence window past the advisory,
+// and no longer (#1642).
+// @legacy-tolerance advisory:legacy-task-fields retire:#1642
 export const LEGACY_OUTCOMES = { 'open-pr': 'nothing', 'merged-pr': 'anything' };
 
 
@@ -87,6 +105,7 @@ export const LEGACY_OUTCOMES = { 'open-pr': 'nothing', 'merged-pr': 'anything' }
 // instead, and the field is dropped as each declaration is next edited.
 // @deprecated Declares nothing. Name an `invocation_endpoint` if the task needed
 //   reach an ordinary session in its repo does not have.
+// @legacy-tolerance advisory:task-declaration-shape retire:#1642
 export const SESSION_SCOPES = ['self', 'fleet'];
 
 // What must happen to a task's work item when a recovery path would re-execute it
@@ -104,19 +123,40 @@ export const SIGNAL_NAMES = [
   'localPacks', 'sharedMount', 'conversationLogs', 'stamp', 'fleet', 'request',
 ];
 
+// `description` — what the task does, or why it exists, for the person reading the
+// declaration or a roster of them: free prose, bounded so it stays a summary. It
+// must not restate what the other fields already say (the cadence, the
+// conditions, the policy, the files); the writing-tasks skill holds that rule,
+// which no check can read.
+export const DESCRIPTION_MAX_WORDS = 50;
+export const wordCount = (text) => String(text).trim().split(/\s+/).filter(Boolean).length;
+export function descriptionProblem(description) {
+  if (typeof description !== 'string') return { what: `"description" is not a string`, fix: 'write one sentence or two saying what the task does or why it exists' };
+  if (description.trim() === '') return { what: '"description" is empty', fix: 'say what the task does or why it exists, or drop the field' };
+  const words = wordCount(description);
+  if (words > DESCRIPTION_MAX_WORDS) return { what: `"description" runs to ${words} words`, fix: `keep it to ${DESCRIPTION_MAX_WORDS} words — a summary, not the README` };
+  return null;
+}
+
 // Validate one task declaration. Returns an array of `{ what, fix }` problems —
 // empty means the declaration is well-formed. Pure: no I/O, no imports of the
 // task itself; the caller supplies the already-loaded default export.
 export function validateTaskDeclaration(raw, terms = new Map()) {
   const decl = normalizeTaskDeclaration(raw);
   if (decl === null || typeof decl !== 'object' || Array.isArray(decl)) {
-    return [{ what: 'task.mjs does not default-export a declaration object', fix: 'export default { id, frequency, preconditions, agent_model, expected_outcome, agent_instructions }' }];
+    return [{ what: 'task.json is not a declaration object', fix: 'write one JSON object: { "id", "frequency", "preconditions", "expected_outcome", … }' }];
   }
   const problems = [];
   const bad = (what, fix) => problems.push({ what, fix });
 
   if (typeof decl.id !== 'string' || decl.id.trim() === '') {
     bad('the task has no string "id"', 'give the task an "id" matching its directory name');
+  }
+  // Optional at the door — nothing converges a member's task files — and judged
+  // only when declared; the shape check asks for one where it is missing.
+  if (decl.description !== undefined) {
+    const problem = descriptionProblem(decl.description);
+    if (problem) bad(problem.what, problem.fix);
   }
   // ACCEPTED, not FREQUENCIES: a member's own task file may still carry a retired spelling and
   // must keep running, since nothing converges a member's task files. Stopping a NEW declaration
@@ -140,8 +180,9 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
   if (!OUTCOMES.includes(decl.expected_outcome)) {
     bad(`"expected_outcome" ${JSON.stringify(decl.expected_outcome)} is not a legal outcome ceiling`, `set one of: ${OUTCOMES.join(', ')}`);
   }
-  // automerge — REQUIRED beside `pr` (the legacy ceilings arrive here already
-  // carrying theirs), and validated as a policy SHAPE only: whether every named
+  // automerge — defaulted to `nothing` beside `pr` at the door (the legacy
+  // ceilings arrive here already carrying theirs), and validated as a policy
+  // SHAPE only: whether every named
   // rule resolves is the policy engine's question, answered where the diff is
   // judged, and it fails closed there — never at author time, where the rule set
   // depends on which packs are active.
@@ -158,10 +199,11 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
     bad('a "none" task declares "automerge"', 'drop it — a task that opens no pull request has nothing to merge; or set expected_outcome: "pr"');
   }
   // agent_instructions — REQUIRED for an agentic task (agent_model !== 'none'):
-  // that's the worker file the agent reads. A `none` task runs no agent, so the
-  // field is not applicable and is neither required nor validated when present.
+  // that's the worker file the agent reads, and it has no default. A `none` task
+  // runs no agent, so the field is not applicable and is neither required nor
+  // validated when present.
   if (decl.agent_model !== 'none' && (typeof decl.agent_instructions !== 'string' || decl.agent_instructions.trim() === '')) {
-    bad('an agentic task (agent_model !== "none") declares no string "agent_instructions"', 'point "agent_instructions" at the worker file beside task.mjs (e.g. "task.md")');
+    bad('an agentic task (agent_model !== "none") declares no string "agent_instructions"', 'point "agent_instructions" at the worker file beside task.json (e.g. "task.md")');
   }
   // ONE MECHANISM (#1617). `preconditions` — a list of named conditions, all of
   // which must hold — is the only gate a task declares. The `precondition`
@@ -215,7 +257,7 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
   // code_work_timeout — the hard kill that bounds the subprocess.
   if (decl.code_work !== undefined) {
     if (typeof decl.code_work !== 'string' || decl.code_work.trim() === '') {
-      bad('"code_work" is present but not a non-empty string', 'set it to a command whose executable is a script beside task.mjs, e.g. "node prepare.mjs"');
+      bad('"code_work" is present but not a non-empty string', 'set it to a command whose executable is a script beside task.json, e.g. "node prepare.mjs"');
     } else if (escapesTaskDir(decl.code_work)) {
       bad('"code_work" reaches outside the task directory (absolute path or "..")', 'reference a sibling script only, e.g. "node prepare.mjs"');
     }
@@ -266,15 +308,15 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
     bad('"invocation_endpoint" is not a kebab-case endpoint name', 'name a key from the repo\'s taskScheduler.agenticTaskInvocationEndpoints map, e.g. "fleet" — never a URL');
   }
 
-  // The repo Actions secrets this task needs configured (DESIGN §9). Purely
+  // The repo Actions secrets this task's code work needs configured (DESIGN §9). Purely
   // DECLARATIVE — like a pack's adoption `questions`, its job is to drive the ask
   // (adoption interactively, the scheduler by owner issue), not to gate anything
   // here. So the only shape asserted is "a list of names"; whether the repo has
   // actually configured them is a fact about the repo, answered where the secrets
   // bundle is readable, never at author time.
-  if (decl.required_secrets !== undefined
-      && !(Array.isArray(decl.required_secrets) && decl.required_secrets.every((s) => typeof s === 'string' && s.trim() !== ''))) {
-    bad('"required_secrets" is not an array of secret names', 'list the repo Actions secret names this task needs, e.g. ["SOME_API_KEY"]');
+  if (decl.code_work_required_secrets !== undefined
+      && !(Array.isArray(decl.code_work_required_secrets) && decl.code_work_required_secrets.every((s) => typeof s === 'string' && s.trim() !== ''))) {
+    bad('"code_work_required_secrets" is not an array of secret names', 'list the repo Actions secret names this task needs, e.g. ["SOME_API_KEY"]');
   }
 
   // The one exception to "whether the repo has them is not our business": GitHub
@@ -282,7 +324,7 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
   // GITHUB_" on the secret form. Such a name cannot be configured by anyone, so the
   // task parks forever on a secret its owner is refused — and only the declaration
   // can catch it, since the park reads as ordinary missing configuration.
-  for (const name of (Array.isArray(decl.required_secrets) ? decl.required_secrets : [])) {
+  for (const name of (Array.isArray(decl.code_work_required_secrets) ? decl.code_work_required_secrets : [])) {
     if (typeof name === 'string' && name.toUpperCase().startsWith('GITHUB_')) {
       bad(`required secret "${name}" cannot be created — GitHub reserves the GITHUB_ prefix`,
         'rename it without that prefix, e.g. one carrying the pack\'s own name');
@@ -298,9 +340,10 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
   }
 
   // Execution bound (task-code-work DESIGN §2, §6) — an agentic task MUST
-  // declare a positive-integer agent_execution_timeout. There is always a bound
-  // on an agentic run; enforcement is best-effort (the executor surfaces the
-  // value to the subagent). A `none` task runs no agent, so it needs none.
+  // declare a positive-integer agent_execution_timeout: there is no default,
+  // because a running agent always has a bound. Enforcement is best-effort (the
+  // executor surfaces the value to the subagent). A `none` task runs no agent,
+  // so it needs none.
   if (MODEL_FAMILIES.includes(decl.agent_model) && decl.agent_model !== 'none' && !isPositiveInt(decl.agent_execution_timeout)) {
     bad('an agentic task (agent_model !== "none") declares no positive-integer "agent_execution_timeout"', 'add "agent_execution_timeout": the seconds bounding the agentic run — generous; extreme protection, not a scheduling knob');
   }

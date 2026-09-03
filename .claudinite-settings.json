@@ -2,7 +2,7 @@
   "packs": [
     {
       "id": "basics",
-      "version": "60902.6"
+      "version": "60903.5"
     },
     {
       "id": "barriers",
@@ -13,15 +13,15 @@
     },
     {
       "id": "claudinite-growth",
-      "version": "60902.6"
+      "version": "60903.5"
     },
     {
       "id": "tidy-repo",
-      "version": "60902.2"
+      "version": "60903.3"
     },
     {
       "id": "git-github",
-      "version": "60902.1"
+      "version": "60903.1"
     },
     "local/on-device-privacy",
     "local/macos-audio",
@@ -35,11 +35,11 @@
     },
     {
       "id": "claudinite-lifecycle",
-      "version": "60902.3"
+      "version": "60903.5"
     },
     {
       "id": "claudinite-tasks",
-      "version": "60902.9"
+      "version": "60903.4"
     }
   ],
   "accept": [],

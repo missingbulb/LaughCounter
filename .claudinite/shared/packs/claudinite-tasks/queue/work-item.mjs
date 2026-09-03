@@ -83,9 +83,13 @@ export const TASK_OBSOLETE = STATUS_REJECTED;
 // aliases of the constants above precisely because those constants moved: a decode
 // map built from them would have mapped today's spelling to itself and forgotten
 // the vocabulary it exists to read (DESIGN §4).
+// @legacy-tolerance advisory:none retire:#1642
 export const LEGACY_BLOCKED = 'task:blocked';
+// @legacy-tolerance advisory:none retire:#1642
 export const LEGACY_READY = 'task:ready';
+// @legacy-tolerance advisory:none retire:#1642
 export const LEGACY_EXECUTING = 'task:executing';
+// @legacy-tolerance advisory:none retire:#1642
 export const LEGACY_AGENT = 'task:agent';
 
 // @deprecated The bare park of the two-label era. A park is ONE label now
@@ -111,7 +115,9 @@ export const OUTCOME_OBSOLETE = 'outcome:obsolete';
 
 // @deprecated The pre-#1119 terminal spellings in the `task:` namespace, the
 // generation between `outcome:*` and today's statuses. Read forever, same reason.
+// @legacy-tolerance advisory:none retire:#1642
 export const LEGACY_TASK_DONE = 'task:done';
+// @legacy-tolerance advisory:none retire:#1642
 export const LEGACY_TASK_OBSOLETE = 'task:obsolete';
 
 // @deprecated The origin marker (DESIGN §15.26). Nothing writes it and nothing
@@ -169,6 +175,7 @@ export const isBlockingPark = (item) => statusOf(item) === STATUS_NEEDS_HUMAN_FA
 // closed items keep theirs forever, and members converge on their own schedules. So
 // every reader here goes through one pass that maps every spelling ever written
 // straight to today's — never through a literal comparison against one of them.
+// @legacy-tolerance advisory:none retire:#1642
 const LEGACY_STATUS = new Map([
   [LEGACY_BLOCKED, STATUS_BLOCKED],
   [LEGACY_READY, STATUS_READY],
@@ -178,6 +185,7 @@ const LEGACY_STATUS = new Map([
   [LEGACY_TASK_OBSOLETE, STATUS_REJECTED], [OUTCOME_OBSOLETE, STATUS_REJECTED],
 ]);
 
+// @legacy-tolerance advisory:none retire:#1642
 const LEGACY_PARK_RE = /^task:needs-human-(.+)$/;
 
 // The park an issue's labels name, canonical, or null. Both shapes decode here:
@@ -516,6 +524,7 @@ export const DELIVERED_HEADING = 'Delivered by code-work';
 // The same heading as earlier renames spelled it. A live item's body still carries
 // whichever word was current when its section was first written, and matching only
 // today's would append a SECOND section rather than updating that one.
+// @legacy-tolerance advisory:none retire:#1642
 export const LEGACY_DELIVERED_HEADINGS = Object.freeze([
   'Delivered by prework',
   'Delivered by code_work',

@@ -1,0 +1,18 @@
+{
+  "$schema": "../../../claudinite-tasks/task.schema.json",
+  "id": "improve-comments",
+  "description": "The tidy sweep's source dimension: reads a slice of the repository's code as comments, deletes the ones that restate the code, corrects the ones that drifted, and adds the why only a reader's guess carried.",
+  "frequency": "weekly",
+  "preconditions": [
+    "substantive-change",
+    "commits-outside:.claudinite/"
+  ],
+  "expected_outcome": "pr",
+  "automerge": [
+    "comment-only-changes",
+    "readme-changes"
+  ],
+  "agent_model": "opus",
+  "agent_instructions": "task.md",
+  "agent_execution_timeout": 1800
+}

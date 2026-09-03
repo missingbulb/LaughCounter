@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../claudinite-tasks/task.schema.json",
+  "id": "prose-to-checks-sweep",
+  "description": "Mines this repository's existing pack prose for always-testable rules the conversion missed and converts the strongest ones into checks.",
+  "frequency": "weekly",
+  "preconditions": [
+    "repo-active"
+  ],
+  "expected_outcome": "pr",
+  "automerge": [
+    "under:.claudinite/local/packs && markdown-line-removals",
+    "claudinite-local-pack-check-changes"
+  ],
+  "agent_model": "opus",
+  "agent_instructions": "task.md",
+  "agent_execution_timeout": 2700
+}

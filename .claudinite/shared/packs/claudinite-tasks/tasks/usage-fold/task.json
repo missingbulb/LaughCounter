@@ -1,0 +1,15 @@
+{
+  "$schema": "../../task.schema.json",
+  "id": "usage-fold",
+  "description": "Folds the repository's captured session logs and workflow runs into a small tracked usage aggregate: skill loads with their denominators, scheduler and executor activity, work-item outcomes. It is the past-data plane the dashboard renders from.",
+  "frequency": "daily",
+  "preconditions": [
+    "any-commit || session-captured"
+  ],
+  "expected_outcome": "pr",
+  "automerge": [
+    "under:.claudinite/local && generated-file-changes"
+  ],
+  "code_work": "node worker.mjs",
+  "code_work_timeout": 600
+}

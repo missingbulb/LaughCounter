@@ -77,3 +77,26 @@ export function classifiedTurns(entries) {
     classes: classesIn(classificationLine(assistantTextAfter(entries, turn.index))),
   }));
 }
+
+// Every skill the session has loaded so far, in order of loading: the `input.skill`
+// of each `Skill` tool_use block on an assistant entry, and the name of any skill
+// whose SKILL.md a `Read` tool_use opened — the body reached the context either
+// way. Subagent (sidechain) entries count: a skill a delegated edit loaded was
+// loaded for that edit.
+const SKILL_FILE = /(?:^|\/)skills\/([^/]+)\/SKILL\.md$/;
+
+export function skillLoads(entries) {
+  const names = [];
+  for (const entry of entries ?? []) {
+    if (entry?.type !== 'assistant') continue;
+    const content = entry.message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block?.type !== 'tool_use') continue;
+      if (block.name === 'Skill' && typeof block.input?.skill === 'string') names.push(block.input.skill);
+      const read = block.name === 'Read' && typeof block.input?.file_path === 'string' && SKILL_FILE.exec(block.input.file_path);
+      if (read) names.push(read[1]);
+    }
+  }
+  return names;
+}

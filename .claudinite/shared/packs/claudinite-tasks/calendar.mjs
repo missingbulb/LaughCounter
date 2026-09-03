@@ -37,6 +37,7 @@ export const FREQUENCIES = ['daily', 'weekly', 'monthly', 'manual'];
 // caller can keep calling — nothing is unwired, and the next retirement fills it in again.
 // Emptied once the fleet's own declarations were read and none named a retired token:
 // GoogleCalendarEventCreator's `create-extractor` was the last, and moved to `daily`.
+// @legacy-tolerance advisory:none retire:#1642
 export const LEGACY_FREQUENCIES = Object.freeze({});
 
 // What a declaration may CARRY, as against what a new one may be WRITTEN with.

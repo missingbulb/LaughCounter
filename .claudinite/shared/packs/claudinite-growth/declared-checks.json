@@ -12,13 +12,27 @@
         "andLineMatches": "/\\b(if\\b|when\\b|unless\\b|already\\b|still\\s+(open|running|unreviewed)|(nothing|no\\s+new|not?\\s+\\w+)\\s+(changed|has\\s+changed)|before\\s+(anything|starting|researching)|unset\\s+means|absent\\b)\\b/i",
         "unlessLineMatches": "/\\bContext\\b|\\bprecondition\\b|needs-human/",
         "what": "instructs a conditional skip after the precondition already passed: \"{match}\"",
-        "fix": "move the run/no-run decision into the task.mjs precondition, or reword an empty result as an empty outcome; a required input the dispatch lacks is a failure — park the item at task:status:needs-human-action"
+        "fix": "move the run/no-run decision into the task.json precondition, or reword an empty result as an empty outcome; a required input the dispatch lacks is a failure — park the item at task:status:needs-human-action"
       },
       {
         "whenPathMatches": "/\\.mjs$/",
         "match": "/.*(skip(ping)?\\s+this\\s+(cycle|run)|leaving\\s+this\\s+cycle|cycle\\s+skips|nothing\\s+to\\s+self-refresh).*/i",
         "what": "code-work announces a discretionary cycle skip: \"{match}\"",
         "fix": "let the precondition make that call, or complete the work and report an empty outcome; only a genuine failure may stop a run past the precondition"
+      }
+    ]
+  },
+  {
+    "id": "legacy-check-spellings",
+    "severity": "advisory",
+    "since": "2026-09-03",
+    "failureMessage": "the merged assertion families accept their pre-merge spelling only until no declaration still uses it, and a spelling the engine stops placing asserts nothing at all",
+    "scanFiles": "/declared-checks\\.json$/",
+    "matchLines": [
+      {
+        "match": "/\"eachValueInParsedArray\"/",
+        "what": "{match} is the pre-merge spelling of an index-coverage assertion",
+        "fix": "restate it as a named `extractValueSets` entry quantified over by `requireIndexCoverage`'s `eachValueOfSet` — the normalizer that rewrites it today is scheduled for removal (#1643)"
       }
     ]
   }

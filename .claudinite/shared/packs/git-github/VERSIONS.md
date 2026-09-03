@@ -7,6 +7,7 @@ adds its own row.
 
 | Version | Date | What changed |
 |---|---|---|
+| 60903.1 | 2026-09-03 | A skill's `SKILL.md` opens on what to do, not on what the skill is: the self-describing framing and the pointers to prose the reader already holds are gone. |
 | 60902.1 | 2026-09-02 | Eight of the `gha/*` checks scan `packs/<pack>/stubs/workflows/` as well as `.github/workflows/`. A stub is copied verbatim into every adopting repo, so a defect there shipped fleet-wide while being visible in no repo until after seeding — which is how `claudinite-dashboard`'s Pages stub carried a piped `run:` with no bash default until a member re-seeded it. `gha/no-scheduled-fleet-executor` and `gha/scheduled-failure-escalation` stay repo-only: each asserts a fact about an adopting repo rather than about the file (#1596). |
 | 6 | — | The github-actions pack is absorbed here — its skill, its nine `gha/` checks, and the routing that used to name it as the neighbour. |
 | 60820.2 | — | Merge-to-main step 7 is named as verify-in-production's only trigger (#1128). |

@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../claudinite-tasks/task.schema.json",
+  "id": "tidy-issues",
+  "description": "The acting half of the tidy sweep: triages the issues in scope, closing what the default branch already implemented and marking what needs a decision, and records what it did.",
+  "frequency": "daily",
+  "preconditions": [
+    "issues-touched"
+  ],
+  "expected_outcome": "none",
+  "agent_model": "sonnet",
+  "agent_instructions": "task.md",
+  "agent_execution_timeout": 900
+}

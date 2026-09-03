@@ -1,6 +1,6 @@
 // Code-work, executor-side (tasks-dispatch DESIGN §6.5, §14). The contract is
 // unchanged from the slot mechanism — a subprocess with the task dir as cwd, the
-// declared `required_secrets` as environment, a hard timeout, and the conditional
+// declared `code_work_required_secrets` as environment, a hard timeout, and the conditional
 // `CLAUDINITE_REQUEST_AGENT` hand-off — so this module is a thin adapter that
 // gives the queue's item identity where the slot id used to go, and adds the two
 // things the queue states explicitly:
@@ -78,7 +78,7 @@ export const CODE_WORK_ENV_VARS = Object.freeze(
 
 export function codeWorkRunner({ root, repo, defaultBranch, env = process.env }) {
   return async function runFor(task, { item, context = [] }) {
-    const missing = missingSecrets(task.decl.required_secrets ?? [], env);
+    const missing = missingSecrets(task.decl.code_work_required_secrets ?? [], env);
     if (missing.length) return { ok: true, agentRequested: false, missingSecrets: missing };
 
     const requestPath = agentRequestPath({ pack: task.pack, task: task.id, slotId: `item-${item.number}` });
@@ -87,7 +87,7 @@ export function codeWorkRunner({ root, repo, defaultBranch, env = process.env })
     console.log(`::group::code_work ${task.pack}/${task.id} [#${item.number}]`);
     const result = await runCodeWork(task.decl.code_work, {
       taskDir: task.taskDir,
-      env: { ...taskEnv(task.decl.required_secrets ?? [], env), ...codeWorkEnv({ root, repo, defaultBranch, task, item, context, requestPath }) },
+      env: { ...taskEnv(task.decl.code_work_required_secrets ?? [], env), ...codeWorkEnv({ root, repo, defaultBranch, task, item, context, requestPath }) },
       timeoutSeconds: task.decl.code_work_timeout,
     });
     console.log('::endgroup::');

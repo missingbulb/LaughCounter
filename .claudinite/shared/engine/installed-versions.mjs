@@ -24,6 +24,7 @@ import { isVersion } from './version.mjs';
 // The retired block. Named so the readers below and the #1252 record agree on the
 // one spelling, and so Phase 3 has a symbol to grep for when it deletes the
 // tolerance.
+// @legacy-tolerance advisory:legacy-shape-in-use retire:#1640
 export const LEGACY_STAMP_KEY = 'claudinite';
 
 // `{ engineVersion, packVersions }` for a parsed settings object — the shape every

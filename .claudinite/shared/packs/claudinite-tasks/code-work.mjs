@@ -8,7 +8,7 @@
 // The subprocess is the scheduler's child, so its `code_work_timeout`
 // is a HARD kill: a manual timer SIGKILLs an overrun and the run is reported
 // failed. Its cwd is the TASK directory, so a declared `node worker.mjs` resolves
-// to the script beside task.mjs (the containment the contract enforces); the repo
+// to the script beside task.json (the containment the contract enforces); the repo
 // root and item context are handed in via CLAUDINITE_* env so the worker can act
 // on the whole repo. Nothing the subprocess prints is threaded into the agent —
 // code-work communicates only through the repository (DESIGN §3).

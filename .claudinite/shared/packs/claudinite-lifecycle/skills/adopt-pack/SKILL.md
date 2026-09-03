@@ -3,10 +3,9 @@ name: adopt-pack
 description: Add one or more packs to an already-adopted Claudinite member — declare, run each pack's adoption interview, re-vendor, scaffold, land. Use when asked to adopt, add, enable, or declare a pack (e.g. product-wiki, executable-requirements) on a repo that already runs Claudinite.
 ---
 
-Adding a pack to a repo that already runs Claudinite. Whole-repo bootstrap and the on-demand
-refresh are [adopt-claudinite](../adopt-claudinite/SKILL.md); this is the narrower act of turning
-one or more packs on. The declaration is authoritative — declaring is the project's call — so the
-work is: declare, answer what the pack asks, materialize its content, satisfy what it now demands.
+Turn one or more packs on: declare, answer what the pack asks, materialize its content, satisfy what
+it now demands. The declaration is authoritative — declaring is the project's call. Whole-repo
+bootstrap and the on-demand refresh are [adopt-claudinite](../adopt-claudinite/SKILL.md)'s.
 
 ## 1. Declare
 

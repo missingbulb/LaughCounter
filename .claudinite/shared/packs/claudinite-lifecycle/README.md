@@ -35,6 +35,9 @@ not prose: the session that has lost its rules is the session least able to noti
 | `conformance-workflow` | high | correctness | check: advisory |
 | `conformance-work-scope` | high | correctness | check: advisory |
 | `scheduler-workflow-shape` | high | correctness | check: blocking |
+| `legacy-shape-in-use` | medium | complexity | check: advisory |
+| `skill-loaded-before-editing` | high | correctness | check: blocking |
+| `skills-index-current` | medium | correctness | check: blocking |
 
 What goes wrong when one fires:
 
@@ -54,6 +57,17 @@ this pack's, however much it looks like one. `catalog-completeness` — `packs/R
 `packs/<name>/` — reads as Claudinite machinery and is not: it can only fire in the corpus repo, and
 what it guards is a hand-maintained index, not a member's status. It stays with the other
 doc-integrity rules.
+
+`skill-loaded-before-editing` is the Stop-time half of **path-scoped skills**: a skill names
+the files it must be loaded for under `force-load-on-file-edits-paths` in its SKILL.md frontmatter
+`metadata` (the harness's own `paths` is a limiter on when it offers a skill, so it cannot carry
+this), the engine's PreToolUse guard holds a file tool aimed there until the session has
+loaded that skill, and this rule catches the edits the guard never saw (a `sed`, a heredoc) by
+asking the diff the same question. Both read one resolver,
+`engine/pack_loader/path-scoped-skills.mjs`. A load is a `Skill` tool call or a `Read` of the
+skill's own SKILL.md. `skills-index-current` keeps the generated
+`.claudinite/claudinite-skills.GENERATED.md` — every mounted skill with what loads it, the
+scoped ones first — naming what the declared packs actually bundle.
 
 ## Skills
 

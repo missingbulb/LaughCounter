@@ -17,7 +17,8 @@ The baseline pack — the `RULES.md` prose every session loads (injected by the 
 | Building release, deploy, versioning or CI plumbing | medium | complexity | prose: 46 words |
 | Finishing a change | high | correctness | prose: 33 words |
 | Changing scheduled or unattended machinery | high | correctness | prose: 36 words |
-| Planning a migration | medium | complexity | prose: 95 words + skill (`writing-migration-plans`) |
+| Planning a migration | medium | complexity | prose: 99 words + skill (`writing-migration-plans`) |
+| Adding a legacy tolerance | high | complexity | prose: 59 words |
 | Choosing an automerge policy | high | correctness | prose: 65 words |
 | Predicting an irreversible change | critical | correctness | prose: 42 words |
 | Handing over a wider diff than asked | medium | complexity | prose: 63 words |

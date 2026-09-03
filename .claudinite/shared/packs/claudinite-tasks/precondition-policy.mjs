@@ -19,7 +19,7 @@
 //
 // THE VOCABULARY HAS TWO HOMES. The built-ins below are the movement and
 // pending-PR conditions every repo shares. A task whose gate is its own ships a
-// `preconditions.mjs` beside its `task.mjs` exporting `terms`, resolved after the
+// `preconditions.mjs` beside its `task.json` exporting `terms`, resolved after the
 // built-ins in one flat namespace where a collision is loud — so the declaration
 // and the gate it names are one directory apart.
 //

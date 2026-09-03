@@ -1,8 +1,7 @@
 # Tidy — improve comments
 
-The tidy sweep's fourth dimension, and the only one whose subject is the repo's own source.
-Read the files this run was handed **as comments rather than as code**, fix what is wrong
-there, and leave everything else exactly as it was.
+Read the files this run was handed **as comments rather than as code**, fix what is wrong there,
+and leave everything else — the code included — exactly as it was.
 
 The run's **Context section is binding scope**: it names the files whose comments this round
 reads. That is the work; do not widen it, and do not read a file it does not name.

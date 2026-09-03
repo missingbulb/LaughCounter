@@ -26,6 +26,7 @@ export const localPacksDir = (root) => join(resolve(root), LOCAL_PACKS_SUBDIR);
 // out when no fielded pack version imports it any more — a question answered off
 // the trunk's own pack history by the lane-shim test that guards this surface, not
 // by what the current tree happens to import.
+// @legacy-tolerance advisory:none retire:#1640
 export const LEGACY_LOCAL_PACKS_SUBDIR = join('.claudinite', 'local_packs');
 
 // Where a consumer materializes the vendored canon (vendoring/DESIGN.md): the
@@ -349,6 +350,7 @@ export async function loadPacks(opts) {
 // parser for a token, not a tolerance for the retired `.claudinite/local_packs/`
 // DIRECTORY, which discovery no longer scans.
 export const LOCAL_DECL_PREFIX = 'local/';
+// @legacy-tolerance advisory:legacy-shape-in-use retire:#1640
 export const LEGACY_LOCAL_DECL_PREFIX = 'local_packs/';
 const stripLocalPrefix = (id) => {
   for (const prefix of [LOCAL_DECL_PREFIX, LEGACY_LOCAL_DECL_PREFIX]) {

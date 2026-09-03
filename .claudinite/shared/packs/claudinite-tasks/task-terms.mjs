@@ -2,7 +2,7 @@
 // vocabulary leaves room for (task-preconditions DESIGN, "The term vocabulary").
 // A task whose gate is its own (an age against a configured retention, a manifest
 // against a release tag, a fleet read) ships `preconditions.mjs` beside its
-// `task.mjs`, exporting `terms`: a map from term name to
+// `task.json`, exporting `terms`: a map from term name to
 // `{ signals, takesArg?, holds(signals, opts) }`. The term's code then lives
 // beside its only consumer, so reading the declaration and reading the gate are
 // one directory apart.

@@ -65,6 +65,7 @@ export const RETIRED_MECHANISM = 'baselining';
 // …and the one being renamed out of declarations, still fully served while members
 // carry it. Distinct from RETIRED: a repo declaring this gets maintained normally,
 // it is simply spelled the old way.
+// @legacy-tolerance advisory:legacy-shape-in-use retire:#1643
 export const LEGACY_MECHANISM = 'updates';
 export const VERSIONED_MECHANISM = 'versioned';
 

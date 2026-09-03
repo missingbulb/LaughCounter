@@ -5,10 +5,9 @@ description: File a change to be made AFTER the work in flight — a well-define
 
 # /do-later — defer a change into a chained request run
 
-The owner has spotted a change that should happen **after** the work in front of
-them. Doing it now derails the session; an ordinary issue waits for somebody to
-remember it. This files it as an **ad-hoc request** (tasks-dispatch DESIGN §16):
-an issue the queue picks up on its own, held behind what is still in flight.
+File the deferred change as an **ad-hoc request** (tasks-dispatch DESIGN §16): an issue the
+queue picks up on its own, held behind what is still in flight — never an ordinary issue,
+which waits for somebody to remember it.
 
 You are filing work, not doing it. Touch no source file, open no branch.
 

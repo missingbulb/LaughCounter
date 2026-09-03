@@ -26,16 +26,16 @@ export const SCHEDULER_WORKFLOW = '.github/workflows/claudinite-scheduler.yml';
 // path above: `claudinite-scheduler.yml` holds the scheduler run and its drain, so the repo
 // still has exactly one cron at one well-known path.
 export const EXECUTOR_WORKFLOW = '.github/workflows/claudinite-executor.yml';
-// The repo Actions secrets its scheduled tasks declare via `required_secrets`,
+// The repo Actions secrets its scheduled tasks declare via `code_work_required_secrets`,
 // deduped and sorted. Async because task discovery is; pure otherwise.
 export async function declaredSecrets(root, config) {
   const { discoverTasks } = await import('./discover.mjs');
   const { tasks } = await discoverTasks(root, config);
-  const names = tasks.flatMap((t) => t.decl?.required_secrets ?? []);
+  const names = tasks.flatMap((t) => t.decl?.code_work_required_secrets ?? []);
   // Endpoint tokens ride the same rail (DESIGN §12, §14.6): the config maps an
   // endpoint name to a URL and to the NAME of the Actions secret holding its token,
   // and the stamp puts that name in the executor's env exactly as a
-  // `required_secrets` entry. The executor reads it only at the moment of the
+  // `code_work_required_secrets` entry. The executor reads it only at the moment of the
   // invocation call; nothing else in a task's life ever sees it.
   const endpointTokens = Object.values(config?.taskScheduler?.[ENDPOINTS_KEY] ?? config?.taskScheduler?.[LEGACY_ENDPOINTS_KEY] ?? {})
     .map((e) => e?.tokenSecret).filter((n) => typeof n === 'string' && n);
@@ -44,7 +44,7 @@ export async function declaredSecrets(root, config) {
 
 // Stamp the declared secrets into the executor's work step, beside GITHUB_TOKEN.
 // Actions requires each secret to be named statically in the workflow, and a task's
-// `required_secrets` is exactly that list — so the converge writes it and a worker
+// `code_work_required_secrets` is exactly that list — so the converge writes it and a worker
 // reads `process.env.<NAME>` like any other variable. Regenerated from the stub each
 // time, so the list tracks the declarations rather than accumulating.
 //

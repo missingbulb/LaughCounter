@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../claudinite-tasks/task.schema.json",
+  "id": "rule-revalidation",
+  "description": "Re-probes the pack rules whose truth lives outside this repository, such as what the harness rejects or which tools exist, and corrects the ones the platform has moved under.",
+  "frequency": "weekly",
+  "preconditions": [
+    "repo-active"
+  ],
+  "expected_outcome": "pr",
+  "automerge": [
+    "claudinite-local-pack-md-changes"
+  ],
+  "agent_model": "opus",
+  "agent_instructions": "task.md",
+  "agent_execution_timeout": 2700
+}

@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/missingbulb/Claudinite/blob/main/packs/claudinite-tasks/task.schema.json",
+  "title": "Claudinite task declaration",
+  "description": "A tasks/<name>/task.json: what a scheduled task is, when it runs, and what it may write. The runtime contract is packs/claudinite-tasks/task-contract.mjs; the enums here mirror its lists and a test holds them in step. Absent, preconditions is run-always, automerge is nothing and agent_model is none; the timeouts have no default.",
+  "type": "object",
+  "required": [
+    "id",
+    "description",
+    "frequency",
+    "expected_outcome"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The task's name — the same as its directory name."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What the task does, or why it exists, in at most fifty words — never what the other fields already say (the cadence, the conditions, the policy, the files)."
+    },
+    "frequency": {
+      "type": "string",
+      "enum": [
+        "daily",
+        "weekly",
+        "monthly",
+        "manual"
+      ],
+      "description": "The anchor the task is instantiated on. `manual` is woken by whatever knows the event happened."
+    },
+    "preconditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "The conditions that must all hold for the task to run: built-in terms (e.g. \"substantive-change\", \"commits-under:<dir>\"), terms the task's own preconditions.mjs exports, `||` between alternatives. Optional: absent, the task runs always ([\"none\"])."
+    },
+    "expected_outcome": {
+      "type": "string",
+      "enum": [
+        "none",
+        "pr"
+      ],
+      "description": "The write ceiling: `none` may never open a pull request, `pr` may open one."
+    },
+    "automerge": {
+      "description": "What may land unreviewed beside `expected_outcome: pr`: \"nothing\", \"anything\", or a list of diff classes, each optionally reject:-prefixed and narrowable with `&&`. Optional: defaults to \"nothing\".",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "nothing",
+            "anything"
+          ]
+        },
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ]
+    },
+    "agent_model": {
+      "type": "string",
+      "enum": [
+        "opus",
+        "sonnet",
+        "haiku",
+        "none"
+      ],
+      "description": "The model family the agentic phase runs at; `none` runs no agent. Optional: defaults to `none`."
+    },
+    "agent_instructions": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The worker spec the agent session reads, a file beside this declaration (conventionally task.md). Required beside an agent_model other than none; no default."
+    },
+    "agent_execution_timeout": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Seconds bounding the agentic run — generous; extreme protection, not a scheduling knob. Required beside an agent_model other than none: a running agent always has a bound."
+    },
+    "code_work": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The deterministic first phase: a command run with the task directory as cwd, e.g. \"node worker.mjs\". Task-local — no absolute path, no `..`. Optional: absent, there is no code work."
+    },
+    "code_work_timeout": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Seconds after which the code_work subprocess is killed and the task fails. Required beside code_work: a subprocess always has a bound."
+    },
+    "schedule_after": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[^/\\s]+/[^/\\s]+$"
+      },
+      "description": "Task ids (\"<pack>/<task>\") this task yields to while their items are live this cycle."
+    },
+    "on_interrupt": {
+      "type": "string",
+      "enum": [
+        "requeue",
+        "needs-human"
+      ],
+      "description": "What happens to the work item when a recovery path would re-execute it. Default `requeue`; `needs-human` for a genuinely one-shot side effect."
+    },
+    "invocation_endpoint": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "A key in the repo's taskScheduler.agenticTaskInvocationEndpoints — never a URL — for a task needing reach an ordinary session in its repo does not have."
+    },
+    "code_work_required_secrets": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "The repo Actions secret names the code-work phase needs configured — the phase that runs Action-side, where a secret exists. Never GITHUB_* or CLAUDINITE_*."
+    },
+    "required_secrets": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "deprecated": true,
+      "description": "The retired spelling of code_work_required_secrets; normalized at the door. Rename it."
+    },
+    "model_from_request": {
+      "const": true,
+      "description": "Reserved to the engine's built-in request task: run at the model the work item names."
+    },
+    "session_scope": {
+      "type": "string",
+      "enum": [
+        "self",
+        "fleet"
+      ],
+      "deprecated": true,
+      "description": "Read by nothing since #974. Drop it; name an invocation_endpoint if the task needs wider reach."
+    }
+  }
+}

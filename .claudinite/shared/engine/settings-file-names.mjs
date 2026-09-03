@@ -17,12 +17,14 @@
 // every member has run it, both names name the same file.
 //
 // The tolerance is the LEGACY half of a rename with a stated end: the cleanup that
-// deletes it is gated on no member still carrying the old name, never on a date
-// (#1252 Phase 3).
+// deletes it is due one convergence window after the advisory that reports the old
+// name (#1640). Not "when no member still carries it" — the canon has no way to
+// see that, so a gate phrased that way never opens.
 
 export const SETTINGS_FILE = '.claudinite-settings.json';
 
 // Retired from what anything WRITES; still read while members carry it.
+// @legacy-tolerance advisory:legacy-shape-in-use retire:#1640
 export const LEGACY_SETTINGS_FILE = '.claudinite-checks.json';
 
 // Both names, newest first — the read order, so a member mid-rename that somehow

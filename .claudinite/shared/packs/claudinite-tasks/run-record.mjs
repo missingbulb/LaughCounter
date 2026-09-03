@@ -60,6 +60,7 @@ const LINE_RE = new RegExp(
 // Exported because the outcome words are also the usage aggregate's counter KEYS,
 // and that file holds rows written under the older words. Its decode renames them
 // by this same map, so a rename never silently drops a historical count.
+// @legacy-tolerance advisory:none retire:#1642
 export const LEGACY_TASK_RUN_OUTCOMES = Object.freeze({ preprocess: 'code-work', prework: 'code-work' });
 
 export function parseTaskRun(line) {

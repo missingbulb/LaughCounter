@@ -72,8 +72,9 @@ once no fielded member names one.
 | `task-declaration-shape` | high | correctness | check: blocking |
 | `task-code-work-env` | high | correctness | check: blocking |
 | `automerge-policy-scope` | high | correctness | check: blocking |
+| `legacy-task-fields` | low | complexity | check: advisory |
 
-The first two are relevance-first — inert until the repo carries a `tasks/<name>/task.mjs` of its own; the third is self-gating on the branch's own arming trailer.
+The first two are relevance-first — inert until the repo carries a `tasks/<name>/task.json` of its own; the third is self-gating on the branch's own arming trailer.
 
 - `task-declaration-shape` — a task declaration the scheduler reads is incomplete or illegal, so the task never fires or fires wrong.
 - `task-code-work-env` — a task reads a `CLAUDINITE_*` variable code-work never sets, so a parameter (a scope filter, a dry-run switch) silently never arrives and the run goes green in its most dangerous mode.
