@@ -5,7 +5,7 @@ description: Where a file should live — the reference-distance metric, the hig
 
 # File placement
 
-Where a file *lives* in a repository is a design decision, not a clerical one. This doc gives a portable rule for judging that placement: keep files close to the files they actually depend on. It is project-agnostic — the consuming repo's own docs own any project-specific layout conventions (where tests go, where generated output lands, framework-mandated folders, etc.). This is about the *shape* of the dependency graph relative to the folder tree, not about naming.
+Judge placement by the shape of the dependency graph against the folder tree: keep a file close to the files it actually depends on. A project-specific layout convention the consuming repo's own docs set — where tests go, where generated output lands, a framework-mandated folder — wins over the metric below.
 
 ## The reference-distance metric
 

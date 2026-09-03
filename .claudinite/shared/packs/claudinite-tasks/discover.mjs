@@ -1,5 +1,5 @@
 // Task discovery for the scheduler (per-project-scheduling DESIGN §3.2). One
-// uniform scan of every ACTIVE pack's `tasks/<name>/task.mjs`, activation-gated
+// uniform scan of every ACTIVE pack's `tasks/<name>/task.json`, activation-gated
 // by the repo's `packs` declaration exactly like checks and skills. Reuses the
 // pack registry so the same scan works across all three layouts without knowing
 // any of them: canon packs at `packs/`, a consumer's vendored canon at
@@ -9,15 +9,15 @@
 // Frequency filtering is deliberately NOT done here — discover returns every
 // active, well-formed task; the scheduler run intersects them with the current anchors
 // (queue/anchors.mjs). Keeping the two apart keeps each pure and separately
-// testable. A task whose task.mjs fails to import or violates the declaration
+// testable. A task whose declaration fails to load or violates the declaration
 // contract is dropped into `errors` (fail-soft, per-task), never sinking the
 // scan.
 
 import { readdirSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { loadPacks, isActive } from '../../engine/pack_loader/pack-registry.mjs';
 import { normalizeTaskDeclaration, validateTaskDeclaration } from './task-contract.mjs';
+import { findTaskDeclaration, loadTaskDeclaration } from './task-declaration.mjs';
 import { loadTaskTerms } from './task-terms.mjs';
 import { BUILT_IN_PACK, builtInTasksRoot } from './built-in-tasks.mjs';
 
@@ -55,15 +55,21 @@ export async function discoverTasks(root, config) {
     }
     for (const name of names) {
       const taskDir = join(tasksRoot, name);
-      const mjs = join(taskDir, 'task.mjs');
-      if (!existsSync(mjs)) continue;
+      let file;
+      try {
+        file = findTaskDeclaration(taskDir);
+      } catch (e) {
+        errors.push({ pack: pack.id, task: name, what: e.message, fix: 'delete the task.mjs — task.json is the declaration' });
+        continue;
+      }
+      if (file === null) continue;
       let decl;
       try {
-        // Canonical field names from here on (legacy code-work names accepted at
-        // the door, never re-checked downstream).
-        decl = normalizeTaskDeclaration((await import(pathToFileURL(mjs).href)).default);
+        // Canonical field names and the defaults from here on (legacy code-work
+        // names accepted at the door, never re-checked downstream).
+        decl = normalizeTaskDeclaration(await loadTaskDeclaration(file));
       } catch (e) {
-        errors.push({ pack: pack.id, task: name, what: `${relative(root, mjs)} failed to import: ${e.message}`, fix: 'fix or remove the task' });
+        errors.push({ pack: pack.id, task: name, what: `${relative(root, file)} failed to load: ${e.message}`, fix: 'fix or remove the task' });
         continue;
       }
       // The task's own precondition terms, loaded BEFORE validation: a
@@ -79,7 +85,7 @@ export async function discoverTasks(root, config) {
       }
       const problems = validateTaskDeclaration(decl, terms);
       if (problems.length) {
-        errors.push({ pack: pack.id, task: name, what: `${relative(root, mjs)} is not a valid task declaration: ${problems.map((p) => p.what).join('; ')}`, fix: problems[0].fix });
+        errors.push({ pack: pack.id, task: name, what: `${relative(root, file)} is not a valid task declaration: ${problems.map((p) => p.what).join('; ')}`, fix: problems[0].fix });
         continue;
       }
       // A local pack's dir-name is its id (enforced by the registry); the task's

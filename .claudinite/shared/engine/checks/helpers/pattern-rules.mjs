@@ -478,6 +478,7 @@ export function unplacedSpecKeys(declaration) {
 // spell the merged keys.
 //   checkParsedFile / forEachParsedEntry / equalParsedValues → checkParsedFiles
 //   listedInFile / coveredByGlobLine                         → requireIndexCoverage
+// @legacy-tolerance advisory:legacy-check-spellings retire:#1643
 function normalizeLegacySpellings(spec) {
   const parsed = [...(spec.checkParsedFiles ?? []), ...(spec.checkParsedFile ?? [])];
   for (const a of spec.forEachParsedEntry ?? []) {

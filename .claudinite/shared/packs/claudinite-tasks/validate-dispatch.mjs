@@ -1,7 +1,7 @@
 // Executor-side deterministic validation of a dispatch issue, BEFORE any model
 // judgment (per-project-scheduling DESIGN §5.2). Given the issue body, it asserts
 // in code that the first line is a legal task path, the task file exists at HEAD,
-// its pack is declared, and its `task.mjs` sibling parses to a well-formed
+// its pack is declared, and its `task.json` sibling parses to a well-formed
 // declaration — then resolves the model and outcome ceiling the executor will
 // enforce. An invalid dispatch is rejected (the executor de-labels it and
 // converges it to needs-human), so a forged or mangled issue never runs.
@@ -12,7 +12,9 @@
 // event's payload on disk and wires `exists`/`isPackDeclared`/`loadTask` to the
 // checkout, so validating a dispatch costs no GitHub call at all.
 
+import { dirname } from 'node:path';
 import { normalizeTaskDeclaration, validateTaskDeclaration } from './task-contract.mjs';
+import { siblingTaskDeclaration } from './task-declaration.mjs';
 import { resolveModel } from './model-map.mjs';
 import { BUILT_IN_PACK, BUILT_IN_PATH_RE } from './built-in-tasks.mjs';
 import { parseWorkItemBody } from './queue/work-item.mjs';
@@ -35,7 +37,7 @@ const reject = (reason, extra = {}) => ({ ok: false, reason, ...extra });
 // Validate a dispatch body. Capabilities (all injected for testability):
 //   exists(path)        -> boolean   — does this repo-relative path exist at HEAD
 //   isPackDeclared(id)  -> boolean   — is this pack active in .claudinite-settings.json
-//   loadTask(mjsPath)   -> decl      — load the task.mjs default export (throws on parse error)
+//   loadTask(declPath)  -> decl      — load the declaration file's object (throws on parse error)
 // Returns { ok:true, pack, task, taskPath, model, resolvedModel, outcome },
 // { ok:false, gone:true, pack, task, reason } — a well-formed dispatch whose task
 // the repo NO LONGER CARRIES (file gone, sibling gone, pack undeclared): the
@@ -56,30 +58,32 @@ export function validateDispatchBody(body, { exists, isPackDeclared, loadTask, l
 
   const [, pack, task] = m;
   const taskPath = firstLine;
-  const mjsPath = taskPath.replace(/task\.md$/, 'task.mjs');
 
   const gone = (reason) => reject(reason, { gone: true, pack, task });
   if (!exists(taskPath)) return gone(`task file ${taskPath} does not exist at HEAD — the repo no longer carries this task`);
-  if (!exists(mjsPath)) return gone(`the task.mjs sibling ${mjsPath} is missing — the repo no longer carries this task`);
+  const sibling = siblingTaskDeclaration(taskPath, exists);
+  if (sibling.both) return reject(`${dirname(taskPath)} carries both a task.json and a task.mjs — delete the task.mjs, task.json is the declaration`, { pack, task });
+  if (!sibling.file) return gone(`the task.json sibling of ${taskPath} is missing — the repo no longer carries this task`);
+  const declPath = sibling.file;
   if (!builtIn && !isPackDeclared(pack)) return gone(`pack "${pack}" is not declared in .claudinite-settings.json — this task is not active here`);
 
   let decl;
   try {
-    decl = normalizeTaskDeclaration(loadTask(mjsPath));
+    decl = normalizeTaskDeclaration(loadTask(declPath));
   } catch (e) {
-    return reject(`${mjsPath} did not parse: ${e.message}`, { pack, task });
+    return reject(`${declPath} did not parse: ${e.message}`, { pack, task });
   }
   // The task's own precondition terms, prefetched by the shell exactly as the
   // declaration is: without them a task-local condition reads as a typo, and a
   // dispatch naming a perfectly good task would be rejected as malformed.
   let terms;
   try {
-    terms = loadTerms(mjsPath);
+    terms = loadTerms(declPath);
   } catch (e) {
-    return reject(`${mjsPath}'s preconditions.mjs did not parse: ${e.message}`, { pack, task });
+    return reject(`${declPath}'s preconditions.mjs did not parse: ${e.message}`, { pack, task });
   }
   const problems = validateTaskDeclaration(decl, terms);
-  if (problems.length) return reject(`${mjsPath} is not a valid task declaration: ${problems.map((p) => p.what).join('; ')}`, { pack, task });
+  if (problems.length) return reject(`${declPath} is not a valid task declaration: ${problems.map((p) => p.what).join('; ')}`, { pack, task });
 
   // The model a task that reads its item's choice runs at (DESIGN §16.7). The field
   // is written by the scheduler run from a write-gated label and validated on the way out of

@@ -28,7 +28,7 @@ import { loadConfig } from '../../../../engine/checks/helpers/repo-context.mjs';
 
 const log = (s) => console.log(`growth-dedup code_work: ${s}`);
 
-// The window this task's own cadence covers — `frequency: 'weekly'` in task.mjs.
+// The window this task's own cadence covers — `frequency: 'weekly'` in task.json.
 export const WINDOW_DAYS = 7;
 
 // A canon pack's file, in the two-root form: the mount prefix is optional because

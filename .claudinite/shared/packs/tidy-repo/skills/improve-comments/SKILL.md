@@ -6,8 +6,8 @@ description: Improve the comments in a repo's own source — delete the ones tha
 # Improve a repo's comments
 
 A comment decays as the code around it changes, and nothing makes it fail. A test that
-has gone wrong goes red; a comment that has gone wrong is read, believed, and acted on.
-This pass is the one that reads a slice of a repo **as comments rather than as code**.
+has gone wrong goes red; a comment that has gone wrong is read, believed, and acted on — so
+read the slice in front of you **as comments rather than as code**.
 
 **Deletion is the most common right answer.** A comment carries the *why*, or a cross-file
 relationship the code cannot state itself. Everything else is a second copy of the code

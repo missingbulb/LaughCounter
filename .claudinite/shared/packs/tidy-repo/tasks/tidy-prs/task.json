@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../claudinite-tasks/task.schema.json",
+  "id": "tidy-prs",
+  "description": "The assess-only half of the tidy sweep: judges every open pull request as keep-open or closeable, by its commits and diff rather than its title, and records the picture without closing anything.",
+  "frequency": "weekly",
+  "preconditions": [
+    "prs-touched"
+  ],
+  "expected_outcome": "none",
+  "agent_model": "sonnet",
+  "agent_instructions": "task.md",
+  "agent_execution_timeout": 900
+}

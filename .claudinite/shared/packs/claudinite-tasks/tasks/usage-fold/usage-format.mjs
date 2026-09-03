@@ -204,6 +204,7 @@ export function decodeRow(row, totalsFields, fields = {}) {
 // the file's own header gets it back under the old name; this puts it under the new
 // one, so the next encode carries it instead of dropping it on the floor. Only the
 // `tasks` group has renames — the outcome words, which have moved twice.
+// @legacy-tolerance advisory:none retire:#1642
 function renameLegacyCounters(group, counters) {
   if (group !== 'tasks') return counters;
   const out = {};

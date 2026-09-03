@@ -108,13 +108,18 @@ GitHub MCP tools.
    ([tasks/logs-prune/worker.mjs](tasks/logs-prune/worker.mjs)), daily, over the same branch: every
    capture past `config.retention_days` is removed, on the stamp in its filename alone. What makes
    that safe without an agent is the reading window above — the extract run reads from the oldest end
-   of the branch on every run, so a capture reaches retention having been read. **Unset retention = the
-   prune deletes nothing** (capture-only, fail-safe).
+   of the branch on every run, so a capture reaches retention having been read. **An undeclared
+   retention takes the pack's 10-day default**; `retention_days: 0` is the explicit capture-only
+   opt-out, and a declaration the worker cannot read prunes nothing.
 
-No adoption question over it — `retention_days` stays unset (hidden) by default, which is
-fail-safe (capture-only). A project that wants the prune active sets `config.retention_days`
-itself (10 is the recommended floor); nothing else to schedule, since both tasks ride the
-fleet's one daily run like the other growth tasks.
+No adoption question over it — the pack's own `DEFAULT_RETENTION_DAYS` (10, the floor it had
+recommended in prose all along) applies to every member that says nothing, and a project
+overrides it by setting `config.retention_days`. Absence used to mean "capture-only", which read
+as fail-safe and behaved as an unbounded leak: twelve of fourteen members had never pruned a
+capture, one of them holding 67 MB across 73 logs (#1620). A project that genuinely wants
+capture-only now declares `retention_days: 0`, so the decision is written down rather than
+inferred from a missing key. Nothing else to schedule, since both tasks ride the fleet's one
+daily run like the other growth tasks.
 
 ## Skill-usage metrics — what the mounted skills actually do
 
@@ -148,7 +153,7 @@ reaffirmable rationale behind an end-of-line `(n)` marker (checks join via `chec
 `references-integrity` below is its machine half, and `rule-revalidation` its consumer. The pack
 also bundles
 [unattended-agents](skills/unattended-agents/SKILL.md) and
-[**writing-tasks**](skills/writing-tasks/SKILL.md) — the contract a `tasks/<name>/task.mjs` and
+[**writing-tasks**](skills/writing-tasks/SKILL.md) — the contract a `tasks/<name>/task.json` and
 its worker are written to: the declaration's fields, the code-work and agentic phases, the
 precondition as the only place a task may decide not to run, and how a work item converges. That
 contract is what the four task checks below judge against, and it is a skill rather than a rule
@@ -245,6 +250,7 @@ made the change, and is one sweep away from being closed as stale.
 |---|---|---|---|
 | `dedup-prune-integrity` | high | correctness | check: blocking |
 | `growth-write-scope` | high | correctness | check: blocking |
+| `legacy-check-spellings` | low | complexity | check: advisory |
 | `in-session-github-access` | high | correctness | check: blocking |
 | `references-integrity` | high | correctness | check: blocking |
 | `routine-structure` | medium | complexity | check: blocking |
@@ -255,7 +261,7 @@ made the change, and is one sweep away from being closed as stale.
 The last five are the **task contract** ([the writing-tasks skill](skills/writing-tasks/SKILL.md)), which
 lives here because it judges whether a task is *written* correctly — authoring, the subject of this
 pack — and not whether Claudinite is *working* in the repo. Relevance-first: all five are inert until
-the repo carries a `tasks/<name>/task.mjs` of its own.
+the repo carries a `tasks/<name>/task.json` of its own.
 
 - `task-declaration-matches-folder` — a declaration disagrees with its folder: discovery drops it into `errors` and every run keeps reporting healthy without it.
 - `task-md-only-when-agentic` — an agentless task carries a `task.md`, which the corpus reads as "an agent runs here": prose no session will ever open, judged by the routine contract and named by every work item as the file the run is about.

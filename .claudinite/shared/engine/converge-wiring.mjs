@@ -23,6 +23,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname, relative, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { writeRulesIndex, RULES_INDEX_FILE, RULES_INDEX_IMPORT } from './pack_loader/generate-rules-index.mjs';
+import { writeSkillsIndex, SKILLS_INDEX_FILE } from './pack_loader/generate-skills-index.mjs';
 import { LOCAL_PACKS_SUBDIR, LOCAL_DECL_PREFIX, SHARED_SUBDIR } from './pack_loader/pack-registry.mjs';
 import { settingsPath } from './settings-file.mjs';
 import { ENDPOINTS_KEY, LEGACY_ENDPOINTS_KEY } from './checks/helpers/repo-context.mjs';
@@ -30,10 +31,14 @@ import { ENDPOINTS_KEY, LEGACY_ENDPOINTS_KEY } from './checks/helpers/repo-conte
 // The settings-hook registrations a scheduled repo carries (bootstrap Part 5).
 // Ensured present without clobbering — a set-union keyed on the command string, so
 // a repo's own extra hooks and any hand-added entries survive untouched.
+// The tools the PreToolUse guard watches: Bash for the commands it blocks, and the
+// file tools for the path-scoped skills it enforces (engine/hooks/pretooluse-command.mjs).
+export const PRETOOLUSE_MATCHER = 'Bash|Edit|Write|NotebookEdit';
+
 export const REQUIRED_HOOKS = [
   { event: 'SessionStart', matcher: null, command: 'bash $CLAUDE_PROJECT_DIR/.claudinite/shared/engine/hooks/session-start-command.sh' },
   { event: 'Stop', matcher: null, command: 'node $CLAUDE_PROJECT_DIR/.claudinite/shared/engine/hooks/stop-command.mjs' },
-  { event: 'PreToolUse', matcher: 'Bash', command: 'node $CLAUDE_PROJECT_DIR/.claudinite/shared/engine/hooks/pretooluse-command.mjs' },
+  { event: 'PreToolUse', matcher: PRETOOLUSE_MATCHER, command: 'node $CLAUDE_PROJECT_DIR/.claudinite/shared/engine/hooks/pretooluse-command.mjs' },
   { event: 'SessionEnd', matcher: null, command: 'node $CLAUDE_PROJECT_DIR/.claudinite/shared/engine/hooks/session-end-command.mjs' },
 ];
 
@@ -106,10 +111,16 @@ export function ensureHooks(root) {
   const added = [];
   for (const h of REQUIRED_HOOKS) {
     const list = (settings.hooks[h.event] ??= []);
-    const present = list.some((group) =>
-      (h.matcher == null || group.matcher === h.matcher)
-      && (group.hooks ?? []).some((entry) => entry?.command === h.command));
-    if (!present) {
+    const ours = (group) => (group.hooks ?? []).some((entry) => entry?.command === h.command);
+    const present = list.some((group) => (h.matcher == null || group.matcher === h.matcher) && ours(group));
+    // The command is the registration's identity: a group already running it under
+    // an earlier matcher is retargeted, never joined by a second group that would
+    // run the same guard twice on the tools both matchers name.
+    const retarget = present ? null : list.find((group) => h.matcher != null && ours(group) && group.matcher !== h.matcher);
+    if (retarget) {
+      retarget.matcher = h.matcher;
+      added.push(`${h.event}[${h.matcher}]`);
+    } else if (!present) {
       list.push({ ...(h.matcher != null ? { matcher: h.matcher } : {}), hooks: [{ type: 'command', command: h.command }] });
       added.push(`${h.event}${h.matcher ? `[${h.matcher}]` : ''}`);
     }
@@ -174,6 +185,13 @@ export const RULES_INDEX_MERGE_ATTR = 'claudinite-rules.GENERATED.md merge=ours'
 
 export function ensureRulesIndexMergeAttribute(root) {
   return ensureAttributeLine(root, RULES_INDEX_MERGE_ATTR);
+}
+
+// The skills index (generate-skills-index.mjs) is GENERATED on the same terms.
+export const SKILLS_INDEX_MERGE_ATTR = 'claudinite-skills.GENERATED.md merge=ours';
+
+export function ensureSkillsIndexMergeAttribute(root) {
+  return ensureAttributeLine(root, SKILLS_INDEX_MERGE_ATTR);
 }
 
 // The shared mount is canon-owned content the member never authored, so the git HOST
@@ -398,8 +416,10 @@ export async function convergeWiring(root, fullName, { badges = false, seedLocal
   // The CLAUDE.md channel, in dependency order: the index, then the import that
   // loads it, then the merge attribute that keeps it from being hand-resolved.
   if (await writeRulesIndex(root)) changed.push(RULES_INDEX_FILE);
+  if (await writeSkillsIndex(root)) changed.push(SKILLS_INDEX_FILE);
   if (ensureRulesIndexImport(root)) changed.push(`${CLAUDE_MD} rules-index import`);
   if (ensureRulesIndexMergeAttribute(root)) changed.push('.gitattributes merge=ours for the rules index');
+  if (ensureSkillsIndexMergeAttribute(root)) changed.push('.gitattributes merge=ours for the skills index');
   if (ensureMountVendoredAttribute(root)) changed.push('.gitattributes linguist-vendored for the shared mount');
   if (badges && convergeBadgeRow(root, await badgeRowEntries(root, await repoConfig(root)))) changed.push(`${README} pack row`);
   return { changed, ...(hooks.error ? { error: hooks.error } : {}) };

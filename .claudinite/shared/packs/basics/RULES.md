@@ -55,11 +55,16 @@
 - **Planning a migration** — prefer the design that converges in one forced pass to the one that
   trickles across nightly cycles, accept legacy input at the door so nothing has to wait for
   stragglers, and drive the stragglers with a standing mechanism rather than a phase someone must
-  remember to close. Write every phase's code — the cleanup and the destructive tail included —
-  before asking for approval, and chain each execution step to the verification of the one before
-  it rather than to anyone's memory;
+  remember to close. Write every phase's code — the cleanup, the destructive tail and every
+  legacy tolerance's removal included — before asking for approval, and chain each execution step
+  to the verification of the one before it rather than to anyone's memory;
   [writing-migration-plans](skills/writing-migration-plans/SKILL.md) owns that ordering and the
   chain's mechanics.
+
+- **Adding a legacy tolerance** (a dual read, an accepted old spelling, a shim) — it is
+  scaffolding, not a feature: ship it with an advisory that fires where the old shape is still in
+  use, and with its removal already a link in the migration's chain, due one stated convergence
+  window after that advisory reaches the holders. (2)
 
 - **Choosing an automerge policy for a PR or a chain link** — write it as a prediction of the
   change's shape, the folders and kinds you expect the diff to touch, and never widen it to fit the

@@ -76,6 +76,7 @@ export function taskOf(issue) {
 // single `task:status:needs-human-<kind>`, the two-label era's `task:needs-human-<kind>`
 // sub-label, and a kind no engine here knows reading as `failure` — the conservative
 // lane, so a park whose word this code predates is never dropped.
+// @legacy-tolerance advisory:none retire:#1642
 const LEGACY_PARK_RE = /^task:needs-human-(.+)$/;
 
 export function parkKindOf(label) {

@@ -5,6 +5,8 @@ the version this file was introduced beside (60820.1); earlier bumps are not bac
 
 | Version | Date | What changed |
 |---|---|---|
+| 60903.3 | 2026-09-03 | A task's `task.md` opens on what the run does: the stage-labelling framing, the why-it-runs-centrally rationale and the skill procedure it already points at are gone. |
+| 60903.1 | 2026-09-03 | A skill's `SKILL.md` opens on what to do, not on what the skill is: the self-describing framing and the pointers to prose the reader already holds are gone. |
 | 60902.2 | 2026-09-02 | `improve-comments` stops standing down while its previous round is in review: the round runs and appends to the open `Claudinite tidy: improve comments` PR, so one review covers several weeks of comment work. The pinned subject survives as how a round FINDS that PR rather than as a gate (#1611). |
 | 60902.1 | 2026-09-02 | The three tidy tasks convert to declarative `preconditions`. `tidy-issues` becomes `['issues-touched']` and `tidy-prs` `['prs-touched']`, with what a granted run then works on — widening a triage to every open issue after a substantive `main` move, sweeping every open PR — moving into their worker docs, since scope is the worker's decision and the conditions decide only run or no-run. `improve-comments` becomes the three-condition conjunction its gate always was (#1578). |
 | 60830.3 | 2026-08-30 | `improve-comments` declares its safety case as policy — `automerge: ['comment-only-changes', 'readme-changes']` — so the landing verdict is measured by the policy engine, with the skill's own scope gate still redding the same boundary on every branch wearing its title (#1459). |
@@ -16,3 +18,4 @@ the version this file was introduced beside (60820.1); earlier bumps are not bac
 | 60824.1 | 2026-08-24 | Prose names the scheduler at its new home in the `claudinite-tasks` pack (#1317). |
 | 60823.1 | 2026-08-23 | Its seed record reads the declaration under either settings-file name while the #1252 rename drains. |
 | 60822.1 | 2026-08-22 | The manifest stops restating its own tree (#1246): `id`, `prose`, `badge`, `skills`, `worldRules` and `workRules` are resolved from the pack directory and an absent `detect`/`marker` means no fingerprint. Coded rules move into `worldRules/`/`workRules/` and tests into `test/`, which no vendor set ships. `minEngineVersion` rises to the engine release that reads all of it. |
+| 60903.2 | 2026-09-02 | Task declarations converted to `task.json`; the declaration's comments moved into each task's README (#1633). |

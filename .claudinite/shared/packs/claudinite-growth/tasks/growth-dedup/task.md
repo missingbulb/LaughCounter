@@ -1,7 +1,6 @@
 # Growth — dedup local packs against the canon (per repo)
 
-The growth lifecycle's pruning stage: reconcile this repo's **local packs** against the shared **canon** it
-consumes (Claudinite, vendored read-only), pruning local items — a pack's prose line, or a whole local check —
+Reconcile this repo's **local packs** against the shared **canon** it consumes (Claudinite, vendored read-only), pruning local items — a pack's prose line, or a whole local check —
 the canon now covers. It lands the run's prunes through a single PR against the repo's default branch.
 Often there's nothing to prune, and that's fine. The run's
 **Context** is **binding scope — not a hint**: do not re-decide or widen it.

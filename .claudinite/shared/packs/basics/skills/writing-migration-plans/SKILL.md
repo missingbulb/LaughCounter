@@ -101,6 +101,42 @@ have to stop and wait for a person.** Each mark that falls after phase zero and 
 a step that was sorted wrong — or a step that should have been a link in the chain and was written
 as a note instead. Move it, chain it, or say in the plan why it genuinely cannot be either.
 
+## The legacy tolerance is scaffolding
+
+Almost every migration ships one: a dual read, an accepted old spelling, a decode map, a shim at
+the path something was renamed from. It is what lets the two halves of the migration land in
+either order, and it is the single most reliable way for a migration to never finish — because
+once it works, nothing in the world complains about it. A tolerance is not part of the end state.
+It is the ladder, and the plan says when the ladder comes down.
+
+Three things ship *with* it, in the same stack, never afterwards:
+
+- **The advisory.** Whoever still holds the old shape must be told, at the point they hold it —
+  the check that reads their file, the warning the loader emits, the finding their own run
+  reports. A tolerance with no advisory asks people to migrate off something they have no way of
+  knowing they are on, and then measures how few of them did. Where the tolerance is in code the
+  holders cannot see, the advisory is the one that fires in *their* repo, not a note in yours.
+- **The removal, written now.** It is code, so it goes in the approved stack with everything else
+  (above); what waits is its merge, and the thing that performs that merge is a link in the chain.
+- **The window that releases it** — how long a correctly-behaving holder needs to pick the
+  advisory up and act on it, written as the date the removal link waits on. The tempting
+  alternative is a census — "when no holder still carries the old shape" — and it is usually
+  unanswerable: a project cannot see which of the things consuming it are live, which are
+  dormant and which stopped updating months ago, so the removal waits on an answer that never
+  arrives and the tolerance becomes permanent while looking scheduled. Read a count only where
+  you own both sides of it and it really does come back ("the oldest row in the retention window
+  postdates the rename"). Everywhere else, pick the window, say in the link what it assumes, and
+  let a holder that ignored the advisory for that long take the break.
+
+Say at the tolerance site which link removes it, so the next reader of that code is looking at a
+scheduled removal rather than a permanent-looking feature with an optimistic comment beside it.
+
+Getting a gate wrong is rarely symmetric, and the plan states which way. Where a premature
+removal only degrades — a decoder that starts writing nulls, a check that stops asserting — the
+removal link takes a narrow predicted-folder policy like any other. Where it *wedges* a holder
+past what a later PR can undo — the mount that no longer resolves, the credential that no longer
+validates — the link is `nothing`, whatever its diff turns out to look like.
+
 ## The chain
 
 Everything after the approval is a run that arms the next run. The mechanism is the queue's own
@@ -209,8 +245,9 @@ not land as predicted; write each link's brief so the chain holds through all of
 - **The plan is a tracking issue**, and the phases are its checkboxes. Status and remaining work
   live there; a design document, where the project keeps one, carries the mechanism and not the
   progress.
-- **Each phase names its exit condition**, observable and stated as a thing that reads back true —
-  not "cutover done" but "every member's stamp shows the new ref". A phase whose end is a judgment
+- **Each phase names its exit condition**, observable and stated as a thing that reads back true
+  from where the phase runs — not "cutover done" but "the new field is in the rendered output on
+  `main`". A condition only somebody else's repo could answer is not observable from here. A phase whose end is a judgment
   call is a phase that stays open.
 - **Nothing closes on a human's memory.** A step you cannot verify now gets a mechanism that comes
   to you — a link in the chain, a scheduled task, an issue something converges (basics' *When
@@ -252,7 +289,8 @@ Run the same sort over it. The findings worth raising, in order of what they cos
    merges and effects are deferred.
 4. An execution step written as a note rather than filed as a link — anything phrased "then,
    once X, do Y" with no issue that comes back when X.
-5. A chain whose links advance on a step having *run* rather than on its result being *read*.
-6. A destructive step scheduled before the replacement has been observed working.
-7. A phase with no stated exit condition, or one only a person can judge.
-8. A step handed to a human that the agent could have performed itself.
+5. A legacy tolerance with no advisory reaching its holders, or with no link that removes it.
+6. A chain whose links advance on a step having *run* rather than on its result being *read*.
+7. A destructive step scheduled before the replacement has been observed working.
+8. A phase with no stated exit condition, or one only a person can judge.
+9. A step handed to a human that the agent could have performed itself.

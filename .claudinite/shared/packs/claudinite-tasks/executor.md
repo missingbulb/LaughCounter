@@ -40,7 +40,7 @@ goes through your GitHub tools.
    `<scope>` is the word your launcher prompt
    names — `self` if it names none. The shell finds the trigger that started this session and
    asserts, before any judgment of yours, that the issue body names a legal task path, the
-   file exists at HEAD, its pack is declared, and its `task.mjs` sibling parses to a valid
+   file exists at HEAD, its pack is declared, and its `task.json` sibling (or a not-yet-converted `task.mjs`) parses to a valid
    declaration. It makes no GitHub calls of its own.
 
    **Pass the word; do not infer it from the label.** The two executor routines are told apart

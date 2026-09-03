@@ -1,11 +1,21 @@
 ---
 name: writing-tests
 description: Practices for writing tests you can trust. Use before writing or changing any test — see-it-fail discipline, snapshot/golden rules, CI-only and heavy-browser tests, fuzzy-metric gating.
+metadata:
+  force-load-on-file-edits-paths:
+    - "**/*.test.*"
+    - "**/*.spec.*"
+    - "**/*_test.*"
+    - "**/test_*.*"
+    - "**/test/**"
+    - "**/tests/**"
+    - "**/__tests__/**"
+    - "**/spec/**"
 ---
 
 # Testing practices
 
-Portable practices for writing tests you can actually trust — proving a test fails before relying on it, snapshot/golden discipline, CI-only and heavy-browser tests, and how to gate a fuzzy quality metric. These are project-agnostic; a consuming repo's own test *mechanics* (runner, layout, which suites exist) stay in its own docs. (General software-engineering practices live in [the basics pack's RULES.md](../../RULES.md); CI-trigger rules and the `GITHUB_TOKEN` workflow-recursion gotcha live in [the git-github-advanced skill](../../../git-github/skills/git-github-advanced/SKILL.md).)
+A consuming repo's own test *mechanics* — runner, layout, which suites exist — are its own docs'; CI-trigger rules and the `GITHUB_TOKEN` workflow-recursion gotcha are [git-github-advanced](../../../git-github/skills/git-github-advanced/SKILL.md)'s.
 
 - See a test fail before you trust it: write it red before the fix (green after), or break what it guards and watch it go red. A test that has never failed proves nothing. For a **refusal/negative** test — one asserting a guard yields *nothing* — the write-it-red-first branch is unavailable: the pre-change code also yielded nothing, so the test passes from birth and proves nothing. See-it-fail there **must** be the second method — mutate the new guard (weaken it), watch the test bite, then restore it. Restore with `git checkout -- <file>` (or `git stash`) taken at the moment of mutating — never a `.bak` copy saved earlier, which predates whatever else you edited in between and silently discards that intervening work.
 - A mechanism meant to survive a retry, re-queue, or hand-off needs a test that calls it twice, not once. A suite of single-call tests stays green while the multi-call case corrupts state — the double-call is what a real retry, requeue, or hand-off actually does. When the mechanism arbitrates by identity (a claim, a lock), the second call must come from a **different actor**: a single actor retrying its own stale claim can't expose an identity-masked race, since it still recognizes its own claim as valid.

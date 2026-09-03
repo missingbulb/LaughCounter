@@ -5,7 +5,7 @@ description: Git/GitHub procedures beyond the baseline lifecycle. Use for commit
 
 # Portable git & GitHub procedures
 
-The project-agnostic half of how we drive GitHub: the branch/commit-history rules for PR work, the CI-trigger rules, and how we keep merge-conflict churn cheap across parallel branches. (The issue → branch → PR task lifecycle that every task follows is baseline prose every session already loads — it's not task-gated, so it doesn't live here.) Project-specific GitHub procedures (the merge-to-main command, when to open a PR early, the merge-cheaply poll loop tuned to the local environment, and the generated-file merge rules) live in the consuming repo's own GitHub-procedures doc.
+A GitHub procedure the consuming repo's own docs set — its merge command, when it opens a PR, its generated-file merge rules — wins over anything below.
 
 ## Updating an issue's status: comment, don't overwrite
 

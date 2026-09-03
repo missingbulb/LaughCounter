@@ -115,6 +115,7 @@ import { DISPATCH_PATH_RE, dispatchFirstLine, validateDispatchBody } from './val
 import { parseDispatchTitle, readyLabelForScope } from './dispatch.mjs';
 import { renderTaskExec } from './run-record.mjs';
 import { SESSION_SCOPES } from './task-contract.mjs';
+import { findTaskDeclaration, loadTaskDeclaration } from './task-declaration.mjs';
 import { policyExpression } from './merge-policy.mjs';
 import { SHARED_SUBDIR } from '../../engine/pack_loader/pack-registry.mjs';
 
@@ -378,20 +379,21 @@ async function main() {
   // module here and the capability just replays the result (or rethrows the parse
   // failure, which is exactly what the core wants to report).
   const firstLine = dispatchFirstLine(body);
-  const mjsRelative = firstLine.replace(/task\.md$/, 'task.mjs');
+  const taskDir = join(root, dirname(firstLine));
   let loaded = null;
   let loadError = null;
   let terms = new Map();
   let termsError = null;
-  if (DISPATCH_PATH_RE.test(firstLine) && existsSync(join(root, mjsRelative))) {
+  if (DISPATCH_PATH_RE.test(firstLine) && existsSync(taskDir)) {
     try {
-      loaded = (await import(pathToFileURL(join(root, mjsRelative)).href)).default;
+      const file = findTaskDeclaration(taskDir);
+      if (file) loaded = await loadTaskDeclaration(file);
     } catch (e) {
       loadError = e;
     }
     try {
       const { loadTaskTerms } = await import('./task-terms.mjs');
-      terms = await loadTaskTerms(dirname(join(root, mjsRelative)));
+      terms = await loadTaskTerms(taskDir);
     } catch (e) {
       termsError = e;
     }

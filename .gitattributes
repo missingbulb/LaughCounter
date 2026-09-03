@@ -1,3 +1,4 @@
 usage.GENERATED.json merge=ours
 claudinite-rules.GENERATED.md merge=ours
 .claudinite/shared/** linguist-vendored
+claudinite-skills.GENERATED.md merge=ours

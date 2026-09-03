@@ -1,0 +1,9 @@
+{
+  "$schema": "../../task.schema.json",
+  "id": "verify-production",
+  "description": "The queue's coded verification lane: runs the declarative probes a verification issue carries against their public URLs, where egress exists, and judges the result as code.",
+  "frequency": "manual",
+  "expected_outcome": "none",
+  "code_work": "node worker.mjs",
+  "code_work_timeout": 600
+}

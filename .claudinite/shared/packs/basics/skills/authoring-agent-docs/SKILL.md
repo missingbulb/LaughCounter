@@ -1,13 +1,16 @@
 ---
 name: authoring-agent-docs
 description: How to write instruction files coding agents follow reliably. Use before writing or editing any Claude instruction doc — a project CLAUDE.md, a convention doc, a routine spec.
+metadata:
+  force-load-on-file-edits-paths:
+    - "**/CLAUDE.md"
+    - "**/.claude/rules/**"
 ---
 
 # Writing instruction files coding agents follow
 
-How to author the files an AI coding agent reads — a project CLAUDE.md, a convention doc, an
-agent or automation spec — so it follows them reliably. Grounded entirely in Anthropic's
-published guidance; bracketed numbers cite the sources listed at the end.
+Every rule below is Anthropic's published guidance; the bracketed numbers cite the sources listed
+at the end.
 
 ## Know what an instruction file is (and isn't)
 
@@ -55,11 +58,9 @@ published guidance; bracketed numbers cite the sources listed at the end.
 
 ## Pack prose is not this skill's turf
 
-The prose inside a Claudinite pack — a `RULES.md`, a `SKILL.md`, check text, in local packs and
-the canon alike — has its own house style and its own rationale mechanism, owned by the
-`writing-pack-prose` skill (claudinite-growth pack). Load that one instead when the file you
-are writing lives in a pack; this skill covers the instruction files outside one — a consumer
-repo's CLAUDE.md, a convention doc, an agent or automation spec.
+Writing a file that lives inside a pack — a `RULES.md`, a `SKILL.md`, check text, local or canon —
+load `writing-pack-prose` (claudinite-growth) instead: it owns that house style and its rationale
+mechanism. This skill covers the instruction files outside a pack.
 
 ## Structure the file
 

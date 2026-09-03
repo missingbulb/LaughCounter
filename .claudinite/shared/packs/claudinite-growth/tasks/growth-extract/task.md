@@ -1,22 +1,16 @@
 # Growth — extract lessons (per repo)
 
-The growth lifecycle's capture stage, over **both** lesson sources in one run: the window's repo activity
-(commits, merged PRs, issue discussion) and the conversation logs captured from working sessions. Each
-durable, reusable lesson is folded into the repo's own **local packs** (`.claudinite/local/packs/` — the
-normalized capture surface) at the repo's own level, without straining to generalize it. The run lands its
-edits through a single PR, handed to the shared delivery procedure; finding nothing to add
-on a given run is a perfectly good outcome.
+Read **both** lesson sources in one run — the window's repo activity (commits, merged PRs, issue
+discussion) and the conversation logs captured from working sessions — and fold each durable, reusable
+lesson into the repo's own **local packs** (`.claudinite/local/packs/`) at the repo's own level, without
+straining to generalize it. Land the run's edits through a single PR, handed to the shared delivery
+procedure; finding nothing to add is a perfectly good outcome.
 
 **The window is the scope.** The run's Context names the substantive commits that triggered it; the rest
 of the window is yours to read from the same lookback — the PRs merged and touched in it, and the issues
 touched in it. The lookback is this task's own period plus an hour, so a daily run reads the last ~25
 hours. Both halves are always live: a substantive merge means fresh captures on `origin/conversation-logs`
 too. Do not widen past that window.
-
-> This is the **unattended daily** capture. It writes only the repo's *own* local packs, so — **unlike** an
-> owner-requested, in-session retrospective — it opens a PR and hands it to the shared delivery
-> procedure (*Output* below). The shared canon stays human-gated — lifting anything up into it is the
-> central promote task's job (canon-side), and that PR waits for the owner.
 
 ## Conventions used in this doc
 
@@ -47,16 +41,11 @@ re-derive any of it here.
    (`git ls-tree --name-only origin/conversation-logs`); no branch, or no `*.jsonl`, and this half is done.
    The skill owns **which** logs a run reads; read exactly that set, and post the skill's provenance
    summary for each rule that actually lands.
-3. **Upgrade pass — the [prose-to-checks](../../skills/prose-to-checks/SKILL.md) skill, over what *this run*
-   just wrote.** Both halves route down the local promotion ladder as they go, but a lesson written as prose
-   under time pressure is exactly where a convertible rule hides. So before opening the PR, take the prose
-   this run added and ask the skill's questions of it: does it clear the working-rule gate, and does it
-   constrain a static signature a check could observe? If yes, convert it now — as a declaration in its
-   pack's `declared-checks.json`, dropping to a rule module registered in `pack.mjs` only where patterns
-   can't say it — prove it with a **see-it-fail** fixture, and apply the deletion test to the prose the
-   check now stands beside. **Scope is this run's own additions only** — the standing
-   prose backlog is the weekly [prose-to-checks-sweep](../prose-to-checks-sweep/task.md)'s job, and widening
-   into it here would duplicate that task's work under an auto-merging PR.
+3. **Upgrade pass — the [prose-to-checks](../../skills/prose-to-checks/SKILL.md) skill**, run over the prose
+   *this run* added, before the PR opens: a lesson written as prose under time pressure is where a
+   convertible rule hides. **Scope is this run's own additions only** — the standing backlog is the weekly
+   [prose-to-checks-sweep](../prose-to-checks-sweep/task.md)'s, and taking it here would redo that task's
+   work under an auto-merging PR.
 
 If an edit touches something a test reads (a doc constant, a code path), run the repo's offline test suite
 and keep it green before opening the PR.
@@ -71,11 +60,9 @@ procedure — [deliver-pr.md](../../../../packs/claudinite-tasks/deliver-pr.md)*
 file, owns whether and how the PR lands. This writes only the repo's *own* local
 packs (not the shared canon). A run that finds nothing and opens nothing is fine — and common.
 
-A new check ships with its **red-first fixture** — see it fail on a violating fixture, pass on a clean one —
-and with `since: '<today>'`, which holds a `blocking` check to advisory for its first two weeks. That window
-is what lets this run land a check the tree *does* violate: the backlog it surfaces belongs to whoever
-touches those files next, not to this PR, and CI stays green either way. Never ship a check you can't make
-confident — but "the tree still violates it" is no longer a reason to drop to prose.
+Give a new check `since: '<today>'`, which holds a `blocking` check to advisory for its first two weeks —
+so land one the tree still violates rather than dropping to prose, and leave that backlog to whoever
+touches those files next. Never ship a check you cannot make confident.
 
 ## The PR is the record
 

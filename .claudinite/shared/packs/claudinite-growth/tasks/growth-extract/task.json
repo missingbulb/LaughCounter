@@ -1,0 +1,20 @@
+{
+  "$schema": "../../../claudinite-tasks/task.schema.json",
+  "id": "growth-extract",
+  "description": "The growth lifecycle's capture stage: mines the window's repository activity and the captured conversation logs for durable lessons, folds them into this repository's local packs, and runs prose-to-checks over what it wrote.",
+  "frequency": "daily",
+  "schedule_after": [
+    "claudinite-lifecycle/update"
+  ],
+  "preconditions": [
+    "substantive-change"
+  ],
+  "expected_outcome": "pr",
+  "automerge": [
+    "claudinite-local-pack-md-changes",
+    "claudinite-local-pack-check-changes"
+  ],
+  "agent_model": "opus",
+  "agent_instructions": "task.md",
+  "agent_execution_timeout": 2700
+}

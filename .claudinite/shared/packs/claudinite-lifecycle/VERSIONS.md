@@ -8,7 +8,10 @@ own row.
 
 | Version | Date | What changed |
 |---|---|---|
-| 60902.3 | 2026-09-02 | `RULES.md` drops the descriptive framing the pack README already carries — the file carries rules only. |
+| 60903.4 | 2026-09-03 | `legacy-shape-in-use` states the window a repo has to act on its own finding rather than claiming the removal waits on nobody carrying the shape (#1652). |
+| 60903.3 | 2026-09-03 | `legacy-shape-in-use` — an advisory over this repo's own declaration and stamp for every shape the engine merely tolerates: the retired settings-file name, the `claudinite`/`maintenance` blocks, top-level `packConfig`, `taskScheduler.endpoints`, the `local_packs/` declaration prefix, a renamed or absorbed pack id, an integer version and the `updates` mechanism alias. Each finding names the edit that moves the repo forward; each tolerance is scheduled for removal on no member still carrying it (#1637). |
+| 60903.1 | 2026-09-03 | A skill's `SKILL.md` opens on what to do, not on what the skill is: the self-describing framing and the pointers to prose the reader already holds are gone. |
+| 60903.2 | 2026-09-02 | `RULES.md` drops the descriptive framing the pack README already carries — the file carries rules only. |
 | 60902.2 | 2026-09-02 | `rules-index-current` stops probing the retired `.claudinite/local_packs/` root for a declared pack's `RULES.md` (#1627). |
 | 60902.1 | 2026-09-02 | `update` converts to `preconditions: ['none']` — the input is the CANON, which moves when this repo does not, so no repo-side condition may gate it; a repo with no vendored mount names the task in its `taskScheduler.disabledTasks` rather than the task re-asking nightly. Its worker stamps `Claudinite-Task: claudinite-lifecycle/update` on the commits and merges it makes, so the converge reads as machinery to every movement-gated task (#1578). |
 | 60901.2 | 2026-09-01 | The pack adopts the references convention: `references.md` carries `adopt-claudinite`'s executor-routine hand-over record (#1167) and the incident evidence behind the `conformance-work-scope` (#939) and `rules-index-current` (#807) checks, cited by bare `(n)` markers (#1564). |
@@ -32,3 +35,5 @@ own row.
 | 60822.1 | 2026-08-22 | The update worker's scratch-tree delete goes through the shared `removeTree`, whose retry survives git's own housekeeping still writing into the tree (#1219). |
 | 60822.3 | 2026-08-23 | The manifest stops restating its own tree (#1246): `id`, `prose`, `badge`, `skills`, `worldRules` and `workRules` are resolved from the pack directory and an absent `detect`/`marker` means no fingerprint. Coded rules move into `worldRules/`/`workRules/` and tests into `test/`, which no vendor set ships. `minEngineVersion` rises to the engine release that reads all of it. |
 | 60830.1 | 2026-08-30 | The `update` brief and the updates README name today's park spelling rather than the retired bare label (#1395). |
+| 60902.3 | 2026-09-02 | The update flows hand the migration registry a directory listing, a delete and a module import, which the task-declaration conversion needs (#1633). |
+| 60903.5 | 2026-09-03 | Path-scoped skills (#1648): `skill-loaded-before-editing` flags a changed file a skill forces itself for (`force-load-on-file-edits-paths`) in a session that never loaded that skill — the edits the PreToolUse guard cannot see — and `skills-index-current` keeps the generated skills index naming what the declared packs bundle. |

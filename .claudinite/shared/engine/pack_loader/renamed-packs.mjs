@@ -21,15 +21,18 @@
 // one-step hops would need as many passes as there have been renames, and every
 // caller would have to know to loop.
 //
-// RETIREMENT is read off the fleet, never off a calendar: an entry comes out when
-// no member's declaration and no member's stamped `packVersions` still carries that
-// spelling. Until then it is load-bearing for exactly the repos that have not
-// converged, which are the repos least able to complain.
+// RETIREMENT is a convergence window, not a census: the map comes out a week after
+// `legacy-shape-in-use` starts reporting the old spellings (#1641), which is the
+// time a repo that converges nightly needs to read its own finding and rename its
+// declaration. The canon cannot enumerate the repos that use it, so "when no member
+// still declares it" is a condition nothing can ever answer — and until it is
+// answered the map is load-bearing for exactly the repos that stopped converging.
 //
 // A pack ABSORBED into another is the same map entry: its id resolves to the pack
 // that now carries its rules, so a member declaring the absorbed one activates the
 // survivor instead of activating nothing. The declaration then holds two ids that
 // resolve to one, which is what `applyPackRenames` merges (registry.mjs).
+// @legacy-tolerance advisory:legacy-shape-in-use retire:#1641
 export const RENAMED_PACKS = Object.freeze({
   core: 'claudinite-lifecycle',
   grow_with_claudinite: 'claudinite-growth',

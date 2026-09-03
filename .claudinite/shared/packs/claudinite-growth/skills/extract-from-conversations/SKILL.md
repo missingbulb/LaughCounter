@@ -5,10 +5,9 @@ description: Mine an agent-user conversation — a captured conversation log or 
 
 # Extract lessons from a conversation
 
-The **dialogue** half of lesson extraction: read one agent ↔ user session — its turns *and* the actions
-taken in it — and convert its friction into changes that make the **next** run faster, clearer, and less
-dependent on human steering. Its sibling [extract-from-activity](../extract-from-activity/SKILL.md) mines
-what the work committed; this one mines how the work went.
+Read one agent ↔ user session — its turns *and* the actions taken in it — and convert its friction into
+changes that make the **next** run faster, clearer and less dependent on human steering. Read how the
+work went; what the work committed is [extract-from-activity](../extract-from-activity/SKILL.md)'s.
 
 The **bar** a lesson must clear, the **local promotion ladder** it descends, and where a repo's capture
 surface lives stay canonical in [extracting-lessons.md](../../extracting-lessons.md) — read it, don't

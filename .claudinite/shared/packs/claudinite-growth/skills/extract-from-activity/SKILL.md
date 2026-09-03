@@ -5,10 +5,9 @@ description: Mine a window of a repo's commits, merged PRs and issue activity fo
 
 # Extract lessons from repo activity
 
-The **artifact** half of lesson extraction: mine what a window of work left behind — commits, the PRs
-merged in it, the issue discussion around them — for durable, reusable lessons, and fold each into the
-repo's **own local packs**. Its sibling [extract-from-conversations](../extract-from-conversations/SKILL.md)
-mines the *dialogue*; this one never sees a conversation, only what the work committed.
+Mine what a window of work left behind — commits, the PRs merged in it, the issue discussion around
+them — for durable, reusable lessons, and fold each into the repo's **own local packs**. Read only
+what the work committed; the *dialogue* is [extract-from-conversations](../extract-from-conversations/SKILL.md)'s.
 
 The **bar** a lesson must clear, the **local promotion ladder** it descends, and where a repo's capture
 surface lives are shared with that sibling and stay canonical in

@@ -1,5 +1,5 @@
 // Task-declaration validation, published for other packs: the contract a
-// `tasks/<name>/task.mjs` is held to, so a pack's own tests can exercise its task
+// `tasks/<name>/task.json` is held to, so a pack's own tests can exercise its task
 // declarations against the same rules the scheduler applies.
 export * from '../task-contract.mjs';
 

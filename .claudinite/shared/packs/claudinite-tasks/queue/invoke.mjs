@@ -105,7 +105,7 @@ export function agentInvoker({ repo, config, env = process.env, fetchImpl = fetc
     if (endpoint.error) return { ok: false, answered: true, error: endpoint.error };
     const token = secretValue(endpoint.tokenEnv, env);
     if (!token) {
-      // The `required_secrets` posture, applied to the endpoint token: nothing
+      // The `code_work_required_secrets` posture, applied to the endpoint token: nothing
       // fails silently, the task just doesn't work yet, and the item names what to
       // fix (DESIGN §14.7).
       //

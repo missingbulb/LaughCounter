@@ -1,15 +1,16 @@
 ---
 name: writing-pack-prose
-description: How pack prose is written — RULES.md rules, SKILL.md bodies and check text in a Claudinite pack, local or canon — brevity, structure, triggerability, findability, and the per-pack references doc that carries each rule's rationale. Use before writing or editing any pack's RULES.md or SKILL.md, or when landing a lesson as prose.
+description: How pack prose is written — RULES.md rules, SKILL.md bodies and check text in a Claudinite pack, local or canon — brevity, structure, triggerability, findability, and the per-pack references doc. Loaded for any edit of a pack's RULES.md or SKILL.md, and when landing a lesson as prose.
+metadata:
+  force-load-on-file-edits-paths:
+    - "**/packs/*/RULES.md"
+    - "**/packs/*/skills/*/SKILL.md"
 ---
 
 # Writing pack prose
 
-How the prose in a Claudinite pack is written — the rules in a `RULES.md`, the body of a
-`SKILL.md`, the `failureMessage`/`what`/`fix` text of a check — in a repo's own local packs and
-in the shared canon alike. What *qualifies* as a rule and which mechanism carries it is
-[extracting-lessons.md](../../extracting-lessons.md)'s territory; instruction files outside a
-pack (a consumer repo's CLAUDE.md, a convention doc) are the `authoring-agent-docs` skill's.
+Whether a candidate *qualifies* as a rule at all, and which mechanism carries it, is
+[extracting-lessons.md](../../extracting-lessons.md)'s call — settle it there before writing.
 
 **Start from the foundation:** read the "Write each rule" section of
 [authoring-agent-docs](../../../basics/skills/authoring-agent-docs/SKILL.md) first — its

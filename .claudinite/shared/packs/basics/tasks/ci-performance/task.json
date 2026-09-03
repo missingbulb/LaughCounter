@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../claudinite-tasks/task.schema.json",
+  "id": "ci-performance",
+  "description": "Reads where this repository's CI time goes from the Actions run history, keeps a standing record of each workflow's median, and hands an agent a real regression already localised to a workflow and a before-and-after delta.",
+  "frequency": "weekly",
+  "preconditions": [
+    "substantive-change || prs-touched"
+  ],
+  "expected_outcome": "pr",
+  "automerge": "anything",
+  "code_work": "node worker.mjs",
+  "code_work_timeout": 300,
+  "agent_model": "sonnet",
+  "agent_instructions": "task.md",
+  "agent_execution_timeout": 3600
+}

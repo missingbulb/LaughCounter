@@ -18,9 +18,9 @@
 // So the workflow names its secrets again and NOTHING SETS THE BAG. The reader stays
 // because members carry the bag-setting workflow until their own PR lands, and reading
 // it where present is what makes that window uneventful; `secretValue`'s fallback to
-// the plain environment is what makes the reverse window uneventful too. Retiring the
-// reader is gated on no member still stamping a bag — a converge-confirmable
-// condition, never a date.
+// the plain environment is what makes the reverse window uneventful too. The reader
+// comes out on #1642's window rather than on a count of who still stamps a bag —
+// the canon cannot take that count.
 
 import { parseBag } from './env-bag.mjs';
 
@@ -37,9 +37,9 @@ export const secretsBag = (env = process.env) => parseBag(env[SECRETS_BAG_ENV]);
 // `claudinite-executor.yml` moves only through a human-merged PR, so every member
 // spends a window running this engine against a workflow that still stamps names
 // directly and sets no bag. Reading `env[name]` when the bag does not carry it is
-// what makes that window uneventful. Retiring the fallback is gated on no member
-// still running a stamping executor workflow — a converge-confirmable condition,
-// never a date.
+// what makes that window uneventful. The fallback comes out on #1642's window: a
+// member's live workflow moves only through a human-merged PR, so the window is what
+// that PR is given, and no census of who has merged it is available here.
 export function secretValue(name, env = process.env, bag = secretsBag(env)) {
   // The bag holds every secret the repository has, so its own variable is not a
   // secret anyone may ask for by name — otherwise one declaration re-exports all of
