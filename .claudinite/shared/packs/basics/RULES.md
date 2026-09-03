@@ -1,8 +1,5 @@
 # Working discipline
 
-The working discipline that isn't itself a GitHub operation — general habits for how to approach a
-change, independent of any one project.
-
 - **Starting any requested change** — begin from the *problem*, not the solution, in any
   repository and not just this one. Reach an explicit shared understanding with the owner of the
   problem the change is meant to solve **and** agreement that the requested change is the best way
@@ -64,6 +61,20 @@ change, independent of any one project.
   [writing-migration-plans](skills/writing-migration-plans/SKILL.md) owns that ordering and the
   chain's mechanics.
 
+- **Choosing an automerge policy for a PR or a chain link** — write it as a prediction of the
+  change's shape, the folders and kinds you expect the diff to touch, and never widen it to fit the
+  diff that arrived: a policy that fails is the speed bump that puts a person back on the trail,
+  not an error to route around. (1)
+
+- **Predicting a change that could delete production data or degrade the experience past what a
+  later PR undoes** — its policy is `nothing`, whatever its diff class; irreversibility is the
+  first of the two things review here exists to catch. (1)
+
+- **Handing over a change whose diff reached more folders or files than its request implied** —
+  say so, and name the abstraction that would have kept it in one place: the reviewer reads which
+  folders moved to judge whether the change made sense, and a wide diff for a small ask is the
+  growth lesson review is for, not a defect. (1)
+
 - **When verifying now is genuinely impossible** (an external release window, an upstream fix in
   flight, an effect that only appears once the change is deployed, converged or loaded by a later
   session) — the follow-up is a mechanism that comes to you, never a human's memory and never an
@@ -100,8 +111,6 @@ change, independent of any one project.
   action.
 
 ## Harness-tool contracts
-
-Contracts worth knowing before you spend a call rediscovering them.
 
 - **Searching for a tool with `ToolSearch`** — a search that finds nothing is evidence about your
   query, not about the environment. Search the fully-qualified name (`select:mcp__<server>__<tool>`,
@@ -165,9 +174,6 @@ Contracts worth knowing before you spend a call rediscovering them.
 
 # The task lifecycle
 
-The issue → branch → PR lifecycle every new task follows, independent of any one project. The
-rest of the git/GitHub procedures live in the `git-github-advanced` skill.
-
 For every new task:
 
 1. Create a GitHub issue describing the task before starting work.
@@ -208,15 +214,6 @@ For every new task:
   [writing-handover-issues](skills/writing-handover-issues/SKILL.md).
 
 # Engineering practices
-
-General software-engineering practices, independent of any one project; project-specific rules
-(architecture, test mechanics) live in the consuming repo's own docs. Five neighbouring skills own
-their own procedures: [git-github-advanced](../git-github/skills/git-github-advanced/SKILL.md) for
-branch, commit and merge operations, [repo-text-sweeps](skills/repo-text-sweeps/SKILL.md) for
-sweeps and renames across files, [writing-tests](skills/writing-tests/SKILL.md) for tests you can
-trust, [bug-investigation](skills/bug-investigation/SKILL.md) for pinning down a root cause, and
-[writing-migration-plans](skills/writing-migration-plans/SKILL.md) for a phased plan's ordering and
-its tracking issue.
 
 - **Naming a file, module, or symbol** — name it for its scope or responsibility, not the
   technology or mechanism behind it.

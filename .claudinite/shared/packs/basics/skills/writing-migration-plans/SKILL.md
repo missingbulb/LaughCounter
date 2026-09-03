@@ -1,6 +1,6 @@
 ---
 name: writing-migration-plans
-description: Where a plan and a design live, and how to order a plan's phases so nothing stalls mid-run — the plan is a tracking issue (never a plan document in the repo), the design doc carries only the end state with rationale and alternatives; front-load the out-of-band setup, write ALL the code including the cleanup and take one approval for the stack, then chain every execution step to the verification of the one before it as a queued continuation, and keep the tracking issue append-only while implementing. Use BEFORE writing any DESIGN.md, migration plan, phased implementation plan, rollout or cutover plan — including the moment you are about to create a docs/<initiative>/ file — and when working through a plan's tracking issue.
+description: Where a plan and a design live, and how to order a plan's phases so nothing stalls mid-run — the plan is a tracking issue (never a plan document in the repo), the design doc carries only the end state with rationale and alternatives; front-load the out-of-band setup, write ALL the code including the cleanup and take one approval for the stack, then chain every execution step to the verification of the one before it as a queued continuation, size the links (how many PRs, what each one's diff is predicted to touch and the automerge policy that prediction becomes) and write the chain to survive a policy park, a red CI or a PR closed unmerged, and keep the tracking issue append-only while implementing. Use BEFORE writing any DESIGN.md, migration plan, phased implementation plan, rollout or cutover plan — including the moment you are about to create a docs/<initiative>/ file — when asked to run a plan as a chain of ad-hoc tasks, and when working through a plan's tracking issue.
 ---
 
 # Writing migration and implementation plans
@@ -150,6 +150,59 @@ Three hazards worth stating once:
   sweep answers "all clear" in exactly the way a healthy fleet does.
 - **A chain is only as visible as its tracking issue.** Every link comments its result there, so
   the plan's checkboxes and the chain's state never have to be reconciled by hand.
+
+## Sizing the links: predict each PR before you file it
+
+A link that ships code is a **prediction**, filed before the work: which folders and kinds of
+file the request should touch, roughly how large, and the automerge policy that prediction
+becomes. The prediction is what a person reads afterwards — which folders moved says whether
+the change made sense — so the plan states it and the link's brief repeats it. Answer these
+per link, at plan time, and record the answers in the tracking issue:
+
+- **How many PRs.** Sort the coding steps into *phases* and *divisions*. A phase has an exit its
+  successor waits on — a fold field that must accumulate through the nightly converge before a
+  page can read it, a stub a member must carry. A division is only labour, and could ship in any
+  order. One PR per phase; group divisions that share a pack and a version bump, and split them
+  where one's failing test would hold the other hostage. One PR for everything spends one
+  approval but stalls on any red; a PR per division buys exit conditions at the cost of a rebase
+  each and the stacked-PR version-bump hazard. The count is what remains after both are refused.
+- **What the diff will touch.** Name the folders and kinds, and the size. Then the policy is
+  that prediction, written narrow (basics' *Choosing an automerge policy*): `under:<folder>`
+  intersected with the kind where the kind is known, the same folder's `test-changes` and
+  `doc-changes` beside it. Two things earn `nothing` whatever their diff class: a link that
+  changes what leaves the repo irreversibly (a fold every member writes, a deletion, a
+  production write), and the first render of a design — nothing checkable stands in for a
+  person's eyes on it. A later same-folder diff *is* checkable once that first render has
+  landed and a test pins its fold line.
+- **How many human gates the chain expects.** Count the `nothing` links and add the parks you
+  expect from widening. That count is the plan's honest prediction of the owner's workload, and
+  it is what the owner is approving when they approve the plan. (1)
+
+## When automerge fails: how the chain survives
+
+Each link waits on the previous one *closing*. The failures below are the ways a link's PR does
+not land as predicted; write each link's brief so the chain holds through all of them.
+
+- **The policy parks the PR for approval.** The issue stays open, so the successor stays
+  blocked; the owner's one action is to merge. This is the intended gate, not a failure — never
+  re-shape the diff to fit the classifier, and never widen the policy on the next link because
+  this one parked.
+- **The diff widens past its folder.** The same park, but the wrap-up names the file that broke
+  the policy and the abstraction that would have kept it inside, so the owner reviews the
+  widening rather than the whole PR.
+- **CI goes red.** The run fixes and re-pushes within its budget; a park on failure holds the
+  lane, and nothing downstream moves — correct, since the next link builds on this one.
+- **The PR is closed unmerged.** The dangerous case: the issue closes, and the queue releases
+  the successor on *close*, not on merge. So every link's brief **opens with a read of the
+  previous link's artifact on `main`** — the field in the format module, the export, the
+  rendered section — and, when it is absent, converges as `action` naming the unmerged link
+  instead of building on air. The chain advances on validation, never on closure.
+- **Two links edit the same file.** `Blocked-by:` serializes them, so there is no parallelism
+  and no conflict to resolve; each brief ends with a rebase onto `main` and the pack's version
+  bump last, after the fetch, so the bump check reads the right base.
+- **The tail.** The chain's last links are the change's production verification and the plan's
+  retrospective, filed with the rest; a chain that ends on its last coding link never learns
+  whether it worked.
 
 ## Writing it down
 

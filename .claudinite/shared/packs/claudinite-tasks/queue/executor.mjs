@@ -353,7 +353,7 @@ async function executeItem({
   // it: a request item's verdict is about the issue it names, which no signal bundle
   // can single out on its own (DESIGN §16.4).
   const signals = await collectSignalsFor(task, at, item);
-  const verdict = evaluatePrecondition(task, signals, config.packConfig?.[task.pack] ?? {}, fields);
+  const verdict = evaluatePrecondition(task, signals, config.packConfig?.[task.pack] ?? {}, fields, at);
 
   // A PRECONDITION THAT COULD NOT ANSWER IS A RUN FAILURE, NOT A VERDICT (F27). A
   // decline is a decision about the world; one taken on an API that would not answer
@@ -488,31 +488,23 @@ async function executeItem({
 // written to take `{ signals }` passed its own direct-call test and threw on every
 // real run, which is the failure this seam exists to make impossible.
 //
-// Both forms come through here: the declarative `preconditions` expression the
-// canon writes, and the legacy `precondition` function a member's own local task
-// file may keep forever. The declaration carries exactly one of them (the
-// contract), so the branch is a read, never a precedence.
-//
-// A throwing precondition converges to a no-go with the error as its reason: one
-// task's bad verdict is that item's problem, never the executor's. The expression
-// path has no such fallback and needs none — it fails LOUD by construction, and
-// an `{ error }` from it is a run failure the caller parks.
-export function evaluatePrecondition(task, signals, packConfig = {}, item = null) {
-  if (task.decl.preconditions !== undefined) {
-    return evaluatePreconditions({
-      preconditions: task.decl.preconditions,
-      signals,
-      config: packConfig,
-      item,
-      terms: task.terms,
-      windowDays: windowDays(task),
-    });
-  }
-  try {
-    return task.decl.precondition(signals, packConfig, item) ?? {};
-  } catch (e) {
-    return { run: false, reason: `precondition threw: ${e.message}` };
-  }
+// One form comes through here: the declarative `preconditions` expression, which
+// is the only gate a task may declare (#1617). It fails LOUD by construction — a
+// term that throws, an unknown name, an unreadable signal all return `{ error }`,
+// a run failure the caller parks rather than a decline taken on a guess.
+export function evaluatePrecondition(task, signals, packConfig = {}, item = null, at = null) {
+  return evaluatePreconditions({
+    preconditions: task.decl.preconditions,
+    signals,
+    config: packConfig,
+    item,
+    terms: task.terms,
+    windowDays: windowDays(task),
+    // The instant this verdict is for — the same one the signals were collected
+    // for, so a clock-reading term and a windowed one cannot disagree about when
+    // "now" is.
+    now: at,
+  });
 }
 
 // @deprecated The write-back a refused SHADOW item's issue got — one comment saying

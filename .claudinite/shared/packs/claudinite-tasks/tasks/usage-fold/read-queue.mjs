@@ -27,6 +27,7 @@
 import { isQueueItem } from '../../../claudinite-tasks/queue/read.mjs';
 import {
   parseWorkItemTitle, parseWorkItemBody, taskIdFromPath, outcomeOf,
+  PARK_PREFIX, PARK_KINDS, NEEDS_HUMAN,
 } from '../../../claudinite-tasks/queue/work-item.mjs';
 
 const API = process.env.GITHUB_API_URL || 'https://api.github.com';
@@ -65,6 +66,45 @@ export function taskOf(issue) {
   return fromBody ? { pack: fromBody.pack, task: fromBody.task } : null;
 }
 
+// --- the parks an item collected -------------------------------------------------
+// A park is a label an item WORE, so the only record of one is the label event that
+// applied it — the item's final labels say where it ended, never where it stopped on
+// the way. So each closed item's event listing is read once, on the fold that first
+// sees it closed, under the queue's own watermark.
+//
+// The kinds are decoded exactly as `parkOf` decodes them for a live item: today's
+// single `task:status:needs-human-<kind>`, the two-label era's `task:needs-human-<kind>`
+// sub-label, and a kind no engine here knows reading as `failure` — the conservative
+// lane, so a park whose word this code predates is never dropped.
+const LEGACY_PARK_RE = /^task:needs-human-(.+)$/;
+
+export function parkKindOf(label) {
+  const name = String(label ?? '');
+  if (name === NEEDS_HUMAN) return 'failure';
+  const kind = name.startsWith(PARK_PREFIX)
+    ? name.slice(PARK_PREFIX.length)
+    : LEGACY_PARK_RE.exec(name)?.[1] ?? null;
+  if (kind === null) return null;
+  return PARK_KINDS.includes(kind) ? kind : 'failure';
+}
+
+// The park kinds one item collected, DEDUPED: an item bounced between a person and the
+// machine twice was parked for that kind once as far as "how often did this task need a
+// human" is concerned. `null` — never `[]` — when the listing could not be read, so an
+// unknown park count stays distinguishable from a clean run.
+export async function readParks({ reader, repo, number }) {
+  let events = null;
+  try { events = await reader.json(`/repos/${repo}/issues/${number}/events?per_page=100`); } catch { return null; }
+  if (!Array.isArray(events)) return null;
+  const kinds = new Set();
+  for (const event of events) {
+    if (event?.event !== 'labeled') continue;
+    const kind = parkKindOf(event?.label?.name);
+    if (kind) kinds.add(kind);
+  }
+  return [...kinds];
+}
+
 // One closed item → a record, or null when it is not this fold's business.
 export function recordFor(issue, since) {
   if (!isQueueItem(issue)) return null;
@@ -73,7 +113,13 @@ export function recordFor(issue, since) {
   if (since && closedAt <= since) return null;
   const task = taskOf(issue);
   if (!task) return null;
-  return { date: closedAt.slice(0, 10), closedAt, ...task, outcome: outcomeOf(issue) ?? 'none' };
+  return {
+    date: closedAt.slice(0, 10), closedAt, ...task, outcome: outcomeOf(issue) ?? 'none',
+    number: issue?.number ?? null,
+    // Filled by the caller from the item's own event listing; `null` until then, and
+    // `null` still if that listing could not be read.
+    parks: null,
+  };
 }
 
 // The whole read: `{ records, watermark, error? }`.
@@ -95,6 +141,13 @@ export async function readQueueOutcomes({ reader, repo, since, now, maxPages = 5
     }
   } catch {
     return { records: [], watermark: since, error: 'the closed work items could not be listed' };
+  }
+  // One listing per item, and only for the items this fold is seeing close for the
+  // first time — the watermark above is what bounds the cost. An item whose listing
+  // fails keeps `parks: null` and its outcome row regardless.
+  for (const rec of records) {
+    if (rec.number === null) continue;
+    rec.parks = await readParks({ reader, repo, number: rec.number });
   }
   const newest = records.map((r) => r.closedAt).sort().pop() ?? null;
   return { records, watermark: newest ?? since ?? null };

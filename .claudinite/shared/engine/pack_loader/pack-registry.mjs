@@ -13,19 +13,25 @@ const packsDir = join(canonRoot, 'packs');
 // project content, discovered and run by the same engine as the mounted canon
 // packs, and sitting at the same uniform depth as the shared mount
 // (.claudinite/*/packs/). This is the canonical subdir relative to a consumer's
-// checkout root. The pre-2026-07 layout put them one level up at
-// .claudinite/local_packs/; discovery scans BOTH roots until the rename has
-// propagated fleet-wide (Phase 4 drops the legacy scan), so a repo that hasn't
-// been git-mv'd yet still loads.
+// checkout root, and the only one discovery scans.
 export const LOCAL_PACKS_SUBDIR = join('.claudinite', 'local', 'packs');
-export const LEGACY_LOCAL_PACKS_SUBDIR = join('.claudinite', 'local_packs');
 export const localPacksDir = (root) => join(resolve(root), LOCAL_PACKS_SUBDIR);
-export const legacyLocalPacksDir = (root) => join(resolve(root), LEGACY_LOCAL_PACKS_SUBDIR);
+
+// @deprecated The pre-2026-07 layout put a repo's own packs one level up, at
+// .claudinite/local_packs/. Discovery no longer scans it and nothing in this tree
+// reads this constant. It stays exported because fielded pack versions import it by
+// name, and the engine reaches a member ahead of its packs — a named import of an
+// export that is gone is a link-time SyntaxError that faults the whole pack, fails
+// the mount's self-test and blocks the converge that would have fixed it. It comes
+// out when no fielded pack version imports it any more — a question answered off
+// the trunk's own pack history by the lane-shim test that guards this surface, not
+// by what the current tree happens to import.
+export const LEGACY_LOCAL_PACKS_SUBDIR = join('.claudinite', 'local_packs');
 
 // Where a consumer materializes the vendored canon (vendoring/DESIGN.md): the
 // corpus mirrored at canon-relative paths under this subdir. Tracked files in
 // the interim; the planned future is a git submodule mounted at this same path
-// — which is why nothing consumer-owned (local_packs/ above) lives inside it.
+// — which is why nothing consumer-owned (local/packs/ above) lives inside it.
 export const SHARED_SUBDIR = join('.claudinite', 'shared');
 
 // The full pack directory — the generated catalog of every canon pack a repo
@@ -41,7 +47,7 @@ export const PACK_DIRECTORY_FILE = 'packs/directory.GENERATED.md';
 // never disable every other pack's prose/checks/skills). Each loaded pack is
 // stamped with `dir` (its own directory — prose and bundled skills resolve off
 // this, so a pack's files never have to sit under a single shared root) and
-// `local` (whether it came from a consumer's local_packs). A pack's skills live
+// `local` (whether it came from a consumer's own local packs). A pack's skills live
 // in its own tree — `<pack>/skills/<skill>/` is the one bundled-skill shape,
 // canon and local alike (#385: a skill rides exactly one pack; there is no
 // separate skills collection to own or cross-declare). A bundled skill's
@@ -285,7 +291,7 @@ async function scanSkillChecks(packDir, errors) {
 }
 
 // Discover every pack structurally — canon `packs/<name>/pack.mjs` always, plus a
-// consumer's own `<localRoot>/.claudinite/local_packs/<name>/pack.mjs` when a
+// consumer's own `<localRoot>/.claudinite/local/packs/<name>/pack.mjs` when a
 // localRoot is given (the repo under test / the session's project root). No
 // registry list to maintain — dropping a directory in adds it. Returns the packs
 // plus any load-time `errors` (a broken manifest, a missing id, an id collision);
@@ -302,14 +308,8 @@ export async function discoverPacks({ localRoot } = {}) {
   // one directory at a time, and the map reads the same for a rename.
   const rawCanonIds = new Set(canon.map((p) => p.rawId));
   for (const pack of canon) pack.id = canonicalPackIdAmong(pack.rawId, rawCanonIds);
-  // Scan BOTH local roots (canonical .claudinite/local/packs and the legacy
-  // .claudinite/local_packs) so a repo mid-rename still loads; a pack present in
-  // both would trip the id-collision guard below, which is the desired signal.
   const local = localRoot
-    ? [
-      ...await scanPackDir(localPacksDir(localRoot), { local: true, subdir: LOCAL_PACKS_SUBDIR }, errors),
-      ...await scanPackDir(legacyLocalPacksDir(localRoot), { local: true, subdir: LEGACY_LOCAL_PACKS_SUBDIR }, errors),
-    ]
+    ? await scanPackDir(localPacksDir(localRoot), { local: true, subdir: LOCAL_PACKS_SUBDIR }, errors)
     : [];
   const byId = new Map();
   const packs = [];
@@ -343,9 +343,11 @@ export async function loadPacks(opts) {
 // pack lives in the repo's own tree under .claudinite/local/, and a canon id can
 // never be claimed by accident; the discoverPacks shadow guard stays as the
 // backstop). Both the pre-rename `local_packs/<id>` form and the bare id remain
-// accepted while the fleet migrates (baselining's normalization + the
-// local-pack-namespace migration track convergence), so packEntryId strips
-// whichever prefix is present and every id comparison happens on the bare id.
+// permanently accepted — a declaration is text a member wrote once, and no
+// convergence pass rewrites every one of them — so packEntryId strips whichever
+// prefix is present and every id comparison happens on the bare id. This is the
+// parser for a token, not a tolerance for the retired `.claudinite/local_packs/`
+// DIRECTORY, which discovery no longer scans.
 export const LOCAL_DECL_PREFIX = 'local/';
 export const LEGACY_LOCAL_DECL_PREFIX = 'local_packs/';
 const stripLocalPrefix = (id) => {

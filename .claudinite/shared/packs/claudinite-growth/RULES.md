@@ -1,9 +1,5 @@
 # claudinite-growth — authoring Claudinite content here
 
-Rules for the content a repo authors for itself: the lessons its capture runs write into its local
-packs, and the tasks that do the writing. A member's own Claudinite *status* — the mount,
-the declaration, adoption, the update — is claudinite-lifecycle's.
-
 - **Recording a local pack change** — automatic work writes no changelog file there: the commit
   and its PR are the record. A local pack is neither versioned nor distributed, so such a file
   only aggregates unrelated changes into one line several runs a day contend for. A shared canon

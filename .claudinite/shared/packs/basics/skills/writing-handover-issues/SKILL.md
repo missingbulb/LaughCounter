@@ -75,8 +75,16 @@ Walk the list as the reader: at each box, does everything it needs already exist
 asking for a value a later step mints is the most common defect, and it reads perfectly
 to the author.
 
-Where a step's output is a value the reader must hold, that is a reason to keep the list
-short and linear, not to add a note reminding them.
+Then close the gaps. A step that **mints or reveals a value** and the step that
+**pastes it where it lives** are one pair, and they go immediately after each other —
+never a block of producers followed later by a block of consumers, however tidily each
+block groups by screen. Every box between them is a value the reader is holding in
+their head while doing something else, and one that is shown once is held there at the
+price of minting it again. Pair by pair beats phase by phase even when it means opening
+the same screen twice.
+
+That pairing is what keeps the value out of the reader's head, so it is also the reason
+the list needs no note reminding them to hold it.
 
 ## Drop the steps that are not steps
 

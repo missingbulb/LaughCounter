@@ -5,6 +5,18 @@
 // never the session's opinion of its own work: a run cannot talk its way past a
 // text comparison (the narrow-diff posture, generalized).
 //
+// WHAT A POLICY IS FOR. A policy is its author's PREDICTION of the change's
+// shape — the folders and the kinds of file a request should touch. When the
+// diff sits inside the prediction, nobody reads it: the code is out the door and
+// working, and a later PR can improve it. When the diff misses the prediction,
+// the PR parks for a person, and that park is the mechanism's purpose rather
+// than its failure. The reviewer here is not checking that the code is perfect;
+// they are checking the wagon is on the trail — that nothing irreversible
+// slipped through, and that the change's footprint matches its ask (a wide diff
+// for a small request is a lesson in separation of concerns, not a defect). So a
+// policy is written narrow, from the predicted folders, and is never widened to
+// fit the diff that arrived.
+//
 // THE VOCABULARY IS EXTENSIBLE AS DATA. Built-in diff classes live here; a pack
 // adds its own by shipping a `merge-rules.json` beside its `pack.mjs` — named
 // path/kind/edit-shape matchers, validated at load, colliding loudly. A policy

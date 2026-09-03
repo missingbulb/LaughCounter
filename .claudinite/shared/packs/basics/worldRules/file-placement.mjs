@@ -28,7 +28,7 @@ const EXEMPT_SOURCE = (file) =>
 // intact: a reach into another pack, or deep into a pack's own subtree, is judged
 // normally — as is ordinary code reaching *into* a pack, the same one-directional
 // narrowness the mandated-location exemption has.
-const PACK_MODULE = /^(?:packs|skills)\/|^\.claudinite\/(?:local\/packs|local_packs)\//;
+const PACK_MODULE = /^(?:packs|skills)\/|^\.claudinite\/local\/packs\//;
 const SHARED_PREFIX = `${SHARED_SUBDIR.split(sep).join('/')}/`;
 const EXEMPT_REF = (file, resolved) => PACK_MODULE.test(file) && engineSurface(
   resolved.startsWith(SHARED_PREFIX) ? resolved.slice(SHARED_PREFIX.length) : resolved,

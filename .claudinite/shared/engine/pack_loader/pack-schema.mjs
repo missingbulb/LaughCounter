@@ -2,7 +2,7 @@
 // `pack.mjs` may and must carry. Everything a pack declares about itself is
 // described here once, and `validateManifest` is the only thing that judges a
 // manifest against it. The loader calls it on every pack it imports (canon and a
-// consumer's own `local_packs/` alike), so a malformed or incomplete manifest
+// consumer's own `local/packs/` alike), so a malformed or incomplete manifest
 // surfaces as a blocking `config` error at load — the same class as invalid JSON
 // in `.claudinite-settings.json`.
 //

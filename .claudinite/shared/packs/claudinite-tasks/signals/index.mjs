@@ -10,7 +10,7 @@
 // retention) are read off the checkout by signals/context.mjs — see signals/local.mjs.
 
 import { SHARED_SUBDIR } from '../../../engine/pack_loader/pack-registry.mjs';
-import { LOCAL_PACK_ROOTS } from './local.mjs';
+import { LOCAL_PACK_ROOT } from './local.mjs';
 import { QUEUED_LABEL, ORIGIN_AD_HOC, REQUEST_LABEL } from '../queue/work-item.mjs';
 import { APPROVAL_RE } from '../built-in-tasks.mjs';
 import { taskFromMessage } from '../task-trailer.mjs';
@@ -291,7 +291,7 @@ const COLLECTORS = {
   // or removes it, so movement is the only thing left to report.
   async localPacks(gh, ctx) {
     const commits = ctx.commits ?? await windowCommits(gh, ctx.repo, ctx.defaultBranch, ctx.sinceIso);
-    const touches = (f) => LOCAL_PACK_ROOTS.some((r) => f.startsWith(r));
+    const touches = (f) => f.startsWith(LOCAL_PACK_ROOT);
     return { changedInWindow: commits.some((c) => c.files.some(touches)) };
   },
 

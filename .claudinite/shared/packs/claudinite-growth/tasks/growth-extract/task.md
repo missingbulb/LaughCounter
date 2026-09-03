@@ -30,8 +30,8 @@ too. Do not widen past that window.
   never reach for `gh`/`curl` or a cross-repo clone.
 - **The repo's local packs.** The set identified in
   [this pack's README](../../README.md#identifying-a-projects-capture-surface-its-local-packs) — everything
-  under `.claudinite/local/packs/` (the legacy `.claudinite/local_packs/` accepted during the rename
-  window), the repo's own packs; never the read-only mounted canon elsewhere under `.claudinite/`.
+  under `.claudinite/local/packs/`, the repo's own packs; never the read-only mounted canon
+  elsewhere under `.claudinite/`.
 
 ## The run — two source skills, then the upgrade pass
 

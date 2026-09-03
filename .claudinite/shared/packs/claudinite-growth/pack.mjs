@@ -65,7 +65,7 @@
 // than something every adopter must weigh in on. A project that wants the prune
 // active sets retention_days itself.
 export default {
-  version: '60902.1',
+  version: '60902.6',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'authoring Claudinite content here — lesson extraction, dedup, revalidation, conversation logs, skill-usage folding, the task contract',

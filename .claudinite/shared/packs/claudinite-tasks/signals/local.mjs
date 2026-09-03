@@ -16,12 +16,11 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-// A repo's own packs live under either local root — the canonical
-// `.claudinite/local/packs/` or the pre-rename `.claudinite/local_packs/`, both
-// live until the rename's cleanup. One definition, shared by the `localPacks`
+// Where a repo's own packs live. One definition, shared by the `localPacks`
 // collector's path test and the fleet reader's per-member window scan, so "where
-// a local pack lives" cannot drift between the two.
-export const LOCAL_PACK_ROOTS = ['.claudinite/local/packs/', '.claudinite/local_packs/'];
+// a local pack lives" cannot drift between the two. Spelled '/'-separated because
+// both readers match paths that came off git or the GitHub API.
+export const LOCAL_PACK_ROOT = '.claudinite/local/packs/';
 
 // Where a browser-extension manifest may sit, in the order the retired gate
 // probed them (recovered from the pack's deleted run_daily gate): the first one

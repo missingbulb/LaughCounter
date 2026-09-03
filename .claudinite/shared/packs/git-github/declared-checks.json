@@ -3,7 +3,7 @@
     "id": "gha/secrets-in-job-if",
     "severity": "blocking",
     "failureMessage": "secrets are not available in a job-level if:, so the condition cannot evaluate and the job fails instead of skipping",
-    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanFiles": "/^(?:\\.github\\/workflows|packs\\/[^/]+\\/stubs\\/workflows)\\/[^/]+\\.ya?ml$/",
     "scanTracked": true,
     "matchLines": [
       {
@@ -20,7 +20,7 @@
     "severity": "blocking",
     "failureMessage": "GitHub's implicit run shell is bash -e without pipefail, so a failing piped command still shows the step green",
     "fix": "add defaults.run.shell: bash (workflow- or job-level) so the step runs with -o pipefail",
-    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanFiles": "/^(?:\\.github\\/workflows|packs\\/[^/]+\\/stubs\\/workflows)\\/[^/]+\\.ya?ml$/",
     "scanTracked": true,
     "matchLines": [
       {
@@ -43,7 +43,7 @@
     "severity": "blocking",
     "failureMessage": "checkout does not fetch submodules by default, so any gate reading submodule content passes vacuously",
     "relevantWhen": { "pathExists": ".gitmodules" },
-    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanFiles": "/^(?:\\.github\\/workflows|packs\\/[^/]+\\/stubs\\/workflows)\\/[^/]+\\.ya?ml$/",
     "scanTracked": true,
     "matchLines": [
       {
@@ -73,7 +73,7 @@
     "id": "gha/label-create-before-add",
     "severity": "advisory",
     "failureMessage": "--add-label fails when the label does not exist yet — GitHub will not create it on demand",
-    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanFiles": "/^(?:\\.github\\/workflows|packs\\/[^/]+\\/stubs\\/workflows)\\/[^/]+\\.ya?ml$/",
     "scanTracked": true,
     "checkEachFile": [
       {
@@ -88,7 +88,7 @@
     "id": "gha/unique-automation-branch",
     "severity": "advisory",
     "failureMessage": "a date-keyed branch collides with itself on a repeat run for the same key",
-    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanFiles": "/^(?:\\.github\\/workflows|packs\\/[^/]+\\/stubs\\/workflows)\\/[^/]+\\.ya?ml$/",
     "scanTracked": true,
     "matchLines": [
       {
@@ -107,7 +107,7 @@
       "trackedFileMatches": "/^\\.claude\\/skills\\//",
       "noTrackedFileMatches": "/^\\.claudinite\\/skills\\//"
     },
-    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanFiles": "/^(?:\\.github\\/workflows|packs\\/[^/]+\\/stubs\\/workflows)\\/[^/]+\\.ya?ml$/",
     "scanTracked": true,
     "checkEachFile": [
       {
@@ -149,7 +149,7 @@
     "severity": "advisory",
     "failureMessage": "a cron on a round minute is the firing GitHub's scheduler queue most often delays or silently drops, since every repo's cron lands there at once",
     "fix": "move the minute to a single fixed literal in :10–:50, clear of the :00 stampede and the hour boundary",
-    "scanFiles": "/^\\.github\\/workflows\\/[^/]+\\.ya?ml$/",
+    "scanFiles": "/^(?:\\.github\\/workflows|packs\\/[^/]+\\/stubs\\/workflows)\\/[^/]+\\.ya?ml$/",
     "scanTracked": true,
     "excludeFiles": ".github/workflows/claudinite-scheduler.yml",
     "matchLines": [

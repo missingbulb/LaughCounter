@@ -18,16 +18,7 @@
 // its own task's period, so the weekly run sees a full 7 days of canon and
 // local-pack movement batched into one run.
 //
-// The whole contract is this default export; the only imports are the shared
-// constants the local-pack policy scope is built from, never task logic.
-
-import { sep } from 'node:path';
-import { LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR } from '../../../../engine/pack_loader/pack-registry.mjs';
-
-// The two roots a local pack may sit under during the rename window, as the
-// '/'-separated prefixes a policy scope takes (the constants are platform-joined).
-const LOCAL_PACK_ROOTS = [LOCAL_PACKS_SUBDIR, LEGACY_LOCAL_PACKS_SUBDIR]
-  .map((subdir) => subdir.split(sep).join('/'));
+// Self-contained (imports nothing): the whole contract is this default export.
 
 export default {
   id: 'growth-dedup',
@@ -41,7 +32,7 @@ export default {
   // A prune may remove lines or cut one down, never grow one — and only inside
   // the local packs it prunes; the same edit to the repo's own prose is somebody
   // else's document. A `review` member still reviews.
-  automerge: LOCAL_PACK_ROOTS.map((root) => `under:${root} && markdown-trims`),
+  automerge: ['under:.claudinite/local/packs && markdown-trims'],
   agent_instructions: 'task.md',
   agent_execution_timeout: 1800,            // proving canon coverage per local item — generous bound, extreme protection
 

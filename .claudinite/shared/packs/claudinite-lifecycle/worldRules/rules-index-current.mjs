@@ -53,7 +53,6 @@ const rule = {
       `.claudinite/shared/packs/${id}/RULES.md`, // a consumer's vendored mount
       `packs/${id}/RULES.md`,                    // the canon, which mounts nothing
       `.claudinite/local/packs/${id}/RULES.md`,  // the repo's own packs
-      `.claudinite/local_packs/${id}/RULES.md`,  // …and their pre-rename location
     ].some((p) => ctx.exists(p)));
     if (!heldIds.length) return [];
 

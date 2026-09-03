@@ -40,7 +40,7 @@
 // says so rather than doing anything.
 
 export default {
-  version: '60823.1',
+  version: '60902.1',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'what a project offers people working from Claude Code on the web, where the session knows who they are',

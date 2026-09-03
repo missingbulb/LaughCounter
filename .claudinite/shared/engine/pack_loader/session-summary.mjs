@@ -40,6 +40,9 @@ import { settingsPath } from '../settings-file.mjs';
 // is a sense of scale, not an accounting.
 const WORDS_PER_TOKEN = 0.75;
 const TOKEN_ROUNDING = 500;
+// The per-pack split's own step. A pack's share rounded to the total's would read as
+// zero for most of them, which is the one thing the split exists to prevent.
+const PACK_TOKEN_ROUNDING = 100;
 const plural = (n, one, many = `${one}s`) => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 
 try {
@@ -64,16 +67,19 @@ try {
   // off the pack's directory, trimmed the way the injector trims it. The routing
   // table and the directory pointer are the injector's framing rather than a
   // pack's rules, so they are not counted here.
-  let proseWords = 0;
+  const wordsByPack = new Map();
   for (const pack of active) {
     if (!pack.prose) continue;
     const prosePath = join(pack.dir, pack.prose);
     if (!existsSync(prosePath)) continue;
     try {
-      proseWords += readFileSync(prosePath, 'utf8').trim().split(/\s+/).filter(Boolean).length;
+      const words = readFileSync(prosePath, 'utf8').trim().split(/\s+/).filter(Boolean).length;
+      wordsByPack.set(pack.id, (wordsByPack.get(pack.id) ?? 0) + words);
     } catch { /* an unreadable file counts as none */ }
   }
-  const tokens = Math.round(proseWords / WORDS_PER_TOKEN / TOKEN_ROUNDING) * TOKEN_ROUNDING;
+  const proseWords = [...wordsByPack.values()].reduce((n, w) => n + w, 0);
+  const estimate = (words, rounding) => Math.round(words / WORDS_PER_TOKEN / rounding) * rounding;
+  const tokens = estimate(proseWords, TOKEN_ROUNDING);
 
   // Checks are the active packs' rules, both scopes — what check_the_world and
   // check_the_work between them will run against this repo.
@@ -85,6 +91,24 @@ try {
     `${tokens.toLocaleString('en-US')} rule tokens`,
     plural(bundledSkillSources(active).size, 'available skill'),
   ];
+
+  // WHERE that weight comes from, pack by pack — the facet that turns the total into
+  // something anyone can act on: a corpus growing is only a problem when you can see
+  // which pack is growing it.
+  //
+  // Finer-grained than the total, because a pack's own share rounded to the total's
+  // step would read as zero for most of them. Heaviest first, since the question this
+  // answers is which pack to look at.
+  //
+  // NO THOUSANDS SEPARATORS, deliberately: the facets are joined with commas, so a
+  // comma is this segment's own terminator and cannot also appear inside one of its
+  // numbers. Anything reading the line back splits on that.
+  const byPack = [...wordsByPack.entries()]
+    .map(([id, words]) => [id, estimate(words, PACK_TOKEN_ROUNDING)])
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([id, n]) => `${id} ${n}`);
+  if (byPack.length) facets.push(`rule tokens by pack: ${byPack.join(' \u00b7 ')}`);
 
   // Whatever the active packs' steps said about themselves, in the order the
   // runner ran them. Absent file, unreadable file, no channel at all: the engine
