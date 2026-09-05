@@ -67,7 +67,7 @@
 // fail-safe and behaved as an unbounded leak, since no adoption flow asked for the
 // value and nothing seeded it (#1620). Capture-only is now declared, not inferred.
 export default {
-  version: '60903.5',
+  version: '60904.4',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'authoring Claudinite content here — lesson extraction, dedup, revalidation, conversation logs, skill-usage folding, the task contract',

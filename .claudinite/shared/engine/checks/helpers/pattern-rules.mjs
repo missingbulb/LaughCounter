@@ -175,17 +175,72 @@ import { normalizeEdges, barrierFindings, staleFindings } from './reference-scan
 //                      RegExp lists — anchored at the first group's first
 //                      pattern's first matching line
 //   requirePaths       [{ path, what, fix }] — each path must exist on disk
-//   extractValueSets   [{ setName, fromParsedFile | fromParsedFilesMatching
-//                         (+ whereFileContains), valuesOfArraysAtFields,
-//                         whenSetEmpty }]
-//                      each entry extracts one NAMED value set the rule's
-//                      other assertions may quantify over: the string values
-//                      of the arrays at every listed field path, across every
-//                      selected parsed document. whenSetEmpty is declared,
-//                      never defaulted — "assertNothing" (the sole mode until
-//                      a flagging customer exists) makes every consumer of an
-//                      empty set assert nothing, so an absent source is inert
-//                      by declaration rather than silently vacuous
+//   extractValueSets   [{ setName, whenSetEmpty, and exactly one source:
+//                         fromParsedFile | fromParsedFilesMatching
+//                           (+ whereFileContains), with valuesOfArraysAtFields
+//                           | valuesAtFields
+//                         fromLinesMatching + inFilesMatching (+ splitValuesOn)
+//                         fromTrackedPathsMatching
+//                         fromAddedLinesMatching + inFilesMatching (work scope) }]
+//                      pass ONE of a two-pass rule: each entry derives one
+//                      NAMED value set the quantifiers below (and
+//                      requireIndexCoverage's eachValueOfSet) assert over. A
+//                      parsed source reads the string values of the arrays at
+//                      each field path (valuesOfArraysAtFields), or the value
+//                      at each field path fanning out over any array along it
+//                      (valuesAtFields — "scanFiles" on a root-array document
+//                      is every entry's scanFiles). A line source reads the
+//                      `value` named group of every line the regex hits in
+//                      every file inFilesMatching selects — through the rule's
+//                      comment- and fence-blind views, so a mention inside a
+//                      comment or a code example is not a fact — and
+//                      splitValuesOn splits one capture into several values. A
+//                      path source reads the `value` group of every tracked
+//                      path the regex hits (the whole path without one). The
+//                      added-lines source is the line source over the lines
+//                      the change adds. Every value carries its ORIGIN — the
+//                      file, the line where a line produced it — plus the named
+//                      groups of the path and line regexes that found it, and
+//                      all of them interpolate into the quantifiers' templates
+//                      and anchor their findings; a value found twice in one
+//                      file is one value at its first origin. whenSetEmpty is
+//                      declared, never defaulted: "assertNothing" makes every
+//                      consumer of an empty set assert nothing, { what, fix }
+//                      reports the empty set itself at its source — two
+//                      different verdicts (prose naming no knobs; an audit
+//                      that read nothing) only the declaration can tell apart
+//   checkSetValues     [{ setName, valueIsPattern, and exactly one of
+//                         requireSomeFileMatching: { pathMatching, text },
+//                         forbidEveryFileMatching: { pathMatching, text },
+//                         requirePathExists, requireTrackedPathMatching,
+//                         what, fix }]
+//                      pass TWO: for every value of the named set, some
+//                      in-scope file whose path matches the filled pathMatching
+//                      must have text matching the filled `text` / no such file
+//                      may / the filled path must exist / some tracked path must
+//                      match the filled pattern. Every pattern here is a
+//                      TEMPLATE in /body/flags form: {value}, {path}, {line} and
+//                      the value's named groups fill it, regex-escaped so a
+//                      value is matched as the text it is — unless
+//                      valueIsPattern, which inserts {value} raw because the
+//                      value IS a regex — a value in /body/flags form
+//                      contributes its body, so /{value}/ is the template that
+//                      audits other declarations' patterns. A require finding
+//                      anchors at the
+//                      value's origin; a forbid finding at the file that still
+//                      carries the value, with {source} and {sourceLine} naming
+//                      the origin
+//   checkSetPairs      [{ everyValueOf, mustAlsoBeIn | mustNotBeIn, what, fix }]
+//                      the join: every value of one set must (or must not) be a
+//                      value of another, findings at the first set's origins
+//                      ({other} = the matching value's origin under
+//                      mustNotBeIn). Sets meet on value equality, so a join on a
+//                      key is a derive that captures the key as the value
+//   requireIdenticalFiles [{ everyFileMatching, twinAt, whenTwinAbsent, what, fix }]
+//                      every in-scope file the regex matches must be identical
+//                      to the file at twinAt, a path template over {path},
+//                      {basename} and the regex's named groups; whenTwinAbsent
+//                      is "assertNothing" or { what, fix }, declared
 //   requireIndexCoverage [{ eachTrackedPathMatching | eachScannedPathMatching
 //                         (+ includeVendored: true to widen scanned to
 //                         ctx.allFiles, + whoseTextMatches to keep only files
@@ -364,6 +419,7 @@ const SPEC_KEYS = {
     'maxLines', 'maxLineLength', 'skipLinesMatching', 'matchLines', 'countMatchingLines',
     'checkEachFile', 'repoWide', 'requirePaths',
     'extractValueSets', 'requireIndexCoverage', 'checkParsedFiles', 'forbidReferences',
+    'checkSetValues', 'checkSetPairs', 'requireIdenticalFiles',
     'checkBranchCommits', 'forbidIntroducedMergeCommits', 'forbidAddedValueInArray',
     'listedInFile', 'coveredByGlobLine', 'checkParsedFile', 'equalParsedValues',
     'forEachParsedEntry', 'checkKeyValueFile', 'checkSections'],
@@ -377,7 +433,16 @@ const SPEC_KEYS = {
   requireEqualFields: ['field', 'inFile', 'atField', 'whenFileMissing', 'whenUnequal'],
   whenFileMissing: MSG,
   extractValueSets: ['setName', 'fromParsedFile', 'fromParsedFilesMatching', 'whereFileContains',
-    'valuesOfArraysAtFields', 'whenSetEmpty'],
+    'valuesOfArraysAtFields', 'valuesAtFields', 'fromLinesMatching', 'inFilesMatching', 'splitValuesOn',
+    'fromTrackedPathsMatching', 'fromAddedLinesMatching', 'whenSetEmpty'],
+  whenSetEmpty: MSG,
+  checkSetValues: ['setName', 'valueIsPattern', 'requireSomeFileMatching', 'forbidEveryFileMatching',
+    'requirePathExists', 'requireTrackedPathMatching', ...MSG],
+  requireSomeFileMatching: ['pathMatching', 'text'],
+  forbidEveryFileMatching: ['pathMatching', 'text'],
+  checkSetPairs: ['everyValueOf', 'mustAlsoBeIn', 'mustNotBeIn', ...MSG],
+  requireIdenticalFiles: ['everyFileMatching', 'twinAt', 'whenTwinAbsent', ...MSG],
+  whenTwinAbsent: MSG,
   requireIndexCoverage: ['eachTrackedPathMatching', 'eachScannedPathMatching', 'includeVendored',
     // `eachValueInParsedArray` is `eachValueOfSet`'s pre-#895 spelling, accepted
     // here and rewritten by normalizeLegacySpellings. It cannot simply be dropped:
@@ -611,25 +676,100 @@ function validateEntryShapes(spec, where) {
       throw new Error(`${where}: a checkParsedFiles entry asserts nothing — add requireField, requireFieldMatching, forbidField, forbidValueInArray, requireValueInArray, or requireEqualFields`);
     }
   }
+  const fieldList = (v) => Array.isArray(v) && v.length > 0 && v.every((f) => typeof f === 'string');
+  // A { what, fix } message object; the fix may still arrive from the rule-level default.
+  const message = (v) => v !== null && typeof v === 'object' && typeof v.what === 'string';
+  const SET_SOURCES = ['fromParsedFile', 'fromParsedFilesMatching', 'fromLinesMatching',
+    'fromTrackedPathsMatching', 'fromAddedLinesMatching'];
   for (const s of spec.extractValueSets ?? []) {
     if (typeof s.setName !== 'string' || !s.setName.trim()) {
       throw new Error(`${where}: an extractValueSets entry needs a non-empty "setName"`);
     }
-    if ((s.fromParsedFile === undefined) === (s.fromParsedFilesMatching === undefined)) {
-      throw new Error(`${where}: an extractValueSets entry selects its documents by exactly one of "fromParsedFile" or "fromParsedFilesMatching"`);
+    const sources = SET_SOURCES.filter((k) => s[k] !== undefined);
+    if (sources.length !== 1) {
+      throw new Error(`${where}: an extractValueSets entry derives from exactly one source — ${SET_SOURCES.map((k) => `"${k}"`).join(', ')}`);
     }
-    if (s.whereFileContains && s.fromParsedFilesMatching === undefined) {
-      throw new Error(`${where}: "whereFileContains" refines "fromParsedFilesMatching" and cannot go with "fromParsedFile"`);
+    const [source] = sources;
+    const parsedSource = source === 'fromParsedFile' || source === 'fromParsedFilesMatching';
+    const lineSource = source === 'fromLinesMatching' || source === 'fromAddedLinesMatching';
+    if (s.whereFileContains && source !== 'fromParsedFilesMatching') {
+      throw new Error(`${where}: "whereFileContains" refines "fromParsedFilesMatching" and cannot go with "${source}"`);
     }
-    if (!Array.isArray(s.valuesOfArraysAtFields) || !s.valuesOfArraysAtFields.length ||
-        s.valuesOfArraysAtFields.some((f) => typeof f !== 'string')) {
-      throw new Error(`${where}: "valuesOfArraysAtFields" is a non-empty list of field paths to read arrays from`);
+    const fields = [s.valuesOfArraysAtFields, s.valuesAtFields].filter((f) => f !== undefined);
+    if (parsedSource && (fields.length !== 1 || !fieldList(fields[0]))) {
+      throw new Error(`${where}: a parsed source reads exactly one of "valuesOfArraysAtFields" or "valuesAtFields" — a non-empty list of field paths`);
     }
-    if (s.whenSetEmpty !== 'assertNothing') {
-      throw new Error(`${where}: "whenSetEmpty" must be "assertNothing" — emptiness is declared, never defaulted (a flagging mode lands with its first customer)`);
+    if (!parsedSource && fields.length) {
+      throw new Error(`${where}: "valuesOfArraysAtFields"/"valuesAtFields" read parsed documents and cannot go with "${source}"`);
+    }
+    if (lineSource) {
+      if (!(s.inFilesMatching instanceof RegExp)) {
+        throw new Error(`${where}: "${source}" needs "inFilesMatching", the files whose lines it reads`);
+      }
+      if (!s[source].source.includes('(?<value>')) {
+        throw new Error(`${where}: "${source}" needs a named group "(?<value>…)" — that group is what each matching line contributes to the set`);
+      }
+    } else if (s.inFilesMatching !== undefined || s.splitValuesOn !== undefined) {
+      throw new Error(`${where}: "inFilesMatching" and "splitValuesOn" belong to a line source and cannot go with "${source}"`);
+    }
+    if (source === 'fromAddedLinesMatching' && spec.scope !== 'work') {
+      throw new Error(`${where}: "fromAddedLinesMatching" reads the change, so its declaration needs scope: "work"`);
+    }
+    if (s.whenSetEmpty !== 'assertNothing' && !message(s.whenSetEmpty)) {
+      throw new Error(`${where}: "whenSetEmpty" is "assertNothing" or a { what, fix } reporting the empty set — emptiness is declared, never defaulted`);
     }
   }
   const declaredSets = new Set((spec.extractValueSets ?? []).map((s) => s.setName));
+  const declared = (name, key) => {
+    if (!declaredSets.has(name)) {
+      throw new Error(`${where}: "${key}: ${JSON.stringify(name)}" names no declared value set — declare it in "extractValueSets" (declared: ${[...declaredSets].join(', ') || 'none'})`);
+    }
+  };
+  for (const a of spec.checkSetValues ?? []) {
+    declared(a.setName, 'setName');
+    const forms = ['requireSomeFileMatching', 'forbidEveryFileMatching', 'requirePathExists', 'requireTrackedPathMatching']
+      .filter((k) => a[k] !== undefined);
+    if (forms.length !== 1) {
+      throw new Error(`${where}: a checkSetValues entry asserts exactly one of "requireSomeFileMatching", "forbidEveryFileMatching", "requirePathExists" or "requireTrackedPathMatching"`);
+    }
+    for (const t of [a.requireSomeFileMatching, a.forbidEveryFileMatching].filter((t) => t !== undefined)) {
+      if (typeof t.pathMatching !== 'string' || typeof t.text !== 'string') {
+        throw new Error(`${where}: "${forms[0]}" takes "pathMatching" (which files) and "text" (what their text must match), both regex templates`);
+      }
+    }
+    if (a.requirePathExists !== undefined && typeof a.requirePathExists !== 'string') {
+      throw new Error(`${where}: "requirePathExists" is a path template such as "packs/{value}/pack.mjs"`);
+    }
+    if (a.requireTrackedPathMatching !== undefined &&
+        (typeof a.requireTrackedPathMatching !== 'string' || !RE_FORM.test(a.requireTrackedPathMatching))) {
+      throw new Error(`${where}: "requireTrackedPathMatching" is a regex template in /pattern/flags form`);
+    }
+    if (a.valueIsPattern !== undefined && a.valueIsPattern !== true) {
+      throw new Error(`${where}: "valueIsPattern" is true or absent`);
+    }
+    if (a.valueIsPattern && a.requirePathExists !== undefined) {
+      throw new Error(`${where}: "valueIsPattern" inserts the value into a regex, and "requirePathExists" takes a path`);
+    }
+  }
+  for (const a of spec.checkSetPairs ?? []) {
+    declared(a.everyValueOf, 'everyValueOf');
+    const others = [a.mustAlsoBeIn, a.mustNotBeIn].filter((v) => v !== undefined);
+    if (others.length !== 1) {
+      throw new Error(`${where}: a checkSetPairs entry relates "everyValueOf" to exactly one of "mustAlsoBeIn" or "mustNotBeIn"`);
+    }
+    declared(others[0], a.mustAlsoBeIn !== undefined ? 'mustAlsoBeIn' : 'mustNotBeIn');
+  }
+  for (const a of spec.requireIdenticalFiles ?? []) {
+    if (!(a.everyFileMatching instanceof RegExp)) {
+      throw new Error(`${where}: a requireIdenticalFiles entry needs "everyFileMatching", the files that must have a twin`);
+    }
+    if (typeof a.twinAt !== 'string' || !a.twinAt.trim()) {
+      throw new Error(`${where}: "twinAt" is the twin's path template, over {path}, {basename} and the pattern's named groups`);
+    }
+    if (a.whenTwinAbsent !== 'assertNothing' && !message(a.whenTwinAbsent)) {
+      throw new Error(`${where}: "whenTwinAbsent" is "assertNothing" or a { what, fix } — the absent twin is declared, never defaulted`);
+    }
+  }
   for (const a of spec.requireIndexCoverage ?? []) {
     const quantifiers = [a.eachTrackedPathMatching, a.eachScannedPathMatching, a.eachValueOfSet]
       .filter((q) => q !== undefined);
@@ -848,68 +988,147 @@ function globToRe(glob) {
   );
 }
 
-// Resolve a rule's declared value sets for this context: setName ->
-// [{ value, fromPath }], in document order, deduped per set. An empty set is
-// legal by declaration (whenSetEmpty) and simply yields no subjects.
+// The value at each field path of a document, fanning out over any array met
+// along the way — nothing is spelled for the fan-out: a root-array document's
+// "id" is every entry's id, and a leaf that is itself an array contributes each
+// entry. Objects are never values.
+function valuesAtPath(doc, path) {
+  let nodes = [doc];
+  for (const key of path.split('.')) {
+    nodes = nodes.flatMap((n) => (Array.isArray(n) ? n : [n]))
+      .map((n) => (n && typeof n === 'object' ? n[key] : undefined))
+      .filter((v) => v !== undefined);
+  }
+  return nodes.flatMap((n) => (Array.isArray(n) ? n : [n]))
+    .filter((v) => v !== null && typeof v !== 'object')
+    .map(String);
+}
+
+// One line's contribution to a line-derived set: the `value` group of a hit,
+// split into several values where the source says so, each carrying the named
+// groups of the path and line regexes that found it.
+function collectLine(s, text, file, line, pathGroups, add) {
+  const m = (s.fromLinesMatching ?? s.fromAddedLinesMatching).exec(text);
+  if (!m || m.groups?.value === undefined) return;
+  const groups = { ...pathGroups, ...m.groups };
+  delete groups.value;
+  for (const part of s.splitValuesOn ? m.groups.value.split(s.splitValuesOn) : [m.groups.value]) {
+    const value = part.trim();
+    if (value) add(value, file, line, groups);
+  }
+}
+
+// Resolve a rule's declared value sets for this context — every source but the
+// line ones, which fill during the sweep through the collectors returned
+// beside them: { sets: setName -> [{ value, file, line, vars }], collectors:
+// [{ s, add }] }, values in document order. A value's vars are what its
+// templates see: value, path (its origin file), line where one produced it,
+// and the named groups that found it. Deduped per set by value AND origin
+// file: the same value in two files is two subjects, each judged with its own
+// groups. An empty set is legal by declaration (whenSetEmpty).
 function resolveValueSets(ctx, spec, parsed) {
   const sets = new Map();
+  const collectors = [];
   for (const s of spec.extractValueSets ?? []) {
-    const seen = new Set();
     const values = [];
-    const docPaths = s.fromParsedFile !== undefined ? [s.fromParsedFile]
-      : ctx.tracked.filter((f) => s.fromParsedFilesMatching.test(f) &&
-          (!s.whereFileContains || s.whereFileContains.test(ctx.read(f) ?? '')));
-    for (const docPath of docPaths) {
-      const doc = parsed(docPath);
-      if (doc == null) continue;
-      for (const field of s.valuesOfArraysAtFields) {
-        const arr = fieldAt(doc, field);
-        if (!Array.isArray(arr)) continue;
-        for (const v of arr) {
-          const value = String(v);
-          if (seen.has(value)) continue;
-          seen.add(value);
-          values.push({ value, fromPath: docPath });
+    const seen = new Set();
+    const add = (value, file, line, groups) => {
+      const key = `${value}\0${file}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      values.push({ value, file, line, vars: { ...groups, value, path: file, ...(line === null ? {} : { line }) } });
+    };
+    sets.set(s.setName, values);
+    if (s.fromLinesMatching) {
+      collectors.push({ s, add });
+    } else if (s.fromTrackedPathsMatching) {
+      for (const f of ctx.tracked) {
+        const m = s.fromTrackedPathsMatching.exec(f);
+        if (m) add(m.groups?.value ?? f, f, null, m.groups ?? {});
+      }
+    } else if (s.fromAddedLinesMatching) {
+      for (const f of ctx.changedFiles) {
+        const pm = s.inFilesMatching.exec(f);
+        if (!pm || excluded(f, spec.excludeMatchers)) continue;
+        for (const { line, text } of ctx.addedLines(f)) collectLine(s, text, f, line, pm.groups ?? {}, add);
+      }
+    } else {
+      const docPaths = s.fromParsedFile !== undefined ? [s.fromParsedFile]
+        : ctx.tracked.filter((f) => s.fromParsedFilesMatching.test(f) &&
+            (!s.whereFileContains || s.whereFileContains.test(ctx.read(f) ?? '')));
+      for (const docPath of docPaths) {
+        const doc = parsed(docPath);
+        if (doc == null) continue;
+        for (const field of s.valuesOfArraysAtFields ?? []) {
+          const values_ = fieldAt(doc, field);
+          if (!Array.isArray(values_)) continue;
+          for (const v of values_) add(String(v), docPath, null, {});
+        }
+        for (const field of s.valuesAtFields ?? []) {
+          for (const v of valuesAtPath(doc, field)) add(v, docPath, null, {});
         }
       }
     }
-    sets.set(s.setName, values);
   }
-  return sets;
+  return { sets, collectors };
 }
 
 // The tree/index assertions — they match paths and read a few named documents
 // through the scan's shared parse cache, so they run directly per rule rather
-// than riding the content pass.
+// than riding the content pass. The quantifiers over value sets are pass two
+// (assertSetShape), after the sweep has filled the line-derived sets.
 function assertTreeShape(ctx, j, parsed) {
   const s = j.spec;
-  const sets = s.extractValueSets ? resolveValueSets(ctx, s, parsed) : null;
   for (const a of s.requirePaths ?? []) {
     if (ctx.exists(a.path)) continue;
     const vars = { path: a.path };
     j.out.push(finding(j.rule, { file: a.path, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
   }
+  for (const a of s.requireIdenticalFiles ?? []) {
+    for (const path of ctx.files) {
+      const m = a.everyFileMatching.exec(path);
+      if (!m || excluded(path, s.excludeMatchers)) continue;
+      const vars = { ...(m.groups ?? {}), path, basename: path.slice(path.lastIndexOf('/') + 1) };
+      const twin = fill(a.twinAt, vars);
+      if (twin === path) continue;
+      vars.twin = twin;
+      const twinText = ctx.read(twin);
+      if (twinText === null) {
+        if (a.whenTwinAbsent !== 'assertNothing') {
+          j.out.push(finding(j.rule, { file: path, what: fill(a.whenTwinAbsent.what, vars), fix: fill(a.whenTwinAbsent.fix, vars) }));
+        }
+        continue;
+      }
+      if (twinText === ctx.read(path)) continue;
+      j.out.push(finding(j.rule, { file: path, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
+    }
+  }
+  coverageEntries(ctx, j, parsed, (s.requireIndexCoverage ?? []).filter((a) => a.eachValueOfSet === undefined));
+}
 
-  // Index coverage: every subject the quantifier selects — a path, or a value
-  // read out of a parsed array — must be covered in the index file: by its
-  // filled coveredByText token, by the first-token glob of some non-comment
-  // index line coveredByGlobLinesMatching selects (full path or basename), or
-  // by membership in the parsed index's array at coveredByValueInArrayAtField.
-  // Absence handling and anchoring are declared per entry, never defaulted,
-  // because the two families this merged genuinely diverged there.
-  for (const a of s.requireIndexCoverage ?? []) {
+// Index coverage: every subject the quantifier selects — a path, or a value
+// of a derived set — must be covered in the index file: by its filled
+// coveredByText token, by the first-token glob of some non-comment index line
+// coveredByGlobLinesMatching selects (full path or basename), or by membership
+// in the parsed index's array at coveredByValueInArrayAtField. Absence
+// handling and anchoring are declared per entry, never defaulted, because the
+// two families this merged genuinely diverged there.
+function coverageEntries(ctx, j, parsed, entries) {
+  const s = j.spec;
+  for (const a of entries) {
     const indexText = ctx.read(a.indexFile);
     if (indexText === null && a.whenIndexFileAbsent === 'assertNothing') continue;
     const globs = a.coveredByGlobLinesMatching === undefined ? [] : (indexText ?? '').split('\n')
       .filter((line) => a.coveredByGlobLinesMatching.test(line) && !line.trim().startsWith('#'))
       .map((line) => globToRe(line.trim().split(/\s+/)[0]));
 
-    // Each subject: its message vars, the path a per-subject finding anchors
-    // at, and the path the glob coverage form tests (null for a value subject).
+    // Each subject: its message vars, the path (and, for a value a line
+    // produced, the line) a per-subject finding anchors at, and the path the
+    // glob coverage form tests (null for a value subject).
     const subjects = [];
     if (a.eachValueOfSet !== undefined) {
-      for (const { value, fromPath } of sets.get(a.eachValueOfSet)) {
-        subjects.push({ vars: { path: fromPath, value }, anchorPath: fromPath, globPath: null });
+      for (const v of j.sets.get(a.eachValueOfSet)) {
+        subjects.push({ vars: v.vars, anchorPath: v.file, anchorLine: v.line, globPath: null });
       }
     } else {
       const matcher = a.eachTrackedPathMatching ?? a.eachScannedPathMatching;
@@ -927,7 +1146,7 @@ function assertTreeShape(ctx, j, parsed) {
     }
 
     const atIndex = new Map();
-    for (const { vars, anchorPath, globPath } of subjects) {
+    for (const { vars, anchorPath, anchorLine = null, globPath } of subjects) {
       let covered;
       let dedupKey;
       if (a.coveredByText !== undefined) {
@@ -948,11 +1167,93 @@ function assertTreeShape(ctx, j, parsed) {
       if (a.anchorFindingsAt === 'indexFile') {
         if (!atIndex.has(dedupKey)) atIndex.set(dedupKey, vars);
       } else {
-        j.out.push(finding(j.rule, { file: anchorPath, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
+        j.out.push(finding(j.rule, { file: anchorPath, line: anchorLine, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
       }
     }
     for (const [, vars] of [...atIndex].sort(([k1], [k2]) => k1.localeCompare(k2))) {
       j.out.push(finding(j.rule, { file: a.indexFile, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
+    }
+  }
+}
+
+// Pass two, after the sweep has filled the line-derived sets: the empty-set
+// verdicts, the coverage quantifiers over sets, and the set assertions. A
+// require finding anchors at the value's origin — the place a session edits
+// to fix it — and a forbid finding at the file still carrying the value.
+function assertSetShape(ctx, j, parsed) {
+  const s = j.spec;
+  const at = (file, line, vars, a) => finding(j.rule, { file, line, what: fill(a.what, vars), fix: fill(a.fix, vars) });
+  for (const src of s.extractValueSets ?? []) {
+    if (src.whenSetEmpty === 'assertNothing' || j.sets.get(src.setName).length) continue;
+    const selector = src.fromParsedFilesMatching ?? src.inFilesMatching ?? src.fromTrackedPathsMatching;
+    const file = src.fromParsedFile ?? ctx.tracked.find((f) => selector.test(f)) ?? '(repo)';
+    const vars = { setName: src.setName, path: file };
+    j.out.push(finding(j.rule, { file, what: fill(src.whenSetEmpty.what, vars), fix: fill(src.whenSetEmpty.fix, vars) }));
+  }
+  coverageEntries(ctx, j, parsed, (s.requireIndexCoverage ?? []).filter((a) => a.eachValueOfSet !== undefined));
+
+  // The same views the sweep reads a file through, so a value's evidence is
+  // judged comment- and fence-blind exactly where the rule said to.
+  const view = (path) => {
+    let text = ctx.read(path) ?? '';
+    if (s.scanIgnoringComments) text = stripComments(text);
+    if (s.scanIgnoringMarkdownFences && FILE_CLASSES.markdownFiles.test(path)) text = blankMarkdownFences(text);
+    return text;
+  };
+  for (const a of s.checkSetValues ?? []) {
+    const raw = a.valueIsPattern ? new Set(['value']) : new Set();
+    const values = j.sets.get(a.setName);
+    const template = a.requireSomeFileMatching ?? a.forbidEveryFileMatching;
+    if (template) {
+      // Values sharing a filled path selection walk the scan set together, and
+      // the walk stops as soon as every value has its answer.
+      const groups = new Map();
+      for (const v of values) {
+        const pathRe = fillPattern(template.pathMatching, v.vars, raw);
+        const textRe = fillPattern(template.text, v.vars, raw);
+        if (!groups.has(pathRe)) groups.set(pathRe, []);
+        groups.get(pathRe).push({ v, textRe });
+      }
+      for (const [pathRe, pending] of groups) {
+        const hits = new Map();
+        for (const file of ctx.files) {
+          if (!pathRe.test(file) || excluded(file, s.excludeMatchers)) continue;
+          const text = view(file);
+          for (const p of pending) {
+            if (hits.has(p)) continue;
+            const m = p.textRe.exec(text);
+            if (m) hits.set(p, { file, line: text.slice(0, m.index).split('\n').length });
+          }
+          if (hits.size === pending.length) break;
+        }
+        for (const p of pending) {
+          const hit = hits.get(p);
+          if (a.requireSomeFileMatching) {
+            if (!hit) j.out.push(at(p.v.file, p.v.line, p.v.vars, a));
+          } else if (hit) {
+            j.out.push(at(hit.file, hit.line, { ...p.v.vars, path: hit.file, line: hit.line, source: p.v.file, sourceLine: p.v.line }, a));
+          }
+        }
+      }
+    } else if (a.requirePathExists !== undefined) {
+      for (const v of values) {
+        const target = fill(a.requirePathExists, v.vars);
+        if (!ctx.exists(target)) j.out.push(at(v.file, v.line, { ...v.vars, target }, a));
+      }
+    } else {
+      for (const v of values) {
+        const re = fillPattern(a.requireTrackedPathMatching, v.vars, raw);
+        if (!ctx.tracked.some((f) => re.test(f))) j.out.push(at(v.file, v.line, v.vars, a));
+      }
+    }
+  }
+  for (const a of s.checkSetPairs ?? []) {
+    const index = new Map();
+    for (const v of j.sets.get(a.mustAlsoBeIn ?? a.mustNotBeIn)) if (!index.has(v.value)) index.set(v.value, v);
+    for (const v of j.sets.get(a.everyValueOf)) {
+      const match = index.get(v.value);
+      if (a.mustAlsoBeIn ? match : !match) continue;
+      j.out.push(at(v.file, v.line, { ...v.vars, ...(match ? { other: match.file } : {}) }, a));
     }
   }
 }
@@ -1216,7 +1517,7 @@ function enclosedBy(lines, i, re) {
 // computed at most once per visit; every blanking preserves line count, so all
 // views' line numbers agree and the markdown-section index stays on the raw
 // text (whose fences markdownIndex already blanks itself).
-function visit(ctx, subs, path, text) {
+function visit(ctx, subs, path, text, roles = null) {
   const fenced = FILE_CLASSES.markdownFiles.test(path);
   const viewKey = (j) => (j.spec.scanIgnoringComments ? 'c' : '') +
     (j.spec.scanIgnoringMarkdownFences && fenced ? 'f' : '');
@@ -1245,6 +1546,16 @@ function visit(ctx, subs, path, text) {
 
   for (const j of subs) {
     const s = j.spec;
+    const role = roles?.get(j) ?? { scanning: true, collecting: false };
+    if (role.collecting) {
+      for (const { s: src, add } of j.collectors) {
+        const pm = src.inFilesMatching.exec(path);
+        if (!pm) continue;
+        const view = linesFor(j);
+        for (let i = 0; i < view.length; i++) collectLine(src, view[i], path, i + 1, pm.groups ?? {}, add);
+      }
+    }
+    if (!role.scanning) continue;
     if (s.checkSections) assertSections(ctx, j, path, md);
     if (s.maxLines && lines().length > s.maxLines.limit) {
       const vars = { lines: lines().length, limit: s.maxLines.limit };
@@ -1361,8 +1672,13 @@ function results(ctx) {
   };
 
   // Resolved before any assertion runs: a field-named scan set is both the
-  // sweep's membership test and what `everyScannedFile` asserts over.
-  for (const j of jobs) if (j.spec.namedScan) j.named = namedScanSet(ctx, j.spec, parsed);
+  // sweep's membership test and what `everyScannedFile` asserts over; a
+  // rule's value sets resolve here too, except the line-derived ones, whose
+  // collectors ride the sweep below.
+  for (const j of jobs) {
+    if (j.spec.namedScan) j.named = namedScanSet(ctx, j.spec, parsed);
+    if (j.spec.extractValueSets) Object.assign(j, resolveValueSets(ctx, j.spec, parsed));
+  }
 
   for (const j of jobs) {
     assertTreeShape(ctx, j, parsed);
@@ -1379,20 +1695,28 @@ function results(ctx) {
     visit(ctx, [j], j.spec.scanFiles, text);
   }
 
-  const swept = jobs.filter((j) => j.spec.scanMatchers.length || j.spec.namedScan);
+  // A job joins a file's visit in one of two roles, or both: SCANNING it (the
+  // content assertions over the rule's scan set) and COLLECTING from it (a
+  // line-derived set's inFilesMatching selected it).
+  const swept = jobs.filter((j) => j.spec.scanMatchers.length || j.spec.namedScan || j.collectors?.length);
   if (swept.length) {
     const scanned = new Set(ctx.files);
     const tracked = new Set(ctx.tracked);
     for (const path of [...ctx.files, ...ctx.tracked.filter((f) => !scanned.has(f))]) {
-      const subs = swept.filter((j) =>
-        (j.spec.scanTracked ? tracked : scanned).has(path) &&
-        (j.named ? j.named.has(path) : j.spec.scanMatchers.some((re) => re.test(path))) &&
-        !excluded(path, j.spec.excludeMatchers));
-      if (!subs.length) continue;
+      const roles = new Map();
+      for (const j of swept) {
+        if (!(j.spec.scanTracked ? tracked : scanned).has(path) || excluded(path, j.spec.excludeMatchers)) continue;
+        const scanning = j.named ? j.named.has(path) : j.spec.scanMatchers.some((re) => re.test(path));
+        const collecting = (j.collectors ?? []).some(({ s }) => s.inFilesMatching.test(path));
+        if (scanning || collecting) roles.set(j, { scanning, collecting });
+      }
+      if (!roles.size) continue;
       const text = ctx.read(path);
-      if (text !== null) visit(ctx, subs, path, text);
+      if (text !== null) visit(ctx, [...roles.keys()], path, text, roles);
     }
   }
+
+  for (const j of jobs) if (j.spec.extractValueSets) assertSetShape(ctx, j, parsed);
 
   for (const j of jobs) {
     for (const st of j.repoStates) {
@@ -1421,7 +1745,13 @@ const PATTERN_KEYS = new Set([
   'filesMatching', 'whereFileContains', 'inFilesMatching', 'pattern', 'linesMatching',
   'eachScannedPathMatching', 'coveredByGlobLinesMatching', 'whoseTextMatches',
   'fromParsedFilesMatching', 'someMessageMatches', 'inParsedFilesMatching',
+  'fromLinesMatching', 'fromTrackedPathsMatching', 'fromAddedLinesMatching', 'splitValuesOn',
+  'everyFileMatching',
 ]);
+// Containers whose pattern strings are TEMPLATES — holes like {value} filled per
+// set value — so they compile at assertion time, not at load. Their form is still
+// validated here (a malformed one fails the load, like any other pattern).
+const TEMPLATE_CONTAINERS = new Set(['requireSomeFileMatching', 'forbidEveryFileMatching']);
 const RE_FORM = /^\/(.*)\/([dgimsuvy]*)$/s;
 
 // Compile a spec's pattern strings in place of their keys, leaving every other
@@ -1442,9 +1772,42 @@ function compileSpec(value, key, where) {
     catch (e) { throw new Error(`${where}: "${key}" is not a valid regex — ${e.message}`); }
   }
   if (typeof value !== 'object') return value;
+  if (TEMPLATE_CONTAINERS.has(key)) {
+    for (const [k, v] of Object.entries(value)) {
+      if (typeof v !== 'string' || !RE_FORM.test(v)) {
+        throw new Error(`${where}: "${key}.${k}" takes a regex template in /pattern/flags form, not ${JSON.stringify(v)}`);
+      }
+    }
+    return { ...value };
+  }
   const out = {};
   for (const [k, v] of Object.entries(value)) out[k] = compileSpec(v, k, where);
   return out;
+}
+
+// A template regex — a /body/flags string whose {holes} fill per value — compiled
+// once per distinct filled body. Fills are regex-escaped so a value matches as
+// the text it is; `raw` names the holes inserted verbatim (a value that IS a
+// pattern). A template that fills into an invalid regex is the declaration's
+// error, reported with the value that exposed it.
+const compiledTemplates = new Map();
+function fillPattern(template, vars, raw = new Set()) {
+  const form = RE_FORM.exec(template);
+  const body = form[1].replace(/\{(\w+)\}/g, (whole, key) => {
+    if (!(key in vars)) return whole;
+    const v = String(vars[key]);
+    if (!raw.has(key)) return escapeRe(v);
+    // A raw value that is itself a /body/flags string contributes its body: the
+    // shape a declaration's own pattern keys carry, so an audit over them can
+    // write the template as /{value}/.
+    return RE_FORM.exec(v)?.[1] ?? v;
+  });
+  const cacheKey = `${body}\0${form[2]}`;
+  if (!compiledTemplates.has(cacheKey)) {
+    try { compiledTemplates.set(cacheKey, new RegExp(body, form[2])); }
+    catch (e) { throw new Error(`the template ${template} filled with ${JSON.stringify(vars)} is not a valid regex — ${e.message}`); }
+  }
+  return compiledTemplates.get(cacheKey);
 }
 
 export function patternRule(declaration, { selfExclude = null } = {}) {

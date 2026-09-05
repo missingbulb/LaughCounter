@@ -85,10 +85,12 @@ const firstWindowReason = (window) => `first window at ${window} — a task is n
 // no seam wired (`evaluate: null` — a fixture, or an older shell) every
 // occurrence fails open the same way, which IS the old behaviour.
 //
-// `board` is the parsed schedule board: `{ rows: Map<taskKey, row> }` (see
-// schedule-board.mjs), or null where it could not be read — which reads as
+// `board` is the parsed schedule board: `{ rows: Map<taskKey, row>, open }`
+// (see schedule-board.mjs), or null where it could not be read — which reads as
 // absent and evaluates. Only a row whose verdict is `no` and whose lastAsked
-// equals the current anchor suppresses a re-ask (F31).
+// equals the current anchor suppresses a re-ask (F31). `open` is the state the
+// board was found in: a board somebody reopened, or one filed before it was
+// kept closed, owes a write whether or not a row moved (#1677).
 export async function planSchedulerRun({
   tasks, items = [], requests = [], now, schedule, executingLeashMs = EXECUTING_LEASH_MS,
   stateOf = () => null, evaluate = null, board = null,
@@ -406,8 +408,10 @@ export async function planSchedulerRun({
   // ---- the board write, LAST and only on change ---------------------------
   // A run that moved no row writes nothing — record changes, never scans —
   // and the board is created lazily: the first row that needs writing is
-  // what mints the issue.
-  if (boardChanged) ops.push({ kind: 'board', rows: [...boardRows.values()] });
+  // what mints the issue. The one exception is a board found OPEN (#1677):
+  // closing it is the write it owes, and a repo whose rows are all settled
+  // would otherwise never reach one.
+  if (boardChanged || board?.open) ops.push({ kind: 'board', rows: [...boardRows.values()] });
 
   return { ops };
 }
@@ -663,11 +667,11 @@ async function main() {
   // row changes. An unreadable listing reads as absent — evaluate fail-open —
   // and additionally forbids the write: never write what you could not read,
   // or a transient read failure mints a second board.
-  const { findScheduleBoard, parseScheduleBoard, renderScheduleBoard, scheduleBoardTitle } =
+  const { findScheduleBoard, parseScheduleBoard, writeScheduleBoard } =
     await import('./schedule-board.mjs');
   const boardFetch = await findScheduleBoard(gh, repo);
   const board = boardFetch.readable && boardFetch.issue
-    ? { rows: parseScheduleBoard(boardFetch.issue.body) } : null;
+    ? { rows: parseScheduleBoard(boardFetch.issue.body), open: boardFetch.issue.state === 'open' } : null;
 
   // The anchor-side ask: this task's declared signals, then its precondition —
   // any read the scheduler cannot make is an `error`, which fails OPEN in the
@@ -792,23 +796,10 @@ async function main() {
         // Never write what could not be read: a blind create could mint a
         // second board. The rows this run derived are re-derived next run.
         console.log('! the schedule board could not be listed — skipping its rewrite this run');
-      } else if (boardFetch.issue) {
-        const res = await gh(`/repos/${repo}/issues/${boardFetch.issue.number}`, {
-          method: 'PATCH',
-          body: { body: renderScheduleBoard(op.rows, { now, schedule: config.taskScheduler }) },
-        });
-        console.log(res.status === 200
-          ? `- schedule board #${boardFetch.issue.number} updated (${op.rows.length} row(s))`
-          : `! could not update schedule board #${boardFetch.issue.number}: ${res.status}`);
       } else {
-        const res = await createIssue(gh, repo, {
-          title: scheduleBoardTitle(),
-          body: renderScheduleBoard(op.rows, { now, schedule: config.taskScheduler }),
-          labels: [],
-        });
-        console.log(res.number
-          ? `- schedule board created as #${res.number} (${op.rows.length} row(s))`
-          : `! could not create the schedule board: ${res.status}`);
+        console.log(await writeScheduleBoard(gh, repo, {
+          issue: boardFetch.issue, rows: op.rows, now, schedule: config.taskScheduler,
+        }));
       }
     }
   }

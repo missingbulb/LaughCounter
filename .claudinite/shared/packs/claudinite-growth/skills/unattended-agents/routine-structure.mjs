@@ -32,7 +32,7 @@ const rule = {
   id: 'routine-structure',
   severity: 'blocking',
   description: 'A routine/task folder has a routine.md or task.md entry point wired to the scripts it invokes',
-  doc: 'skills/unattended-agents/SKILL.md',
+  doc: 'packs/claudinite-growth/skills/unattended-agents/SKILL.md',
   why: 'a routine is prose (read) + scripts (executed); a dangling invocation or an orphan/entry-less script means the agent runs the wrong thing or the job hides where it is never read',
 
   run(ctx) {

@@ -464,7 +464,7 @@ closing or running anything.
   is the scheduler run's ask at its next anchor — and most declines never make an
   item at all: the scheduler run asks the precondition when the anchor comes,
   files an item only on a yes, and records a no as a row on the repo's schedule
-  board (the one open `[claudinite-schedule]` issue).
+  board.
 - Every terminal state is recorded in code as a `claudinite-task-exec` line
   (`record-exec.mjs`), so the usage fold counts task statuses out of the captured
   conversation logs deterministically.

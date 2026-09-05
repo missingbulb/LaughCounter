@@ -6,7 +6,7 @@ import { posix } from 'node:path';
 // and which paths form the ENGINE SURFACE — the always-vendored core every
 // consumer carries whatever packs it declares. The vendor writer's coherence
 // guard judges against these definitions; the `pack-independence` barrier
-// (packs may import only their own files and this surface — barriers config
+// (packs may import only their own files and this surface — barrier config
 // contributed by the canon home's curation local pack) states the same surface
 // as its allow list, so "what a pack may import" and "what a vendor set must
 // carry" stay one idea with the barrier failing closed on any drift.

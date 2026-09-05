@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Adoption interviews — the mandatory questions a pack asks when a project
 // adopts it. A pack that needs the project's INTENT before it can provide value
-// (barriers with no graph is a silent no-op) declares its questions in an
+// (a research wiki with no subject is a silent no-op) declares its questions in an
 // optional `questions` field on its pack.mjs:
 //
 //   questions: [{ id: 'goals', prompt: '…', distill: '…' }]

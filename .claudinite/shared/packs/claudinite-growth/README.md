@@ -167,6 +167,7 @@ here: its subject is Claudinite's own surface, not lesson capture.
 |---|---|---|---|
 | Recording a local pack change | high | complexity | prose: 66 words |
 | Wanting a job to run in Actions | high | complexity | prose: 55 words + check (`scheduler-workflow-shape`) |
+| Describing another pack's artifact | medium | complexity | prose: 37 words |
 
 ## Coded rules
 
@@ -249,6 +250,7 @@ made the change, and is one sweep away from being closed as stale.
 | Check | Severity | Reason | Enforcement |
 |---|---|---|---|
 | `dedup-prune-integrity` | high | correctness | check: blocking |
+| `doc-pointers-resolve` | high | correctness | check: blocking |
 | `growth-write-scope` | high | correctness | check: blocking |
 | `legacy-check-spellings` | low | complexity | check: advisory |
 | `in-session-github-access` | high | correctness | check: blocking |

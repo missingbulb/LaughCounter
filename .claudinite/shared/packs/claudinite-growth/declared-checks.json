@@ -35,5 +35,85 @@
         "fix": "restate it as a named `extractValueSets` entry quantified over by `requireIndexCoverage`'s `eachValueOfSet` — the normalizer that rewrites it today is scheduled for removal (#1643)"
       }
     ]
+  },
+  {
+    "id": "references-integrity",
+    "severity": "blocking",
+    "since": "2026-09-01",
+    "failureMessage": "a dangling marker cites a rationale nobody recorded, and an orphaned check entry lets the periodic review reaffirm a check that no longer exists",
+    "extractValueSets": [
+      {
+        "setName": "ruleMarkers",
+        "fromLinesMatching": "/\\((?<value>\\d+(?:\\s*,\\s*\\d+)*)\\)\\s*$/",
+        "inFilesMatching": "/^(?<packDir>(?:.*\\/)?packs\\/[^/]+\\/)RULES\\.md$/",
+        "splitValuesOn": "/\\s*,\\s*/",
+        "whenSetEmpty": "assertNothing"
+      },
+      {
+        "setName": "skillMarkers",
+        "fromLinesMatching": "/\\((?<value>\\d+(?:\\s*,\\s*\\d+)*)\\)\\s*$/",
+        "inFilesMatching": "/^(?<packDir>(?:.*\\/)?packs\\/[^/]+\\/)skills\\/(?<skill>[^/]+)\\/SKILL\\.md$/",
+        "splitValuesOn": "/\\s*,\\s*/",
+        "whenSetEmpty": "assertNothing"
+      },
+      {
+        "setName": "checkEntries",
+        "fromLinesMatching": "/^\\s*-\\s+\\*\\*\\(check:(?<value>[\\w/-]+)\\)\\*\\*/",
+        "inFilesMatching": "/^(?<packDir>(?:.*\\/)?packs\\/[^/]+\\/)references\\.md$/",
+        "whenSetEmpty": "assertNothing"
+      }
+    ],
+    "checkSetValues": [
+      {
+        "setName": "ruleMarkers",
+        "requireSomeFileMatching": {
+          "pathMatching": "/^{packDir}references\\.md$/",
+          "text": "/^\\s*-\\s+\\*\\*\\(RULES-{value}\\)\\*\\*/m"
+        },
+        "what": "cites rationale entry ({value}), which {packDir}references.md does not carry as RULES-{value}",
+        "fix": "add the \"- **(RULES-{value})** <reason>\" entry — creating {packDir}references.md if the pack has none — or drop the marker; entry numbers are stable identifiers, so a removed entry's number is never reused"
+      },
+      {
+        "setName": "skillMarkers",
+        "requireSomeFileMatching": {
+          "pathMatching": "/^{packDir}references\\.md$/",
+          "text": "/^\\s*-\\s+\\*\\*\\({skill}-{value}\\)\\*\\*/m"
+        },
+        "what": "cites rationale entry ({value}), which {packDir}references.md does not carry as {skill}-{value}",
+        "fix": "add the \"- **({skill}-{value})** <reason>\" entry — creating {packDir}references.md if the pack has none — or drop the marker; entry numbers are stable identifiers, so a removed entry's number is never reused"
+      },
+      {
+        "setName": "checkEntries",
+        "requireSomeFileMatching": {
+          "pathMatching": "/^{packDir}.*\\.(mjs|json)$/",
+          "text": "/\\bid['\"]?\\s*:\\s*['\"]{value}['\"]/"
+        },
+        "what": "carries a rationale entry for check:{value}, which the pack does not carry",
+        "fix": "remove the entry with the check it explained, or point it at the check's current id"
+      }
+    ]
+  },
+  {
+    "id": "doc-pointers-resolve",
+    "severity": "blocking",
+    "since": "2026-09-04",
+    "failureMessage": "the doc pointer is the More line a finding prints, and nothing opens it until the check fires — a stale one sits broken until a session follows it into nothing",
+    "scanIgnoringComments": true,
+    "extractValueSets": [
+      {
+        "setName": "docPointers",
+        "fromLinesMatching": "/(?:^|[{,])\\s*doc:\\s*['\"](?<value>[^'\"#]+)/",
+        "inFilesMatching": "/(^|\\/)packs\\/[^/]+\\/(?:worldRules|workRules|skills\\/[^/]+)\\/[^/]+\\.mjs$/",
+        "whenSetEmpty": "assertNothing"
+      }
+    ],
+    "checkSetValues": [
+      {
+        "setName": "docPointers",
+        "requirePathExists": "{value}",
+        "what": "doc: names {value}, which is not a path in this tree",
+        "fix": "point doc: at the file that owns the rule's depth, repo-relative (a canon pack's under packs/<pack>/), or drop the field"
+      }
+    ]
   }
 ]

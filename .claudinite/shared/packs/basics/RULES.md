@@ -242,12 +242,6 @@ For every new task:
   a message that wants numbered items is the split talking. Once a commit has landed, revise with a
   new commit, never a rewrite of that one.
 
-- **Working with a file a test or tool generates** — put `GENERATED` in its name, and don't
-  hand-edit it; change the generator. Never resolve its merge conflict by hand: clear the markers
-  with either side, re-run the generator against the merged inputs, and commit that output. Consider
-  automating the clear with a `merge=ours` `.gitattributes` entry, and `git rerere` for a conflict
-  that recurs.
-
 - **Writing code that depends on how a platform or runtime behaves** — verify that behaviour
   against authoritative docs or a real run, not a comment or a prior commit's claim.
 
@@ -327,23 +321,9 @@ For every new task:
   close, and where two fields claim the same fact, let each mean what its own source said and leave
   the call to the consumer.
 
-- **Writing a check that scans the repo** — take the file set from `git ls-files` rather than a
-  filesystem walk with paths to skip, and remember a brand-new file is untracked until you add it,
-  so a green run isn't coverage of it. When scanning for a forbidden token, strip comments first so
-  it matches code, not prose — string-aware, since a `//` inside a URL is not a comment. Reuse
-  `stripComments` from
-  [`engine/checks/helpers/code-scanning.mjs`](../../engine/checks/helpers/code-scanning.mjs); if the
-  scan can't import it, inline the same pass and point a comment back at that source. Strip in
-  **both** directions — a comment that documents or warns about the banned pattern is exactly
-  where a naive check trips over its own reasoning, so a commented-out instance must not count as
-  present either. And prove the check silent against the repo's own **real** sources, not only a
-  synthetic clean fixture — a fixture spelling the same gap the check has just keeps proving the
-  matching, and only a real-tree run can disagree with you.
-
 - **Writing a comment** — carry the why, or a cross-file relationship the code can't state itself;
   if the code plus a known convention already says it, write nothing. Describe the current state,
   never the edit that produced it: don't explain the change you just made, and don't note what was
   removed or renamed. If a comment narrates a past fix, keep only the part still true of the code in
   front of you. When it must name a path, spell that path in one canonical place and point every
   other mention there.
-
