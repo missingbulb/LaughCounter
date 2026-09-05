@@ -8,6 +8,7 @@ own row.
 
 | Version | Date | What changed |
 |---|---|---|
+| 60904.1 | 2026-09-04 | The `barriers-absorbed` record converges a member's declaration onto the absorption of `barriers` into `basics` (#1681): the entry is renamed and its folder-access graph nests under `config.barriers` on the surviving `basics` entry, with the recorded `goals` answer dropped alongside the question it answered. This pack drops its own `barriers` requirement, vestigial since its isolation wall became a declared check. |
 | 60903.4 | 2026-09-03 | `legacy-shape-in-use` states the window a repo has to act on its own finding rather than claiming the removal waits on nobody carrying the shape (#1652). |
 | 60903.3 | 2026-09-03 | `legacy-shape-in-use` — an advisory over this repo's own declaration and stamp for every shape the engine merely tolerates: the retired settings-file name, the `claudinite`/`maintenance` blocks, top-level `packConfig`, `taskScheduler.endpoints`, the `local_packs/` declaration prefix, a renamed or absorbed pack id, an integer version and the `updates` mechanism alias. Each finding names the edit that moves the repo forward; each tolerance is scheduled for removal on no member still carrying it (#1637). |
 | 60903.1 | 2026-09-03 | A skill's `SKILL.md` opens on what to do, not on what the skill is: the self-describing framing and the pointers to prose the reader already holds are gone. |

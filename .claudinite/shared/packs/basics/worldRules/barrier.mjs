@@ -1,30 +1,38 @@
 import {
   normalizeEdges, barrierFindings, staleFindings, specFinding,
 } from '../../../engine/checks/helpers/reference-scanning.mjs';
-import { DEFAULT_DOC } from '../contributed.mjs';
+import { DEFAULT_DOC } from '../barriers.mjs';
 
 // The project-declared barrier check: a repo states its folder-access graph as
-// `config.rules` on its barriers pack entry in .claudinite-settings.json (the
-// loader overlays each pack entry's `config` onto `packConfig`), and this
+// `config.barriers.rules` on its basics pack entry in .claudinite-settings.json
+// (the loader overlays each pack entry's `config` onto `packConfig`), and this
 // enforces it. A rule owns its exceptions — carve-out strings and reviewed
 // { path, to?, reason } crossings both live in the rule's own `except`, so a NEW
 // coupling in an already-reviewed file still fails and paid-down debt goes stale.
-// (A pack that ships a *fixed* barrier uses engine.mjs `defineBarrier` instead and
-// adds it to its own `rules`.)
+// (A pack that ships a *fixed* barrier contributes it as manifest data instead —
+// barriers.mjs beside this file builds those.)
 const rule = {
   id: 'barrier',
   severity: 'blocking',
   doc: DEFAULT_DOC,
-  description: "Folders must not reference across a declared barrier (the barriers pack entry's config)",
+  description: "Folders must not reference across a declared barrier (the basics pack entry's config.barriers)",
   why: 'a declared folder barrier encodes an architectural boundary; a crossing reference erodes it silently',
 
   run(ctx) {
-    const cfg = ctx.config?.packConfig?.barriers;
-    if (cfg === undefined || cfg === null) return []; // declared but unconfigured — nothing to enforce
+    // The graph moved onto the basics entry when the barriers pack was absorbed
+    // into this one (#1681). A member reading its own OLD declaration is the
+    // window between its mount converging and the record rewriting its
+    // declaration, which #1041 showed can be more than one cycle: the fallback is
+    // what keeps that member's graph enforced instead of silently unenforced.
+    // `legacy-shape-in-use` is the advisory that reaches the holder — the same
+    // finding names the entry, and the same edit fixes both shapes.
+    // @legacy-tolerance advisory:legacy-shape-in-use retire:#1682
+    const cfg = ctx.config?.packConfig?.basics?.barriers ?? ctx.config?.packConfig?.barriers;
+    if (cfg === undefined || cfg === null) return []; // no graph declared — nothing to enforce
     if (typeof cfg !== 'object' || Array.isArray(cfg) || !('rules' in cfg)) {
       return [specFinding(rule, {
         what: 'the barriers config must be an object with a "rules" array',
-        fix: 'set { "packs": [ { "id": "barriers", "config": { "rules": [ { "from": "...", "to": "..." } ] } } ] }',
+        fix: 'set { "packs": [ { "id": "basics", "config": { "barriers": { "rules": [ { "from": "...", "to": "..." } ] } } } ] }',
       })];
     }
     const out = [];

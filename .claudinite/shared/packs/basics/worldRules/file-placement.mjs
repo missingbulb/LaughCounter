@@ -46,7 +46,7 @@ const rule = {
   id: 'file-placement',
   severity: 'advisory',
   description: 'A code file should mostly reference files at folder distance 0–2; distance 3+ is reach',
-  doc: 'skills/file-placement/SKILL.md',
+  doc: 'packs/basics/skills/file-placement/SKILL.md',
   why: 'the folder tree should encode the dependency graph; far reaches make it lie',
 
   run(ctx) {

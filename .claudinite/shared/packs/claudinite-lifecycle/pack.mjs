@@ -14,7 +14,7 @@
 // so `claudinite-lifecycle-declared` reports a member that has lost the entry rather
 // than being what puts it there.
 export default {
-  version: '60903.5',
+  version: '60904.1',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'using Claudinite itself — the vendored mount, the pack declaration, bootstrapping, adopting packs, the self-refresh update',
@@ -23,9 +23,10 @@ export default {
   seededByDefault: true,
   // The consumer-isolation wall (claudinite-isolation) is a declared check — a
   // forbidReferences entry in this pack's declared-checks.json, run by the
-  // engine's reference-scanning like any barrier. The barriers pack stays
-  // required for the per-repo config rule members' own edges ride.
-  requires: ['barriers'],
+  // engine's reference-scanning like any barrier, so it needs nothing else
+  // declared. The per-repo config rule a member's own edges ride now lives in
+  // `basics` (#1681), which this pack cannot require back without a cycle —
+  // `basics` requires this one. It is seeded into every member anyway.
   // Both scheduled tasks live in this pack's `tasks/`, discovered by the
   // scheduler's filesystem scan (packs/claudinite-tasks/discover.mjs) rather than
   // declared here: `update`, the per-repo self-refresh every member runs, and

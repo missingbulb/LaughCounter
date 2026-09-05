@@ -4,6 +4,8 @@ Records for `packs/claudinite-tasks/pack.mjs`'s `version` field, one row per bum
 
 | Version | Date | What changed |
 |---|---|---|
+| 60904.2 | 2026-09-04 | The dispatch simulator carries the board's issue state, so "a board found open owes a write even where no row moved" is covered by `S61` rather than by the engine's unit tests alone (#1696). |
+| 60904.1 | 2026-09-04 | The schedule board is kept CLOSED and labelled `claudinite-schedule`: it is machine bookkeeping nobody acts on, so it no longer sits in the repo's issue list. Every write states both, so an open or unlabelled board converges on the next run that touches it, and a board found open is rewritten even when no row moved. The closed lookup is label-scoped — never a page-walk of a repo's closed history (#1677). |
 | 60903.4 | 2026-09-03 | The task contract's tolerances, and the secrets bag's two, state the convergence window they end on instead of a count of who still declares them — a count nothing in the canon can take. `legacy-task-fields` says the same in its `why` (#1652). |
 | 60903.2 | 2026-09-03 | The task contract's field and outcome tolerances stop describing themselves as permanent — they are accepted while members still declare them and no longer, which is what `legacy-task-fields` and #1642 are for. `SESSION_SCOPES` gains the removal link it was missing beside the advisory it already had (#1637). |
 | 60903.1 | 2026-09-03 | `legacy-task-fields` — an advisory over a repo's own `tasks/<name>/task.mjs` for the retired field names (`agent_preprocessing*`, `prework*`, `after`) and the one-word outcome ceilings, read from the declaration source because the contract's door normalizes them away before anything downstream can see them (#1637). |

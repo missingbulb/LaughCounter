@@ -50,6 +50,11 @@ export const RENAMED_PACKS = Object.freeze({
   // that says so.
   'canary-probe': 'claudinite-canary-repo',
   sheepdog: 'claudinite-fleet-sheepdog',
+  // Absorbed too (#1681): the folder-access graph was never a pack anyone chose —
+  // it carried no fingerprint and arrived through `requires` in every member that
+  // declares the baseline — so its check, its contribution seam and its guide moved
+  // into the pack that was already carrying it in.
+  barriers: 'basics',
 });
 
 // The canon id a spelling resolves to. Canon packs only — a LOCAL pack lives in the

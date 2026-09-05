@@ -8,7 +8,7 @@ import {
 
 // The default doc pointer for barrier rules is this PACK's policy — the engine
 // helper points at no pack content.
-export const DEFAULT_DOC = 'packs/barriers/README.md';
+export const DEFAULT_DOC = 'packs/basics/barriers.md';
 
 // Pack-contributed barriers — how another pack ships a FIXED barrier without
 // importing this pack's code (pack-independence). The contributing pack

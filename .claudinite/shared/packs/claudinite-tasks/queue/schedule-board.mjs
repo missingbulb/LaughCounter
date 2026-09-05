@@ -1,4 +1,4 @@
-// The schedule board (tasks-dispatch DESIGN §5, decision §15.28) — one open
+// The schedule board (tasks-dispatch DESIGN §5, decision §15.28) — one CLOSED
 // issue per repo, `[claudinite-schedule]`, whose body is a table with one row
 // per scheduled task: the anchor it was last asked at, the verdict it gave and
 // why. The scheduler run reads it as the watermark ("have I already asked this
@@ -12,18 +12,34 @@
 // board degrades to "absent" per-row and costs one redundant evaluation —
 // it fails toward evaluating, never toward skipping.
 //
+// It is kept CLOSED (#1677). Nobody acts on it, and an open issue is a claim on
+// a person's attention: the repo's issue list is where work that is theirs
+// lives. Closed costs the reader nothing and the machine one lookup — which is
+// why the board also carries a LABEL. The open half of a repo is a page or two
+// and can be scanned by title; the closed half is thousands of issues, so the
+// closed lookup is scoped to the label and never pages that history.
+//
 // The title prefix is disjoint from `[claudinite-work]` and `[claudinite-task]`
 // on purpose: the board must never parse as a work item (the scheduler run's
 // title-exact family match, `listOpenWorkItems`, the janitor) and never read
 // as repo activity (the `issues` signal collector excludes all three prefixes).
 
 import { nextAnchor } from './anchors.mjs';
+import { ensureLabels, addLabel, createIssue } from '../github.mjs';
 
 export const SCHEDULE_PREFIX = '[claudinite-schedule]';
 
 export const scheduleBoardTitle = () => `${SCHEDULE_PREFIX} the schedule board`;
 
 export const isScheduleBoardTitle = (title) => String(title ?? '').startsWith(SCHEDULE_PREFIX);
+
+// The label the closed board is found by. Ensured before it is applied, like
+// every other label this mechanism writes — GitHub 422s on an unknown one.
+export const SCHEDULE_BOARD_LABEL = Object.freeze({
+  name: 'claudinite-schedule',
+  color: 'ededed',
+  description: 'Claudinite: the scheduler run\'s schedule board — machine-maintained, kept closed',
+});
 
 // The verdict vocabulary a row may carry. Anything else parses as itself (a
 // future writer's word must not break this reader) but only `no` ever gates:
@@ -53,7 +69,7 @@ export function renderScheduleBoard(rows, { now = new Date(), schedule = null } 
   const header = [
     'One row per scheduled task: the anchor it was last asked at, the verdict, and why.',
     'The scheduler run reads this as its watermark — a declined occurrence is re-asked only at the task\'s next anchor — and files a work item only when a precondition says yes.',
-    'Machine-maintained; edits are overwritten on the next change. Deleting this issue costs one redundant evaluation per task and nothing else.',
+    'Machine-maintained and deliberately kept closed — nothing here is anyone\'s to act on. Edits are overwritten on the next change; reopening it only means the next run closes it again. Deleting it costs one redundant evaluation per task and nothing else.',
     '',
     '| task | frequency | last asked | verdict | reason | next window |',
     '|---|---|---|---|---|---|',
@@ -102,20 +118,67 @@ export function parseScheduleBoard(body) {
   return rows;
 }
 
-// The board issue, found by its exact title prefix over the OPEN issues list
-// (the same REST-not-search rule as the work-item reads, S6/F11). More than
-// one open board — a hand-created duplicate, or a torn create — resolves to
-// the OLDEST, deterministically, so every run converges on the same one.
+// The board issue, found by its exact title prefix over the ISSUES list API
+// (the same REST-not-search rule as the work-item reads, S6/F11). Two lookups,
+// in order: the OPEN issues, which adopts a board that predates the label or
+// that somebody reopened (the write then closes it), and then the label-scoped
+// listing over both states, which is where a board that has already converged
+// lives. More than one board — a hand-created duplicate, or a torn create —
+// resolves to the OLDEST, deterministically, so every run converges on the
+// same one.
 // A list that cannot be read answers `readable: false`: the caller evaluates
 // fail-open AND skips the board write — never write what you could not read.
-export async function findScheduleBoard(gh, repo) {
+async function scanForBoard(gh, repo, query) {
   for (let page = 1; ; page += 1) {
-    const { status, json } = await gh(`/repos/${repo}/issues?state=open&sort=created&direction=asc&per_page=100&page=${page}`);
+    const { status, json } = await gh(`/repos/${repo}/issues?${query}&sort=created&direction=asc&per_page=100&page=${page}`);
     if (status !== 200 || !Array.isArray(json)) return { readable: false, issue: null };
     for (const i of json) {
       if (i.pull_request) continue;
-      if (isScheduleBoardTitle(i.title)) return { readable: true, issue: { number: i.number, body: i.body ?? '' } };
+      if (!isScheduleBoardTitle(i.title)) continue;
+      return {
+        readable: true,
+        issue: {
+          number: i.number,
+          body: i.body ?? '',
+          state: i.state ?? 'closed',
+          labeled: (i.labels ?? []).some((l) => (l?.name ?? l) === SCHEDULE_BOARD_LABEL.name),
+        },
+      };
     }
     if (json.length < 100) return { readable: true, issue: null };
   }
+}
+
+export async function findScheduleBoard(gh, repo) {
+  const open = await scanForBoard(gh, repo, 'state=open');
+  if (!open.readable || open.issue) return open;
+  return scanForBoard(gh, repo, `state=all&labels=${encodeURIComponent(SCHEDULE_BOARD_LABEL.name)}`);
+}
+
+// THE WRITE, which is also what makes the board closed and labelled — stated on
+// every write rather than only at create, so a board filed before either rule
+// and one somebody reopened both converge on the next run that touches it.
+// `issue` is what `findScheduleBoard` returned (null to mint one). Returns the
+// line the caller logs; nothing here throws.
+export async function writeScheduleBoard(gh, repo, { issue = null, rows, now = new Date(), schedule = null } = {}) {
+  await ensureLabels(gh, repo, [SCHEDULE_BOARD_LABEL]);
+  const body = renderScheduleBoard(rows, { now, schedule });
+  if (issue) {
+    const res = await gh(`/repos/${repo}/issues/${issue.number}`, {
+      method: 'PATCH', body: { body, state: 'closed', state_reason: 'completed' },
+    });
+    if (!issue.labeled) await addLabel(gh, repo, issue.number, SCHEDULE_BOARD_LABEL.name);
+    return res.status === 200
+      ? `- schedule board #${issue.number} updated and closed (${rows.length} row(s))`
+      : `! could not update schedule board #${issue.number}: ${res.status}`;
+  }
+  const res = await createIssue(gh, repo, { title: scheduleBoardTitle(), body, labels: [SCHEDULE_BOARD_LABEL.name] });
+  if (!res.number) return `! could not create the schedule board: ${res.status}`;
+  // Create-then-close: the issues API has no "create closed".
+  const shut = await gh(`/repos/${repo}/issues/${res.number}`, {
+    method: 'PATCH', body: { state: 'closed', state_reason: 'completed' },
+  });
+  return shut.status === 200
+    ? `- schedule board created closed as #${res.number} (${rows.length} row(s))`
+    : `! schedule board created as #${res.number}, but it could not be closed: ${shut.status}`;
 }
