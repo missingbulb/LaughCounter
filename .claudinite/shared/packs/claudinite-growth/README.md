@@ -165,7 +165,7 @@ here: its subject is Claudinite's own surface, not lesson capture.
 
 | Rule | Severity | Reason | Enforcement |
 |---|---|---|---|
-| Recording a local pack change | high | complexity | prose: 66 words |
+| Recording a local pack change | high | complexity | prose: 71 words |
 | Wanting a job to run in Actions | high | complexity | prose: 55 words + check (`scheduler-workflow-shape`) |
 | Describing another pack's artifact | medium | complexity | prose: 37 words |
 
@@ -237,8 +237,9 @@ A local pack keeps no changelog file. It is neither versioned nor distributed �
 its version against another repo's — so `git log` over the pack directory already carries what a
 changelog would, per change, with the diff attached. A file that aggregates unrelated changes into
 one append-at-the-top table is a merge hazard instead: several growth runs a day write local packs,
-and any two in flight collide on the same line. A **canon** pack's `VERSIONS.md` earns that cost,
-because the row is what tells a member what a version bump shipped.
+and any two in flight collide on the same line. A **canon** pack's `VERSIONS.md` is the same
+hazard answered the other way: the canon derives it from git after the fact, and no change writes
+into it (the canon-curation pack's `pack-version-history` task).
 
 So every growth task's record is the PR it opens: the rule added, pruned or corrected, and the
 evidence behind it, written in the body beside the diff it explains. No growth task keeps a standing
@@ -259,6 +260,7 @@ made the change, and is one sweep away from being closed as stale.
 | `task-declaration-matches-folder` | high | correctness | check: blocking |
 | `task-md-only-when-agentic` | high | correctness | check: blocking |
 | `task-phase-discipline` | medium | complexity | check: advisory |
+| `check-ships-with-test` | high | correctness | check: blocking |
 
 The last five are the **task contract** ([the writing-tasks skill](skills/writing-tasks/SKILL.md)), which
 lives here because it judges whether a task is *written* correctly — authoring, the subject of this

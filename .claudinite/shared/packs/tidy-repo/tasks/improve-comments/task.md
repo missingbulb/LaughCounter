@@ -36,11 +36,11 @@ the precondition keeps the mount out of Context, and the gate reds a change ther
 ## Output: one PR, delivered to land
 
 If the run changed at least one comment, it lands all of it under the title
-`Claudinite tidy: improve comments` — one commit for the whole round. Search the repo's OPEN pull requests for one titled exactly that. **If one exists, push this round onto its branch and extend its body** — this round joins the review already pending rather than starting a second one, so a reviewer who has not got to last week's work reads one PR, not three. **If none exists, open one** with exactly that title on a per-run-unique branch. A merged or closed round is not open, so the next run starts a fresh PR by itself.
-Either way the commit references the tracking issue so the `task-lifecycle` gate passes.
-
-The title is how the next round finds this PR. A round titled anything else starts a second
-review instead of joining this one.
+`Claudinite tidy: improve comments` — one commit for the whole round, pushed to the branch your item
+names (`Target-branch:`), and onto `Target-pr:` where one is named: the round then joins the review already
+pending, so a reviewer who has not got to last week's work reads one PR, not three. Where none is named,
+open the pull request on that branch under that title. Never search for an open pull request or pick a
+branch of your own. Either way the commit references the tracking issue so the `task-lifecycle` gate passes.
 
 Then hand it to the shared delivery procedure —
 [deliver-pr.md](../../../claudinite-tasks/deliver-pr.md). That procedure, never this file, owns

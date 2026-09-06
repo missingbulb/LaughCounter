@@ -1,18 +1,25 @@
 # Version history
 
-Records for `packs/claudinite-lifecycle/pack.mjs`'s `version` field, one row per bump. The
-rows below are version-numbered comments that used to sit beside `version:` in the manifest,
-moved here verbatim; nothing earlier than the first of them was backfilled, and a bump with no
-comment (like 60821.2) was never recorded to begin with. Every bump from here forward adds its
-own row.
+Records for `packs/claudinite-lifecycle/pack.mjs`'s `version` field, one row per version, newest first.
+A version is cut on `main` after its changes land, so a row names the pull requests that
+landed between the previous version and this one; the weekly history task writes the rows
+a version is missing and leaves every row that already stands.
 
 | Version | Date | What changed |
 |---|---|---|
+| 60906.3 | 2026-09-06 | Read the whole session's transcripts when a skill load gates an edit (#1757) |
+| 60906.2 | 2026-09-06 | Keep Claudinite's own bookkeeping inside .claudinite/: mount attributes, no README row (#1754) |
+| 60906.1 | 2026-09-06 | Declared checks at every moment: schema rung, work and action scopes, skill triggers, and the creation path (#1711) |
+| 60905.3 | 2026-09-05 | Pack versions are cut on main by automation, never in the pull request (#1726) |
+| 60905.2 | 2026-09-05 | The `barriers-absorbed` record says what actually satisfies its mount gate: a converge replaces the engine subtree from canon HEAD whatever `ENGINE_VERSION` says, and the engine flow runs before the pack flow — so the op is present on the same converge that delivers the record, which is the only cycle it gets before the stamp puts it out of range (#1681). |
+| 60905.1 | 2026-09-05 | `update` declares `supersede_existing_pr`, and its worker pushes to the branch the executor hands in as `CLAUDINITE_TARGET_BRANCH` — the incumbent's disposal is the executor's target resolution now (#1695). The worker's own disposal and branch minting stand only under an executor that hands no target in, until #1698. |
 | 60904.1 | 2026-09-04 | The `barriers-absorbed` record converges a member's declaration onto the absorption of `barriers` into `basics` (#1681): the entry is renamed and its folder-access graph nests under `config.barriers` on the surviving `basics` entry, with the recorded `goals` answer dropped alongside the question it answered. This pack drops its own `barriers` requirement, vestigial since its isolation wall became a declared check. |
+| 60903.5 | 2026-09-03 | Path-scoped skills (#1648): `skill-loaded-before-editing` flags a changed file a skill forces itself for (`force-load-on-file-edits-paths`) in a session that never loaded that skill — the edits the PreToolUse guard cannot see — and `skills-index-current` keeps the generated skills index naming what the declared packs bundle. |
 | 60903.4 | 2026-09-03 | `legacy-shape-in-use` states the window a repo has to act on its own finding rather than claiming the removal waits on nobody carrying the shape (#1652). |
 | 60903.3 | 2026-09-03 | `legacy-shape-in-use` — an advisory over this repo's own declaration and stamp for every shape the engine merely tolerates: the retired settings-file name, the `claudinite`/`maintenance` blocks, top-level `packConfig`, `taskScheduler.endpoints`, the `local_packs/` declaration prefix, a renamed or absorbed pack id, an integer version and the `updates` mechanism alias. Each finding names the edit that moves the repo forward; each tolerance is scheduled for removal on no member still carrying it (#1637). |
-| 60903.1 | 2026-09-03 | A skill's `SKILL.md` opens on what to do, not on what the skill is: the self-describing framing and the pointers to prose the reader already holds are gone. |
 | 60903.2 | 2026-09-02 | `RULES.md` drops the descriptive framing the pack README already carries — the file carries rules only. |
+| 60903.1 | 2026-09-03 | A skill's `SKILL.md` opens on what to do, not on what the skill is: the self-describing framing and the pointers to prose the reader already holds are gone. |
+| 60902.3 | 2026-09-02 | The update flows hand the migration registry a directory listing, a delete and a module import, which the task-declaration conversion needs (#1633). |
 | 60902.2 | 2026-09-02 | `rules-index-current` stops probing the retired `.claudinite/local_packs/` root for a declared pack's `RULES.md` (#1627). |
 | 60902.1 | 2026-09-02 | `update` converts to `preconditions: ['none']` — the input is the CANON, which moves when this repo does not, so no repo-side condition may gate it; a repo with no vendored mount names the task in its `taskScheduler.disabledTasks` rather than the task re-asking nightly. Its worker stamps `Claudinite-Task: claudinite-lifecycle/update` on the commits and merges it makes, so the converge reads as machinery to every movement-gated task (#1578). |
 | 60901.2 | 2026-09-01 | The pack adopts the references convention: `references.md` carries `adopt-claudinite`'s executor-routine hand-over record (#1167) and the incident evidence behind the `conformance-work-scope` (#939) and `rules-index-current` (#807) checks, cited by bare `(n)` markers (#1564). |
@@ -22,6 +29,7 @@ own row.
 | 60831.1 | 2026-08-31 | The withhold lane is open again (#1509). A record naming a path under `.github/workflows/` is staged to `.claudinite/pending-workflows/` and reported in `withheld` instead of being dropped, and the flow announces `CLAUDINITE_CAN_WITHHOLD_WORKFLOWS` so such a record runs at all; a withheld file raises the apply stage on its own, which delivers it on a credential that can push there. #1317 closed the lane on the premise that a member's workflows are static after adoption — #1494's executor line is the counterexample. The staging sweep is now scoped to files this run did not stage, since an unscoped one deletes the delivery it just wrote, silently and green. |
 | 60830.3 | 2026-08-30 | `update` keeps `automerge: 'anything'` — the whole-tree converge lane — while `adopt-requested-packs` narrows to what an adoption writes: `claudinite-shared-packs` (this pack's merge-rules.json, carrying `coversMountPolicySources` for the policy files a vendored tree contains) plus `claudinite-settings-updates` and the regenerated rules index (#1459). |
 | 60830.2 | 2026-08-30 | `adopt-requested-packs` lands its PR instead of holding it for review. The `open-pr` ceiling existed so a human reviewed a change that switches on new checks in the member's CI, but the review never came — one member's adoption sat parked for eleven days and never reached the repo it was for. The member's own checks still gate the merge (#1453). |
+| 60830.1 | 2026-08-30 | The `update` brief and the updates README name today's park spelling rather than the retired bare label (#1395). |
 | 60824.6 | 2026-08-24 | The update worker names the flows at their real home, and `scheduler-workflow-shape` requires the pack's scheduler entry now that every member's workflow names it (#1328). |
 | 60824.5 | 2026-08-24 | `scheduler-workflow-shape` stops accepting the legacy hourly cron line, now that every member's workflow carries the two-tick form (#1234). |
 | 60824.4 | 2026-08-24 | The update precondition stops guessing whether the member is behind: the canon's versions are unavailable to a scheduler run (DESIGN §3.3), and the local-movement proxy declined updates on members that were four packs stale (#1344). |
@@ -29,12 +37,21 @@ own row.
 | 60824.2 | 2026-08-24 | The versioned update flows move in under `updates/`, canon-internal like a pack's `test/`; no flow touches `.github/workflows/` any more and the withhold staging lane is retired (#1317). |
 | 60824.1 | 2026-08-24 | The update task lands through the `claudinite-tasks` pack's `shared-code/`, and `scheduler-workflow-shape` accepts the pack's entry path beside the legacy engine one (#1317). |
 | 60823.1 | 2026-08-23 | The update runner resolves its settings file by name rather than naming it, takes delivery from `dailyClaudiniteUpdatesRequirePrReview`, and no longer asks which mechanism serves the repo; the update precondition takes newness from the mount's own movement in the window (#1252). |
-| 60822.2 | — | `update`'s `daily-2h` offset retires — it is the head of the morning chain, and the tasks that read the mount it converges declare `schedule_after:` rather than an earlier clock hour (§17.1). Comment updated for the `after` → `schedule_after` rename. |
-| 13 | — | Two task comments name the terminal a run closes with in its current spelling; no behaviour moves. |
-| 60821.1 | — | Adopt-requested-packs runs ON the work-list issue the fleet marked — no code-work gate, no worker, and the item is the list itself (#1119). |
-| 60821.3 | 2026-08-21 | This pack's inline version-history comments moved out of `pack.mjs` into this file. |
-| 60822.1 | 2026-08-22 | The update worker's scratch-tree delete goes through the shared `removeTree`, whose retry survives git's own housekeeping still writing into the tree (#1219). |
 | 60822.3 | 2026-08-23 | The manifest stops restating its own tree (#1246): `id`, `prose`, `badge`, `skills`, `worldRules` and `workRules` are resolved from the pack directory and an absent `detect`/`marker` means no fingerprint. Coded rules move into `worldRules/`/`workRules/` and tests into `test/`, which no vendor set ships. `minEngineVersion` rises to the engine release that reads all of it. |
-| 60830.1 | 2026-08-30 | The `update` brief and the updates README name today's park spelling rather than the retired bare label (#1395). |
-| 60902.3 | 2026-09-02 | The update flows hand the migration registry a directory listing, a delete and a module import, which the task-declaration conversion needs (#1633). |
-| 60903.5 | 2026-09-03 | Path-scoped skills (#1648): `skill-loaded-before-editing` flags a changed file a skill forces itself for (`force-load-on-file-edits-paths`) in a session that never loaded that skill — the edits the PreToolUse guard cannot see — and `skills-index-current` keeps the generated skills index naming what the declared packs bundle. |
+| 60822.2 | — | `update`'s `daily-2h` offset retires — it is the head of the morning chain, and the tasks that read the mount it converges declare `schedule_after:` rather than an earlier clock hour (§17.1). Comment updated for the `after` → `schedule_after` rename. |
+| 60822.1 | 2026-08-22 | The update worker's scratch-tree delete goes through the shared `removeTree`, whose retry survives git's own housekeeping still writing into the tree (#1219). |
+| 60821.3 | 2026-08-21 | This pack's inline version-history comments moved out of `pack.mjs` into this file. |
+| 60821.2 | 2026-08-21 | Bootstrap: the executor routine is the session's work, and the human steps get an issue (#1168) |
+| 60821.1 | — | Adopt-requested-packs runs ON the work-list issue the fleet marked — no code-work gate, no worker, and the item is the list itself (#1119). |
+| 60820.3 | 2026-08-21 | Bootstrap ends by capturing the adoption session to conversation-logs (#1135) |
+| 60820.2 | 2026-08-21 | Mechanize the bootstrap flow into one script, targeting sub-30-second adoptions (#1132) |
+| 60820.1 | 2026-08-20 | Engine and pack versions become date-anchored `<day>.<n>` (#1105) |
+| 16 | 2026-08-20 | The tick becomes the scheduler run, and the janitor stops parking finished work (#1108) |
+| 15 | 2026-08-20 | task.md describes only its own task; .claudinite/-only commits stop counting as project work (#1110) |
+| 14 | 2026-08-20 | Pack reorganization: two collapses and two renames (#1081) |
+| 13 | — | Two task comments name the terminal a run closes with in its current spelling; no behaviour moves. |
+| 12 | 2026-08-20 | Collapse packs-tests/ into packs/ — a pack's tests live inside the pack (#1070) |
+| 11 | 2026-08-19 | Collapse chrome-extension-release into chrome-extension, and stop packs discussing each other (#1060) |
+| 10 | 2026-08-19 | Make the task contract a skill, and fix the framing it still carried (#975) |
+| 9 | 2026-08-19 | Summarize the update PR title instead of enumerating every pack (#1048) |
+| 8 | 2026-08-19 | Rename core → claudinite-lifecycle, grow_with_claudinite → claudinite-growth, and move the scheduled-task contract between them (#1029) |

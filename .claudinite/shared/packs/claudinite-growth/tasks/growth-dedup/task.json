@@ -6,7 +6,7 @@
   "preconditions": [
     "mount-moved || commits-under:.claudinite/local"
   ],
-  "expected_outcome": "pr",
+  "expected_outcome": "supersede_existing_pr",
   "automerge": [
     "under:.claudinite/local/packs && markdown-trims"
   ],

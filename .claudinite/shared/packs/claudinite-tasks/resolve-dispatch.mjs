@@ -114,7 +114,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DISPATCH_PATH_RE, dispatchFirstLine, validateDispatchBody } from './validate-dispatch.mjs';
 import { parseDispatchTitle, readyLabelForScope } from './dispatch.mjs';
 import { renderTaskExec } from './run-record.mjs';
-import { SESSION_SCOPES } from './task-contract.mjs';
+import { SESSION_SCOPES, opensPullRequest } from './task-contract.mjs';
 import { findTaskDeclaration, loadTaskDeclaration } from './task-declaration.mjs';
 import { policyExpression } from './merge-policy.mjs';
 import { SHARED_SUBDIR } from '../../engine/pack_loader/pack-registry.mjs';
@@ -435,7 +435,7 @@ async function main() {
   const slot = slotForRecord;
   done(EXIT.ok, {
     dispatch: 'valid',
-    brief: `Task: ${verdict.pack}/${verdict.task}${slot ? ` (slot ${slot})` : ''} — issue #${number}, model ${verdict.resolvedModel}, outcome ceiling ${verdict.outcome}${verdict.outcome === 'pr' ? ` (may auto-merge: ${policyExpression(verdict.automerge)})` : ''}, timeout ${verdict.executionTimeout ?? 'none'}s`,
+    brief: `Task: ${verdict.pack}/${verdict.task}${slot ? ` (slot ${slot})` : ''} — issue #${number}, model ${verdict.resolvedModel}, outcome ceiling ${verdict.outcome}${opensPullRequest(verdict.outcome) ? ` (may auto-merge: ${policyExpression(verdict.automerge)})` : ''}, timeout ${verdict.executionTimeout ?? 'none'}s`,
     issue: number,
     scope,
     label,

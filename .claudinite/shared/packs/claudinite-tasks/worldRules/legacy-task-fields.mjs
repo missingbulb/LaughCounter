@@ -32,13 +32,14 @@ const rule = {
   severity: 'advisory',
   since: '2026-09-03',
   description: 'Task declarations name their fields and outcome in the current vocabulary',
-  why: 'the contract accepts two retired generations of field names and the one-word outcome ceilings for one convergence window after this advisory ships (#1642) — nothing counts who is still on them, so a declaration not renamed inside that window simply stops being read',
+  why: 'the contract accepts two retired generations of field names and two retired generations of outcome ceilings for one convergence window after this advisory ships (#1642) — nothing counts who is still on them, so a declaration not renamed inside that window simply stops being read',
 
   run(ctx) {
     const fields = contract.LEGACY_FIELDS ?? {};
     const outcomes = contract.LEGACY_OUTCOMES ?? {};
+    const ceilings = contract.LEGACY_CEILINGS ?? {};
     const names = Object.keys(fields);
-    if (names.length === 0 && Object.keys(outcomes).length === 0) return [];
+    if (names.length === 0 && Object.keys(outcomes).length === 0 && Object.keys(ceilings).length === 0) return [];
 
     const fieldRe = names.length ? new RegExp(`^\\s*"?(${names.join('|')})"?\\s*:`) : null;
     const outcomeRe = /^\s*"?expected_outcome"?\s*:\s*['"]([^'"]+)['"]/;
@@ -63,7 +64,14 @@ const rule = {
             file,
             line: i + 1,
             what: `declares the retired outcome ceiling \`${outcome[1]}\``,
-            fix: `write \`expected_outcome: 'pr'\` with \`automerge: '${outcomes[outcome[1]]}'\` beside it — the one word always meant that pair, and spelling it out is what lets the policy be narrowed later`,
+            fix: `write \`expected_outcome: 'fresh_pr'\` with \`automerge: '${outcomes[outcome[1]]}'\` beside it — the one word always meant that pair, and spelling it out is what lets the policy be narrowed later`,
+          }));
+        } else if (outcome && Object.hasOwn(ceilings, outcome[1])) {
+          out.push(finding(rule, {
+            file,
+            line: i + 1,
+            what: `declares the retired outcome ceiling \`${outcome[1]}\``,
+            fix: `write \`expected_outcome: '${ceilings[outcome[1]]}'\` — the word it became, in the vocabulary that also says amend_existing_or_create_new_pr and supersede_existing_pr`,
           }));
         }
       });

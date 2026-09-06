@@ -10,7 +10,7 @@ The baseline pack — the `RULES.md` prose every session loads (injected by the 
 | Replying to an owner comment | high | complexity | prose: 109 words |
 | Acting on a correction | high | correctness | prose: 39 words |
 | Acting on a feature | high | correctness | prose: 39 words |
-| Acting on a process change | medium | complexity | prose: 67 words |
+| Acting on a process change | medium | complexity | prose: 69 words |
 | Choosing what goes on that ladder | medium | complexity | prose: 82 words |
 | Landing a rule anywhere on the ladder | high | correctness | prose: 64 words |
 | Building a mechanism for a behavior | medium | complexity | prose: 18 words |
@@ -31,8 +31,6 @@ The baseline pack — the `RULES.md` prose every session loads (injected by the 
 | Searching for a tool with ToolSearch | medium | complexity | prose: 57 words |
 | Calling Edit | low | complexity | prose: 39 words |
 | Calling Grep with a context flag | medium | complexity | prose: 51 words |
-| Needing exact text from the web | high | correctness | prose: 56 words |
-| Hitting a denied fetch | critical | legal | prose: 152 words |
 | Scheduling a wake-up with the harness | high | correctness | prose: 60 words |
 | Seeing a build, test or CI warning | medium | correctness | prose: 28 words |
 | Suppressing a warning | medium | complexity | prose: 74 words + check (`warning-suppression`) |
@@ -46,7 +44,6 @@ The baseline pack — the `RULES.md` prose every session loads (injected by the 
 | Naming a file, module, or symbol | low | complexity | prose: 22 words |
 | Referring to a value from two places | high | correctness | prose: 117 words + check (`shared-constants`) |
 | Writing a file that depends on another | medium | complexity | prose: 97 words |
-| Committing | medium | complexity | prose: 43 words |
 | Depending on platform or runtime behaviour | high | correctness | prose: 31 words |
 | Optimising | high | correctness | prose: 53 words |
 | Needing a library for a narrow job | medium | complexity | prose: 27 words |
@@ -91,6 +88,15 @@ The working-discipline rules with a deterministic signature. The world rules rea
 | `task-lifecycle` | medium | complexity | check: blocking |
 | `squash-merge-history` | high | correctness | check: blocking |
 | `barrier` | high | complexity | check: blocking |
+| `schema-conformance` | high | correctness | check: blocking |
+| `untracked-test-file` | low | correctness | check: advisory |
+| `grep-context-without-content` | high | correctness | guard: blocking |
+| `generated-file-hand-edit` | high | correctness | guard: blocking |
+| `wakeup-without-prompt` | high | correctness | guard: blocking |
+| `pipe-tail-hides-exit` | low | complexity | guard: advisory |
+| `pkill-pattern-self-match` | low | correctness | guard: advisory |
+| `pull-request-without-closing-line` | medium | complexity | guard: advisory |
+| `github-list-without-fields` | low | complexity | guard: advisory |
 
 `barrier` is the one check a project has to configure before it does anything: it enforces a
 **directed folder-access graph** the repo declares on this pack's entry as `config.barriers.rules`,

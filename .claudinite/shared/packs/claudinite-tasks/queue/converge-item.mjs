@@ -160,6 +160,18 @@ export function convergeOps(item, plan) {
     ops.push({ kind: 'setBody', issue: item.number, body: editItemBody(item.body, (m) => withEndsWhen(m, plan.pr)) });
   }
 
+  // SUPERSEDING (DESIGN §6.4b). The executor decided at resolution which of this
+  // task's earlier pull requests a `supersede_existing_pr` run replaces and stamped
+  // them on the item; they close only once THIS run's own pull request exists — a
+  // run that delivered nothing, or broke, leaves them where they were, so a review
+  // member's pending pull request is never taken away for nothing.
+  const { supersedes } = parseWorkItemBody(item.body ?? '');
+  if (plan.pr && (plan.outcome === 'done' || plan.outcome === 'approval')) {
+    for (const number of supersedes) {
+      ops.push({ kind: 'closePull', number, successor: plan.pr, body: `Superseded by #${plan.pr}, a later run of the same task. Closing this one.` });
+    }
+  }
+
   if (spec.closes) {
     // A DONE TERMINAL CLOSES THE ISSUE IT STANDS ON, marked or filed (#1489,
     // reversing §16.1/§16.5's "never a marked issue"). `done` is the one outcome
@@ -228,6 +240,9 @@ export function sessionScript(item, plan, repo) {
       step(`\`issue_write\` — method \`update\`, owner \`${owner}\`, repo \`${name}\`, issue_number \`${op.issue}\`,`
         + ` labels \`${JSON.stringify([...own])}\`, state \`closed\`, state_reason \`${op.stateReason}\``);
       own.clear();
+    } else if (op.kind === 'closePull') {
+      step(`\`add_issue_comment\` — owner \`${owner}\`, repo \`${name}\`, issue_number \`${op.number}\` (a pull request), body exactly:\n\n<<<BODY\n${op.body}\n>>>END\n`);
+      step(`\`update_pull_request\` — owner \`${owner}\`, repo \`${name}\`, pullNumber \`${op.number}\`, state \`closed\``);
     }
   }
   // A park never closed, so its label write is still owed.

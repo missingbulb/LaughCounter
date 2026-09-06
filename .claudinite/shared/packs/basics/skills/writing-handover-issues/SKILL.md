@@ -1,6 +1,9 @@
 ---
 name: writing-handover-issues
 description: How to write a task list a PERSON will execute — a handover issue, an adoption checklist, a "steps only a human can do" list. Use when filing or editing any issue whose body asks a human to click, set, register or copy something. Not for issues describing work you will do yourself.
+metadata:
+  force-load-on-tool-calls:
+    - 'mcp__github__issue_write.body /- \[ \]/'
 ---
 
 # Writing a task for a human

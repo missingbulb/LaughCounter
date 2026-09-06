@@ -14,13 +14,14 @@
 // the PR taxonomy (DESIGN §1) and are not judged here — the caller passes only
 // what the task did to PULL REQUESTS.
 
-import { OUTCOMES, LEGACY_OUTCOMES } from './task-contract.mjs';
+import { LEGACY_OUTCOMES, canonicalOutcome, opensPullRequest } from './task-contract.mjs';
 import { normalizePolicy } from './merge-policy.mjs';
 
 // Verify what a task actually did against its declared ceiling.
-//   outcome      — the declared ceiling ('none' | 'pr'; the legacy 'open-pr' /
-//                  'merged-pr' are judged as the pair they normalize to, so a
-//                  fielded caller passing a raw declaration stays correct)
+//   outcome      — the declared outcome (any of `OUTCOMES`; the retired `none`,
+//                  `pr`, `open-pr` and `merged-pr` are judged as what they
+//                  normalize to, so a fielded caller passing a raw declaration
+//                  stays correct)
 //   automerge — the declared merge policy; absent reads as 'nothing', and an
 //                  unparsable one the same — a permission that cannot be read
 //                  was never granted
@@ -29,19 +30,19 @@ import { normalizePolicy } from './merge-policy.mjs';
 // Returns { ok, violation } — violation is null when within the ceiling.
 export function verifyOutcome({ outcome, automerge, openedPr = false, mergedPr = false }) {
   const legacyPolicy = LEGACY_OUTCOMES[outcome];
-  const ceiling = legacyPolicy !== undefined ? 'pr' : outcome;
+  const ceiling = canonicalOutcome(outcome);
   const policy = automerge ?? legacyPolicy ?? 'nothing';
-  if (!OUTCOMES.includes(ceiling)) {
+  if (!ceiling) {
     return { ok: false, violation: `unknown outcome ceiling "${outcome}"` };
   }
   // Merging implies a PR exists; treat a merge as also having opened one so a
   // caller that only reports mergedPr is still judged correctly.
   const opened = openedPr || mergedPr;
 
-  if (ceiling === 'none' && opened) {
-    return { ok: false, violation: 'a "none" task must not open or merge a pull request' };
+  if (!opensPullRequest(ceiling) && opened) {
+    return { ok: false, violation: `a "${ceiling}" task must not open or merge a pull request` };
   }
-  if (ceiling === 'pr' && mergedPr) {
+  if (mergedPr) {
     const norm = normalizePolicy(policy);
     if (norm.kind === 'nothing' || norm.kind === 'invalid') {
       return { ok: false, violation: 'a task whose automerge authorizes nothing must not merge a pull request' };

@@ -398,6 +398,13 @@ export function failureSummary(runs) {
 // Found by head-branch PREFIX, because the name carries a per-cycle date and seed —
 // the prefix is what identifies the family. The whole PR is returned rather than its
 // ref alone: disposal needs its number and head sha.
+//
+// @deprecated Which pull request a run works on is the executor's decision since
+// #1695 (`queue/target.mjs`, tasks-dispatch DESIGN §6.4b): a `supersede_existing_pr`
+// task's incumbent is judged, landed or closed there, and the worker is handed a
+// branch. Still exported for the update worker's own path under an executor that
+// predates the hand-off; #1698 removes both.
+// @legacy-tolerance advisory:none retire:#1698
 export function openDeliveredPull(pulls, prefix) {
   return (pulls ?? []).find((pr) => String(pr?.head?.ref ?? '').startsWith(prefix)) ?? null;
 }
@@ -421,6 +428,10 @@ export function openDeliveredPull(pulls, prefix) {
 // Best-effort throughout: anything unreadable or unmergeable leaves the PR as it was
 // found, because a cycle that cannot dispose of the incumbent must skip rather than
 // pile a second PR on top of it.
+//
+// @deprecated with `openDeliveredPull` above, for the same reason and the same
+// window: the executor's target resolution performs this judgment now.
+// @legacy-tolerance advisory:none retire:#1698
 export async function disposeOpenPull({ token, repo, pr, delivery, task = null, log = console.log }) {
   const { status, json } = await gh(token, `/repos/${repo}/actions/runs?head_sha=${pr.head?.sha ?? ''}&per_page=100`);
   if (status !== 200) {

@@ -63,6 +63,13 @@ instructions.
      and you may not re-decide it, widen it, or skip the run because you disagree.
    - **Delivered by code-work** names artifacts this run already created — a branch,
      a PR, an issue. Work on those; never make your own duplicates of them.
+   - **`Target-branch:` is the branch you push to, and `Target-pr:` the pull
+     request you push onto** — the executor decided both from the task's
+     `expected_outcome` before you were started (deliver-pr.md). With a
+     `Target-pr:`, push onto it and open nothing; without one, open your pull
+     request on that branch. Never pick a branch of your own, never look for an
+     open pull request to reuse, and never close an earlier run's pull request
+     yourself: `Supersedes:` names the ones the converge closes once yours exists.
    - **An input the task file calls required and the issue does not carry stops the
      run.** Say which one was missing and park this item
      (`task:status:needs-human-action` — the item has to be re-created carrying it). Never
@@ -73,7 +80,7 @@ instructions.
      produced nothing" is an outcome; deciding not to run is not yours to make.
 
 5. **Verify your outcome in code** against the task's declared ceiling before you
-   finish. A `none` task may not open a PR; a task whose `automerge` authorizes
+   finish. A `no_code_changes` task may not open a PR; a task whose `automerge` authorizes
    nothing may not merge one, and a granular policy merges only on the policy
    engine's own `AUTOMERGE: yes` (deliver-pr.md).
    Exceeding the ceiling is a failure, not a success with a surprise.
@@ -142,7 +149,10 @@ instructions.
    approval, where it is required. It stamps `Ends-when: #<n> closed` on the item, and
    that is what makes the park end by itself: the janitor closes the item `done` when
    the target merges and `rejected` when it is closed unmerged. Without it the park
-   stands until a person happens to read it.
+   stands until a person happens to read it. **Pass it on a `done` too when your run
+   landed a pull request**: on an item carrying `Supersedes:`, the pull request you
+   name is what the earlier ones were waiting to be replaced by, and the command
+   plans their closes only when it is given one.
 
    **A marked issue needs no write-back at all**: it is the item, so the approval
    park it wears *is* the in-review state and the failure park *is* the report (which

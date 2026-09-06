@@ -3,7 +3,7 @@
   "id": "adopt-requested-packs",
   "description": "The member half of the fleet fan-out: adopts the packs an add-packs work list asks for, in this repository, by this repository's own agent.",
   "frequency": "manual",
-  "expected_outcome": "pr",
+  "expected_outcome": "fresh_pr",
   "automerge": [
     "claudinite-shared-packs",
     "claudinite-settings-updates",

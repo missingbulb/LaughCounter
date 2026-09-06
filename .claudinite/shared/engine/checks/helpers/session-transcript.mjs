@@ -1,3 +1,6 @@
+import { existsSync, readdirSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
+
 // Session-transcript parsing for conversation-surface rules (Stop hook only —
 // CI has no transcript, so rules must return [] when ctx.conversation() is null).
 // A Claude Code transcript is JSONL; the shapes this reads were verified against
@@ -78,19 +81,80 @@ export function classifiedTurns(entries) {
   }));
 }
 
-// Every skill the session has loaded so far, in order of loading: the `input.skill`
-// of each `Skill` tool_use block on an assistant entry, and the name of any skill
-// whose SKILL.md a `Read` tool_use opened — the body reached the context either
-// way. Subagent (sidechain) entries count: a skill a delegated edit loaded was
+// Every tool call the session made, in order: [{ index, name, input, sidechain }]
+// — each `tool_use` block on an assistant entry. Subagent (sidechain) calls
+// count, flagged: a guard a delegated call breaks is still broken.
+export function toolCalls(entries) {
+  const denials = deniedCalls(entries);
+  const calls = [];
+  (entries ?? []).forEach((entry, index) => {
+    if (entry?.type !== 'assistant') return;
+    const content = entry.message?.content;
+    if (!Array.isArray(content)) return;
+    for (const block of content) {
+      if (block?.type !== 'tool_use' || typeof block.name !== 'string') continue;
+      calls.push({
+        index, name: block.name, input: block.input ?? {}, sidechain: Boolean(entry.isSidechain),
+        deniedBy: denials.get(block.id) ?? [],
+      });
+    }
+  });
+  return calls;
+}
+
+// A call the PreToolUse guard denied never ran: the harness records the hook's
+// stderr as that call's error result, and an action guard's denial names its
+// rule there — `Blocked by <rule-id>: …`, the line engine/hooks/pretooluse-judge.mjs
+// writes. Map of tool_use id → the rule ids that denied it, so the Stop-time
+// backstop can tell a call that ran past a hook from one the hook held.
+const DENIAL = /(?:^|\n)Blocked by ([\w.-]+):/g;
+function deniedCalls(entries) {
+  const out = new Map();
+  for (const entry of entries ?? []) {
+    if (entry?.type !== 'user') continue;
+    const content = entry.message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block?.type !== 'tool_result' || !block.is_error || typeof block.tool_use_id !== 'string') continue;
+      const text = typeof block.content === 'string' ? block.content
+        : Array.isArray(block.content) ? block.content.map((c) => (typeof c?.text === 'string' ? c.text : '')).join('\n') : '';
+      const rules = [...text.matchAll(DENIAL)].map((m) => m[1]);
+      if (rules.length) out.set(block.tool_use_id, rules);
+    }
+  }
+  return out;
+}
+
+// Every skill the session has loaded so far, in order of loading — the body
+// reached the context by any of three routes:
+//  - the `input.skill` of a `Skill` tool_use block on an assistant entry;
+//  - a `Read` tool_use that opened the skill's own SKILL.md;
+//  - a slash command the owner typed (`/do-later …`), which the harness expands
+//    itself and records as a `<command-name>` block in the user turn rather than
+//    as any tool call — the Skill tool's own contract: "if a `<command-name>`
+//    block is already present this turn, the skill is loaded". The leading
+//    slash is dropped; a plugin prefix (`plugin:skill`) is kept, so a plugin's
+//    skill never passes for a pack's skill of the same bare name.
+// Subagent (sidechain) entries count: a skill a delegated edit loaded was
 // loaded for that edit.
+// The usage fold's own `commandName` reads the same block: a pack cannot
+// depend on a fresh engine export, since the two lanes deliver on separate
+// cadences, so the grammar is spelled twice and a drift guard in
+// engine-tests/pack_loader/path-scoped-skills.test.mjs holds them together.
 const SKILL_FILE = /(?:^|\/)skills\/([^/]+)\/SKILL\.md$/;
+const COMMAND_NAME = /<command-name>\s*\/?([A-Za-z0-9:_-]+)\s*<\/command-name>/g;
 
 export function skillLoads(entries) {
   const names = [];
   for (const entry of entries ?? []) {
-    if (entry?.type !== 'assistant') continue;
-    const content = entry.message?.content;
-    if (!Array.isArray(content)) continue;
+    const content = entry?.message?.content;
+    if (entry?.type === 'user') {
+      const text = typeof content === 'string' ? content
+        : Array.isArray(content) ? content.map((b) => (typeof b?.text === 'string' ? b.text : '')).join('\n') : '';
+      for (const m of text.matchAll(COMMAND_NAME)) names.push(m[1]);
+      continue;
+    }
+    if (entry?.type !== 'assistant' || !Array.isArray(content)) continue;
     for (const block of content) {
       if (block?.type !== 'tool_use') continue;
       if (block.name === 'Skill' && typeof block.input?.skill === 'string') names.push(block.input.skill);
@@ -99,4 +163,24 @@ export function skillLoads(entries) {
     }
   }
   return names;
+}
+
+// Every transcript file one session writes: the `<session-id>.jsonl` every hook
+// payload and the Stop hook name, plus each subagent's own stream at
+// `<session-id>/subagents/agent-<agent-id>.jsonl` beside it. A subagent's tool
+// calls go only to its own file, and no payload before SubagentStop names the
+// calling agent, so what the SESSION did — the skills it loaded, the calls it
+// made — is read across the whole set, never the session file alone (#1735).
+// Owner turns are the exception and stay with that file: the harness writes a
+// subagent's prompt as a user entry too, and it is not the owner speaking.
+export function sessionTranscriptPaths(transcriptPath) {
+  if (!transcriptPath) return [];
+  const paths = existsSync(transcriptPath) ? [transcriptPath] : [];
+  const subagents = join(dirname(transcriptPath), basename(transcriptPath).replace(/\.jsonl$/, ''), 'subagents');
+  let names;
+  try { names = readdirSync(subagents); } catch { return paths; } // no delegated work this session
+  for (const name of names.sort()) {
+    if (name.startsWith('agent-') && name.endsWith('.jsonl')) paths.push(join(subagents, name));
+  }
+  return paths;
 }

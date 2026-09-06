@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
-import { parseEntries } from './session-transcript.mjs';
+import { parseEntries, sessionTranscriptPaths } from './session-transcript.mjs';
 import { SHARED_SUBDIR, packEntryId } from '../../pack_loader/pack-registry.mjs';
 import { canonicalPackVersions } from '../../pack_loader/renamed-packs.mjs';
 import { SETTINGS_FILE, LEGACY_SETTINGS_FILE, settingsPath } from '../../settings-file.mjs';
@@ -126,10 +126,9 @@ function vendoredSet(root, files) {
 // all UTC. Absence means the documented defaults, so an omitted key is not an
 // error; a present one is range-validated at load below. Its declaration is also
 // the per-repo cutover marker during the scheduling rollout (MIGRATION Phase 0.6).
-// A repo's README pack-badge row has no key here on purpose: the row is seeded at
-// adoption and owned by the repo after, so there is nothing for it to configure.
-// A member carrying a stale `badges` key therefore gets the unknown-setting error
-// below, and the wiring converge clears it.
+// Nothing writes into a member's README any more, so there is no `badges` key here:
+// a member carrying the stale one gets the unknown-setting error below, and the
+// wiring converge clears it.
 // `dormant` is the project's own declaration that it is out of the RECURRING work —
 // see isDormant below for exactly how much that covers.
 // `claudinite` and `maintenance` are the two retired blocks, tolerated on read so a
@@ -571,6 +570,7 @@ export function buildContext({ root, mode = 'changed', baseOverride = null, tran
   // every other surface (CI, a manual run) has none, and conversation rules must
   // return [] when this is null. Parsed lazily and cached — most sweeps never ask.
   let conversationCache;
+  let sessionEntriesCache;
 
   // Checks are read-only over an immutable snapshot of the tree, so file and
   // base-blob reads are cached for the sweep: many rules re-read the same files,
@@ -587,6 +587,7 @@ export function buildContext({ root, mode = 'changed', baseOverride = null, tran
     allFiles,
     changedFiles,
     tracked,
+    untracked,
     deleted,
     commits,
     branch,
@@ -631,6 +632,23 @@ export function buildContext({ root, mode = 'changed', baseOverride = null, tran
       return added;
     },
 
+    // The lines the change REMOVES from a tracked file, numbered as the base
+    // had them — the diff's "-" side, the mirror of addedLines. A file the
+    // base did not hold removed nothing.
+    removedLines(file) {
+      if (!mergeBase || !tracked.includes(file)) return [];
+      const out = gitTry(root, 'diff', '-U0', diffBase, '--', file);
+      const removed = [];
+      let lineNo = 0;
+      for (const l of (out || '').split('\n')) {
+        const hunk = /^@@ -(\d+)(?:,\d+)? \+\d+(?:,\d+)? @@/.exec(l);
+        if (hunk) { lineNo = Number(hunk[1]); continue; }
+        if (l.startsWith('-') && !l.startsWith('---')) { removed.push({ line: lineNo, text: l.slice(1) }); lineNo += 1; }
+        else if (!l.startsWith('+')) lineNo += l ? 1 : 0;
+      }
+      return removed;
+    },
+
     // Parsed transcript entries of the session driving this run, or null when no
     // transcript is available (see conversationCache above).
     conversation() {
@@ -639,6 +657,22 @@ export function buildContext({ root, mode = 'changed', baseOverride = null, tran
       try { conversationCache = parseEntries(readFileSync(transcriptPath, 'utf8')); }
       catch { conversationCache = null; }
       return conversationCache;
+    },
+
+    // Every entry the session wrote — the transcript above plus each subagent
+    // stream beside it — for the rules that judge what the session DID: the
+    // skills it loaded, the calls it made. `conversation()` stays the session
+    // file alone, since that is where the owner's turns are. Empty on a surface
+    // with no transcript, which `conversation()` is what distinguishes from a
+    // session that did nothing.
+    sessionEntries() {
+      if (sessionEntriesCache === undefined) {
+        sessionEntriesCache = sessionTranscriptPaths(transcriptPath).flatMap((path) => {
+          // A stream unreadable mid-write costs its own entries, never the others'.
+          try { return parseEntries(readFileSync(path, 'utf8')); } catch { return []; }
+        });
+      }
+      return sessionEntriesCache;
     },
 
     // The branch's own commits since the merge-base, oldest first, each with its

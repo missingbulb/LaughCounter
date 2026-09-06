@@ -1,7 +1,8 @@
 // THE DEFAULTS, and the one place a declaration's absent field becomes a value,
 // so nothing downstream ever reads an undefined one (owner, 2026-09-03):
 //   - `preconditions`: run always — `['none']`.
-//   - `automerge`: land nothing unreviewed — `'nothing'`, for a task that may open a PR.
+//   - `automerge`: land nothing unreviewed — `'nothing'`, for a task that may open a PR
+//     (every outcome but `no_code_changes`).
 //   - `agent_model`: no agent — `'none'`.
 //   - `code_work`: no code work; `agent_instructions`: none.
 // Neither timeout has a default, deliberately: an agent or a code-work
@@ -17,6 +18,6 @@ export const DEFAULT_AGENT_MODEL = 'none';
 export function applyTaskDefaults(out) {
   if (out.preconditions === undefined) out.preconditions = [...DEFAULT_PRECONDITIONS];
   if (out.agent_model === undefined) out.agent_model = DEFAULT_AGENT_MODEL;
-  if (out.expected_outcome === 'pr' && out.automerge === undefined) out.automerge = DEFAULT_AUTOMERGE;
+  if (out.expected_outcome !== undefined && out.expected_outcome !== 'no_code_changes' && out.automerge === undefined) out.automerge = DEFAULT_AUTOMERGE;
   return out;
 }

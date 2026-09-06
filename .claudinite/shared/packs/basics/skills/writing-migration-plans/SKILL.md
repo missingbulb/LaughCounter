@@ -1,6 +1,9 @@
 ---
 name: writing-migration-plans
 description: Where a plan and a design live, and how to order a plan's phases so nothing stalls mid-run — the plan is a tracking issue (never a plan document in the repo), the design doc carries only the end state with rationale and alternatives; front-load the out-of-band setup, write ALL the code including the cleanup and take one approval for the stack, then chain every execution step to the verification of the one before it as a queued continuation, size the links (how many PRs, what each one's diff is predicted to touch and the automerge policy that prediction becomes) and write the chain to survive a policy park, a red CI or a PR closed unmerged, and keep the tracking issue append-only while implementing. Use BEFORE writing any DESIGN.md, migration plan, phased implementation plan, rollout or cutover plan — including the moment you are about to create a docs/<initiative>/ file — when asked to run a plan as a chain of ad-hoc tasks, and when working through a plan's tracking issue.
+metadata:
+  force-load-on-file-edits-paths:
+    - 'docs/**/DESIGN.md'
 ---
 
 # Writing migration and implementation plans
@@ -198,10 +201,10 @@ per link, at plan time, and record the answers in the tracking issue:
 - **How many PRs.** Sort the coding steps into *phases* and *divisions*. A phase has an exit its
   successor waits on — a fold field that must accumulate through the nightly converge before a
   page can read it, a stub a member must carry. A division is only labour, and could ship in any
-  order. One PR per phase; group divisions that share a pack and a version bump, and split them
-  where one's failing test would hold the other hostage. One PR for everything spends one
-  approval but stalls on any red; a PR per division buys exit conditions at the cost of a rebase
-  each and the stacked-PR version-bump hazard. The count is what remains after both are refused.
+  order. One PR per phase; group divisions that share a pack, and split them where one's failing
+  test would hold the other hostage. One PR for everything spends one approval but stalls on any
+  red; a PR per division buys exit conditions at the cost of a rebase each. The count is what
+  remains after both are refused.
 - **What the diff will touch.** Name the folders and kinds, and the size. Then the policy is
   that prediction, written narrow (basics' *Choosing an automerge policy*): `under:<folder>`
   intersected with the kind where the kind is known, the same folder's `test-changes` and
@@ -234,8 +237,7 @@ not land as predicted; write each link's brief so the chain holds through all of
   rendered section — and, when it is absent, converges as `action` naming the unmerged link
   instead of building on air. The chain advances on validation, never on closure.
 - **Two links edit the same file.** `Blocked-by:` serializes them, so there is no parallelism
-  and no conflict to resolve; each brief ends with a rebase onto `main` and the pack's version
-  bump last, after the fetch, so the bump check reads the right base.
+  and no conflict to resolve; each brief ends with a rebase onto `main`.
 - **The tail.** The chain's last links are the change's production verification and the plan's
   retrospective, filed with the rest; a chain that ends on its last coding link never learns
   whether it worked.

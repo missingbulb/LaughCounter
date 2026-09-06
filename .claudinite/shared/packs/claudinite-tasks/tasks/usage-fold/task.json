@@ -6,7 +6,7 @@
   "preconditions": [
     "any-commit || session-captured"
   ],
-  "expected_outcome": "pr",
+  "expected_outcome": "amend_existing_or_create_new_pr",
   "automerge": [
     "under:.claudinite/local && generated-file-changes"
   ],

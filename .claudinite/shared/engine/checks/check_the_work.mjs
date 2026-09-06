@@ -10,6 +10,7 @@
 import { buildContext } from './helpers/repo-context.mjs';
 import { discoverPacks } from '../pack_loader/pack-registry.mjs';
 import { runActivePackRules } from './run-active-pack-rules.mjs';
+import { READS_THE_SESSION } from './helpers/work.mjs';
 import { reportFindings } from './report-findings.mjs';
 
 const args = process.argv.slice(2);
@@ -25,6 +26,6 @@ const ctx = buildContext({
   transcriptPath: value('--transcript'),
 });
 
-const findings = runActivePackRules(ctx, packs, { includeRule: (rule) => rule.scope === 'work' });
+const findings = runActivePackRules(ctx, packs, { includeRule: (rule) => READS_THE_SESSION.has(rule.scope) });
 const blocking = reportFindings(findings, ctx.config, { scopeLabel: 'work', mode: ctx.mode, baseRef: ctx.baseRef });
 process.exit(blocking ? 1 : 0);

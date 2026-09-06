@@ -47,6 +47,27 @@ A product statement already sitting in pack prose is mis-homed, and a sweep is n
 re-home it. **Leave the prose and log it** as a mis-homed rule, the same way an un-checkable
 candidate is logged — never cement it as a check.
 
+## Triage each candidate by where its signature lives
+
+Before asking whether a rule is checkable, ask where its violation would leave a mark, and route it
+by that — a rule that reads as un-checkable is usually one whose mark is somewhere the check-the-world
+question does not look:
+
+| The mark is in… | Class | Carrier |
+|---|---|---|
+| the tree, readable one file at a time | **A** | a declared world check, today's vocabulary |
+| the tree, across files — a set derived first, then quantified | **B** | `extractValueSets` + `checkSetValues` / `checkSetPairs` / `requireIdenticalFiles` |
+| the change — added or removed lines, a co-change, an untracked file, a reply class | **C** | a `scope: "work"` declaration |
+| a tool call's input, before it runs | **D** | a `scope: "action"` declaration (`guardToolCalls`) |
+| the session transcript — a reply's shape, a call sequence or count | **E** | a work rule over the transcript |
+| nowhere, but the moment it applies is a tool call, a phrase, a path or a result | **F** | a skill with a `force-load-on-*` trigger |
+| nowhere, and no moment to hang on | **G** | prose |
+| a product statement or a platform setting | **H** | re-home; never convert |
+
+Record the class with the candidate. **A** and **B** go on to the check-the-world test below; **C** and
+**D** convert straight into their scope's keys; **F** groups with every other rule sharing its trigger
+into one skill, so a load carries the whole procedure; **G** stays.
+
 ## What to look for — the check-the-world test
 
 For each rule that cleared the gate, ask the one question from
@@ -93,6 +114,13 @@ Follow the extract stage's check-authoring discipline (the local promotion ladde
 > **The upgrade-pass caller lands inside growth-extract's own PR**, which auto-merges after CI — so the
 > see-it-fail fixture is the only gate a converted check gets there. Convert only what you can prove;
 > anything shakier stays prose and waits for the weekly sweep's reviewed PR.
+
+**A shape rule is a schema property, not a check.** Where the rule says a document must carry a field, take a
+value from a closed set, have a type, or carry nothing beyond a key set, write it into the JSON Schema the
+document points at with `$schema` — creating the schema on the first such rule — and let the
+`schema-conformance` check enforce it; convert to a `checkParsedFiles` assertion only what a schema cannot
+say (a relation between two documents, a value that depends on the tree). A declared assertion over a field
+is a schema check in disguise, and a coded rule mirroring a schema's shape by hand is one that will drift.
 
 1. **Author the check** in the owning pack, at the ladder's highest check rung the rule allows: an entry
    in `<pack>/declared-checks.json` when its logic is patterns over files, dropping to `<pack>/<rule>.mjs`

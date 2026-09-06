@@ -2,7 +2,7 @@ import { finding } from '../../../engine/checks/helpers/findings.mjs';
 import { stripComments } from '../../../engine/checks/helpers/code-scanning.mjs';
 import { FREQUENCIES } from '../../claudinite-tasks/calendar.mjs';
 import { MODEL_FAMILIES } from '../../claudinite-tasks/model-map.mjs';
-import { OUTCOMES, LEGACY_OUTCOMES, DEFAULT_AGENT_MODEL, descriptionProblem } from '../../claudinite-tasks/task-contract.mjs';
+import { OUTCOMES, LEGACY_OUTCOMES, LEGACY_CEILINGS, OUTCOME_NO_PR, DEFAULT_AGENT_MODEL, descriptionProblem } from '../../claudinite-tasks/task-contract.mjs';
 import { validatePreconditions, termsMap } from '../../claudinite-tasks/precondition-policy.mjs';
 import {
   TASK_DECLARATION_PATH_RE, isLegacyTaskDeclarationPath, readDeclarationFields,
@@ -105,11 +105,17 @@ const rule = {
         flag('declares no "expected_outcome"', `add "expected_outcome": one of ${OUTCOMES.join(', ')}`);
       } else if (LEGACY_OUTCOMES[outcome] !== undefined) {
         advise(`declares the legacy outcome ceiling "${outcome}"`,
-          `write the pair it normalizes to: "expected_outcome": "pr", "automerge": "${LEGACY_OUTCOMES[outcome]}" — and consider a narrower policy than "${LEGACY_OUTCOMES[outcome]}" (a list of diff classes, e.g. ["comment-only-changes"])`);
+          `write the pair it normalizes to: "expected_outcome": "fresh_pr", "automerge": "${LEGACY_OUTCOMES[outcome]}" — and consider a narrower policy than "${LEGACY_OUTCOMES[outcome]}" (a list of diff classes, e.g. ["comment-only-changes"])`);
+      } else if (LEGACY_CEILINGS[outcome] !== undefined) {
+        advise(`declares the legacy outcome ceiling "${outcome}"`,
+          `write the word it became: "expected_outcome": "${LEGACY_CEILINGS[outcome]}" — the same behaviour, in the vocabulary that also offers amend_existing_or_create_new_pr and supersede_existing_pr`);
       } else if (!OUTCOMES.includes(outcome)) {
         flag(`"expected_outcome" is "${outcome}", not a legal value`, `use one of: ${OUTCOMES.join(', ')}`);
-      } else if (outcome === 'none' && hasMayAutomerge) {
-        flag('a "none" task declares "automerge"', 'drop it — a task that opens no pull request has nothing to merge; or set expected_outcome: "pr"');
+      }
+      // Judged on the word the door normalizes to, so the retired `none` gets the
+      // same verdict as today's spelling beside its rename advisory.
+      if (outcome !== null && (LEGACY_CEILINGS[outcome] ?? outcome) === OUTCOME_NO_PR && hasMayAutomerge) {
+        flag(`a "${OUTCOME_NO_PR}" task declares "automerge"`, 'drop it — a task that opens no pull request has nothing to merge; or set expected_outcome: "fresh_pr"');
       }
 
       if (str('id') === null) flag('declares no string "id"', 'add "id": the task name (matching its directory)');

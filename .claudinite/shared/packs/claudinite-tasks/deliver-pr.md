@@ -7,6 +7,21 @@ the other in the same commit. Your GitHub writes go through the session's MCP to
 your pushes ride a credential whose events start workflows normally, so — unlike the code
 lane — your PR's checks need no help from you to run.
 
+## The branch and the pull request were chosen for you
+
+**Push to the `Target-branch:` your item carries, and onto the `Target-pr:` where it
+carries one.** The executor resolved both from the task's `expected_outcome` before
+your session started: `fresh_pr` gave you a new branch and left the task's earlier pull
+requests alone; `amend_existing_or_create_new_pr` gave you the branch of the task's
+newest open pull request when it had no conflicts, and a fresh one otherwise;
+`supersede_existing_pr` gave you a fresh branch and listed the earlier ones under
+`Supersedes:`. Where there is a `Target-pr:`, push onto it and open nothing — the pull
+request already exists and your push updates it. Where there is none, open your pull
+request on that branch. Never mint a branch name, never search for an open pull
+request to reuse, and never close an earlier run's pull request yourself: the converge
+(`converge-item.mjs`, handed `--pr`) closes what `Supersedes:` names once yours
+exists, and a run that delivered nothing leaves them where they were.
+
 ## Say which task wrote it
 
 **Every commit you push on a task's behalf carries `Claudinite-Task: <pack>/<task>` on
@@ -22,7 +37,8 @@ says it in the commit.
 ## The task sets the ceiling; the repo decides the rest
 
 Your task's declared `automerge` is a **ceiling, not a plan** (the legacy
-`expected_outcome: 'open-pr'` reads as `nothing`, `'merged-pr'` as `anything`).
+`expected_outcome: 'open-pr'` reads as `fresh_pr` with `nothing`, `'merged-pr'` as
+`fresh_pr` with `anything`; `none` and `pr` read as `no_code_changes` and `fresh_pr`).
 On a request item the authorization is the item's **`Merge:` field** instead,
 read within that ceiling: absent means `nothing`, `if-narrow` means the
 `narrow-diff` composite, and any other value is the policy expression itself.

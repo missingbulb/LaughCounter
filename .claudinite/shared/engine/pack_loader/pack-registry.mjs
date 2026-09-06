@@ -251,8 +251,10 @@ async function scanPackDir(dir, { local, subdir }, errors) {
     // exactly that case (#1186).
     const pack = { ...normalizeManifest({ ...mod,
       ...(local ? {} : { id: canonicalPackId(mod.id), rawId: mod.id }),
-      worldRules: [...(mod.worldRules ?? scanned.worldRules ?? []), ...declared.filter((r) => r.scope !== 'work')],
-      workRules: [...(mod.workRules ?? scanned.workRules ?? []), ...declared.filter((r) => r.scope === 'work')],
+      // A declaration judging the session — scope "work" or "action" — rides the
+      // work list: both run at Stop, over the change and the transcript.
+      worldRules: [...(mod.worldRules ?? scanned.worldRules ?? []), ...declared.filter((r) => r.scope !== 'work' && r.scope !== 'action')],
+      workRules: [...(mod.workRules ?? scanned.workRules ?? []), ...declared.filter((r) => r.scope === 'work' || r.scope === 'action')],
     }), dir: packDir, local };
     pack.skillChecks = await scanSkillChecks(packDir, errors);
     out.push(pack);

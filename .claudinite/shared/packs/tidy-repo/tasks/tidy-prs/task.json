@@ -6,7 +6,7 @@
   "preconditions": [
     "prs-touched"
   ],
-  "expected_outcome": "none",
+  "expected_outcome": "no_code_changes",
   "agent_model": "sonnet",
   "agent_instructions": "task.md",
   "agent_execution_timeout": 900

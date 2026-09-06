@@ -9,7 +9,7 @@
   "preconditions": [
     "substantive-change"
   ],
-  "expected_outcome": "pr",
+  "expected_outcome": "amend_existing_or_create_new_pr",
   "automerge": [
     "claudinite-local-pack-md-changes",
     "claudinite-local-pack-check-changes"

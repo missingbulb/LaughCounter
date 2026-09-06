@@ -318,6 +318,11 @@ export async function main() {
 
   const pr = await deliverGenerated({
     root, repo, base, token, stamp: today, branchPrefix: PR_BRANCH_PREFIX, log,
+    // Which branch and pull request this fold lands on is the executor's decision
+    // (DESIGN §6.4b), handed in as environment; the prefix and stamp beside it are
+    // the lane's own fallback for an executor that predates the hand-off.
+    branch: process.env.CLAUDINITE_TARGET_BRANCH || null,
+    pr: process.env.CLAUDINITE_TARGET_PR ? Number(process.env.CLAUDINITE_TARGET_PR) : null,
     // Which task wrote this, stamped onto the branch commit and the merge commit:
     // the fold's own delivery must read as machinery, never as the repo moving.
     task: 'claudinite-tasks/usage-fold',

@@ -54,6 +54,8 @@ async function gh(token, path, { method = 'GET', body } = {}) {
 
 // One branch per run, dated and seeded like baselining's: two runs on one day must
 // not collide, and a name that carries its date is one a human can read a week later.
+// Minted only under an executor that hands no target in (DESIGN §6.4b) — see the
+// tolerance in `main`, and #1698 for its removal.
 export const updateBranchName = (day, seed) => `${UPDATE_PREFIX}-${day}-${seed}`;
 
 // The line the LIVE CANARY rehearsal greps for. A rehearsal that converges nothing
@@ -126,28 +128,35 @@ export async function main() {
   // left; every other repo — the normal shape, the key absent — has it landed.
   const delivery = deliveryFor(declaration);
 
-  // DISPOSE OF THE INCUMBENT FIRST (#787). A cycle that could not land its PR — the
-  // usual cause is a `pull_request` run parked at `action_required` while the
-  // dispatched one goes green seconds after the wait gave up — leaves it open for
-  // "the next run to dispose of". This is that disposal, and it must happen BEFORE
-  // the converge for the reason the bug existed: a cycle that finds nothing to do
-  // returns early, so disposal placed after the converge is unreachable on exactly
-  // the quiet cycle that should perform it. A cycle that cannot clear the way does
-  // not deliver on top of it — one update PR is alive at a time, or none.
-  const open = rehearsalRef ? { json: [] } : await gh(token, `/repos/${repo}/pulls?state=open&per_page=100`);
-  const incumbent = openDeliveredPull(open.json, UPDATE_PREFIX);
-  if (incumbent) {
-    const disposal = await disposeOpenPull({
-      task: UPDATE_TASK_ID,
-      token, repo, pr: incumbent, delivery, log: (s) => console.log(`update: ${s}`),
-    }).catch((e) => { console.log(`update: disposing of PR #${incumbent.number} failed: ${e.message}`); return 'kept'; });
-    if (disposal === 'kept') {
-      console.log(`update: PR #${incumbent.number} still stands — this cycle cannot deliver on top of it`);
-      return;
-    }
-    if (disposal === 'merged') {
-      console.log(`update: landed PR #${incumbent.number}; main has moved past this checkout — next cycle converges from it`);
-      return;
+  // THE TARGET (tasks-dispatch DESIGN §6.4b). Which branch this run pushes to, and
+  // what becomes of the previous cycle's pull request, is the executor's decision:
+  // the task declares `supersede_existing_pr`, the executor resolved it before this
+  // subprocess started — landing a green incumbent, or closing the rest once this
+  // run's own pull request exists — and handed the branch in. Nothing here reads
+  // the open pull requests or picks a name.
+  const targetBranch = process.env.CLAUDINITE_TARGET_BRANCH || null;
+  if (!targetBranch) {
+    // AN EXECUTOR THAT PREDATES THE HAND-OFF sets no target, and then the disposal
+    // this worker used to do on its own still has to happen, or incumbents pile up
+    // (#787): a cycle that could not land its PR leaves it open for the next run,
+    // and that disposal must precede the converge, because a cycle with nothing to
+    // do returns early. Held for the convergence window #1698 closes.
+    // @legacy-tolerance advisory:none retire:#1698
+    const open = rehearsalRef ? { json: [] } : await gh(token, `/repos/${repo}/pulls?state=open&per_page=100`);
+    const incumbent = openDeliveredPull(open.json, UPDATE_PREFIX);
+    if (incumbent) {
+      const disposal = await disposeOpenPull({
+        task: UPDATE_TASK_ID,
+        token, repo, pr: incumbent, delivery, log: (s) => console.log(`update: ${s}`),
+      }).catch((e) => { console.log(`update: disposing of PR #${incumbent.number} failed: ${e.message}`); return 'kept'; });
+      if (disposal === 'kept') {
+        console.log(`update: PR #${incumbent.number} still stands — this cycle cannot deliver on top of it`);
+        return;
+      }
+      if (disposal === 'merged') {
+        console.log(`update: landed PR #${incumbent.number}; main has moved past this checkout — next cycle converges from it`);
+        return;
+      }
     }
   }
 
@@ -214,7 +223,9 @@ export async function main() {
 
     const day = new Date().toISOString().slice(0, 10);
     const seed = Math.random().toString(36).slice(2, 8);
-    const branch = updateBranchName(day, seed);
+    // The executor's branch where it handed one in; the runner's own only under an
+    // executor that set none (the tolerance above).
+    const branch = targetBranch ?? updateBranchName(day, seed);
     git(['-C', root, 'checkout', '-B', branch]);
     git(['-C', root, 'add', '-A']);
     const staged = git(['-C', root, 'diff', '--cached', '--name-only']).split('\n').filter(Boolean);

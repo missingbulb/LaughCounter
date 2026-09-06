@@ -452,6 +452,17 @@ export const BLOCKED_BY_FIELD = 'Blocked-by';
 export const ENDS_WHEN_FIELD = 'Ends-when';
 export const ENDS_WHEN_CLOSED = 'closed';
 
+// THE TARGET (DESIGN §6.4b) — which branch and pull request this run works on,
+// decided by the executor once the precondition said go and stamped here at the
+// hand-off, so the agent reads it where it reads everything else and never picks a
+// branch of its own. `Target-pr` is present only when the run AMENDS an open pull
+// request; `Supersedes` names the task's earlier pull requests a
+// `supersede_existing_pr` run closes once its own exists — read back by the
+// session's converge, which performs those closes.
+export const TARGET_BRANCH_FIELD = 'Target-branch';
+export const TARGET_PR_FIELD = 'Target-pr';
+export const SUPERSEDES_FIELD = 'Supersedes';
+
 // The three fields a REQUEST item carries (DESIGN §16.3, §16.11). `Request` is the issue this
 // run implements — the whole payload, since the request task has no code-work phase
 // to hand one over. `Model` is the family the asker chose, copied here by the scheduler run
@@ -582,6 +593,9 @@ const REQUEST_RE = /^Request:[ \t]*#?(\d+)/m;
 const MODEL_RE = /^Model:[ \t]*(\S+)/m;
 const MERGE_RE = /^Merge:[ \t]*(\S+)/m;
 const ENDS_WHEN_RE = /^Ends-when:[ \t]*#(\d+)[ \t]+(\S+)[ \t]*$/m;
+const TARGET_BRANCH_RE = /^Target-branch:[ \t]*(\S+)[ \t]*$/m;
+const TARGET_PR_RE = /^Target-pr:[ \t]*#?(\d+)[ \t]*$/m;
+const SUPERSEDES_RE = /^Supersedes:[ \t]*(.*)$/m;
 
 // Build a work item body. The first line is the task path — the only thing an
 // executor reads to locate the worker, validated in code before anything trusts
@@ -643,7 +657,10 @@ export function parseWorkItemBody(body) {
   // it cannot evaluate must read as "no end condition", never as one that is met.
   const ends = ENDS_WHEN_RE.exec(text);
   const endsWhen = ends && ends[2] === ENDS_WHEN_CLOSED ? Number(ends[1]) : null;
-  return { taskPath, notBefore: nb, blockedBy, request, model, merge, endsWhen };
+  const targetBranch = TARGET_BRANCH_RE.exec(text)?.[1] ?? null;
+  const targetPr = TARGET_PR_RE.exec(text) ? Number(TARGET_PR_RE.exec(text)[1]) : null;
+  const supersedes = [...(SUPERSEDES_RE.exec(text)?.[1] ?? '').matchAll(/#(\d+)/g)].map((m) => Number(m[1]));
+  return { taskPath, notBefore: nb, blockedBy, request, model, merge, endsWhen, targetBranch, targetPr, supersedes };
 }
 
 // WHAT A MARKED ISSUE ASKS FOR (DESIGN §16.3, §16.7, §16.11) — read from the
@@ -706,6 +723,13 @@ function sectionLines(body, heading) {
 
 export const parseContextLines = (body) => sectionLines(body, 'Context');
 
+// The item's own `### Progress` bullets — the running account a holder appends to
+// while it works. Read back so a beat can add a line without losing the ones before
+// it: nothing can edit a posted comment, so the body is the only surface a long run
+// has that grows in place instead of by repetition.
+export const PROGRESS_HEADING = 'Progress';
+export const parseProgressLines = (body) => sectionLines(body, PROGRESS_HEADING);
+
 // --- the roll's record ----------------------------------------------------------
 
 // The section a no-go roll keeps on the item: the last declined reason and the next
@@ -767,6 +791,35 @@ export function withEndsWhen(body, number) {
   const at = lines.findIndex((l) => l.trim() !== '');
   if (at === -1) return `${field}\n`;
   lines.splice(at + 1, 0, '', field);
+  return lines.join('\n');
+}
+
+// Stamp the target's three lines, replacing whatever an earlier resolution left:
+// a re-pick re-resolves, and the item must say what THIS episode works on, not
+// both. A target with nothing to say (`none`, or no superseded set) clears its
+// lines, and a body that never carried any is returned as it was. Same surgery as
+// `withNotBefore`: the fields sit under the task path, ahead of the sections
+// other writers own — and on a marked issue that path is the machine block's
+// first line, never the person's prose, which is why this one routes through
+// `editItemBody` itself rather than trusting every caller to.
+export function withTarget(body, target) {
+  return editItemBody(body, (text) => stampTarget(text, target));
+}
+
+function stampTarget(body, target) {
+  const wanted = [];
+  if (target?.branch) wanted.push(`${TARGET_BRANCH_FIELD}: ${target.branch}`);
+  if (target?.pr != null && target?.mode === 'amend') wanted.push(`${TARGET_PR_FIELD}: #${target.pr}`);
+  if (target?.supersedes?.length) wanted.push(`${SUPERSEDES_FIELD}: ${target.supersedes.map((n) => `#${n}`).join(', ')}`);
+  const stripped = String(body ?? '')
+    .replace(/^Target-branch:[ \t]*.*\n?/gm, '')
+    .replace(/^Target-pr:[ \t]*.*\n?/gm, '')
+    .replace(/^Supersedes:[ \t]*.*\n?/gm, '');
+  if (!wanted.length) return stripped === String(body ?? '') ? body : stripped;
+  const lines = stripped.split('\n');
+  const at = lines.findIndex((l) => l.trim() !== '');
+  if (at === -1) return `${wanted.join('\n')}\n`;
+  lines.splice(at + 1, 0, '', ...wanted);
   return lines.join('\n');
 }
 

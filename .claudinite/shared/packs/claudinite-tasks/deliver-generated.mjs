@@ -104,10 +104,31 @@ export function pushGenerated(root, { remote, baseSha, branch, files, message })
   } finally { rmSync(index, { force: true }); }
 }
 
-// Deliver `files` on a PR that lands itself where the member allows it. An open PR
-// whose head branch carries `branchPrefix` is REUSED — a daily regenerate that runs
-// before yesterday's PR merged updates that PR rather than stacking a second one —
-// otherwise a `<branchPrefix>/<stamp>` branch is minted and a PR opened on it.
+// Which branch the regenerate lands on and which pull request it updates — THE
+// EXECUTOR'S DECISION, handed in (tasks-dispatch DESIGN §6.4b): `branch` is the
+// one it resolved, `pr` the open pull request it said to amend, or null for a fresh
+// one on that branch. A named pull request the open list no longer carries was
+// closed under the run; the branch is still the one to push to, and a new pull
+// request opens on it.
+//
+// With no `branch` handed in — an executor that predates the hand-off — the lane
+// falls back to what it did on its own: reuse an open pull request whose head
+// carries `branchPrefix`, else mint `<branchPrefix>/<stamp>`.
+// @legacy-tolerance advisory:none retire:#1698
+export function generatedTarget({ pulls, branchPrefix = null, stamp = null, branch = null, pr = null }) {
+  const open = Array.isArray(pulls) ? pulls : [];
+  if (branch) {
+    const named = pr == null ? null : open.find((p) => p.number === Number(pr)) ?? null;
+    return { branch, pr: named, reused: Boolean(named) };
+  }
+  const found = open.find((p) => p.head?.ref?.startsWith(`${branchPrefix}/`)) ?? null;
+  return { branch: found ? found.head.ref : `${branchPrefix}/${stamp}`, pr: found, reused: Boolean(found) };
+}
+
+// Deliver `files` on a PR that lands itself where the member allows it, on the
+// branch and pull request the executor resolved (`branch`, `pr` — see
+// `generatedTarget`): amending an open pull request updates it in place, so a
+// daily regenerate that runs before yesterday's merged does not stack a second one.
 //
 // How the PR lands is land-pr.mjs's business, not the calling task's: the member's
 // `dailyClaudiniteUpdatesRequirePrReview` (read from the BASE tip — a repo that
@@ -116,11 +137,11 @@ export function pushGenerated(root, { remote, baseSha, branch, files, message })
 // land stays open — the next run rebuilds it from the base, so nothing is lost.
 //
 // Returns { branch, number, reused, delivery, merged }.
-export async function deliverGenerated({ root, repo, base, token, branchPrefix, stamp, files, title, body, message, task = null, log = console.log }) {
+export async function deliverGenerated({ root, repo, base, token, branchPrefix = null, stamp = null, branch: targetBranch = null, pr: targetPr = null, files, title, body, message, task = null, log = console.log }) {
   const { json: pulls } = await gh(token, `/repos/${repo}/pulls?state=open&per_page=100`);
-  let pr = (Array.isArray(pulls) ? pulls : []).find((p) => p.head?.ref?.startsWith(`${branchPrefix}/`));
-  const reused = Boolean(pr);
-  const branch = reused ? pr.head.ref : `${branchPrefix}/${stamp}`;
+  const chosen = generatedTarget({ pulls, branchPrefix, stamp, branch: targetBranch, pr: targetPr });
+  let { pr } = chosen;
+  const { branch, reused } = chosen;
   const remote = remoteUrl(repo, token);
 
   const baseSha = baseTip(root, remote, base);

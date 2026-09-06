@@ -337,9 +337,10 @@ export function findTranscript({ root, sessionId, projects = projectsRoot() }) {
   return best?.path ?? null;
 }
 
-// Subagent sidechains, when the harness writes them as separate files: any
-// agent-*.jsonl under the session's own directory. (Current harnesses inline
-// sidechain entries in the main file; this sweeps up the split-file layout too.)
+// Subagent sidechains: any agent-*.jsonl under the session's own directory —
+// where the harness writes a subagent's stream (engine/checks/helpers/session-transcript.mjs
+// states the layout). Swept at any depth, since older harnesses instead inlined
+// sidechain entries in the main file and a mixed session must still merge whole.
 function sidechainFiles(transcript, sessionId) {
   const roots = [join(dirname(transcript), sessionId)];
   const out = [];
