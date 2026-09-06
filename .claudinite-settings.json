@@ -5,6 +5,14 @@
       "version": "60906.3"
     },
     {
+      "id": "claudinite-lifecycle",
+      "version": "60906.3"
+    },
+    {
+      "id": "git-github",
+      "version": "60906.1"
+    },
+    {
       "id": "claudinite-growth",
       "version": "60906.3"
     },
@@ -13,27 +21,24 @@
       "version": "60906.1"
     },
     {
-      "id": "git-github",
-      "version": "60906.1"
-    },
-    "local/on-device-privacy",
-    "local/macos-audio",
-    "local/laughcounter",
-    {
       "id": "claude-code-web-users-support",
       "version": "60902.1",
       "config": {
         "repo": "missingbulb/Shepherd"
+      },
+      "answers": {
+        "store": "missingbulb/Shepherd"
       }
-    },
-    {
-      "id": "claudinite-lifecycle",
-      "version": "60906.3"
     },
     {
       "id": "claudinite-tasks",
       "version": "60906.5"
-    }
+    },
+    {
+      "id": "macos",
+      "version": "60906.1"
+    },
+    "local/laugh-counter"
   ],
   "accept": [],
   "taskScheduler": {

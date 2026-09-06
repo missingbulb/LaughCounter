@@ -6,10 +6,10 @@
 // Dependency-free (a local pack loads without the canon mount): plain findings.
 
 const rule = {
-  id: 'on-device-privacy/on-device-speech',
+  id: 'laugh-counter/on-device-speech',
   severity: 'blocking',
   description: 'Every SFSpeech recognition request must set requiresOnDeviceRecognition',
-  doc: '.claudinite/local/packs/on-device-privacy/RULES.md',
+  doc: '.claudinite/local/packs/laugh-counter/RULES.md',
   why: "Speech defaults to server-side recognition, which would ship living-room audio to Apple — the opposite of what the app's mic prompt promises",
 
   run(ctx) {

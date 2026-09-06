@@ -40,10 +40,10 @@ const inScope = (f) => f.startsWith('mac/Sources/') && f.endsWith('.swift');
 const caseName = (token) => token.replace(/^.*\./, '');
 
 const rule = {
-  id: 'on-device-privacy/single-storage-directory',
+  id: 'laugh-counter/single-storage-directory',
   severity: 'blocking',
   description: 'The app asks macOS for only one directory: .applicationSupportDirectory (mac/Sources/)',
-  doc: '.claudinite/local/packs/on-device-privacy/RULES.md',
+  doc: '.claudinite/local/packs/laugh-counter/RULES.md',
   why: '"delete the folder and it\'s gone" is a promise a user acts on — a second storage root means the mic\'s memory of them outlives the directory they deleted',
 
   run(ctx) {
