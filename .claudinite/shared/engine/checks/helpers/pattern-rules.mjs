@@ -333,6 +333,63 @@ import { normalizeEdges, barrierFindings, staleFindings } from './reference-scan
 //                      because appending an array element re-touches the line
 //                      above it. An unparsable head asserts nothing; an absent
 //                      base makes every value an addition. {value} interpolates
+//   forbidAddedLinesMatching [{ inFilesMatching, match, unlessLineMatches, what, fix }]
+//                      one finding per line the change ADDS (in a changed file
+//                      the path pattern selects) that `match` hits and
+//                      `unlessLineMatches` does not; a brand-new file's every
+//                      line is added. {match} interpolates
+//   forbidRemovedLinesMatching [{ inFilesMatching, match, unlessLineMatches,
+//                                 unlessMatchRemainsInFile, what, fix }]
+//                      the mirror: one finding per line the change REMOVES,
+//                      anchored where the base held it — an append-only file's
+//                      rule. unlessMatchRemainsInFile: true forgives a removal
+//                      whose matched text the file still carries somewhere (a
+//                      reworded line is a removal plus an addition to the
+//                      diff, not a loss). {match} interpolates
+//   requireCoChange    [{ whenChangedFileMatches | whenAddedLineMatches:
+//                           { inFilesMatching, match },
+//                         requireChangedFileMatching, what, fix }]
+//                      a change to one thing requires a change to another in
+//                      the same branch: where some changed file matches the
+//                      first pattern (or some added line in such a file matches
+//                      the second), some changed file must match
+//                      `requireChangedFileMatching`; one finding per triggering
+//                      file when none does ({path} = that file)
+//   flagUntrackedFilesMatching [{ match, what, fix }]
+//                      one finding per file in the run's set that git does not
+//                      track — the test a `git ls-files`-driven suite never ran
+//   whenReplyClassIncludes  a class name, or a list of them — "correction",
+//                      "feature", "process-change", "other": a RULE-LEVEL gate
+//                      on the session's declared comment classes (the
+//                      classification lines the replies carry), so a work rule
+//                      can say "on a process change, the diff must reach the
+//                      local packs". Every assertion of the rule asserts
+//                      nothing unless some reply declared one of the classes;
+//                      no transcript, nothing asserted
+//
+// The ACTION assertion — declarable only under `scope: "action"`: a rule about
+// a TOOL CALL, evaluated twice from one declaration. The PreToolUse hook
+// (engine/hooks/pretooluse-command.mjs) judges the call about to run — a
+// blocking finding denies it and hands the agent the text, an advisory one lets
+// it run and injects the text as context, so the bias is heard at the moment it
+// applies — and check_the_work judges every call the session's transcript
+// records, one finding per offending call: the backstop for a hook that never
+// fired, and the count the usage fold reads.
+//   guardToolCalls     [{ tool, inputField, match, requireMatch, unlessMatches,
+//                         inputMatches, unlessInputMatches, inputFieldAbsent,
+//                         atMostPerSession, what, fix }]
+//                      `tool` is the tool's exact name or a regex over names
+//                      (/^mcp__github__(list|search)_/). The entry fires on a
+//                      call to it when every condition it declares holds and
+//                      no unless-condition does: `match` hits the value at
+//                      `inputField` (a dot path into the tool's input, read as
+//                      text) / `requireMatch` MISSES it / `inputMatches` hits
+//                      the whole input serialized as JSON / some field named
+//                      in `inputFieldAbsent` is missing / this is the call past
+//                      `atMostPerSession` earlier calls of the tool in this
+//                      session with the same `inputField` value (the same
+//                      whole input, without one). {tool}, {field} (the field's
+//                      text) and {match} interpolate
 //
 // The reference-barrier assertion — a directed folder-access graph enforced by
 // the reference-scanning engine (helpers/reference-scanning.mjs, which owns the
@@ -421,6 +478,8 @@ const SPEC_KEYS = {
     'extractValueSets', 'requireIndexCoverage', 'checkParsedFiles', 'forbidReferences',
     'checkSetValues', 'checkSetPairs', 'requireIdenticalFiles',
     'checkBranchCommits', 'forbidIntroducedMergeCommits', 'forbidAddedValueInArray',
+    'forbidAddedLinesMatching', 'forbidRemovedLinesMatching', 'requireCoChange', 'flagUntrackedFilesMatching',
+    'whenReplyClassIncludes', 'guardToolCalls',
     'listedInFile', 'coveredByGlobLine', 'checkParsedFile', 'equalParsedValues',
     'forEachParsedEntry', 'checkKeyValueFile', 'checkSections'],
   checkParsedFiles: ['file', 'filesMatching', 'whereFileContains', 'everyScannedFile',
@@ -477,6 +536,13 @@ const SPEC_KEYS = {
   checkBranchCommits: ['someMessageMatches', 'unlessOnDefaultBranch', ...MSG],
   forbidIntroducedMergeCommits: MSG,
   forbidAddedValueInArray: ['file', 'filesMatching', 'whereFileContains', 'atFields', ...MSG],
+  forbidAddedLinesMatching: ['inFilesMatching', 'match', 'unlessLineMatches', ...MSG],
+  forbidRemovedLinesMatching: ['inFilesMatching', 'match', 'unlessLineMatches', 'unlessMatchRemainsInFile', ...MSG],
+  requireCoChange: ['whenChangedFileMatches', 'whenAddedLineMatches', 'requireChangedFileMatching', ...MSG],
+  whenAddedLineMatches: ['inFilesMatching', 'match'],
+  flagUntrackedFilesMatching: ['match', ...MSG],
+  guardToolCalls: ['tool', 'inputField', 'match', 'requireMatch', 'unlessMatches', 'inputMatches',
+    'unlessInputMatches', 'inputFieldAbsent', 'atMostPerSession', ...MSG],
   listedInFile: ['eachTrackedPathMatching', 'listFile', 'asText', ...MSG],
   coveredByGlobLine: ['eachPathMatching', 'includeVendored', 'globFile', 'globLineMatching', ...MSG],
   checkParsedFile: ['file', 'whenFieldPresent', 'requireField', 'forbidField', ...MSG],
@@ -618,15 +684,71 @@ function normalizeLegacySpellings(spec) {
 // Shape rules the key table can't state: each merged-family entry needs exactly
 // one selector, at least one assertion, and closed-vocabulary mode values; a
 // count entry needs its pattern and a coherent bound.
-const WORK_ASSERTIONS = ['checkBranchCommits', 'forbidIntroducedMergeCommits', 'forbidAddedValueInArray'];
+const WORK_ASSERTIONS = ['checkBranchCommits', 'forbidIntroducedMergeCommits', 'forbidAddedValueInArray',
+  'forbidAddedLinesMatching', 'forbidRemovedLinesMatching', 'requireCoChange', 'flagUntrackedFilesMatching',
+  'whenReplyClassIncludes'];
+const REPLY_CLASSES = ['correction', 'feature', 'process-change', 'other'];
 
 function validateEntryShapes(spec, where) {
-  if (spec.scope !== undefined && spec.scope !== 'work') {
-    throw new Error(`${where}: "scope" takes "work" (judging the change) or nothing at all (the default, judging the repo), not ${JSON.stringify(spec.scope)}`);
+  if (spec.scope !== undefined && spec.scope !== 'work' && spec.scope !== 'action') {
+    throw new Error(`${where}: "scope" takes "work" (judging the change), "action" (judging a tool call) or nothing at all (the default, judging the repo), not ${JSON.stringify(spec.scope)}`);
   }
   for (const key of WORK_ASSERTIONS) {
     if (spec[key] !== undefined && spec.scope !== 'work') {
       throw new Error(`${where}: "${key}" reads the change, so its declaration needs scope: "work"`);
+    }
+  }
+  if (spec.guardToolCalls !== undefined && spec.scope !== 'action') {
+    throw new Error(`${where}: "guardToolCalls" judges a tool call, so its declaration needs scope: "action"`);
+  }
+  if (spec.scope === 'action' && !(spec.guardToolCalls ?? []).length) {
+    throw new Error(`${where}: an action declaration asserts nothing — add "guardToolCalls"`);
+  }
+  for (const a of spec.guardToolCalls ?? []) {
+    if (!(typeof a.tool === 'string' && a.tool.trim()) && !(a.tool instanceof RegExp)) {
+      throw new Error(`${where}: a guardToolCalls entry needs "tool" — the tool's exact name, or a regex over names`);
+    }
+    const conditions = ['match', 'requireMatch', 'inputMatches', 'inputFieldAbsent', 'atMostPerSession'].filter((k) => a[k] !== undefined);
+    if (!conditions.length) {
+      throw new Error(`${where}: a guardToolCalls entry names a condition — "match", "requireMatch", "inputMatches", "inputFieldAbsent" or "atMostPerSession"`);
+    }
+    if ((a.match !== undefined || a.requireMatch !== undefined || a.unlessMatches !== undefined) && typeof a.inputField !== 'string') {
+      throw new Error(`${where}: "match", "requireMatch" and "unlessMatches" read the value at "inputField" — name the field`);
+    }
+    if (a.inputFieldAbsent !== undefined && !(Array.isArray(a.inputFieldAbsent) && a.inputFieldAbsent.length && a.inputFieldAbsent.every((k) => typeof k === 'string'))) {
+      throw new Error(`${where}: "inputFieldAbsent" is a non-empty list of field names`);
+    }
+    if (a.atMostPerSession !== undefined && !(Number.isInteger(a.atMostPerSession) && a.atMostPerSession > 0)) {
+      throw new Error(`${where}: "atMostPerSession" is a positive whole number of calls`);
+    }
+  }
+  for (const key of ['forbidAddedLinesMatching', 'forbidRemovedLinesMatching']) {
+    for (const a of spec[key] ?? []) {
+      if (!(a.inFilesMatching instanceof RegExp) || !(a.match instanceof RegExp)) {
+        throw new Error(`${where}: a ${key} entry needs "inFilesMatching" (which changed files) and "match" (the line pattern), both regexes`);
+      }
+    }
+  }
+  for (const a of spec.requireCoChange ?? []) {
+    const triggers = [a.whenChangedFileMatches, a.whenAddedLineMatches].filter((v) => v !== undefined);
+    if (triggers.length !== 1) {
+      throw new Error(`${where}: a requireCoChange entry triggers on exactly one of "whenChangedFileMatches" or "whenAddedLineMatches"`);
+    }
+    if (a.whenAddedLineMatches !== undefined &&
+        (!(a.whenAddedLineMatches.inFilesMatching instanceof RegExp) || !(a.whenAddedLineMatches.match instanceof RegExp))) {
+      throw new Error(`${where}: "whenAddedLineMatches" takes "inFilesMatching" (which changed files) and "match" (the added-line pattern), both regexes`);
+    }
+    if (!(a.requireChangedFileMatching instanceof RegExp)) {
+      throw new Error(`${where}: a requireCoChange entry needs "requireChangedFileMatching", the pattern some changed file must match`);
+    }
+  }
+  for (const a of spec.flagUntrackedFilesMatching ?? []) {
+    if (!(a.match instanceof RegExp)) throw new Error(`${where}: a flagUntrackedFilesMatching entry needs "match", the path pattern`);
+  }
+  if (spec.whenReplyClassIncludes !== undefined) {
+    const classes = arr(spec.whenReplyClassIncludes);
+    if (!classes.length || classes.some((c) => !REPLY_CLASSES.includes(c))) {
+      throw new Error(`${where}: "whenReplyClassIncludes" names comment classes from ${REPLY_CLASSES.map((c) => `"${c}"`).join(', ')}`);
     }
   }
   for (const a of spec.forbidAddedValueInArray ?? []) {
@@ -1473,7 +1595,106 @@ function workFindings(rule, work) {
       }
     }
   }
+  const inScope = (a) => work.changedFiles.filter((f) => a.inFilesMatching.test(f) && !excluded(f, s.excludeMatchers));
+  for (const a of s.forbidAddedLinesMatching ?? []) {
+    for (const { file, line, text } of work.addedLines(inScope(a))) {
+      const m = text.match(a.match);
+      if (!m || a.unlessLineMatches?.test(text)) continue;
+      const vars = { ...(m.groups ?? {}), match: m[0], path: file, line };
+      out.push(finding(rule, { file, line, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
+    }
+  }
+  for (const a of s.forbidRemovedLinesMatching ?? []) {
+    for (const { file, line, text } of work.removedLines(inScope(a))) {
+      const m = text.match(a.match);
+      if (!m || a.unlessLineMatches?.test(text)) continue;
+      if (a.unlessMatchRemainsInFile && (work.read(file) ?? '').includes(m[0])) continue;
+      const vars = { ...(m.groups ?? {}), match: m[0], path: file, line };
+      out.push(finding(rule, { file, line, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
+    }
+  }
+  for (const a of s.requireCoChange ?? []) {
+    if (work.changedFiles.some((f) => a.requireChangedFileMatching.test(f))) continue;
+    const triggering = a.whenChangedFileMatches
+      ? work.changedFiles.filter((f) => a.whenChangedFileMatches.test(f))
+      : [...new Set(work.addedLines(work.changedFiles.filter((f) => a.whenAddedLineMatches.inFilesMatching.test(f)))
+        .filter(({ text }) => a.whenAddedLineMatches.match.test(text))
+        .map(({ file }) => file))];
+    for (const file of triggering) {
+      const vars = { path: file };
+      out.push(finding(rule, { file, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
+    }
+  }
+  for (const a of s.flagUntrackedFilesMatching ?? []) {
+    for (const file of work.untracked) {
+      if (!a.match.test(file) || excluded(file, s.excludeMatchers)) continue;
+      const vars = { path: file };
+      out.push(finding(rule, { file, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
+    }
+  }
   return out;
+}
+
+// One tool call judged against an action rule's guards: the findings for
+// `call` ({ name, input }), anchored at `at`, with `priorCalls` (the session's
+// earlier calls, in order) for the atMostPerSession count. The PreToolUse hook
+// calls this for the call about to run; the transcript backstop for each
+// recorded one.
+export function guardFindings(rule, call, priorCalls = [], at = '(tool call)') {
+  const out = [];
+  const input = call.input ?? {};
+  const json = JSON.stringify(input);
+  const namesTool = (a, name) => (a.tool instanceof RegExp ? a.tool.test(name) : a.tool === name);
+  const textAt = (obj, field) => {
+    const v = fieldAt(obj ?? {}, field);
+    return v === undefined || v === null ? '' : typeof v === 'string' ? v : JSON.stringify(v);
+  };
+  for (const a of rule.spec.guardToolCalls ?? []) {
+    if (!namesTool(a, call.name)) continue;
+    const field = a.inputField ? textAt(input, a.inputField) : '';
+    let m = null;
+    if (a.match !== undefined) { m = field.match(a.match); if (!m) continue; }
+    if (a.requireMatch !== undefined && a.requireMatch.test(field)) continue;
+    if (a.inputMatches !== undefined) { const mm = json.match(a.inputMatches); if (!mm) continue; m ??= mm; }
+    if (a.inputFieldAbsent !== undefined && !a.inputFieldAbsent.some((k) => fieldAt(input, k) === undefined)) continue;
+    if (a.atMostPerSession !== undefined) {
+      const key = a.inputField ? field : json;
+      const earlier = priorCalls.filter((c) => namesTool(a, c.name) &&
+        (a.inputField ? textAt(c.input, a.inputField) : JSON.stringify(c.input ?? {})) === key).length;
+      if (earlier < a.atMostPerSession) continue;
+    }
+    if (a.unlessMatches !== undefined && a.unlessMatches.test(field)) continue;
+    if (a.unlessInputMatches !== undefined && a.unlessInputMatches.test(json)) continue;
+    const vars = { ...(m?.groups ?? {}), tool: call.name, field, match: m ? m[0] : '' };
+    out.push(finding(rule, { file: at, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
+  }
+  return out;
+}
+
+// The Stop-time backstop: every call the transcript records, judged in order,
+// each anchored by its tool and ordinal so a finding names the call it means.
+// A call this rule already denied at the hook never ran, so there is nothing
+// left to fix: it is recorded advisory — the firing the usage fold counts,
+// without a block that no edit could clear.
+function actionFindings(rule, work) {
+  const calls = work.toolCalls();
+  const counts = new Map();
+  const out = [];
+  calls.forEach((call, i) => {
+    const n = (counts.get(call.name) ?? 0) + 1;
+    counts.set(call.name, n);
+    const found = guardFindings(rule, call, calls.slice(0, i), `(session) ${call.name} call #${n}`);
+    const denied = (call.deniedBy ?? []).includes(rule.id);
+    out.push(...found.map((f) => (denied ? { ...f, severity: 'advisory', what: `${f.what} (denied at the hook)` } : f)));
+  });
+  return out;
+}
+
+// The rule-level reply-class gate: open when some reply in the session declared
+// one of the named classes. No transcript, no declared class — closed.
+function replyGateOpen(work, classes) {
+  const declared = work.replyClasses();
+  return arr(classes).some((c) => declared.has(c));
 }
 
 // The indentation structure matchLines' block relations read. A line's own
@@ -1734,7 +1955,8 @@ function results(ctx) {
 // Where a declaration says RegExp: keys reading `/body/flags` strings. The two
 // sets differ in what a NON-regex string means — a path at PATH_OR_PATTERN_KEYS
 // (scanFiles: "README.md" is read directly), an authoring error anywhere else.
-const PATH_OR_PATTERN_KEYS = new Set(['scanFiles', 'excludeFiles']);
+// `tool` reads a non-regex string as an exact tool name, the way scanFiles reads one as a path.
+const PATH_OR_PATTERN_KEYS = new Set(['scanFiles', 'excludeFiles', 'tool']);
 const PATTERN_KEYS = new Set([
   'skipLinesMatching', 'match', 'andLineMatches', 'unlessLineMatches',
   'unlessPreviousLineMatches', 'andIndentedBlockBelowMatches', 'unlessIndentedBlockBelowMatches',
@@ -1746,7 +1968,8 @@ const PATTERN_KEYS = new Set([
   'eachScannedPathMatching', 'coveredByGlobLinesMatching', 'whoseTextMatches',
   'fromParsedFilesMatching', 'someMessageMatches', 'inParsedFilesMatching',
   'fromLinesMatching', 'fromTrackedPathsMatching', 'fromAddedLinesMatching', 'splitValuesOn',
-  'everyFileMatching',
+  'everyFileMatching', 'whenChangedFileMatches', 'requireChangedFileMatching',
+  'requireMatch', 'unlessMatches', 'inputMatches', 'unlessInputMatches',
 ]);
 // Containers whose pattern strings are TEMPLATES — holes like {value} filled per
 // set value — so they compile at assertion time, not at load. Their form is still
@@ -1877,7 +2100,9 @@ export function patternRule(declaration, { selfExclude = null } = {}) {
     // on the scope above); the scan machinery underneath it still reads the raw
     // context the surface wraps.
     run(input) {
+      if (spec.scope === 'action') return actionFindings(rule, input);
       const work = spec.scope === 'work' ? input : null;
+      if (work && spec.whenReplyClassIncludes !== undefined && !replyGateOpen(work, spec.whenReplyClassIncludes)) return [];
       const scanned = results(work ? work.ctx : input).get(rule);
       return work ? [...scanned, ...workFindings(rule, work)] : scanned;
     },

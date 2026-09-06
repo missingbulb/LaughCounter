@@ -6,7 +6,7 @@
   "preconditions": [
     "repo-active"
   ],
-  "expected_outcome": "pr",
+  "expected_outcome": "supersede_existing_pr",
   "automerge": [
     "claudinite-local-pack-md-changes"
   ],

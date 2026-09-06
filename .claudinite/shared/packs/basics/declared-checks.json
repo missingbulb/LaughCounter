@@ -96,7 +96,7 @@
     "failureMessage": "without merge=ours a conflicting merge on a generated file gets hand-resolved and desyncs from its source",
     "requireIndexCoverage": [
       {
-        "eachScannedPathMatching": "/(?<base>[^/]*GENERATED[^/]*)$/",
+        "eachScannedPathMatching": "/^(?!\\.claudinite/)(?:.*/)?(?<base>[^/]*GENERATED[^/]*)$/",
         "includeVendored": true,
         "indexFile": ".gitattributes",
         "coveredByGlobLinesMatching": "/\\bmerge=ours\\b/",
@@ -104,6 +104,16 @@
         "anchorFindingsAt": "eachUncoveredPath",
         "what": "a GENERATED file with no merge=ours .gitattributes entry",
         "fix": "add `{base} merge=ours` to .gitattributes so a conflicting merge auto-resolves — the session-start hook already sets the `merge.ours.driver` config in the clone"
+      },
+      {
+        "eachScannedPathMatching": "/^\\.claudinite/(?:.*/)?(?<base>[^/]*GENERATED[^/]*)$/",
+        "includeVendored": true,
+        "indexFile": ".claudinite/.gitattributes",
+        "coveredByGlobLinesMatching": "/\\bmerge=ours\\b/",
+        "whenIndexFileAbsent": "assertNothing",
+        "anchorFindingsAt": "eachUncoveredPath",
+        "what": "a GENERATED file under .claudinite/ that .claudinite/.gitattributes does not cover",
+        "fix": "the engine converges that file — run `node .claudinite/shared/engine/converge-wiring.mjs <owner/repo>` (silent until an engine that writes it has arrived)"
       }
     ]
   },
@@ -121,6 +131,126 @@
         "anchorFindingsAt": "indexFile",
         "what": "the pack \"{name}\" exists on disk but is not listed in packs/README.md",
         "fix": "add a \"{name}\" entry to packs/README.md (or delete the pack if it is dead)"
+      }
+    ]
+  },
+  {
+    "id": "untracked-test-file",
+    "severity": "advisory",
+    "scope": "work",
+    "failureMessage": "a suite driven by git ls-files never executes an untracked test, so a green run is not coverage of it",
+    "flagUntrackedFilesMatching": [
+      {
+        "match": "/\\.(test|spec)\\.[cm]?[jt]sx?$|(^|\\/)test_[^/]+\\.py$|_test\\.(py|go)$/",
+        "what": "{path} is untracked, so the suite you are certifying never ran it",
+        "fix": "git add {path}, then re-run the suite"
+      }
+    ]
+  },
+  {
+    "id": "grep-context-without-content",
+    "severity": "blocking",
+    "scope": "action",
+    "failureMessage": "under the default files_with_matches mode a context flag is silently ignored, so the call answers a file list and never the lines it asked for",
+    "guardToolCalls": [
+      {
+        "tool": "Grep",
+        "inputMatches": "/\"(-A|-B|-C|context)\":/",
+        "unlessInputMatches": "/\"output_mode\":\\s*\"content\"/",
+        "what": "a Grep with a context flag and no output_mode: \"content\"",
+        "fix": "add output_mode: \"content\" to the same call"
+      }
+    ]
+  },
+  {
+    "id": "generated-file-hand-edit",
+    "severity": "blocking",
+    "scope": "action",
+    "failureMessage": "a GENERATED file is written by its generator, and a hand edit is overwritten by the next run while its merge conflicts are resolved by neither side",
+    "guardToolCalls": [
+      {
+        "tool": "/^(Edit|Write|NotebookEdit)$/",
+        "inputMatches": "/\"(file_path|notebook_path)\":\\s*\"[^\"]*GENERATED[^\"]*\"/",
+        "what": "a hand edit of a GENERATED file",
+        "fix": "change the generator (or its inputs) and re-run it"
+      }
+    ]
+  },
+  {
+    "id": "wakeup-without-prompt",
+    "severity": "blocking",
+    "scope": "action",
+    "failureMessage": "the harness rejects a wake-up that carries no prompt, and a rejection leaves no fallback armed",
+    "guardToolCalls": [
+      {
+        "tool": "ScheduleWakeup",
+        "inputFieldAbsent": [
+          "prompt"
+        ],
+        "unlessInputMatches": "/\"stop\":\\s*true/",
+        "what": "a ScheduleWakeup call without a prompt",
+        "fix": "pass prompt — the instruction the woken turn acts on — on every call that is not stop: true"
+      }
+    ]
+  },
+  {
+    "id": "pipe-tail-hides-exit",
+    "severity": "advisory",
+    "scope": "action",
+    "failureMessage": "a trailing tail or head replaces the pipeline's exit code with its own and discards the earlier lines a failure would have shown",
+    "guardToolCalls": [
+      {
+        "tool": "Bash",
+        "inputField": "command",
+        "match": "/(^|[;&|]\\s*|\\n\\s*)(node\\s+(--test|\\S+\\.[cm]?js)|npm\\s+(test|run)|npx|make|pytest|cargo|go\\s+test|gradle|mvn)\\b[^|;\\n]*\\|\\s*(tail|head)\\b[^|;&]*$/",
+        "what": "a run whose output ends in \"{match}\"",
+        "fix": "redirect the run to a file, read $? from that invocation, and grep the file for the slice you need"
+      }
+    ]
+  },
+  {
+    "id": "pkill-pattern-self-match",
+    "severity": "advisory",
+    "scope": "action",
+    "failureMessage": "pkill -f matches the invoking shell's own command line, which carries the pattern",
+    "guardToolCalls": [
+      {
+        "tool": "Bash",
+        "inputField": "command",
+        "match": "/(^|[;&|]\\s*|\\n\\s*)pkill\\s+-f\\s+['\"]?(?<pattern>[^\\[\\s'\"]\\S*)/",
+        "what": "pkill -f with the unbracketed pattern \"{pattern}\"",
+        "fix": "bracket one character of the pattern ([h]ttp.server) and never chain the pkill"
+      }
+    ]
+  },
+  {
+    "id": "pull-request-without-closing-line",
+    "severity": "advisory",
+    "scope": "action",
+    "failureMessage": "only a closing keyword on its own line fills GitHub's Development panel, the link a reader of either the PR or the issue follows",
+    "guardToolCalls": [
+      {
+        "tool": "mcp__github__create_pull_request",
+        "inputField": "body",
+        "requireMatch": "/^(Closes|Fixes|Resolves) #\\d+\\s*$/m",
+        "what": "a pull request whose body carries no \"Closes #<issue>\" line of its own",
+        "fix": "add \"Closes #<issue>\" on its own line — give a slice of a longer plan its own issue and close that one"
+      }
+    ]
+  },
+  {
+    "id": "github-list-without-fields",
+    "severity": "advisory",
+    "scope": "action",
+    "failureMessage": "an unnarrowed list or search answers with a single-line dump that Read cannot slice",
+    "guardToolCalls": [
+      {
+        "tool": "/^mcp__github__(list|search)_/",
+        "inputFieldAbsent": [
+          "fields"
+        ],
+        "what": "a {tool} call with no fields",
+        "fix": "pass fields (and perPage) naming just what the next step reads"
       }
     ]
   }

@@ -40,7 +40,7 @@ that concludes "this is the correct cost" is the point of taking the measurement
 
 ## What you must not do
 
-- **Open the PR — that is the deliverable.** What happens to it after that is the delivery machinery's, not this run's.
+- **Deliver on the branch and pull request your item names — that is the deliverable.** Push to `Target-branch:`, and onto `Target-pr:` where one is named, so this round joins the review already pending; open the PR on that branch where none is named. Never search for an open pull request or pick a branch of your own. What happens to it after that is the delivery machinery's, not this run's.
 - **Never make a test weaker to make it faster** — deleting coverage, dropping a case, loosening an
   assertion, or excluding a suite from the run. If a test genuinely costs more than it is worth,
   that is an argument to put to the owner on the tracker, not a change to land here.

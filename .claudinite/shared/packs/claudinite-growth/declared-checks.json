@@ -115,5 +115,25 @@
         "fix": "point doc: at the file that owns the rule's depth, repo-relative (a canon pack's under packs/<pack>/), or drop the field"
       }
     ]
+  },
+  {
+    "id": "check-ships-with-test",
+    "severity": "blocking",
+    "since": "2026-09-04",
+    "scope": "work",
+    "failureMessage": "a check nobody watched fail meets its first false positive in a member's Stop hook, where every session pays for it",
+    "fix": "write the fixture first — a violating tree must find and a clean one must not — and land it in the same change",
+    "requireCoChange": [
+      {
+        "whenAddedLineMatches": { "inFilesMatching": "/(^|\\/)declared-checks\\.json$/", "match": "/^\\s*\"id\"\\s*:/" },
+        "requireChangedFileMatching": "/\\.test\\.[cm]?[jt]sx?$|(^|\\/)tests?\\//",
+        "what": "{path} declares a new check, and no test file changed with it"
+      },
+      {
+        "whenAddedLineMatches": { "inFilesMatching": "/(^|\\/)(worldRules|workRules)\\/[^/]+\\.mjs$|(^|\\/)skills\\/[^/]+\\/checks\\.mjs$/", "match": "/^\\s*id:\\s*['\"]/" },
+        "requireChangedFileMatching": "/\\.test\\.[cm]?[jt]sx?$|(^|\\/)tests?\\//",
+        "what": "{path} adds a rule, and no test file changed with it"
+      }
+    ]
   }
 ]

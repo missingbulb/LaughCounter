@@ -63,9 +63,10 @@ worker only frames the unattended run around it.
 
 - **Only remove a local item you can show the mounted canon genuinely covers — quote the canon line (or the
   covering check's rule id).** When unsure, leave it; a wrongful prune deletes a real local lesson.
-- **Open a single PR against `main`** from a per-run-unique branch (see
-  [the git-github-advanced skill](../../../git-github/skills/git-github-advanced/SKILL.md)) — one PR for the
-  whole run's prunes, not one per item — never a direct push. **Title the commit and the PR
+- **Open a single PR against `main`** from the branch your item names (`Target-branch:`) — one PR for the
+  whole run's prunes, not one per item — never a direct push, and never a branch of your own. An earlier
+  round's pull request still open closes as superseded once yours exists, which your converge performs when
+  handed `--pr`. **Title the commit and the PR
   `Claudinite growth: dedup local packs`** — the `growth-write-scope` check keys on that title to certify the
   run pruned only the repo's local packs. Then **deliver it by the shared procedure —
   [deliver-pr.md](../../../../packs/claudinite-tasks/deliver-pr.md)** — that procedure, never this file, owns

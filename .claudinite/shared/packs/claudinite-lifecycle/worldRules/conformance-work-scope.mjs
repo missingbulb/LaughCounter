@@ -5,11 +5,11 @@ import { gatesEveryPull } from './conformance-workflow.mjs';
 // this) and, until this rule, gated the CHANGE nowhere.
 //
 // The two scopes answer different questions, and only one of them can see a
-// mistake that the tree cannot show. `pack-version-bumped` is the type case: the
+// mistake that the tree cannot show. A version-bump rule is the type case: the
 // tree always contains a version number, so no whole-repo sweep can tell whether
-// THIS change moved it — and canon content edited without that move ships to
-// nobody while every check stays green (#939, seven repos frozen for five days).
-// Every commit-scoped rule has that shape: an issue reference, a merge commit, a
+// THIS change moved it — and content edited without that move ships to nobody
+// while every check stays green (#939, seven repos frozen for five days). Every
+// commit-scoped rule has that shape: an issue reference, a merge commit, a
 // contract change that needs a migration.
 //
 // The work scope ran at the session's Stop hook only, so it was enforced where a

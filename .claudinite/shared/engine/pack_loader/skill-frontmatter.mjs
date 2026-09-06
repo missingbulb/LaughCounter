@@ -17,6 +17,46 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const FORCE_LOAD_KEY = 'force-load-on-file-edits-paths';
+// The other three moments a skill may force itself for, under `metadata` too:
+// a tool call, an owner prompt, a tool result. An entry is one scalar — single-
+// quote it in the frontmatter, since a regex carries backslashes:
+//   force-load-on-tool-calls:          - 'mcp__github__create_pull_request'
+//                                      - 'Bash.command /(^|[;&|]\\s*)git\\s+commit\\b/'
+//   force-load-on-prompts-matching:    - '/\\bLGTM\\b/'
+//   force-load-on-tool-results-matching: - 'WebFetch /EGRESS_BLOCKED|\\b403\\b/'
+// A tool entry is the tool's exact name — optionally `.field`, the input field
+// the regex reads (`Bash.command`) — or a /regex/ over names, then optionally a
+// space and a /regex/ over that field, or over the whole input (or the result)
+// serialized as JSON when no field is named.
+export const TOOL_CALL_KEY = 'force-load-on-tool-calls';
+export const PROMPT_KEY = 'force-load-on-prompts-matching';
+export const TOOL_RESULT_KEY = 'force-load-on-tool-results-matching';
+
+const RE_FORM = /^\/(.*)\/([a-z]*)$/s;
+const toRegExp = (s) => { const m = RE_FORM.exec(String(s).trim()); try { return m ? new RegExp(m[1], m[2]) : null; } catch { return null; } };
+const listAt = (fm, key) => {
+  const v = fm?.metadata && typeof fm.metadata === 'object' && !Array.isArray(fm.metadata) ? fm.metadata[key] : undefined;
+  return Array.isArray(v) ? v : typeof v === 'string' && v.trim() ? [v] : [];
+};
+
+// "<tool>", "<tool>.<field>", either with " /regex/" → { tool (name or RegExp),
+// field (a dot path into the input, or null), pattern (RegExp or null), source };
+// a malformed entry is null (dropped, never a wedged hook).
+export function parseToolTrigger(entry) {
+  const m = /^(\/(?:[^/\\]|\\.)*\/[a-z]*|[^\s/][^\s]*)(?:\s+(\/.*\/[a-z]*))?$/s.exec(String(entry).trim());
+  if (!m) return null;
+  let tool = m[1];
+  let field = null;
+  if (tool.startsWith('/')) { tool = toRegExp(tool); if (tool === null) return null; }
+  else if (tool.includes('.')) { [tool, ...field] = tool.split('.'); field = field.join('.'); }
+  const pattern = m[2] ? toRegExp(m[2]) : null;
+  if (m[2] && !pattern) return null;
+  return { tool, field, pattern, source: String(entry).trim() };
+}
+export const toolCallTriggersOf = (fm) => listAt(fm, TOOL_CALL_KEY).map(parseToolTrigger).filter(Boolean);
+export const toolResultTriggersOf = (fm) => listAt(fm, TOOL_RESULT_KEY).map(parseToolTrigger).filter(Boolean);
+export const promptTriggersOf = (fm) => listAt(fm, PROMPT_KEY)
+  .map((s) => ({ re: toRegExp(s), source: String(s).trim() })).filter((p) => p.re);
 
 const unquote = (s) => {
   const t = s.trim();
@@ -74,7 +114,8 @@ export function forceLoadPathsOf(fm) {
   return typeof v === 'string' ? v.split(',').map((s) => s.trim()).filter(Boolean) : [];
 }
 
-// The metadata of the skill at `dir`: { name, description, forceLoadPaths }.
+// The metadata of the skill at `dir`: { name, description, forceLoadPaths,
+// toolCallTriggers, promptTriggers, toolResultTriggers }.
 // Unreadable is empty metadata, on the harness's own terms.
 export function skillMetadata(dir) {
   let fm = {};
@@ -83,5 +124,8 @@ export function skillMetadata(dir) {
     name: typeof fm.name === 'string' ? fm.name : '',
     description: typeof fm.description === 'string' ? fm.description : '',
     forceLoadPaths: forceLoadPathsOf(fm),
+    toolCallTriggers: toolCallTriggersOf(fm),
+    promptTriggers: promptTriggersOf(fm),
+    toolResultTriggers: toolResultTriggersOf(fm),
   };
 }

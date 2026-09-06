@@ -91,7 +91,7 @@ for (const name of ctx.config.packs) {
 // The world rules: everything not scoped to the work. A broken contributedRules
 // seam is a config-level fault surfaced here (the world runner owns diagnostics).
 findings.push(...runActivePackRules(ctx, packs, {
-  includeRule: (rule) => rule.scope !== 'work',
+  includeRule: (rule) => rule.scope !== 'work' && rule.scope !== 'action',
   onContributeError: (pack, e) => findings.push(configError(
     `the "${pack.id}" pack's contributedRules failed: ${e.message}`, 'fix the pack manifest, or the contribution it interprets')),
 }));

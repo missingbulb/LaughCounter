@@ -1,6 +1,11 @@
 ---
 name: merge-to-main
 description: Merge the change in front of the owner into main. Use when the owner says "LGTM" or asks to merge/land the current branch or PR into main.
+metadata:
+  force-load-on-tool-calls:
+    - 'mcp__github__merge_pull_request'
+  force-load-on-prompts-matching:
+    - '/\bLGTM\b/'
 ---
 
 # Merge to main

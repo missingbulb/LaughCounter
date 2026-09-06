@@ -15,13 +15,29 @@ unchanged `main` reaches last run's verdict again. Never widen further than that
 This task writes **issues only** (its triage actions and its own tracker). It never opens, closes, merges,
 or comments on a PR — that dimension belongs to `tidy-prs`, which is assess-only.
 
-## 1. Triage each issue
+## 1. Triage the issues in scope
 
-For each issue in scope, run the [single-issue-triage](../../skills/single-issue-triage/SKILL.md)
-skill. The skill owns the action ladder and the safeguards: "implemented in `main`" means the issue's actual
-ask is true of `main`'s content **now** — verified there and cited, never inferred — and when the check is
-inconclusive it **comments, doesn't close** — and an issue whose verdict is the one the skill
-already posted there returns `unchanged`, written to nowhere. Collect what each triage did.
+[single-issue-triage](../../skills/single-issue-triage/SKILL.md) is the method, and one reading of it
+governs every verdict here. The skill owns the action ladder and the safeguards: "implemented in `main`"
+means the issue's actual ask is true of `main`'s content **now** — verified there and cited, never
+inferred — and when the check is inconclusive it **comments, doesn't close** — and an issue whose verdict
+is the one the skill already posted there returns `unchanged`, written to nowhere. Collect what each
+triage did.
+
+**Work the scope in your own context**, straight down the list. **Never a subagent per issue**: each one
+re-reads the skill and re-derives what `main` holds to return a verdict that is usually `left` or
+`unchanged`, so the fan-out costs more than everything it decides.
+
+Fan out only when the scope is genuinely too large for one context, and then **by group, never by
+issue** — sort the scope into a handful of groups whose members share what the verification has to read
+(the same area of `main`, the same subsystem, the same one-line ask), and hand each group to **one**
+subagent that triages all of it and returns one line per issue: `#N — <action> — <note>`. A few
+subagents holding many issues each; never one holding one.
+
+**The triage is not the run** — step 2 still has to happen, and **the run bound covers everything you
+dispatch**: time spent in children is time on the same clock. Budget for step 2 before dispatching
+anything. A partial triage that is recorded is a complete run; a full one that returns past the bound
+records nothing, and those issues come back tomorrow anyway.
 
 ## 2. Reconcile this task's tracker
 

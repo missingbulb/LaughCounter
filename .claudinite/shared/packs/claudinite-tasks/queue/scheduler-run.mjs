@@ -443,6 +443,14 @@ export async function planSchedulerRun({
 // minted item is an ordinary standing item — same title, no qualifier: it consumes
 // the CURRENT occurrence, so the scheduler run does not then create a second one beside it,
 // and it leaves the next anchor's occurrence untouched.
+//
+// A MANUAL task is the exception, and never minted: it has no standing item to
+// stand in for — an item exists only because an issue named the task (a
+// verification's `Task:` line, a marked request), and a bare one carries nothing
+// its worker can read, so it can only park (#1721). Its items keep their own
+// titles, so the force reaches them by the task path in the machine block: every
+// open one not in flight is woken, and none at all is reported, never papered
+// over with a mint.
 export function planWake(spec, tasks = [], items = []) {
   const ids = String(spec ?? '').split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
   const wake = []; const create = []; const already = []; const unmatched = [];
@@ -455,6 +463,22 @@ export function planWake(spec, tasks = [], items = []) {
     }
     const owner = owners[0];
     const { pack, id: task } = owner;
+    if (owner.decl?.frequency === 'manual') {
+      const routed = items.filter((i) => {
+        if (i.state !== 'open') return false;
+        const byPath = taskIdFromPath(parseWorkItemBody(i.body).taskPath);
+        return !!byPath && byPath.pack === pack && byPath.task === task;
+      });
+      if (!routed.length) {
+        unmatched.push({ id, why: `"${pack}/${task}" is a manual task with no open item — nothing stands for it to mint, so an item exists only where an issue names the task` });
+        continue;
+      }
+      for (const item of routed) {
+        if (IN_FLIGHT.includes(statusOf(item))) already.push({ id, issue: item.number });
+        else wake.push({ id: `${pack}/${task}`, issue: item.number });
+      }
+      continue;
+    }
     const item = items.find((i) => {
       if (i.state !== 'open') return false;
       const parsed = parseWorkItemTitle(i.title);

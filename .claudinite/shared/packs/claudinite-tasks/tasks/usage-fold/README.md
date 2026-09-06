@@ -4,13 +4,13 @@
 
 ## What it does
 
-Hourly, when the repo moved: fetch this repo's orphan `conversation-logs` branch and count each capture file still inside the retention window; list the scheduler's and the executor's completed workflow runs since the last fold; list the work items that closed since the last fold, and the parks each of them collected; list the pull requests merged since the last fold, with what each took from opening, from its issue and from the session that did the work; deepen and read the local git history and the releases listing; and regenerate `.claudinite/local/usage.GENERATED.json` on a PR that lands itself where this repo's delivery settings allow (the shared landing helper, `packs/claudinite-tasks/land-pr.mjs`, owns those nuances — a `review` repo's PR waits for the owner). A recompute that differs only in its `generated` stamp opens nothing, and a repo with no logs branch yet still folds every other source.
+Daily, when the repo moved: fetch this repo's orphan `conversation-logs` branch and count each capture file still inside the retention window; list the scheduler's and the executor's completed workflow runs since the last fold; list the work items that closed since the last fold, and the parks each of them collected; list the pull requests merged since the last fold, with what each took from opening, from its issue and from the session that did the work; deepen and read the local git history and the releases listing; and regenerate `.claudinite/local/usage.GENERATED.json` on a PR that lands itself where this repo's delivery settings allow (the shared landing helper, `packs/claudinite-tasks/land-pr.mjs`, owns those nuances — a `review` repo's PR waits for the owner). A recompute that differs only in its `generated` stamp opens nothing, and a repo with no logs branch yet still folds every other source.
 
-### Why hourly, and what stops it being hourly noise
+### Why daily, and what stops it being daily noise
 
 This file is the **past-data plane the dashboard renders from** ([claudinite-dashboard](../../../claudinite-dashboard/README.md)): every panel reaching further back than one page of live reads comes from here, so the file's freshness *is* the page's. The cadence is affordable because the sources are — the capture files are local git, and the REST side is a handful of listings, all watermarked, plus one narrow read per item this fold is seeing settle for the first time.
 
-What keeps a quiet repo quiet is the **precondition**, which runs the fold only when something moved in the hour: a commit on the default branch, or a conversation log stamped inside the window. It is deliberately *not* gated on the scheduler having run, since the scheduler runs every hour by definition and that would be no gate at all. Declining loses nothing — the run and queue reads sit past their watermarks until the next fold that does have something to do, and the dashboard tops up the freshest hours from the live run listing it already fetches.
+What keeps a quiet repo quiet is the **precondition**, which runs the fold only when something moved since the last fold: a commit on the default branch, or a conversation log stamped inside the window. It is deliberately *not* gated on the scheduler having run, since the scheduler runs on its own fixed cadence by definition and that would be no gate at all. Declining loses nothing — the run and queue reads sit past their watermarks until the next fold that does have something to do, and the dashboard tops up the freshest hours from the live run listing it already fetches.
 
 What it counts, per bucket:
 
@@ -84,7 +84,7 @@ Week rows are frozen by that trade: a counting bug found later heals the day win
 
 ## The file is GENERATED
 
-`.claudinite/local/usage.GENERATED.json` is machine-written and never hand-edited — it lives under `.claudinite/local/` because that is the repo-owned area the vendoring refresh never touches. Its `merge=ours` `.gitattributes` entry is seeded at pack adoption (the pack's `seedOps`), so a conflicting merge resolves by re-running the fold rather than by hand; on a repo whose own `.gitattributes` predates adoption, the advisory `generated-merge-driver` check names the one-line edit.
+`.claudinite/local/usage.GENERATED.json` is machine-written and never hand-edited — it lives under `.claudinite/local/` because that is the repo-owned area the vendoring refresh never touches. `merge=ours` reaches it through `.claudinite/.gitattributes`, which the engine converges, so a conflicting merge resolves by re-running the fold rather than by hand.
 
 ## Failure is visible, never silent
 

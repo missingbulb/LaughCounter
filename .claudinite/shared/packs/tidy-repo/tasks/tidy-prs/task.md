@@ -14,8 +14,12 @@ acts. The only thing you write is this task's own tracker issue.
 
 ## 1. Assess each PR
 
-For each open PR, run the [single-pr-status](../../skills/single-pr-status/SKILL.md) skill
-for its verdict — judged by its commits and diff, never its title. Collect:
+[single-pr-status](../../skills/single-pr-status/SKILL.md) is the method — a PR is judged by its commits
+and diff, never its title. **Work the open set in your own context**, and never a subagent per PR: each
+one re-reads the skill and re-derives the same picture of `main` to return one verdict. If the set is too
+large for one context, split it into a handful of groups and give each group to **one** subagent that
+assesses all of it — a few subagents holding many PRs each, never one holding one. **The run bound covers
+everything you dispatch**, so keep enough of it for step 2. Collect:
 
 - one line each for the PRs that should **stay open** (`#N — why it's live`);
 - the rest collapsed into one `Closeable: #a, #b — merged/superseded/stale` line.

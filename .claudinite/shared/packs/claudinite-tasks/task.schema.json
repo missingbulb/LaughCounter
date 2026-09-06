@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/missingbulb/Claudinite/blob/main/packs/claudinite-tasks/task.schema.json",
   "title": "Claudinite task declaration",
-  "description": "A tasks/<name>/task.json: what a scheduled task is, when it runs, and what it may write. The runtime contract is packs/claudinite-tasks/task-contract.mjs; the enums here mirror its lists and a test holds them in step. Absent, preconditions is run-always, automerge is nothing and agent_model is none; the timeouts have no default.",
+  "description": "A tasks/<name>/task.json: what a scheduled task is, when it runs, and what its run does to pull requests. The runtime contract is packs/claudinite-tasks/task-contract.mjs; the enums here mirror its lists and a test holds them in step. Absent, preconditions is run-always, automerge is nothing and agent_model is none; the timeouts have no default.",
   "type": "object",
   "required": [
     "id",
@@ -47,13 +47,15 @@
     "expected_outcome": {
       "type": "string",
       "enum": [
-        "none",
-        "pr"
+        "no_code_changes",
+        "fresh_pr",
+        "amend_existing_or_create_new_pr",
+        "supersede_existing_pr"
       ],
-      "description": "The write ceiling: `none` may never open a pull request, `pr` may open one."
+      "description": "What the run does to pull requests, resolved once by the executor and handed to both phases: `no_code_changes` opens none; `fresh_pr` opens one on a freshly minted branch and leaves the task's earlier pull requests alone; `amend_existing_or_create_new_pr` pushes onto the task's newest open pull request while it has no conflicts, a fresh branch otherwise; `supersede_existing_pr` takes a fresh branch and closes the task's earlier pull requests once its own exists (a green, unlanded one on an auto-merge repo is landed instead). The retired `none`/`pr` normalize to the first two."
     },
     "automerge": {
-      "description": "What may land unreviewed beside `expected_outcome: pr`: \"nothing\", \"anything\", or a list of diff classes, each optionally reject:-prefixed and narrowable with `&&`. Optional: defaults to \"nothing\".",
+      "description": "What may land unreviewed, beside any expected_outcome that opens a pull request: \"nothing\", \"anything\", or a list of diff classes, each optionally reject:-prefixed and narrowable with `&&`. Optional: defaults to \"nothing\".",
       "oneOf": [
         {
           "type": "string",

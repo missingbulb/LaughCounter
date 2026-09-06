@@ -76,7 +76,7 @@ goes through your GitHub tools.
 
    **Announce your dispatch before you act**: quote the printed `brief:` line prominently in
    chat — bold, on its own line, e.g. **`Task: claudinite-growth/growth-dedup (slot
-   d2026-07-29) — issue #546, model opus, outcome ceiling pr (may auto-merge: nothing), timeout 1800s`** — so
+   d2026-07-29) — issue #546, model opus, outcome ceiling fresh_pr (may auto-merge: nothing), timeout 1800s`** — so
    everything after this has one unambiguous subject a human skimming the session sees at a
    glance. Run that issue and nothing else — every other dispatch in the queue already has
    its own session, and two sessions on one issue run the task twice.
@@ -123,11 +123,35 @@ goes through your GitHub tools.
    `needs-human` + `task:needs-human-decision` rather than pressing on."* Nothing enforces that bound but the subagent
    itself, so state it plainly.
 
+   **A fan-out inside the subagent does not extend that bound** — time it spends in children of its
+   own is time on the same clock, and a subagent that spends the whole budget fanning out returns
+   too late for step 4, leaving the issue claimed until the janitor parks it hours later as a
+   failure the run never had. Tell it that its bound covers everything it dispatches, and that a
+   partial result inside the bound beats a complete one outside it.
+
+   **Beat while the work runs.** Code-work beat on this issue every 15 minutes; from the hand-off
+   on nothing does, and an issue silent for 3h is read as a session that died and parked for a
+   human. **A run longer than that must say so, or be declared dead** — so at every checkpoint the
+   work already has (a fan-out group returning, a phase finishing), and in any case before 45
+   minutes pass, do both:
+
+   - **Append one dated line to the issue body's `### Progress` section**, keeping the lines
+     already there — `withProgress` in `queue/heartbeat.mjs` builds the new body. It is the one
+     surface a run can grow in place: a posted comment cannot be edited, so the body carries the
+     account.
+   - **Post the beat comment** `agentBeatComment({ session, at, note })` from the same module,
+     naming this session's URL and where the work has got to (`9/15 groups triaged; #1234 filed`).
+     It carries the marker the leash reads, so a beat is the holder's own sign of life rather than
+     an incidental touch of the issue.
+
+   Say what is **done**, not that something is happening — a beat is read by whoever is asking why
+   this has been running an hour, and "still working" answers nothing they wanted to know.
+
 4. **Verify the outcome in code, then converge — then stop.** The declared `expected_outcome`
    is a **ceiling, not a target**: it is the most a task may do, and **"no change" is always
    legal** — a run that found nothing worth changing is a success, never a reason to
    manufacture work. Determine what the run did to pull requests and check it against that
-   ceiling with `verify-outcome.mjs` — a `none` task that opened a PR, or a task whose
+   ceiling with `verify-outcome.mjs` — a `no_code_changes` task that opened a PR, or a task whose
    `automerge` authorizes nothing that merged one, **fails the run**. Then:
    - Success within ceiling → comment the result, remove `agent-running`, and **close** the
      issue.

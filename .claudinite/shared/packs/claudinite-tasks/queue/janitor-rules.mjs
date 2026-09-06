@@ -61,16 +61,30 @@ export const staleReadyComment = (item) => {
     + 'without an executor picking it up. Parking it for a human and taking it out of the queue.';
 };
 
-// Rule B — THE AGENT LEASH. An item with an agent silent past ~3h means the session died.
-// The hand-off comment names which session, so the escalation can say so. The
-// assumption is stated rather than discovered: a legitimately longer-running agent
-// must comment on its item to reset the activity clock, or it is declared dead.
-export function deadAgentItems(open = [], now, { leashMs = AGENT_LEASH_MS } = {}) {
-  return open.filter((i) => isStatus(i, STATUS_RUNNING_AGENT) && idle(i, now) >= leashMs);
+// Rule B — THE AGENT LEASH. An item whose agent has not MOVED in ~3h means the
+// session died or wedged. The hand-off comment names which session, so the
+// escalation can say so.
+//
+// A beating session is judged on its progress, not its punctuality. `progressAt`
+// answers when the beat's note last changed, so a run that keeps beating the same
+// note is reclaimed on the same leash as one that went silent — otherwise the beat
+// would buy immortality, and the signal would degrade from "work is happening" to
+// "a process is alive". An item with no beats answers null and is judged the old
+// way, off the issue clock: that is every item filed before the beat existed, and
+// the assumption there is stated rather than discovered — a legitimately
+// longer-running agent must touch its item, or it is declared dead.
+export function deadAgentItems(open = [], now, { leashMs = AGENT_LEASH_MS, progressAt = () => null } = {}) {
+  return open.filter((i) => {
+    if (!isStatus(i, STATUS_RUNNING_AGENT)) return false;
+    const moved = progressAt(i);
+    const since = moved ? ms(now) - ms(moved) : idle(i, now);
+    return since >= leashMs;
+  });
 }
 
-export const deadAgentComment = (item, sessionNote = null) =>
-  `This work item has carried \`${AGENT}\` for over ${Math.round(AGENT_LEASH_MS / 3600e3)}h with no activity — `
+export const deadAgentComment = (item, sessionNote = null, { wedged = false } = {}) =>
+  `This work item has carried \`${AGENT}\` for over ${Math.round(AGENT_LEASH_MS / 3600e3)}h `
+  + `${wedged ? 'without the work moving — the session kept beating, but every beat said the same thing' : 'with no activity'} — `
   + `the agent session that claimed it${sessionNote ? ` (${sessionNote})` : ''} never converged it. Parking it for a human.`;
 
 // Rule C — THE STUCK-DEPENDENCY SWEEP (F14). The stale-ready rule cannot see this

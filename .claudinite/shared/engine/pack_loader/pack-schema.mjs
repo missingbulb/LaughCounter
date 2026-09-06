@@ -32,6 +32,10 @@ export const MAX_ROUTING_WORDS = 20;
 // front of you — so the two runners' partition is declared where a reader of the
 // pack can see it, and a rule module never restates (or contradicts) it.
 export const RULE_SCOPES = { worldRules: 'world', workRules: 'work' };
+// The work list also homes a declaration judging a TOOL CALL (`scope: 'action'`
+// — engine/checks/helpers/pattern-rules.mjs): it runs at Stop like a work rule
+// and at PreToolUse besides, and keeps that finer scope through normalization.
+export const WORK_LIST_SCOPES = new Set(['work', 'action']);
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isStringArray = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string');
@@ -45,8 +49,8 @@ const isRuleArray = (v) => Array.isArray(v) && v.every((x) => isPlainObject(x) &
 
 // A seed op names a template in the pack and where a fresh install puts it. SEEDED,
 // NOT CONVERGED: the file becomes the repo's from that moment, and no update ever
-// rewrites it — the README pack-badge row is the precedent, seeded at adoption
-// precisely so later runs cannot rewrite a member's README (DESIGN §4).
+// rewrites it — the repo's own local pack is the precedent, seeded empty at adoption
+// precisely so later runs cannot rewrite what the repo has since put in it (DESIGN §4).
 //
 // The run-once guarantee is STRUCTURAL, not a flag anyone must remember to set: only
 // the install flow reads this field, so an update has nothing to re-run. That is why
@@ -154,7 +158,7 @@ export function validateManifest(mod, { label, skillDirs = [] } = {}) {
   for (const [key, scope] of Object.entries(RULE_SCOPES)) {
     if (!isRuleArray(mod[key])) continue;
     for (const rule of mod[key]) {
-      if ('scope' in rule && rule.scope !== scope) {
+      if ('scope' in rule && rule.scope !== scope && !(key === 'workRules' && WORK_LIST_SCOPES.has(rule.scope))) {
         err(`the rule "${rule.id}" declares scope "${rule.scope}" but sits in ${key}`,
           `move the rule to the list matching its scope, or drop its "scope" field — the manifest decides`);
       }
@@ -182,7 +186,9 @@ export function validateManifest(mod, { label, skillDirs = [] } = {}) {
 export function normalizeManifest(mod) {
   const rules = [];
   for (const [key, scope] of Object.entries(RULE_SCOPES)) {
-    for (const rule of mod[key] ?? []) rules.push({ ...rule, scope });
+    for (const rule of mod[key] ?? []) {
+      rules.push({ ...rule, scope: key === 'workRules' && WORK_LIST_SCOPES.has(rule.scope) ? rule.scope : scope });
+    }
   }
   return { ...mod, rules };
 }

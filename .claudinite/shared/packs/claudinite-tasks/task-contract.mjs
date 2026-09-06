@@ -73,25 +73,56 @@ export function normalizeTaskDeclaration(decl) {
   // keeps the narrower intent it states.
   if (LEGACY_OUTCOMES[out.expected_outcome] !== undefined) {
     if (out.automerge === undefined) out.automerge = LEGACY_OUTCOMES[out.expected_outcome];
-    out.expected_outcome = 'pr';
+    out.expected_outcome = 'fresh_pr';
   }
+  if (LEGACY_CEILINGS[out.expected_outcome] !== undefined) out.expected_outcome = LEGACY_CEILINGS[out.expected_outcome];
   return applyTaskDefaults(out);
 }
 
-// The write ceiling a task declares (DESIGN §1, §4). A declared MAXIMUM, not a
-// promise: `none` may never open a PR; `pr` may open one, and what (if anything)
-// the run may then MERGE is the separate `automerge` policy — 'nothing',
-// 'anything', or a list of diff classes merge-policy.mjs evaluates the actual
-// diff against. "No change" is always legal.
-export const OUTCOMES = ['none', 'pr'];
+// What a task's run does to PULL REQUESTS (tasks-dispatch DESIGN §6.4b, decision
+// §15.32) — the write ceiling and the target in one word, resolved once by the
+// executor before code-work and handed to both phases:
+//   no_code_changes                  — never opens one.
+//   fresh_pr                         — one on a freshly minted branch; the task's
+//                                      earlier pull requests are left as they are.
+//   amend_existing_or_create_new_pr  — pushes onto the task's newest open pull
+//                                      request while it has no conflicts with its
+//                                      base; a fresh branch otherwise.
+//   supersede_existing_pr            — a fresh branch, and once the run's own pull
+//                                      request exists the task's earlier ones close
+//                                      as superseded (a green, unlanded one on an
+//                                      auto-merge repo is landed instead).
+// A declared MAXIMUM, not a promise: "no change" is always legal, and what (if
+// anything) the run may then MERGE is the separate `automerge` policy — 'nothing',
+// 'anything', or a list of diff classes merge-policy.mjs evaluates the actual diff
+// against.
+export const OUTCOMES = ['no_code_changes', 'fresh_pr', 'amend_existing_or_create_new_pr', 'supersede_existing_pr'];
+export const OUTCOME_NO_PR = 'no_code_changes';
+
+// Whether a (canonical) outcome lets the run open a pull request at all — the
+// half of the contract `automerge` hangs off.
+export const opensPullRequest = (outcome) => outcome !== OUTCOME_NO_PR;
 
 // The retired one-word ceilings, each carrying the policy it always meant, and
-// normalizing at the door like the code-work renames above: `open-pr` is a pr task
-// that merges nothing, `merged-pr` a pr task authorized for anything. Accepted on
+// normalizing at the door like the code-work renames above: `open-pr` is a fresh-pr
+// task that merges nothing, `merged-pr` one authorized for anything. Accepted on
 // the same terms as the renames above — one convergence window past the advisory,
 // and no longer (#1642).
 // @legacy-tolerance advisory:legacy-task-fields retire:#1642
 export const LEGACY_OUTCOMES = { 'open-pr': 'nothing', 'merged-pr': 'anything' };
+
+// The retired two-word generation, each the word it became: `none` never opened a
+// pull request, `pr` opened a fresh one and left the task's earlier ones alone.
+// Same terms as the pair above (#1642).
+// @legacy-tolerance advisory:legacy-task-fields retire:#1642
+export const LEGACY_CEILINGS = { none: 'no_code_changes', pr: 'fresh_pr' };
+
+// Today's word for any spelling the door accepts, or null for one it does not.
+export function canonicalOutcome(outcome) {
+  if (LEGACY_OUTCOMES[outcome] !== undefined) return 'fresh_pr';
+  if (LEGACY_CEILINGS[outcome] !== undefined) return LEGACY_CEILINGS[outcome];
+  return OUTCOMES.includes(outcome) ? outcome : null;
+}
 
 
 // The retired scope vocabulary. It routed a slot dispatch to one of two labels, and
@@ -186,9 +217,9 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
   // rule resolves is the policy engine's question, answered where the diff is
   // judged, and it fails closed there — never at author time, where the rule set
   // depends on which packs are active.
-  if (decl.expected_outcome === 'pr') {
+  if (opensPullRequest(decl.expected_outcome)) {
     if (decl.automerge === undefined) {
-      bad('a "pr" task declares no "automerge"', 'say what may land unreviewed: "nothing", "anything", or a list of diff classes, e.g. ["comment-only-changes", "readme-changes"]');
+      bad(`a "${decl.expected_outcome}" task declares no "automerge"`, 'say what may land unreviewed: "nothing", "anything", or a list of diff classes, e.g. ["comment-only-changes", "readme-changes"]');
     } else {
       const policy = normalizePolicy(decl.automerge);
       if (policy.kind === 'invalid') {
@@ -196,7 +227,7 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
       }
     }
   } else if (decl.automerge !== undefined) {
-    bad('a "none" task declares "automerge"', 'drop it — a task that opens no pull request has nothing to merge; or set expected_outcome: "pr"');
+    bad(`a "${OUTCOME_NO_PR}" task declares "automerge"`, 'drop it — a task that opens no pull request has nothing to merge; or set expected_outcome: "fresh_pr"');
   }
   // agent_instructions — REQUIRED for an agentic task (agent_model !== 'none'):
   // that's the worker file the agent reads, and it has no default. A `none` task

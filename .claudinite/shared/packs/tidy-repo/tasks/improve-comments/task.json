@@ -7,7 +7,7 @@
     "substantive-change",
     "commits-outside:.claudinite/"
   ],
-  "expected_outcome": "pr",
+  "expected_outcome": "amend_existing_or_create_new_pr",
   "automerge": [
     "comment-only-changes",
     "readme-changes"

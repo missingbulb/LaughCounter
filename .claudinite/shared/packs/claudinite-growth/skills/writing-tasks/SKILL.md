@@ -87,15 +87,23 @@ than by replaying a ledger.
   so an editor validates it; keys grouped as identity, cadence, outcome, then the
   `code_*` fields, then the `agent_*` fields) declares `id` (matching its directory), `description`
   (below), `frequency`
-  (`daily | weekly | monthly | manual`), `expected_outcome` (`none | pr` — the retired
-  `open-pr`/`merged-pr` normalize to `pr` with a policy of `nothing`/`anything`).
+  (`daily | weekly | monthly | manual`), `expected_outcome` — what the run does to
+  pull requests, resolved once by the executor before code-work and handed to both
+  phases: `no_code_changes` (opens none), `fresh_pr` (one on a freshly minted
+  branch; the task's earlier pull requests are left alone),
+  `amend_existing_or_create_new_pr` (pushes onto the task's newest open pull
+  request while it has no conflicts, a fresh branch otherwise), or
+  `supersede_existing_pr` (a fresh branch, and the task's earlier pull requests
+  close once its own exists; a green, unlanded one on an auto-merge repo is landed
+  instead). The retired `none`/`pr` normalize to the first two, and
+  `open-pr`/`merged-pr` to `fresh_pr` with a policy of `nothing`/`anything`.
   Everything else has a default or is conditional: `preconditions` (the conditions
   that must hold for it to run — below) is *run always* when absent; `agent_model`
   (`opus | sonnet | haiku | none`) is `none`, no agent; `code_work` is no code work.
   The two timeouts have **no default**: an agent declares `agent_execution_timeout`
   and code work declares `code_work_timeout`, because a running phase always has a
   bound. An agent also declares `agent_instructions`, its worker file — nothing
-  stands in for it. A `pr` task may also carry
+  stands in for it. A task whose outcome opens a pull request may also carry
   `automerge` — what it authorizes to land unreviewed: `'nothing'` (the default
   when absent), `'anything'`, or a list of diff classes, each optionally `reject:`-prefixed.
   Choose the **narrowest policy that covers the task's whole write surface** — the
@@ -127,7 +135,8 @@ than by replaying a ledger.
 
 - **A task's code reads only the environment code-work is handed.** Code-work runs as
   a subprocess with a fixed set of `CLAUDINITE_*` variables — `REPO_ROOT`, `REPO`,
-  `DEFAULT_BRANCH`, `ITEM`, `PACK`, `TASK`, `CONTEXT`, `REQUEST_AGENT` — and
+  `DEFAULT_BRANCH`, `ITEM`, `PACK`, `TASK`, `CONTEXT`, `REQUEST_AGENT`, and the
+  target's `TARGET_MODE`, `TARGET_BRANCH`, `TARGET_PR` — and
   `task-code-work-env` (blocking) rejects a read of anything else. A variable nobody
   sets is `undefined`, the parse of it yields empty, and the run goes green having
   quietly done something other than what it was asked: that is how three fleet
@@ -327,6 +336,19 @@ returns `{ error }` — a failed run parked in the failure lane, where the re-qu
 lever retries it — never a decline. A decline is a decision about the world, and
 one taken on data that was not there is permanent, silent staleness: nothing in the
 repo goes red when a task quietly stops running.
+
+## Which pull request a run works on is the executor's decision
+
+A worker never looks for an open pull request, never picks a branch name and never
+closes a previous run's pull request. The executor resolves all of that from the
+task's `expected_outcome` before code-work starts and hands it in — code-work reads
+`CLAUDINITE_TARGET_BRANCH` (the branch to push to), `CLAUDINITE_TARGET_PR` (the pull
+request to push onto, set only when the run amends one) and `CLAUDINITE_TARGET_MODE`;
+an agent session reads the same as `Target-branch:`, `Target-pr:` and `Supersedes:`
+fields on its item. A code-work lane that lands a pull request takes them as
+parameters (`deliverGenerated`'s `branch`/`pr`); a task with a pull request to report
+names it in the hand-off payload's `delivered.pr`, which is what tells the executor a
+`supersede_existing_pr` run's successor now exists.
 
 ## The precondition is the ONLY decision point
 

@@ -21,6 +21,7 @@
 import { runCodeWork, codeWorkFailure, agentRequestPath, clearAgentRequest, agentRequested, readAgentRequest, readTriageMarker, readRequeueMarker } from '../code-work.mjs';
 import { SECRETS_BAG_ENV, secretsBag, secretValue, secretsFor } from './secrets-bag.mjs';
 import { VARS_BAG_ENV, varsEnv } from './vars-bag.mjs';
+import { targetEnv } from './target.mjs';
 
 // The declared secrets this environment does not carry. Absent is missing; a
 // set-but-empty one is the repo's own choice and is passed through. Read through
@@ -57,7 +58,7 @@ export function taskEnv(names = [], env = process.env) {
 // Built as one object so the NAMES cannot drift from what is actually passed:
 // `CODE_WORK_ENV_VARS` below is this function's own key set, and the check that
 // polices task workers reads it rather than a hand-kept list.
-export const codeWorkEnv = ({ root, repo, defaultBranch, task, item, context = [], requestPath }) => ({
+export const codeWorkEnv = ({ root, repo, defaultBranch, task, item, context = [], requestPath, target = null }) => ({
   CLAUDINITE_REPO_ROOT: root,
   CLAUDINITE_REPO: repo,
   CLAUDINITE_DEFAULT_BRANCH: defaultBranch ?? '',
@@ -70,6 +71,10 @@ export const codeWorkEnv = ({ root, repo, defaultBranch, task, item, context = [
   // operator's parameters ride (§8).
   CLAUDINITE_CONTEXT: context.join('\n'),
   CLAUDINITE_REQUEST_AGENT: requestPath,
+  // WHICH BRANCH AND PULL REQUEST THIS RUN WORKS ON (DESIGN §6.4b), decided by the
+  // executor before this subprocess started. A worker pushes to the branch and
+  // opens or updates the pull request it is told about — never finds one itself.
+  ...targetEnv(target),
 });
 
 export const CODE_WORK_ENV_VARS = Object.freeze(
@@ -77,7 +82,7 @@ export const CODE_WORK_ENV_VARS = Object.freeze(
 );
 
 export function codeWorkRunner({ root, repo, defaultBranch, env = process.env }) {
-  return async function runFor(task, { item, context = [] }) {
+  return async function runFor(task, { item, context = [], target = null }) {
     const missing = missingSecrets(task.decl.code_work_required_secrets ?? [], env);
     if (missing.length) return { ok: true, agentRequested: false, missingSecrets: missing };
 
@@ -87,7 +92,7 @@ export function codeWorkRunner({ root, repo, defaultBranch, env = process.env })
     console.log(`::group::code_work ${task.pack}/${task.id} [#${item.number}]`);
     const result = await runCodeWork(task.decl.code_work, {
       taskDir: task.taskDir,
-      env: { ...taskEnv(task.decl.code_work_required_secrets ?? [], env), ...codeWorkEnv({ root, repo, defaultBranch, task, item, context, requestPath }) },
+      env: { ...taskEnv(task.decl.code_work_required_secrets ?? [], env), ...codeWorkEnv({ root, repo, defaultBranch, task, item, context, requestPath, target }) },
       timeoutSeconds: task.decl.code_work_timeout,
     });
     console.log('::endgroup::');
@@ -120,6 +125,9 @@ export function codeWorkRunner({ root, repo, defaultBranch, env = process.env })
       // left one parks for approval instead of closing, and that decision cannot
       // be made off a prose line.
       openPr: payload?.delivered?.pr && !payload.delivered.merged ? payload.delivered.pr : null,
+      // The pull request this run delivered, open OR merged — what a supersede's
+      // incumbents were waiting to be replaced by, whichever way it landed.
+      deliveredPr: payload?.delivered?.pr ?? null,
       reason: payload?.reason ? (payload.reason.detail || payload.reason.code) : null,
     };
   };

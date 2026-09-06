@@ -48,9 +48,9 @@ the order matters:
    answered by inference carries a decision nobody made, in a file that then propagates by
    `requires` closure and outlives whoever could have corrected it. `"n/a"` is an *owner's* answer,
    not a default you may write on their behalf.
-2. **Finish everything the question does not gate, first** — declare, re-vendor, refresh the badge
-   row, scaffold, and get the checks green (§4, §5). Stopping at the question with a red repo hands
-   the owner a broken tree *and* a question; stopping with a green one hands them only the question.
+2. **Finish everything the question does not gate, first** — declare, re-vendor, scaffold, and get
+   the checks green (§4, §5). Stopping at the question with a red repo hands the owner a broken
+   tree *and* a question; stopping with a green one hands them only the question.
 3. **Then stop, and hand off in the open.** Open the PR with what is settled, name each unanswered
    question in the PR body under a heading that says the adoption is incomplete, and say the same
    on whatever issue prompted the run. Do **not** merge, do not proceed to a next pack's interview,
@@ -85,19 +85,6 @@ closure at the newest version, runs any one-shot seed ops, and gates on the conv
 self-test. It exits non-zero on a refusal or an unanswered interview — a pack already installed is
 **refused**, because reinstalling would restamp the repo to the newest version while skipping every
 record in between.
-
-Then **refresh the README pack-badge row**, from the mount you just rebuilt:
-
-```
-node .claudinite/shared/engine/converge-wiring.mjs <owner/repo> --badges
-```
-
-Declaring a pack is what makes that row wrong, and adoption is the only moment anything derives it —
-the nightly deliberately leaves a repo's README alone, so a row not refreshed here stays stale until
-someone notices by eye. The converge rewrites the row in place between its
-`<!-- claudinite:packs -->` markers, keeping whatever the repo wrote after the closing one, and is a
-no-op when the row is already right. A repo that has deleted its row keeps it deleted only if you
-skip this — dropping the row is a real choice, so don't re-seed one the repo removed on purpose.
 
 **Adopting `claudinite-tasks` also scaffolds the two workflow files** — the scheduler run with
 its drain, and the label-event executor:

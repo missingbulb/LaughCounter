@@ -6,7 +6,7 @@
   "preconditions": [
     "request-eligible"
   ],
-  "expected_outcome": "pr",
+  "expected_outcome": "fresh_pr",
   "automerge": "anything",
   "on_interrupt": "needs-human",
   "agent_model": "opus",

@@ -29,6 +29,7 @@ import {
   parseWorkItemTitle, parseWorkItemBody, taskIdFromPath,
 } from '../../../claudinite-tasks/queue/work-item.mjs';
 import { listOpenWorkItems, listDoneWorkItems } from '../../../claudinite-tasks/queue/read.mjs';
+import { lastProgressAt } from '../../../claudinite-tasks/queue/heartbeat.mjs';
 import { ensureLabels, addLabel, removeLabel, comment, listComments, readIssue, closeIssue } from '../../../claudinite-tasks/github.mjs';
 import { clearStatus } from '../../../claudinite-tasks/queue/apply-status.mjs';
 
@@ -47,7 +48,14 @@ export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log 
   }
 
   const stale = staleReadyItems(open, now, { periodFor: periodForTasks(tasks) });
-  const deadAgents = deadAgentItems(open, now);
+  // Rule B judges a beating session on its progress, which only its own comments
+  // carry — so they are read here, for the handful of items actually holding an
+  // agent, and handed in as a resolved lookup so the rule itself stays pure.
+  const progress = new Map();
+  for (const i of open.filter((i) => isStatus(i, STATUS_RUNNING_AGENT))) {
+    progress.set(i.number, lastProgressAt(await listComments(gh, repo, i.number)));
+  }
+  const deadAgents = deadAgentItems(open, now, { progressAt: (i) => progress.get(i.number) ?? null });
   const stuck = stuckBlockedItems(open, now, { stateOf: (n) => known.get(n) ?? null });
   const stateless = statelessItems(open);
   // Rule E reads the CLOSED half of the queue, so it is the one rule with an input
@@ -98,7 +106,11 @@ export async function sweepQueue(gh, repo, now, { tasks = [], log = console.log 
   // only one that holds the task's lane, so the generator stops filing a fresh
   // occurrence each anchor behind a run nobody has looked at.
   for (const item of deadAgents) {
-    await escalate(item, deadAgentComment(item, await sessionNote(gh, repo, item)), STATUS_RUNNING_AGENT, NEEDS_HUMAN_FAILURE);
+    // A beating item reached the leash because its progress stopped, not its
+    // timeline — the comment says which, so the reader knows whether to look for a
+    // dead session or a stuck one.
+    await escalate(item, deadAgentComment(item, await sessionNote(gh, repo, item), { wedged: progress.get(item.number) != null }),
+      STATUS_RUNNING_AGENT, NEEDS_HUMAN_FAILURE);
     log(`reclaimed a dead agent claim on #${item.number} → ${NEEDS_HUMAN_FAILURE}`);
     result.deadAgents.push(item.number);
   }
