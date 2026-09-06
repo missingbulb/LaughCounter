@@ -1,10 +1,9 @@
 # LaughCounter — what this repo knows about itself
 
-The lessons this project has paid for once, and that no canon pack owns. Portable
-macOS knowledge — the app bundle, signing and notarization, and the device,
-sleep/wake and exit lifecycle any Mac capture app must get right — lives in canon
-`macos`, which this repo declares; read it there rather than looking for a second
-copy here.
+The lessons this project has paid for once. Portable macOS knowledge — the app
+bundle, signing and notarization, and the device, sleep/wake and exit lifecycle
+any Mac capture app must get right — is canon `macos`, which this repo declares;
+read it there rather than looking for a second copy here.
 
 ## The privacy boundary — the whole product is built around it
 

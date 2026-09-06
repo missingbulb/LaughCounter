@@ -1,10 +1,10 @@
 # laugh-counter
 
 This repo's one local pack, named for the repo. It holds what LaughCounter knows
-about *itself* and no canon pack owns: the on-device privacy boundary that is the
-product's defining constraint, the microphone invariants that name this app's own
-types, and the build, packaging, check-authoring and Claudinite-maintenance
-lessons the project has paid for once.
+about *itself*: the on-device privacy boundary that is the product's defining
+constraint, the microphone invariants that name this app's own types, and the
+build, packaging, check-authoring and Claudinite-maintenance lessons the project
+has paid for once.
 
 Portable macOS knowledge — the app bundle, the TCC / Hardened Runtime pair, the
 Developer ID → notarization → DMG lane, and the device, sleep/wake and exit
