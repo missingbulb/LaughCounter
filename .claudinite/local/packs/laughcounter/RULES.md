@@ -37,7 +37,7 @@ expect it and spend nothing re-deriving it.** A second `<github-trigger-context>
 for the same issue arrives mid-run. It is the webhook echo of your own
 `ready-for-agent` → `agent-running` swap, since a label change is itself a
 labeling event. It is not a new dispatch and not a competing claim —
-`resolve-dispatch.mjs` answers `exit 11 / not-mine` precisely because *you* are
+`resolve-dispatch.mjs` answers `exit 0 / not-mine` precisely because *you* are
 the claimant — so change nothing, comment nothing, do not re-dispatch, and do
 not read it as a lease you lost. (4)
 
