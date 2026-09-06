@@ -1,6 +1,35 @@
 [
   {
-    "id": "on-device-privacy/no-network-client",
+    "id": "laugh-counter/single-version-source",
+    "severity": "blocking",
+    "since": "2026-08-30",
+    "failureMessage": "a hardcoded version+build copy can disagree with the DMG it actually shipped in — the ambiguity that stalled diagnosing the installTap crash (#61/#74/#75)",
+    "scanFiles": "/^mac\\/Sources\\/.*\\.swift$/",
+    "excludeFiles": "mac/Sources/LaughCounter/AppDelegate.swift",
+    "matchLines": [
+      {
+        "match": "/[\"']v?\\d+\\.\\d+(?:\\.\\d+)?\\s*\\(\\d+\\)[\"']/",
+        "what": "a hardcoded `v<version> (<build>)`-shaped string literal outside AppDelegate.swift",
+        "fix": "derive it from Bundle.main.infoDictionary (CFBundleShortVersionString / CFBundleVersion), as AppDelegate.versionLabel does, instead of writing a second copy that can drift from what actually shipped"
+      }
+    ]
+  },
+  {
+    "id": "laugh-counter/engine-construction-confined",
+    "severity": "blocking",
+    "failureMessage": "constructing an engine opens the default input and churns a hidden coreaudiod aggregate device — the one mechanism by which this app could plausibly wedge a mic",
+    "scanFiles": "/^mac\\/Sources\\/.*\\.swift$/",
+    "excludeFiles": "mac/Sources/LaughCounter/AudioHub.swift",
+    "matchLines": [
+      {
+        "match": "/\\bAVAudioEngine\\s*\\(/",
+        "what": "builds an AVAudioEngine outside mac/Sources/LaughCounter/AudioHub.swift",
+        "fix": "ask AudioDiagnostics instead — hasUsableInput and inputAvailability answer from HAL queries that open no device; if capture is needed, route it through AudioHub, the engine's single owner"
+      }
+    ]
+  },
+  {
+    "id": "laugh-counter/no-network-client",
     "severity": "blocking",
     "failureMessage": "the product's headline promise is that the room's audio never leaves the machine — a client in the capture path is how that promise breaks",
     "scanFiles": "/^mac\\/Sources\\/.*\\.swift$/",
@@ -13,7 +42,7 @@
     ]
   },
   {
-    "id": "on-device-privacy/no-audio-persistence",
+    "id": "laugh-counter/no-audio-persistence",
     "severity": "blocking",
     "failureMessage": "the product promise is that only derived metadata is kept and no audio is stored — a file-writing audio API in the capture path is how that promise breaks",
     "scanFiles": "/^mac\\/Sources\\/.*\\.swift$/",
@@ -26,7 +55,7 @@
     ]
   },
   {
-    "id": "on-device-privacy/no-listener",
+    "id": "laugh-counter/no-listener",
     "severity": "blocking",
     "failureMessage": "a listener exposes the laugh log to whatever can reach the port — reintroducing one is a decision about who may read the room, not a feature",
     "scanFiles": "/^mac\\/Sources\\/.*\\.swift$/",

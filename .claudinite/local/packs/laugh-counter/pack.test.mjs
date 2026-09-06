@@ -1,21 +1,22 @@
-// Red-first fixtures for the on-device-privacy checks: each rule must fire on a
-// violating file and stay quiet on the repo's real, clean one. Run directly:
+// Red-first fixtures for the laugh-counter checks: each rule must fire on a
+// violating file and stay quiet on the repo's real, clean ones. Run directly:
 //
-//   node --test .claudinite/local/packs/on-device-privacy/pack.test.mjs
+//   node --test .claudinite/local/packs/laugh-counter/pack.test.mjs
 //
 // They live here rather than in tests/ (`claudinite-isolation`). The fake ctx is
 // the slice of the engine's context a check actually uses — `files`, `tracked`
 // and `read` — so no git checkout is needed.
 //
-// Three of these rules are DECLARATIONS (declared-checks.json), so their half of
+// Five of these rules are DECLARATIONS (declared-checks.json), so their half of
 // the file compiles them through the mounted engine and needs `.claudinite/shared/`
-// present; the two coded rules are imported directly, as before.
+// present; the three coded rules are imported directly.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import inputNodeConfined from './input-node-confined.mjs';
 import onDeviceSpeech from './on-device-speech.mjs';
 import singleStorageDirectory from './single-storage-directory.mjs';
 import { loadDeclaredChecks } from '../../../shared/engine/checks/helpers/pattern-rules.mjs';
@@ -28,9 +29,11 @@ const declared = (id) => {
   if (!rule) throw new Error(`no declared check ${id} in ${here}/declared-checks.json`);
   return rule;
 };
-const noNetworkClient = declared('on-device-privacy/no-network-client');
-const noAudioPersistence = declared('on-device-privacy/no-audio-persistence');
-const noListener = declared('on-device-privacy/no-listener');
+const singleVersionSource = declared('laugh-counter/single-version-source');
+const engineConstructionConfined = declared('laugh-counter/engine-construction-confined');
+const noNetworkClient = declared('laugh-counter/no-network-client');
+const noAudioPersistence = declared('laugh-counter/no-audio-persistence');
+const noListener = declared('laugh-counter/no-listener');
 
 // Fixture ctx: an in-memory tree of { path: contents }. `tracked` mirrors
 // `files` — the declared rules' scan sweep reads both.
@@ -44,6 +47,89 @@ const ctxOf = (tree) => ({
 const realCtx = (...paths) => ctxOf(Object.fromEntries(
   paths.map((p) => [p, readFileSync(join(repoRoot, p), 'utf8')])
 ));
+
+const REAL_SWIFT = [
+  'mac/Sources/LaughCounter/AppDelegate.swift',
+  'mac/Sources/LaughCounter/AppLog.swift',
+  'mac/Sources/LaughCounter/AudioDiagnostics.swift',
+  'mac/Sources/LaughCounter/AudioHub.swift',
+  'mac/Sources/LaughCounter/Chime.swift',
+  'mac/Sources/LaughCounter/LaughCounter.swift',
+  'mac/Sources/LaughCounter/LaughDetector.swift',
+  'mac/Sources/LaughCounter/Store.swift',
+  'mac/Sources/LaughCounter/VoiceCommand.swift',
+  'mac/Sources/LaughCounter/main.swift',
+];
+
+// ---------------------------------------------------------------- the mic
+
+test('engine-construction-confined fires on an engine built outside AudioHub', () => {
+  const findings = engineConstructionConfined.run(ctxOf({
+    'mac/Sources/LaughCounter/MicProbe.swift':
+      'import AVFoundation\n'
+      + 'func micExists() -> Bool {\n'
+      + '    let probe = AVAudioEngine()\n'
+      + '    return probe.inputNode.inputFormat(forBus: 0).sampleRate > 0\n'
+      + '}\n',
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].line, 3);
+  assert.match(findings[0].what, /outside mac\/Sources\/LaughCounter\/AudioHub\.swift/);
+});
+
+test('engine-construction-confined ignores mentions that are not constructions', () => {
+  const findings = engineConstructionConfined.run(ctxOf({
+    'mac/Sources/LaughCounter/AppDelegate.swift':
+      'private var engine: AVAudioEngine?\n'
+      + '// (Re)starting the engine posts .AVAudioEngineConfigurationChange.\n'
+      + 'NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: nil, queue: .main) { _ in }\n',
+  }));
+  assert.deepEqual(findings, []);
+});
+
+test('engine-construction-confined stays quiet on the real sources', () => {
+  assert.deepEqual(engineConstructionConfined.run(realCtx(...REAL_SWIFT)), []);
+});
+
+// The file that opens the device without ever building an engine — the gap
+// `engine-construction-confined` cannot see, and the reason this pack has two
+// checks over one paragraph. Both tests below run against it.
+const HANDED_AN_ENGINE = {
+  'mac/Sources/LaughCounter/MicProbe.swift':
+    'import AVFoundation\n'
+    + 'func probeRate(engine: AVAudioEngine) -> Double {\n'
+    + '    engine.inputNode.inputFormat(forBus: 0).sampleRate\n'
+    + '}\n',
+};
+
+test('input-node-confined fires on inputNode reached outside AudioHub', () => {
+  const findings = inputNodeConfined.run(ctxOf(HANDED_AN_ENGINE));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].line, 3);
+  assert.match(findings[0].what, /outside mac\/Sources\/LaughCounter\/AudioHub\.swift/);
+});
+
+test('engine-construction-confined is blind to that file — the gap this check closes', () => {
+  assert.deepEqual(engineConstructionConfined.run(ctxOf(HANDED_AN_ENGINE)), []);
+});
+
+test('input-node-confined ignores comments that discuss engine.inputNode', () => {
+  const findings = inputNodeConfined.run(ctxOf({
+    'mac/Sources/LaughCounter/AudioDiagnostics.swift':
+      '/// Materializing `engine.inputNode` opens the default input device, so\n'
+      + '/// this type answers from AudioObjectGetPropertyData instead.\n'
+      + '/* engine.inputNode is likewise off limits here */\n'
+      + 'let doc = "see https://developer.apple.com/av-foundation"\n'
+      + 'func hasUsableInput() -> Bool { true }\n',
+  }));
+  assert.deepEqual(findings, []);
+});
+
+test('input-node-confined stays quiet on the real sources', () => {
+  assert.deepEqual(inputNodeConfined.run(realCtx(...REAL_SWIFT)), []);
+});
+
+// ------------------------------------------------------- the privacy boundary
 
 test('no-network-client fires on a client in the capture path', () => {
   const findings = noNetworkClient.run(ctxOf({
@@ -147,6 +233,10 @@ test('single-storage-directory accepts the fully-qualified allowed case', () => 
   assert.deepEqual(findings, []);
 });
 
+test('single-storage-directory stays quiet on the real sources', () => {
+  assert.deepEqual(singleStorageDirectory.run(realCtx(...REAL_SWIFT)), []);
+});
+
 test('no-listener fires on every shape of inbound listener', () => {
   const findings = noListener.run(ctxOf({
     'mac/Sources/LaughCounter/Dashboard.swift':
@@ -185,32 +275,39 @@ test("no-listener stays quiet on the mic's listening vocabulary", () => {
 });
 
 test('no-listener stays quiet on the real sources', () => {
-  const findings = noListener.run(realCtx(
-    'mac/Sources/LaughCounter/AppDelegate.swift',
-    'mac/Sources/LaughCounter/AudioHub.swift',
-    'mac/Sources/LaughCounter/AudioDiagnostics.swift',
-    'mac/Sources/LaughCounter/VoiceCommand.swift',
-    'mac/Sources/LaughCounter/Store.swift',
-    'mac/Sources/LaughCounter/AppLog.swift',
-    'mac/Sources/LaughCounter/LaughDetector.swift',
-    'mac/Sources/LaughCounter/LaughCounter.swift',
-    'mac/Sources/LaughCounter/Chime.swift',
-    'mac/Sources/LaughCounter/main.swift',
-  ));
+  assert.deepEqual(noListener.run(realCtx(...REAL_SWIFT)), []);
+});
+
+// -------------------------------------------------------- build and packaging
+
+test('single-version-source fires on a hand-written version+build literal outside AppDelegate', () => {
+  const findings = singleVersionSource.run(ctxOf({
+    'mac/Sources/LaughCounter/AboutPanel.swift':
+      'import AppKit\n'
+      + 'let subtitle = "v0.3.1 (5)"\n',
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].line, 2);
+  assert.match(findings[0].what, /outside AppDelegate\.swift/);
+});
+
+test('single-version-source ignores an unrelated numeric literal', () => {
+  const findings = singleVersionSource.run(ctxOf({
+    'mac/Sources/LaughCounter/LaughDetector.swift':
+      'let threshold = 0.75\n'
+      + 'let sampleRate = 48000.0\n',
+  }));
   assert.deepEqual(findings, []);
 });
 
-test('single-storage-directory stays quiet on the real sources', () => {
-  const findings = singleStorageDirectory.run(realCtx(
-    'mac/Sources/LaughCounter/AppLog.swift',
-    'mac/Sources/LaughCounter/Store.swift',
-    'mac/Sources/LaughCounter/AudioHub.swift',
-    'mac/Sources/LaughCounter/VoiceCommand.swift',
-    'mac/Sources/LaughCounter/LaughDetector.swift',
-    'mac/Sources/LaughCounter/AppDelegate.swift',
-    'mac/Sources/LaughCounter/Chime.swift',
-    'mac/Sources/LaughCounter/LaughCounter.swift',
-    'mac/Sources/LaughCounter/main.swift',
-  ));
+test('single-version-source exempts AppDelegate.swift, the one file that builds the label', () => {
+  const findings = singleVersionSource.run(ctxOf({
+    'mac/Sources/LaughCounter/AppDelegate.swift':
+      'let fallback = "v0.3.1 (5)"   // only reachable outside a bundle\n',
+  }));
   assert.deepEqual(findings, []);
+});
+
+test('single-version-source stays quiet on the real sources', () => {
+  assert.deepEqual(singleVersionSource.run(realCtx(...REAL_SWIFT)), []);
 });

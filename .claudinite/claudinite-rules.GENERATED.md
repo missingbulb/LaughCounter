@@ -3,6 +3,5 @@
 @shared/packs/claude-code-web-users-support/RULES.md
 @shared/packs/claudinite-growth/RULES.md
 @shared/packs/claudinite-lifecycle/RULES.md
-@local/packs/laughcounter/RULES.md
-@local/packs/macos-audio/RULES.md
-@local/packs/on-device-privacy/RULES.md
+@shared/packs/macos/RULES.md
+@local/packs/laugh-counter/RULES.md

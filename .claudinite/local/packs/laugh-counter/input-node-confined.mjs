@@ -52,10 +52,10 @@ const stripComments = (text) => text
 const inScope = (f) => f.startsWith('mac/Sources/') && f.endsWith('.swift');
 
 const rule = {
-  id: 'macos-audio/input-node-confined',
+  id: 'laugh-counter/input-node-confined',
   severity: 'blocking',
   description: 'Only AudioHub touches engine.inputNode — reading it opens the default input device (mac/Sources/)',
-  doc: '.claudinite/local/packs/macos-audio/RULES.md',
+  doc: '.claudinite/local/packs/laugh-counter/RULES.md',
   why: 'accessing inputNode materializes the input node, which opens the default input and churns a hidden coreaudiod aggregate device — the one mechanism by which this app could plausibly wedge a mic',
 
   run(ctx) {
