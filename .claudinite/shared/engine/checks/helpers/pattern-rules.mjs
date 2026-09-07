@@ -175,6 +175,10 @@ import { normalizeEdges, barrierFindings, staleFindings } from './reference-scan
 //                      RegExp lists — anchored at the first group's first
 //                      pattern's first matching line
 //   requirePaths       [{ path, what, fix }] — each path must exist on disk
+//   forbidTrackedPathsMatching [{ match, what, fix }]
+//                      one finding per tracked path the regex matches — a file
+//                      that must not exist under a layout ({path} interpolates);
+//                      excludeFiles applies
 //   extractValueSets   [{ setName, whenSetEmpty, and exactly one source:
 //                         fromParsedFile | fromParsedFilesMatching
 //                           (+ whereFileContains), with valuesOfArraysAtFields
@@ -474,7 +478,7 @@ const SPEC_KEYS = {
     'scanFileClasses', 'excludeFileClasses', 'scanIgnoringComments', 'scanIgnoringMarkdownFences',
     'relevantWhen', 'whenMissing',
     'maxLines', 'maxLineLength', 'skipLinesMatching', 'matchLines', 'countMatchingLines',
-    'checkEachFile', 'repoWide', 'requirePaths',
+    'checkEachFile', 'repoWide', 'requirePaths', 'forbidTrackedPathsMatching',
     'extractValueSets', 'requireIndexCoverage', 'checkParsedFiles', 'forbidReferences',
     'checkSetValues', 'checkSetPairs', 'requireIdenticalFiles',
     'checkBranchCommits', 'forbidIntroducedMergeCommits', 'forbidAddedValueInArray',
@@ -533,6 +537,7 @@ const SPEC_KEYS = {
   checkEachFile: ['relevantWhen', 'whenFileMatches', 'require', 'forbid', ...MSG],
   repoWide: ['unlessSomeFileMatches', 'flagFilesMatching', 'neverFlagFiles', ...MSG],
   requirePaths: ['path', ...MSG],
+  forbidTrackedPathsMatching: ['match', ...MSG],
   checkBranchCommits: ['someMessageMatches', 'unlessOnDefaultBranch', ...MSG],
   forbidIntroducedMergeCommits: MSG,
   forbidAddedValueInArray: ['file', 'filesMatching', 'whereFileContains', 'atFields', ...MSG],
@@ -744,6 +749,9 @@ function validateEntryShapes(spec, where) {
   }
   for (const a of spec.flagUntrackedFilesMatching ?? []) {
     if (!(a.match instanceof RegExp)) throw new Error(`${where}: a flagUntrackedFilesMatching entry needs "match", the path pattern`);
+  }
+  for (const a of spec.forbidTrackedPathsMatching ?? []) {
+    if (!(a.match instanceof RegExp)) throw new Error(`${where}: a forbidTrackedPathsMatching entry needs "match", the path pattern`);
   }
   if (spec.whenReplyClassIncludes !== undefined) {
     const classes = arr(spec.whenReplyClassIncludes);
@@ -1205,6 +1213,13 @@ function assertTreeShape(ctx, j, parsed) {
     if (ctx.exists(a.path)) continue;
     const vars = { path: a.path };
     j.out.push(finding(j.rule, { file: a.path, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
+  }
+  for (const a of s.forbidTrackedPathsMatching ?? []) {
+    for (const path of ctx.files) {
+      if (!a.match.test(path) || excluded(path, s.excludeMatchers)) continue;
+      const vars = { path };
+      j.out.push(finding(j.rule, { file: path, what: fill(a.what, vars), fix: fill(a.fix, vars) }));
+    }
   }
   for (const a of s.requireIdenticalFiles ?? []) {
     for (const path of ctx.files) {
@@ -1673,9 +1688,13 @@ export function guardFindings(rule, call, priorCalls = [], at = '(tool call)') {
 
 // The Stop-time backstop: every call the transcript records, judged in order,
 // each anchored by its tool and ordinal so a finding names the call it means.
-// A call this rule already denied at the hook never ran, so there is nothing
-// left to fix: it is recorded advisory — the firing the usage fold counts,
-// without a block that no edit could clear.
+// Every finding here is ADVISORY, whatever the rule's severity: the transcript
+// is append-only, so a call that ran cannot be un-run and a call the hook
+// denied never ran at all — either way no edit could clear a block, and a
+// block nothing can clear spends every remaining Stop of the session (a call
+// from days before the guard existed blocked one for good). The hook is the
+// blocking moment; Stop is the record — the firing the usage fold counts, and
+// the diagnosis for a member whose hook never fired.
 function actionFindings(rule, work) {
   const calls = work.toolCalls();
   const counts = new Map();
@@ -1685,7 +1704,7 @@ function actionFindings(rule, work) {
     counts.set(call.name, n);
     const found = guardFindings(rule, call, calls.slice(0, i), `(session) ${call.name} call #${n}`);
     const denied = (call.deniedBy ?? []).includes(rule.id);
-    out.push(...found.map((f) => (denied ? { ...f, severity: 'advisory', what: `${f.what} (denied at the hook)` } : f)));
+    out.push(...found.map((f) => ({ ...f, severity: 'advisory', what: denied ? `${f.what} (denied at the hook)` : f.what })));
   });
   return out;
 }

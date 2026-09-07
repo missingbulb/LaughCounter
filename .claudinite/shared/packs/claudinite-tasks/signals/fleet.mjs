@@ -26,8 +26,9 @@ import { packEntryId } from '../../../engine/pack_loader/pack-registry.mjs';
 import { LOCAL_PACK_ROOT } from './local.mjs';
 import { SETTINGS_FILES } from '../../../engine/settings-file.mjs';
 // The one definition of dormancy, shared with every other fleet reader: a second
-// notion of it would sweep exactly the members that had already opted out.
-import { isDormant } from '../../../engine/checks/helpers/repo-context.mjs';
+// notion of it would sweep exactly the members that had already opted out. It is the
+// scheduler's own parameter, so it is read from the pack that owns the scheduler.
+import { isDormant } from '../dormancy.mjs';
 
 async function paged(gh, path) {
   const out = [];

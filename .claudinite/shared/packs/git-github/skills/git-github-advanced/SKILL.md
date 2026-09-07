@@ -40,6 +40,7 @@ There's no cost to a branch carrying many commits when the project uses a **squa
 
 - **When a rebase or a review round drops part of a branch, amend the commit message in the same step** — then read it back against `git show --stat` before merging. Under a squash merge the branch's commit body *becomes* `main`'s permanent record, while the explanation of what was dropped, if it lives in a PR comment, is not carried by the squash at all. A commit describing a change to files it never touched sends the next reader of `git log -- <path>` hunting for work that isn't there.
 
+- **When a Stop-hook or CI finding names its own fix as a plain amend, take that fix** — a check whose message says "amend the latest commit" is answered by exactly that; scripting a `filter-branch`/rewrite pass to backdate the fix into every prior commit is needless risk (a wrong regex, a bad force-push) for no benefit over the one-line remedy.
 - Don't rewrite published/shared history to satisfy a tooling or authorship check (e.g. a hook flagging "unverified" commits): only amend your own un-pushed branch commits. Commits already on a shared branch — including ones merged in from `main` — belong to that history; reset-authoring or rebasing them forks your branch away from it.
 - After your commit is **squash-merged** to `main`, a *reused* feature branch still carries that original commit (the squash created a *new* commit on `main`, so the branch's own is unreachable from it) — and the next PR off the branch re-includes it in the diff, because the three-dot merge-base predates the squash. Sync the branch to `origin/main` before opening the next PR (`git rebase origin/main`, which drops the commit as an already-applied cherry-pick, or a hard reset): it's your own un-merged branch, so this is the amend-your-own-commits case above, not rewriting shared history.
   - **`git rebase origin/main` only drops the old commit cleanly when the branch carried a *single* squash-merged commit.** When it carried *several* commits that `main` squashed into *one* (then kept developing), git can't match them to the squash as already-applied, so it replays them and conflicts mid-rebase. Replant only the genuinely-new commits instead: `git rebase --onto origin/main <last-squash-merged-commit>` (then `git push --force-with-lease`). If the new work is small, a `git reset --hard origin/main` + redo beats fighting the replay.
@@ -48,6 +49,13 @@ There's no cost to a branch carrying many commits when the project uses a **squa
 ## An automated commit-nag is not authorization to commit drift
 
 An automated prompt to commit the working tree (a stop-hook, a CI nag) tells you the tree is dirty — not that the changes are yours or intended. Before obeying, inspect what actually changed (`git status` / `git diff`): if it's environment/setup drift — a submodule pointer moved by `git submodule update` at clone time, a lockfile a setup script regenerated, generated artifacts — revert it rather than committing it onto your branch. Committing drift slips an unintended dependency or generated-file bump into an unrelated change.
+
+## Once a repo is confirmed templateless, stop searching for a PR template
+
+Tooling commonly instructs a search for `pull_request_template.md` before every
+`create_pull_request` call. In a repo that carries none, that is a guaranteed miss repeated on
+every PR. After the first miss, write the body from the commit message and skip the lookup for
+the rest of the session.
 
 ## Open a PR early when the reviewable artifact only exists on CI
 
@@ -137,7 +145,31 @@ GitHub **Actions** reports results as **check runs**, not the legacy **commit st
 
 ## To confirm a non-PR run (push / dispatch), read its job logs — it has no PR check runs
 
-A `push` or `workflow_dispatch` run isn't attached to a PR, so the PR-scoped check-run query above doesn't apply to it. Confirm such a run through the GitHub API/MCP tools: `get_job_logs(run_id, failed_only: true)` — "0 failed jobs" means green — or, for a release build, `get_release_by_tag`. `get_job_logs` needs more than a bare `run_id`: it rejects with "job_id is required when failed_only is false" unless you pass `failed_only: true` or fetch a `job_id` first (`list_workflow_jobs`), and it 404s for a job still `in_progress` — wait for the job to finish. Don't `curl` the run's status instead: in a sandboxed session `api.github.com` is proxy-blocked and returns an error body that never matches a success pattern, so a `curl`/`Monitor` poll silently reports "still running" until it times out.
+A `push` or `workflow_dispatch` run isn't attached to a PR, so the PR-scoped check-run query above doesn't apply to it. Confirm such a run through the GitHub API/MCP tools: `get_job_logs(run_id, failed_only: true)` — "0 failed jobs" means green — or, for a release build, `get_release_by_tag`. `get_job_logs` needs more than a bare `run_id`: it rejects with "job_id is required when failed_only is false" unless you pass `failed_only: true` or fetch a `job_id` first (`list_workflow_jobs`), and it 404s for a job still `in_progress` — wait for the job to finish. Don't `curl` the run's status instead: in a sandboxed session every repo-scoped `api.github.com` path 403s with an error body that never matches a success pattern, so a `curl`/`Monitor` poll silently reports "still running" until it times out. Reaching the host proves nothing — the unscoped `/rate_limit` answers 200 in the same session. The same error body fails the other way too: a loop deriving a pending-*count* from it reads the absent fields as zero pending and reports "all checks concluded" within a second, while the real checks are still `in_progress`. Verify any curl-based result against `get_check_runs` before acting on it.
+
+## Waiting on a run or check: one mechanism, never two at once
+
+Resolve the wait through exactly one path — a `Monitor` until-loop, **or** direct polling of the check-run/job-log tools above — never both on the same signal. A background `sleep` timer left running beside a blocking poll reports back later as a stale notification that has to be recognized and discarded, and routinely costs extra round trips once the blocking poll hits its own timeout.
+
+## A run artifact resolves to a blob-storage URL a sandboxed session can't reach
+
+`download_workflow_run_artifact` hands back a `*.blob.core.windows.net`-style URL that a sandbox's egress proxy denies at CONNECT, so chasing it burns a call for nothing. Read `get_job_logs` with a generous `tail_lines` to learn which step or case failed, then reproduce it locally.
+
+## A long-running workflow that commits generated files will race a more-frequent scheduled writer
+
+A workflow that regenerates and commits derived files and runs longer than a competing scheduled job's interval is not occasionally rejected on push — it is guaranteed to be, once the scheduled job lands first. Recovery has to **re-derive, not merge**: both sides are generator output whose only correct value is "whatever the generator computes now", so on a rejected push fetch the current base, regenerate from it plus this run's own non-generated input, and retry. Design the commit step for this from the start.
+
+## `list_pull_requests`'s `merged` field can't be trusted
+
+Its `merged`/`merged_at` fields can read `false`/empty for a PR that has genuinely landed by squash-merge, even with `fields` narrowed. Confirm landed-ness by grepping the base branch's commit subjects for the squash's `(#N)`, or call `pull_request_read` `get` on the one PR you care about.
+
+## `issue_read`'s `get_*` methods reject a PR number
+
+`issue_read` (`get`, `get_comments`, `get_labels`, …) resolves only true issues and errors "Could not resolve to an Issue" on a PR number, even though a PR is an issue at the API level. Read a PR's labels, comments or metadata through `pull_request_read` instead.
+
+## Leaving several PRs open after one sweep, subscribe every one of them
+
+An unsubscribed PR gets noticed only on a manual re-poll, while a subscribed one's merge or comment arrives as an activity event the moment it happens. When a run's output is more than one open PR, subscribe all of them before ending the session, not a sample.
 
 ## A deleted workflow's old runs outlive it, and no session tool can clear them
 
@@ -172,6 +204,10 @@ In a GitHub-rendered Markdown file, cmark-gfm re-enters Markdown mode inside a r
 
 A broad call (e.g. `search_repositories` with `org:X`, or any list/search tool that takes no repo argument) returns every repo the token can see, not just an allowed subset — filtering the result afterward doesn't undo the fact that disallowed repos' data was already pulled into the call. When operating under a repo allowlist, scope every call explicitly instead: pass the specific `owner`/`repo` params, or anchor the query to `repo:owner/name`, one call per repo in the allowlist rather than one broad call filtered after the fact.
 
+## Write access scoped to one repo doesn't license routing around it for a fix that belongs elsewhere
+
+A session's push access is commonly scoped to a single repo even when it can *read* others. Finding a bug in a repo you can only read is not license to hunt for a way to push there: the scope is a policy boundary, not an oversight. Verify the fix in a scratch clone of the repo that owns it, then attach it as a patch to an issue in the repo you *can* write to, so a session with the right scope can `git apply` it — never edit a read-only mirror in place.
+
 ## Cap *and* qualify every list/search call — an unbounded one blows the tool-result limit
 
 A list or search API call that isn't bounded returns a full page of full-bodied records and overruns the agent's tool-result cap, which costs two or three further calls to dig the answer back out of the spilled result — a pure-overhead round trip on a call whose wanted answer was a single record. Two independent bounds, both needed:
@@ -180,6 +216,7 @@ A list or search API call that isn't bounded returns a full page of full-bodied 
 - **When you already know the exact title, don't search at all — list and match it yourself.** Field anchoring is a *GitHub search API* feature, and an MCP layer in front of it may match **semantically** instead, ranking by resemblance and honouring no qualifier: the title you named can then rank below unrelated issues or be absent from the page entirely, and `in:title` changes nothing. Enumerate with `list_issues` (a narrow field list, a large page size, no state filter — a log issue is often deliberately closed) and compare the string in-session. Reserve search for what it is good at: finding items you can only *describe*.
 - **Trim the fields, not just the page size.** The per-object field set is what governs the payload, so capping the page can leave the response byte-identical — measured, the same call at two page sizes returned output identical to the character. Ask for the fields you need (`["number","title","state"]` covers most lookups); dropping the body alone is usually the whole difference. Where a tool offers no field selection, narrow the query instead, or take the overflow as the answer and read the spilled result file directly rather than retrying it smaller.
 - **Pass a small explicit page size.** Default page sizes are tuned for a browser, not a tool result; when the answer wanted is one issue or one run, ask for 5–10, never a bare unpaged call.
+- **`actions_list`'s `list_workflow_runs` can ignore `per_page` entirely.** On a repo with enough run history, shrinking the page size — even to 1–3 — returned a byte-identical response, confirmed on two separate repos. Don't retry it smaller: scope the query to a specific run id or one head SHA instead, or read the spilled overflow file directly.
 
 All of them, not one: a qualified query still returns a full page, a small page of unqualified matches is still the wrong records, and a small page of full-bodied records still overruns the cap.
 

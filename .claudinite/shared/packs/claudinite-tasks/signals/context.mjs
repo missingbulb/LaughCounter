@@ -14,13 +14,20 @@
 import { localSignalContext } from './local.mjs';
 
 // `item` is the OCCURRENCE the signals are being collected for, where the caller
-// has one — the executor always does. Almost every collector reads a window of repo
-// activity and ignores it; the `request` collector reads the single issue this item
-// names, which is a fact no window can single out.
-export function buildSignalContext({ root, repo, defaultBranch, now, sinceIso, config, fleet = null, item = null, packConfigFor = () => ({}) }) {
+// has one — the executor always does — as `itemFacts` reads it. Almost every
+// collector reads a window of repo activity and ignores it; the `request`
+// collector reads the single issue this item names, which is a fact no window can
+// single out, and the `runs` collector excludes it from the task's history.
+//
+// `task` is `{ pack, id }`, the task whose run history is being read, and `items`
+// the queue where the caller already fetched it (the scheduler run) — null where
+// the collector reads it for itself (the executor at pick).
+export function buildSignalContext({
+  root, repo, defaultBranch, now, sinceIso, config, fleet = null, item = null, task = null, items = null, packConfigFor = () => ({}),
+}) {
   const local = localSignalContext(root, { packIds: config.packs ?? [], packConfigFor });
   return {
-    repo, defaultBranch, now, sinceIso, config, item,
+    repo, defaultBranch, now, sinceIso, config, item, task, items,
     activePacks: config.packs, fleet,
     manifestVersion: local.manifestVersion,
     shipsReleasePipeline: local.shipsReleasePipeline,

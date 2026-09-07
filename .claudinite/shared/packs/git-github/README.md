@@ -23,6 +23,9 @@ adopting its pack and is judged there by these same checks. The two that do not 
 about an adopting repo — who owns its one cron, who watches its scheduled runs — rather than
 about the file, so neither has an answer about a fragment. (1)
 
+The guards judge a tool call rather than a file — a GitHub MCP call or a shell command about to
+run — and carry the platform behaviour that makes the call wrong.
+
 | Check | Severity | Reason | Enforcement |
 |---|---|---|---|
 | `gha/secrets-in-job-if` | high | correctness | check: blocking |
@@ -34,3 +37,7 @@ about the file, so neither has an answer about a fragment. (1)
 | `gha/label-create-before-add` | medium | correctness | check: advisory |
 | `gha/unique-automation-branch` | medium | correctness | check: advisory |
 | `gha/cron-minute-off-the-hour` | medium | correctness | check: advisory |
+| `issue-labels-overwrite` | medium | correctness | guard: advisory |
+| `pull-request-head-unqualified` | high | correctness | guard: blocking |
+| `codeload-tarball-fetch` | medium | correctness | guard: blocking |
+| `search-code-lower-bound` | medium | correctness | guard: advisory |

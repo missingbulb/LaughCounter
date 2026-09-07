@@ -3,7 +3,7 @@
 // rival mechanism deleted in #768 Phase 5 the question had one possible answer for
 // every member that could still ask it.
 //
-// KEPT CALLABLE, not deleted, for the reason every `updates/*` export is: a member's
+// KEPT CALLABLE, not deleted, for the reason every update-flow export is: a member's
 // VENDORED worker is a cycle behind the flows that rewrote its declaration, so a
 // removal would wedge every member holding the old copy on its next run. Its answers
 // stay correct for those callers by construction — a member whose block the rename

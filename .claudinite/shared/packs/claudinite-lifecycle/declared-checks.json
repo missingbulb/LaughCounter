@@ -77,5 +77,28 @@
         "fix": "add \"claudinite-lifecycle\" to \"packs\" — it is basics' own dependency, so the requires closure writes it back the next time the declaration is written"
       }
     ]
+  },
+  {
+    "id": "shared-tree-edit-guard",
+    "severity": "blocking",
+    "since": "2026-09-06",
+    "scope": "action",
+    "failureMessage": "the update flow replaces .claudinite/shared/ whole on its next converge, so an edit there is discarded — silently, and only once the mount next refreshes",
+    "guardToolCalls": [
+      {
+        "tool": "/^(Edit|Write|NotebookEdit)$/",
+        "inputField": "file_path",
+        "match": "/(?:^|\\/)\\.claudinite\\/shared\\//",
+        "what": "{tool} writes {field}, inside the vendored .claudinite/shared/ tree",
+        "fix": "make the change in the canon instead, or carry a difference this repo alone needs under .claudinite/local/packs/, which survives every converge"
+      },
+      {
+        "tool": "Bash",
+        "inputField": "command",
+        "match": "/(?:\\bsed\\b[^\\n]{0,60}?\\s-i|\\btee\\b|\\brm\\b|\\btruncate\\b|>>?)[^\\n&;|]*\\.claudinite\\/shared(?:\\/|\\b)/",
+        "what": "the command writes into the vendored .claudinite/shared/ tree: {match}",
+        "fix": "make the change in the canon instead, or under .claudinite/local/packs/ for a difference this repo alone needs; reading the mount is fine and is not this"
+      }
+    ]
   }
 ]

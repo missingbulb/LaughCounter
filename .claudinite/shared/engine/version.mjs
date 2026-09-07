@@ -19,7 +19,8 @@ export const ENGINE_VERSION = '60902.1';
 
 // THE VERSION FORMAT — how every engine and pack version in the corpus is written,
 // read and ordered. The helpers below are imported by every side that creates a
-// version (each `packs/*/pack.mjs`), stamps one (updates/), compares two (the update
+// version (each `packs/*/pack.mjs`), stamps one (the update
+// flows), compares two (the update
 // planners, the dashboard, the fleet roster) or scrapes one out of source text over
 // the API. They live beside the constant rather than in a module of their own so the
 // engine surface a member's mount must carry for any of it is one file.

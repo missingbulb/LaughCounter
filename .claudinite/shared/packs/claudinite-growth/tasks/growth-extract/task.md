@@ -83,7 +83,7 @@ in the loop.
 ## What this task must never do
 
 - **Never write outside the repo's own local packs** — this task improves the repo's **packs**, never the
-  canon, never the project's own code, and never its comments, which belong to the tidy-repo pack's
+  canon, never the project's own code, and never its comments, which belong to the basics pack's
   `improve-comments` task. Everything else under `.claudinite/` is the read-only mount, and lifting a lesson
   up into the canon is the central promote task's job. A lesson tied to one call site is dropped, not landed
   as its pack's entry naming the site. The `growth-write-scope` check keys on this run's pinned title

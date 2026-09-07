@@ -129,44 +129,47 @@ function vendoredSet(root, files) {
 // Nothing writes into a member's README any more, so there is no `badges` key here:
 // a member carrying the stale one gets the unknown-setting error below, and the
 // wiring converge clears it.
-// `dormant` is the project's own declaration that it is out of the RECURRING work —
-// see isDormant below for exactly how much that covers.
+// There is no `dormant` key either. Dormancy is a property of the SCHEDULER, not of
+// the repository — every effect it has is an effect on the work-item queue — so it is
+// a parameter of the pack that owns that mechanism, declared on that pack's own entry,
+// and the engine neither validates it nor normalizes it. A repo declaring no scheduler
+// pack has none for the word to mean anything about.
 // `claudinite` and `maintenance` are the two retired blocks, tolerated on read so a
 // member that has not yet run the #1252 record still loads. LEGACY_CONFIG_KEYS is
 // what Phase 3 deletes.
 export const CONFIG_KEYS = ['packs', 'rules', 'accept', 'sharedConstants', 'packConfig',
-  'engineVersion', 'dailyClaudiniteUpdatesRequirePrReview', 'taskScheduler', 'dormant'];
+  'engineVersion', 'dailyClaudiniteUpdatesRequirePrReview', 'taskScheduler'];
 
-// The retired blocks, read but never written. Their content is folded into the
-// current shape by the load below, so nothing downstream sees either name.
+// Keys accepted on the way in and written by nothing. The first two are the retired
+// BLOCKS, whose content is folded into the current shape by the load below so nothing
+// downstream sees either name. `dormant` is here for a different reason: it was never
+// the engine's to fold, and its reader lives in the pack that owns the scheduler. It is
+// listed only so a member still declaring it at the top level collects no
+// unknown-setting error while the migration record converges the fleet onto the pack
+// entry — which is why it retires on its own issue rather than with the blocks.
 // @legacy-tolerance advisory:legacy-shape-in-use retire:#1640
-export const LEGACY_CONFIG_KEYS = ['claudinite', 'maintenance'];
+export const LEGACY_CONFIG_KEYS = [
+  'claudinite', 'maintenance',
+  // @legacy-tolerance advisory:legacy-shape-in-use retire:#1846
+  'dormant',
+];
 const KNOWN_CONFIG_KEYS = [...CONFIG_KEYS, ...LEGACY_CONFIG_KEYS];
 
-// Does this project declare itself DORMANT? A project goes dormant when it is
-// finished, parked, or simply not being worked on: it should stop paying the
-// upkeep of a project that IS being worked on.
+// The predicate this module used to own, kept ONLY for the pack-lane window. The engine
+// and a pack reach a member on separate cycles, so every member spends a window holding
+// this engine beside a pack version that still imports `isDormant` from here — and a
+// missing export there is a crash mid-converge, in the flow that would have delivered
+// the fix.
 //
-// What dormancy means, exactly — it is narrow on purpose:
-//   - NO RECURRING WORK. The vendored scheduler stops before it evaluates
-//     anything before it evaluates a precondition, so no work item is instantiated,
-//     no agent session is started, and no maintenance PR is opened.
-//     Nothing scheduled runs "for nothing" on a repo nobody is working on.
-//   - NO FLEET CEREMONY. Whatever looks at this repo from the OUTSIDE reads the
-//     same declaration and leaves it alone rather than reporting it as unhealthy —
-//     a repo TOLD to stop keeping up must not then be nagged for not keeping up.
-//     Which is why this predicate is exported for a raw declaration too (below).
-//   - EVERYTHING ELSE STAYS ON. Claudinite is not switched off: the session
-//     hooks, the checks engine, the mounted skills and pack prose all work
-//     exactly as before the moment someone opens a session on the repo. Dormancy
-//     is about unattended upkeep, never about what an interactive session may do.
+// It reads the retired top-level key and nothing else, which is exactly right for the
+// callers it exists for: a pack old enough to import it is old enough to predate the
+// pack-entry spelling, so this answers the only question that code knows how to ask.
+// It is NOT the definition — that is the tasks pack's, which resolves both spellings —
+// and nothing new may call it.
 //
-// The predicate reads BOTH shapes deliberately: a raw parsed .claudinite-settings.json
-// and the normalized config loadConfig returns. A cross-repo reader fetches another
-// repo's declaration over the API with no engine loaded against that tree, and it
-// must decide dormancy by the same test that repo's own scheduler used — a second
-// notion of dormancy would nag exactly the repos that had already opted out. One
-// definition, both sides.
+// @deprecated Use the `isDormant` the scheduler's own pack publishes from its
+// shared-code surface, which is where the live definition lives.
+// @legacy-tolerance advisory:legacy-shape-in-use retire:#1846
 export const isDormant = (config) => config?.dormant === true;
 
 // The keys a `schedule` object may carry, and the canonical weekday vocabulary
@@ -228,7 +231,7 @@ export const PACK_ENTRY_KEYS = ['id', 'version', 'config', 'answers', 'rules', '
 export function loadConfig(root) {
   const path = settingsPath(root);
   const name = path.endsWith(LEGACY_SETTINGS_FILE) ? LEGACY_SETTINGS_FILE : SETTINGS_FILE;
-  const empty = { packs: [], packEntries: [], rules: {}, accept: [], sharedConstants: [], packConfig: {}, taskScheduler: null, engineVersion: null, packVersions: {}, dailyClaudiniteUpdatesRequirePrReview: false, dormant: false, errors: [] };
+  const empty = { packs: [], packEntries: [], rules: {}, accept: [], sharedConstants: [], packConfig: {}, taskScheduler: null, engineVersion: null, packVersions: {}, dailyClaudiniteUpdatesRequirePrReview: false, raw: null, errors: [] };
   if (!existsSync(path)) return empty;
 
   let raw;
@@ -468,17 +471,6 @@ export function loadConfig(root) {
     }
   }
 
-  // --- dormant: a plain boolean, validated as one. A string "true", a `{ since }`
-  // object or a reason left in its place would all read as dormant to a truthiness
-  // test and as active to this one, and the difference is a whole repo's scheduled
-  // work — so the wrong TYPE is a settings error, not a value to coerce.
-  if (raw.dormant !== undefined && typeof raw.dormant !== 'boolean') {
-    errors.push({
-      what: `"dormant" must be true or false, got ${JSON.stringify(raw.dormant)}`,
-      fix: 'set "dormant": true to stop this project\'s recurring work, or remove the key',
-    });
-  }
-
   return {
     packs,
     packEntries,
@@ -504,10 +496,13 @@ export function loadConfig(root) {
     // shape and means the update PR lands on its own; the retired
     // `maintenance.delivery: review` says the same thing the old way.
     dailyClaudiniteUpdatesRequirePrReview: requirePrReview,
-    // Normalized to a boolean rather than passed through: everything downstream
-    // asks "is this project dormant", and a tri-state (true / false / absent) would
-    // invite each caller to answer the absent case for itself. Absent is active.
-    dormant: isDormant(raw),
+    // The declaration exactly as the member wrote it. The engine normalizes what the
+    // engine OWNS; a setting belonging to a pack is that pack's to read, and its
+    // reader needs the unnormalized file — both to find a parameter on a pack entry
+    // and to resolve a retired top-level spelling the engine deliberately no longer
+    // folds. Every caller that has a shape to ask about should ask its owner's
+    // predicate, not reach in here.
+    raw,
     errors,
   };
 }

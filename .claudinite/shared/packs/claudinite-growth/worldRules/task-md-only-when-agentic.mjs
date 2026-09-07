@@ -1,5 +1,4 @@
 import { finding } from '../../../engine/checks/helpers/findings.mjs';
-import { stripComments } from '../../../engine/checks/helpers/code-scanning.mjs';
 
 // `task.md` is one thing: the spec an agentic task's session follows (the
 // writing-tasks skill, "The task folder"). A task that runs no agent
@@ -18,31 +17,18 @@ import { stripComments } from '../../../engine/checks/helpers/code-scanning.mjs'
 // is what that is called (#1055).
 //
 // RELEVANCE FIRST (engine/checks/README.md): gated on a `tasks/<name>/task.json`
-// (or the retired `task.mjs`) existing, so the rule is inert on any repo that
-// carries no tasks. Static text over the self-contained file, the same read its
-// two sibling rules use.
-const TASK_DECLARATION = /(^|\/)tasks\/([^/]+)\/task\.(json|mjs)$/;
+// existing, so the rule is inert on any repo that carries no tasks. Static text
+// over the self-contained file, the same read its two sibling rules use.
+const TASK_DECLARATION = /(^|\/)tasks\/([^/]+)\/task\.json$/;
 
 // Whether the declaration names a field at all, and a string field's value — a
-// `task.json` parsed whole, a `task.mjs` lifted by pattern over comment-stripped
-// source.
-function fields(file, text) {
-  if (file.endsWith('.json')) {
-    let obj = null;
-    try { obj = JSON.parse(text); } catch { obj = null; }
-    return {
-      has: (key) => Boolean(obj) && obj[key] !== undefined,
-      str: (key) => (obj && typeof obj[key] === 'string' ? obj[key] : null),
-    };
-  }
-  const code = stripComments(text);
-  const at = (key) => new RegExp(`(?:^|[{,])\\s*${key}:\\s*`, 'm');
+// `task.json` parsed whole.
+function fields(text) {
+  let obj = null;
+  try { obj = JSON.parse(text); } catch { obj = null; }
   return {
-    has: (key) => at(key).test(code),
-    str: (key) => {
-      const m = new RegExp(`(?:^|[{,])\\s*${key}:\\s*['"]([^'"]+)['"]`, 'm').exec(code);
-      return m ? m[1] : null;
-    },
+    has: (key) => Boolean(obj) && obj[key] !== undefined,
+    str: (key) => (obj && typeof obj[key] === 'string' ? obj[key] : null),
   };
 }
 
@@ -69,7 +55,7 @@ const rule = {
       if (!m) continue;
       const text = ctx.read(file);
       if (text === null) continue;
-      if (runsAgent(fields(file, text))) continue;
+      if (runsAgent(fields(text))) continue;
 
       const taskDir = file.slice(0, file.lastIndexOf('/') + 1);
       if (!ctx.exists(`${taskDir}task.md`)) continue;

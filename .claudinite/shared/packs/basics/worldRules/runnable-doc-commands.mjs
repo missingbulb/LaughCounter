@@ -31,6 +31,13 @@ const PLACEHOLDER = /^<[a-z-]+>\//;
 // there is one its owner cannot act on.
 const AUTHORED_DOC = /^(\.claudinite\/local\/)?packs\/.+\.md$/;
 
+// A pack's own `docs` directory never vendors (compute-vendor-set.mjs) — maintainer
+// reference no mount ever carries, cited by `§` name rather than run by an agent
+// in a member's session. This rule exists for what an agent WILL run out of its
+// own mount, a premise a pack's docs/ never meets, so it is out of scope exactly
+// like the vendored mount below (#1755).
+const PACK_DOCS_DIR = /^(\.claudinite\/local\/)?packs\/[^/]+\/docs\//;
+
 const rule = {
   id: 'runnable-doc-commands',
   severity: 'blocking',
@@ -45,7 +52,7 @@ const rule = {
     const paths = ctx.files;
     const resolves = (suffix) => paths.some((f) => f === suffix || f.endsWith(`/${suffix}`));
 
-    for (const file of ctx.files.filter((f) => AUTHORED_DOC.test(f))) {
+    for (const file of ctx.files.filter((f) => AUTHORED_DOC.test(f) && !PACK_DOCS_DIR.test(f))) {
       const text = ctx.read(file);
       if (text === null) continue;
       for (const [, path] of text.matchAll(COMMAND)) {

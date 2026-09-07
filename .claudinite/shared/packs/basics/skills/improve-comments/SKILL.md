@@ -1,6 +1,6 @@
 ---
 name: improve-comments
-description: Improve the comments in a repo's own source — delete the ones that restate the code or narrate a past edit, correct the ones that have drifted from what the code now does, and add the why where only a reader's guess carries it. Use when working a repo's comments as their own pass (the tidy-repo pack's improve-comments task), never as a side effect of another change.
+description: Improve the comments in a repo's own source — delete the ones that restate the code or narrate a past edit, correct the ones that have drifted from what the code now does, and add the why where only a reader's guess carries it. Use when working a repo's comments as their own pass (the basics pack's improve-comments task), never as a side effect of another change.
 ---
 
 # Improve a repo's comments

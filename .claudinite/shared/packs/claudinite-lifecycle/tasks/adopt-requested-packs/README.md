@@ -23,8 +23,9 @@ only because an issue was marked, so "is there work?" is answered by the item's
 existence. (Before the fold it was answered by counting labelled issues, because
 the enforcer woke a standing item that had no idea why it was awake.)
 
-`frequency: 'manual'` — never due on any cadence. The work only exists when the
-fleet places it. (A member whose run died is re-asked by clearing the issue's
+`trigger: request` — not on the schedule, never due on any cadence. The work only
+exists when the fleet places an item for it, and that item is the whole of when it
+runs. (A member whose run died is re-asked by clearing the issue's
 status, which the enforcer does whenever it rewrites a changed ask, and by the
 fleet's next weekly visit.) A repo outside any fleet simply never runs this.
 

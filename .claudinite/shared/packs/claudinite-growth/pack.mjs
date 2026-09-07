@@ -56,7 +56,7 @@
 // the probe rather than re-reading the prose. It shares prose-to-checks-sweep's
 // `pack_paths` config: a member revalidates its own local packs, the canon its own.
 //
-// A declared pack (no fingerprint), seeded like tidy-repo: --init seeds it into every
+// A declared pack (no fingerprint), seeded like the baseline: --init seeds it into every
 // new repo, the one-time grow-with-claudinite-seed migration seeds the existing fleet,
 // and baselining never re-adds it — so removing it is a durable opt-out.
 //
@@ -67,11 +67,11 @@
 // fail-safe and behaved as an unbounded leak, since no adoption flow asked for the
 // value and nothing seeded it (#1620). Capture-only is now declared, not inferred.
 export default {
-  version: '60906.3',
+  version: '60907.2',
   minEngineVersion: '60822.1',
   ruleRoutingGuidance: {
     belongs: 'authoring Claudinite content here — lesson extraction, dedup, revalidation, conversation logs, skill-usage folding, the task contract',
-    excludes: 'this repo\'s Claudinite status — mount, declaration, adoption, update — claudinite-lifecycle; issue/PR housekeeping — tidy-repo; fleet sweeps — claudinite-fleet-sheepdog',
+    excludes: 'this repo\'s Claudinite status — mount, declaration, adoption, update — claudinite-lifecycle; code comments — basics; fleet sweeps — claudinite-fleet-sheepdog',
   },
   seededByDefault: true,
   // Growth builds on Claudinite's own surface — a lesson is routed by reading the

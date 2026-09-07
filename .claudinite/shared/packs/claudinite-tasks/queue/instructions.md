@@ -192,6 +192,27 @@ instructions.
    on GitHub. If it reports an error, **say so plainly in your final message** and
    end anyway.
 
+## Every issue you open says which task opened it
+
+You may open an issue this run was not asked for — a warning you cannot fix now, a code
+fix you spotted but must not slip in, a step only a person can perform. Whatever it is
+about, its body ends with this line, verbatim in this shape:
+
+```
+_Filed by the Claudinite task `<pack>/<task>`, running as work item <owner/repo>#<n> — no person asked for this issue._
+```
+
+The item reference is qualified by repository because such an issue is routinely filed
+somewhere other than the repo this run lives in, where a bare `#<n>` points at a stranger.
+
+Its reader has to be able to tell unattended machinery from a colleague: that decides
+whether they answer the issue or retune the task that keeps filing this shape of one, and
+the item is their only thread back to the run. A commit and a pull request already say it
+through the `Claudinite-Task:` trailer the delivery lane stamps; an issue said nothing.
+
+Your own work item is not one of these — its title names its task already — and neither is
+a comment on an issue somebody else opened.
+
 ## The one standing bound
 
 You execute **this one item and nothing else**. Never list other work items,

@@ -2,7 +2,10 @@
   "$schema": "../../../claudinite-tasks/task.schema.json",
   "id": "update",
   "description": "Maintains this repository's Claudinite mount: converges the vendored engine and packs to the canon's current versions, runs the version-ranged migrations, gates on the converged tree's self-test and opens the update pull request. An agent runs only where new pack rules meet member-authored content.",
-  "frequency": "daily",
+  "trigger": "schedule",
+  "preconditions": [
+    "due:daily"
+  ],
   "expected_outcome": "supersede_existing_pr",
   "automerge": "anything",
   "code_work": "node worker.mjs",

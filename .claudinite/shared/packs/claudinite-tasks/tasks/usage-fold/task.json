@@ -2,8 +2,9 @@
   "$schema": "../../task.schema.json",
   "id": "usage-fold",
   "description": "Folds the repository's captured session logs and workflow runs into a small tracked usage aggregate: skill loads with their denominators, scheduler and executor activity, work-item outcomes. It is the past-data plane the dashboard renders from.",
-  "frequency": "daily",
+  "trigger": "schedule",
   "preconditions": [
+    "due:daily",
     "any-commit || session-captured"
   ],
   "expected_outcome": "amend_existing_or_create_new_pr",

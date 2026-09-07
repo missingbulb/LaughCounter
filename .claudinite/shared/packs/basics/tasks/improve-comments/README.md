@@ -4,11 +4,9 @@
 
 Carried over from the declaration's comments when it became `task.json`.
 
-tidy-repo task: improve-comments — the one tidy dimension whose subject is the
-repo's own source rather than its GitHub objects. The other three assess or act
-on issues, PRs and branches; this one reads a slice of the code AS COMMENTS and
-fixes what it finds there. Worker: task.md, which runs the improve-comments skill
-and nothing else.
+basics task: improve-comments — the one scheduled task whose subject is the repo's
+own source. It reads a slice of the code AS COMMENTS and fixes what it finds there.
+Worker: task.md, which runs the improve-comments skill and nothing else.
 
 WHY IT IS A TASK AT ALL: a comment decays as the code around it changes and
 nothing makes it fail. No test goes red, no check fires, and no session working on

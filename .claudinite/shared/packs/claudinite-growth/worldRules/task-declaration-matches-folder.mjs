@@ -1,5 +1,4 @@
 import { finding } from '../../../engine/checks/helpers/findings.mjs';
-import { stripComments } from '../../../engine/checks/helpers/code-scanning.mjs';
 
 // The other half of the task contract (the writing-tasks skill, "Every task
 // declaration carries the full contract" + "The task folder"): the declaration
@@ -19,27 +18,20 @@ import { stripComments } from '../../../engine/checks/helpers/code-scanning.mjs'
 // is cheap: at author time, in the session that wrote the file.
 //
 // RELEVANCE FIRST (engine/checks/README.md): gated on a `tasks/<name>/task.json`
-// (or the retired `task.mjs`) existing, so the rule is inert on any repo that
-// schedules nothing. Static text over the self-contained file, the same read the
-// shape rule uses, so the two views of one file can't disagree.
-const TASK_DECLARATION = /(^|\/)tasks\/([^/]+)\/task\.(json|mjs)$/;
+// existing, so the rule is inert on any repo that schedules nothing. Static text
+// over the self-contained file, the same read the shape rule uses, so the two
+// views of one file can't disagree.
+const TASK_DECLARATION = /(^|\/)tasks\/([^/]+)\/task\.json$/;
 
 // The value of a top-level string field, or null if absent — a `task.json`
-// parsed whole, a `task.mjs` lifted by pattern over comment-stripped source.
-function stringFields(file, text) {
-  if (file.endsWith('.json')) {
-    try {
-      const obj = JSON.parse(text);
-      return (key) => (obj && typeof obj[key] === 'string' ? obj[key] : null);
-    } catch {
-      return () => null;
-    }
+// parsed whole.
+function stringFields(text) {
+  try {
+    const obj = JSON.parse(text);
+    return (key) => (obj && typeof obj[key] === 'string' ? obj[key] : null);
+  } catch {
+    return () => null;
   }
-  const code = stripComments(text);
-  return (key) => {
-    const m = new RegExp(`(?:^|[{,])\\s*${key}:\\s*['"]([^'"]+)['"]`, 'm').exec(code);
-    return m ? m[1] : null;
-  };
 }
 
 const rule = {
@@ -58,7 +50,7 @@ const rule = {
       const text = ctx.read(file);
       if (text === null) continue;
       const flag = (what, fix) => out.push(finding(rule, { file, what, fix }));
-      const field = stringFields(file, text);
+      const field = stringFields(text);
 
       const id = field('id');
       if (id !== null && id !== dirName) {

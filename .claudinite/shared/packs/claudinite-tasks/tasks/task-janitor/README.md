@@ -1,5 +1,18 @@
 # task-janitor
 
+## What this task is
+
+A **fallback**. Every rule it runs repairs something that already went wrong — a
+label swap that tore, a session that died, a park nobody answered, a pull request
+somebody resolved without closing the item behind it. No stage of the healthy flow
+of a task runs here: an item the machinery handled correctly is settled by whoever
+handled it, long before this task's next pass. A new rule is therefore a claim that
+a failure mode exists and that nothing nearer to it can close the item out.
+
+It reads only OPEN items. An item somebody closed is finished, park label and all:
+a person ending a park by closing its issue has answered it, and this task neither
+reopens nor re-labels nor re-announces one.
+
 ## Why the declaration reads as it does
 
 Carried over from the declaration's comments when it became `task.json`.

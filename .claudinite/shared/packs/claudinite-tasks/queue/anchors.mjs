@@ -1,19 +1,22 @@
-// Anchors — when a task's occurrence falls (tasks-dispatch DESIGN §5).
+// Anchors — when a cadence's occurrence falls (tasks-dispatch DESIGN §5).
 //
 // The arithmetic lives in `calendar.mjs`; this module exposes exactly the two
-// questions the queue asks of it — "which occurrence is current" (the scheduler run's
-// instantiation guard) and "when does this item wake next" (the roll's stamped
-// `Not-before`) — plus the period a frequency repeats on.
+// questions asked of it — "which occurrence is current" (what a `due:` term
+// measures a task's run history against) and "when is the next one" (what the
+// dashboard renders) — plus the period a cadence repeats on, and the period a
+// TASK keeps, read off its own cadence term.
 //
 // Pure and stateless: `now` is always injected, every value is UTC.
 
-import { anchorInstant, normalizeFrequency } from '../calendar.mjs';
+import { anchorInstant, normalizeFrequency, cadenceOf } from '../calendar.mjs';
 
 const HOUR_MS = 3600e3;
 const DAY_MS = 24 * HOUR_MS;
 
-// One period of a frequency, in ms — the unit the janitor's stale-ready rule
-// counts in (DESIGN §11) and the coarse step `nextAnchor` walks.
+// One period of a cadence word (`daily`, `weekly`, `monthly` — and the retired
+// `frequency` field's values, `manual` having none), in ms — the unit the
+// janitor's stale-ready rule counts in (DESIGN §11) and the coarse step
+// `nextAnchor` walks.
 export function periodMs(frequency) {
   // Normalized like `anchorInstant`. Today this changes no answer — every retired token maps to
   // `daily`, which is also the fallthrough below — so it is insurance, not the thing carrying the
@@ -28,8 +31,18 @@ export function periodMs(frequency) {
   return DAY_MS;
 }
 
+// The period a TASK keeps, read off the cadence term its declaration states: a
+// `due:` cadence's period, a `last-run-over:` duration, and null for a task with
+// no cadence term (asked at every tick, it runs on movement or when woken).
+export function taskPeriodMs(decl) {
+  const cadence = cadenceOf(decl?.preconditions);
+  if (cadence?.kind === 'due') return periodMs(cadence.cadence);
+  if (cadence?.kind === 'elapsed') return cadence.ms;
+  return null;
+}
+
 // The most recent occurrence at or before `now`, as a Date. `manual` has none —
-// the scheduler run never instantiates it (DESIGN §8), so null is the whole answer.
+// nothing schedules it — so null is the whole answer.
 export const mostRecentAnchor = anchorInstant;
 
 // The earliest occurrence strictly after `now` — what a rolled item is stamped

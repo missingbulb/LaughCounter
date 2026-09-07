@@ -2,23 +2,19 @@
   "packs": [
     {
       "id": "basics",
-      "version": "60906.3"
+      "version": "60906.13"
     },
     {
       "id": "claudinite-lifecycle",
-      "version": "60906.3"
+      "version": "60907.1"
     },
     {
       "id": "git-github",
-      "version": "60906.1"
+      "version": "60906.4"
     },
     {
       "id": "claudinite-growth",
-      "version": "60906.3"
-    },
-    {
-      "id": "tidy-repo",
-      "version": "60906.1"
+      "version": "60907.2"
     },
     {
       "id": "claude-code-web-users-support",
@@ -32,7 +28,7 @@
     },
     {
       "id": "claudinite-tasks",
-      "version": "60906.5"
+      "version": "60907.2"
     },
     {
       "id": "macos",

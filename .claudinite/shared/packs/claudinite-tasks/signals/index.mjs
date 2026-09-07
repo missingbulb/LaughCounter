@@ -11,9 +11,19 @@
 
 import { SHARED_SUBDIR } from '../../../engine/pack_loader/pack-registry.mjs';
 import { LOCAL_PACK_ROOT } from './local.mjs';
-import { QUEUED_LABEL, ORIGIN_AD_HOC, REQUEST_LABEL } from '../queue/work-item.mjs';
+import {
+  QUEUED_LABEL, ORIGIN_AD_HOC, REQUEST_LABEL, STATUS_BLOCKED, STATUS_READY,
+  workItemTitle, statusOf, statusesOn, parkKindOf, outcomeOf, parseWorkItemBody,
+} from '../queue/work-item.mjs';
+import { isQueueItem } from '../queue/read.mjs';
 import { APPROVAL_RE } from '../built-in-tasks.mjs';
 import { taskFromMessage } from '../task-trailer.mjs';
+
+// How far back the run history reads (tasks-dispatch DESIGN §5): the longest any
+// cadence term looks, a month, plus slack. A run older than this is not in the
+// record — a task then reads as not having run in that long, which is the honest
+// state-free answer. The scheduler's own queue read is bounded by the same figure.
+export const RUN_HORIZON_DAYS = 40;
 
 // A default-branch commit is genuine project work unless it is bot/CI
 // housekeeping or one of Claudinite's own automated writes — the same exclusions
@@ -28,8 +38,8 @@ const HOUSEKEEPING = /\[skip ci\]|(^|\n)\s*baselin(e|ing)\b|claudinite[ -](basel
 // …and a THIRD exclusion the message cannot express: a commit that touched
 // nothing outside `.claudinite/` moved the repo's own working rules, not the
 // project. Every consumer of `substantiveChange` means "genuine project work" by
-// it — an issue was implemented (tidy-issues), something shippable changed
-// (store-release), there is a lesson to extract (growth-extract) — and none of
+// it — something shippable changed (store-release), there is a lesson to extract
+// (growth-extract), a comment may have drifted (improve-comments) — and none of
 // those is true of a corpus edit. Message and author cannot catch it: a human
 // landing a lesson PR writes an ordinary message under their own login, so the
 // growth lifecycle's own landed output re-armed it the next night and a repo
@@ -164,8 +174,8 @@ const COLLECTORS = {
     // the review discussion and the "what changed and why" — usually the richest
     // lesson material in a window — and `state=open` alone made it unreachable to
     // any task bound to this signal. It is deliberately NOT folded into `open` or
-    // `touched`: those two are other tasks' target sets (the PR tidy sweep acts on
-    // `open`), and widening them here would silently widen what those tasks do.
+    // `touched`: those two are other tasks' target sets, and widening them here
+    // would silently widen what those tasks do.
     // The same exclusions the `commits` and `issues` collectors apply hold here, so
     // a growth task still cannot see its own merged output and re-trigger on it.
     const closed = await pagedWindow(
@@ -183,8 +193,8 @@ const COLLECTORS = {
     // neighbour with its own output.
     //
     // Scoped to the window's PRs, never the whole open set: `open` is other tasks'
-    // TARGET set (the PR tidy sweep acts on it, the pending-round conditions read
-    // its paths), and only MOVEMENT is what the trailer reclassifies.
+    // TARGET set (the pending-round conditions read its paths), and only MOVEMENT is
+    // what the trailer reclassifies.
     const inWindow = open.filter((p) => new Date(p.updated_at) >= since);
     const taskAuthored = new Map();
     for (const p of [...inWindow, ...mergedCandidates]) {
@@ -237,7 +247,7 @@ const COLLECTORS = {
     // Exclude PRs (the issues endpoint returns both) and the scheduler's own
     // work items, its schedule board, and standing trackers — invisible to
     // signals (DESIGN §3.3). The board especially: every rewrite would land in
-    // `issues.touched` and wake tidy-issues on the queue's own churn (F8).
+    // `issues.touched` and wake an issue-gated task on the queue's own churn (F8).
     const real = open.filter((i) => !i.pull_request
       && !/^\[claudinite-(task|work|schedule)\]/.test(i.title ?? '')
       && !/^(claudinite tracker:|\[claudinite\] ci performance$|auto-improvements tracker\b|repo tidy tracker$)/i.test((i.title ?? '').trim()));
@@ -450,10 +460,69 @@ const COLLECTORS = {
     };
   },
 
+  // THE RUN HISTORY (tasks-dispatch DESIGN §5): this task's own unqualified work
+  // items over the horizon, newest first, the item under evaluation excluded — what
+  // the cadence terms and the since-last-run window read. Off `ctx.items` where the
+  // caller already holds the queue (the scheduler run fetched it, so the whole
+  // repo's tasks cost no read); off the ISSUES list API otherwise (the executor at
+  // pick) — never the search index (S6/F11), and `since` bounded to the horizon so
+  // a long-lived repo's closed history is not paged.
+  //
+  // A qualified item (a fan-out target, a request naming its issue) is not a run of
+  // the task's standing occurrence and is not evidence of one; it is invisible here.
+  async runs(gh, ctx) {
+    if (!ctx.task?.pack || !ctx.task?.id) throw new Error('the runs collector needs the task whose history it reads');
+    const title = workItemTitle({ pack: ctx.task.pack, task: ctx.task.id });
+    const horizonIso = new Date(new Date(ctx.now).getTime() - RUN_HORIZON_DAYS * 86400e3).toISOString();
+    const items = ctx.items ?? await readWorkItems(gh, ctx.repo, horizonIso);
+    // A run begins at the pick. An item nobody has picked yet, or that was closed
+    // before anyone picked it, still wears the status it waited in — open, or
+    // beside the terminal label the scheduler's dedupe, orphan and supersede
+    // writes add (a person's close adds nothing; the executor's own close always
+    // swaps it out). It never ran and never declined, so it is not a run:
+    // counted, two twins decline each other at pick and a deduped one spends the
+    // period on the survivor (SCENARIOS F32), and a hand-closed item stands
+    // between `last-run-not-failed` and the failure park behind it.
+    const unpicked = (i) => statusesOn(i).some((s) => s === STATUS_BLOCKED || s === STATUS_READY);
+    const list = items
+      .filter((i) => String(i.title ?? '').trim() === title && i.number !== ctx.item?.number && !unpicked(i))
+      .map((i) => ({
+        number: i.number,
+        createdAt: i.created_at,
+        closedAt: i.closed_at ?? null,
+        state: i.state,
+        status: statusOf(i),
+        park: parkKindOf(i),
+        outcome: outcomeOf(i),
+        woken: parseWorkItemBody(i.body ?? '').woken !== null,
+      }))
+      .sort((a, b) => b.number - a.number);
+    return { list, horizonDays: RUN_HORIZON_DAYS };
+  },
+
   async fleet(gh, ctx) {
     return ctx.fleet ?? null;
   },
 };
+
+// Every work item updated since `sinceIso`, off the issues list. A page that
+// could not be read THROWS — the collector then records `{ error }` and every
+// term over it fails loud — because a truncated history reads as a shorter one,
+// and "no run since the anchor" on that evidence is a double run.
+async function readWorkItems(gh, repo, sinceIso) {
+  const out = [];
+  for (let page = 1; ; page += 1) {
+    const q = `state=all&sort=created&direction=desc&per_page=100&page=${page}&since=${encodeURIComponent(sinceIso)}`;
+    const { status, json } = await gh(`/repos/${repo}/issues?${q}`);
+    if (status !== 200 || !Array.isArray(json)) throw new Error(`the work-item list could not be read at page ${page} (${status})`);
+    for (const i of json) {
+      if (i.pull_request || !isQueueItem(i)) continue;
+      out.push(i);
+    }
+    if (json.length < 100) break;
+  }
+  return out;
+}
 
 export const SIGNAL_COLLECTORS = Object.keys(COLLECTORS);
 

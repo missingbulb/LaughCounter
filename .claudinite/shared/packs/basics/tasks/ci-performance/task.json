@@ -2,8 +2,9 @@
   "$schema": "../../../claudinite-tasks/task.schema.json",
   "id": "ci-performance",
   "description": "Reads where this repository's CI time goes from the Actions run history, keeps a standing record of each workflow's median, and hands an agent a real regression already localised to a workflow and a before-and-after delta.",
-  "frequency": "weekly",
+  "trigger": "schedule",
   "preconditions": [
+    "due:weekly",
     "substantive-change || prs-touched"
   ],
   "expected_outcome": "amend_existing_or_create_new_pr",

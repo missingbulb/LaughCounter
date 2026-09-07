@@ -12,7 +12,7 @@ reports it.
 
 | Rule | Severity | Reason | Enforcement |
 |---|---|---|---|
-| Reading a rule that arrived from Claudinite | high | correctness | prose: 43 words + check (`claudinite-isolation`) |
+| Reading a rule that arrived from Claudinite | high | correctness | prose: 43 words + checks (`shared-tree-edit-guard`, `shared-tree-immutable`, `claudinite-isolation`) |
 | Finding a mounted skill's real path | medium | complexity | prose: 81 words |
 | Wanting a pack's rules to apply here | high | correctness | prose: 47 words + check (`claudinite-lifecycle-declared`) |
 | Adding a pack | medium | complexity | prose: 27 words |
@@ -20,6 +20,10 @@ reports it.
 | Deciding which pack owns a lesson | medium | complexity | prose: 59 words |
 | Judging whether Claudinite is current here | medium | correctness | prose: 51 words |
 | Answering "why did the mount not update" | medium | correctness | prose: 39 words |
+| A referenced file absent from the mount | medium | correctness | prose: 56 words |
+| An engine comment citing a design doc | low | complexity | prose: 53 words |
+| A silent check run is clean | low | complexity | prose: 50 words |
+| Pushing a change the world sweep scans | medium | complexity | prose: 49 words |
 
 ## Checks
 
@@ -32,6 +36,8 @@ not prose: the session that has lost its rules is the session least able to noti
 | `claudinite-lifecycle-declared` | critical | correctness | check: blocking |
 | `rules-index-current` | critical | correctness | check: blocking |
 | `claudinite-isolation` | high | complexity | check: blocking |
+| `shared-tree-edit-guard` | high | correctness | check: blocking |
+| `shared-tree-immutable` | high | correctness | check: blocking |
 | `conformance-workflow` | high | correctness | check: advisory |
 | `conformance-work-scope` | high | correctness | check: advisory |
 | `scheduler-workflow-shape` | high | correctness | check: blocking |
@@ -86,10 +92,10 @@ against each declared pack's questions:
 
 ## Tasks
 
-| Task | frequency | Runs when |
+| Task | when it runs | Runs when |
 |---|---|---|
-| `update` | daily (02:00 anchor) | the mount is behind the canon, or a declared pack moved |
-| `adopt-requested-packs` | daily | the repo carries an open pack-adoption request |
+| `update` | `due:daily` | the mount is behind the canon, or a declared pack moved |
+| `adopt-requested-packs` | never — no `preconditions`; only from the item the fleet places | the repo carries an open pack-adoption request |
 
 `update` is the per-repo self-refresh — the task that converges a member's mount and stamps it. It
 is why `claudinite-lifecycle-declared` is blocking: a member runs `update` from its **vendored** copy, and

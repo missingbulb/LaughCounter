@@ -15,20 +15,23 @@
 // bag, the forced-verdict path, the `~f` slot marker and the watermark exclusion —
 // reduced to these two levers and was deleted (#974).
 //
-// FORCING AD-HOC WORK IS CREATING AN ITEM — a parameterized run, a `manual` task,
-// a fan-out target. Ad-hoc is STRUCTURAL (DESIGN §15.26): a `manual` task has no
-// anchor to stand for, and a qualified title is a different title from the standing
-// one — so such an item is invisible to the scheduler run's guards in both directions,
-// neither suppressing tomorrow's occurrence nor consuming it. Which is why an
-// UNQUALIFIED item for a scheduled task is refused below: it would BE that task's
-// standing item, and the scheduler run's dedupe would close one of the two.
+// FORCING AD-HOC WORK IS CREATING AN ITEM — a parameterized run, an unscheduled
+// task's run, a fan-out target. Ad-hoc is STRUCTURAL (DESIGN §15.26): an unscheduled
+// task is never asked by the scheduler, and a qualified title is a different title
+// from the standing one — so such an item is invisible to the scheduler run's
+// guards in both directions, neither suppressing the next occurrence nor consuming
+// it. Which is why an UNQUALIFIED item for a scheduled task is refused below: it
+// would BE that task's standing item, and the scheduler run's dedupe would close
+// one of the two. Every item made here is stamped `Woken:` — it exists because
+// somebody asked, which is what the cadence terms read.
 
 import { pathToFileURL } from 'node:url';
 import {
-  READY, BLOCKED, URGENT, TASK_OBSOLETE, QUEUE_LABELS, ORIGIN_AD_HOC,
-  EPISODE_MARKER, workItemTitle, workItemBody, withNotBefore, statusesOn,
+  READY, BLOCKED, URGENT, TASK_OBSOLETE, QUEUE_LABELS, ORIGIN_MANUAL,
+  EPISODE_MARKER, workItemTitle, workItemBody, withNotBefore, withWoken, statusesOn,
 } from './work-item.mjs';
 import { clearStatus } from './apply-status.mjs';
+import { isScheduledTask } from '../task-contract.mjs';
 
 // The Context a hand-created item carries when the operator names none. Generic
 // on purpose — it names the mechanism, not the task — because an item's Context is
@@ -62,7 +65,10 @@ export async function wakeItem(gh, repo, number, { urgent = false } = {}) {
   const api = await import('../github.mjs');
   const issue = await api.readIssue(gh, repo, number);
   if (!issue) return { ok: false, error: `#${number} could not be read` };
-  const body = withNotBefore(issue.body ?? '', null);
+  // `Woken:` is what lets the task's cadence terms hold at the next pick — the wake
+  // stands in for the cadence (DESIGN §5, §8) — while everything else it requires
+  // still applies; a wake is the one write that stamps it.
+  const body = withWoken(withNotBefore(issue.body ?? '', null), new Date().toISOString());
   if (body !== issue.body) await gh(`/repos/${repo}/issues/${number}`, { method: 'PATCH', body: { body } });
   // The episode boundary: every claim before this moment is dead, and arbitrating
   // over dead claims is what livelocks an item through reclaim cycles forever.
@@ -76,7 +82,9 @@ export async function wakeItem(gh, repo, number, { urgent = false } = {}) {
   return { ok: true, number };
 }
 
-export async function createWorkItem(gh, repo, { pack, task, taskPath, frequency = null, opts, log = console.log }) {
+// `scheduled` is whether the task is asked by the scheduler (its declared
+// `trigger`), null where the caller does not know.
+export async function createWorkItem(gh, repo, { pack, task, taskPath, scheduled = null, opts, log = console.log }) {
   const api = await import('../github.mjs');
   const { listOpenWorkItems } = await import('./read.mjs');
   const title = workItemTitle({ pack, task, qualifier: opts.qualifier });
@@ -85,8 +93,8 @@ export async function createWorkItem(gh, repo, { pack, task, taskPath, frequency
   // construction, not a run beside it — the scheduler run would treat the pair as duplicate
   // standing items and close the younger. The two levers that do what the operator
   // meant are named rather than guessed at.
-  if (frequency !== null && frequency !== 'manual' && !opts.qualifier) {
-    return { ok: false, error: `${pack}/${task} runs on a \`${frequency}\` schedule, so an unqualified item for it IS its standing item — the scheduler run would close one of the two as a duplicate. To run it now, wake its standing item (\`--wake #N\`, or the scheduler workflow's \`wake\` input); to run it beside the schedule, give this item a \`--qualifier\` naming what makes it a different run.` };
+  if (scheduled === true && !opts.qualifier) {
+    return { ok: false, error: `${pack}/${task} is on the schedule, so an unqualified item for it IS its standing item — the scheduler run would close one of the two as a duplicate. To run it now, wake its standing item (\`--wake #N\`, or the scheduler workflow's \`wake\` input); to run it beside the schedule, give this item a \`--qualifier\` naming what makes it a different run.` };
   }
 
   // The pick-time mutex means a new item QUEUES behind an open twin rather than
@@ -103,10 +111,13 @@ export async function createWorkItem(gh, repo, { pack, task, taskPath, frequency
       notBefore: opts.notBefore,
       blockedBy: opts.blockedBy,
       context: opts.context.length ? opts.context : [FORCED_CONTEXT],
+      // Created by hand: the cadence terms hold on it.
+      woken: new Date().toISOString(),
     }),
-    // A hand-created item is `ad-hoc` by construction — nobody's schedule asked for
-    // it — and the origin is worn for life beside whatever status it holds (§3).
-    labels: [ORIGIN_AD_HOC, blocked ? BLOCKED : READY, ...(opts.urgent ? [URGENT] : [])],
+    // A hand-created item is `manual` by construction — a declared task, and
+    // nobody's schedule asked for it — and the origin is worn for life beside
+    // whatever status it holds (§3).
+    labels: [ORIGIN_MANUAL, blocked ? BLOCKED : READY, ...(opts.urgent ? [URGENT] : [])],
   });
   if (!res.number) return { ok: false, error: `could not create the item: ${res.status}` };
 
@@ -144,7 +155,7 @@ async function main() {
   const found = tasks.find((t) => t.pack === pack && t.id === task);
   if (!found) { console.error(`no task "${opts.target}" in this repo's declared packs`); process.exit(1); }
 
-  const res = await createWorkItem(gh, repo, { pack, task, taskPath: found.taskPath, frequency: found.decl.frequency, opts });
+  const res = await createWorkItem(gh, repo, { pack, task, taskPath: found.taskPath, scheduled: isScheduledTask(found.decl), opts });
   if (!res.ok) { console.error(res.error); process.exit(1); }
   console.log(`created #${res.number} ${opts.target}${opts.urgent ? ' (urgent)' : ''}`);
 }

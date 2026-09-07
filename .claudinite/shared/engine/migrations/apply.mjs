@@ -5,7 +5,7 @@
 //   - rewrite       — repoint refs in place (idempotent literal replacements)
 //   - declarePacks  — declare a pack (and its config) the member does not carry yet
 //   - normalizeLocalDeclarations — rewrite local-pack declarations to `local/<id>`
-//   - taskDeclarationsToJson — convert local-pack task.mjs declarations to task.json
+//   - updateTaskSchedulingFields — bring local-pack task.json scheduling fields up to date
 // Idempotent: a no-op once everything has been applied. Dependency-free.
 //
 // Two roots. The DEST is the repo being healed (CLAUDE_PROJECT_DIR / cwd). The
@@ -21,7 +21,7 @@
 // runs this applier from the fresh canon clone it fetched, so even a dormant
 // project catches up on every record ever landed — there is no fleet-wide
 // apply pass and no retirement; the records simply accumulate.
-import { existsSync, renameSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, renameSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadMigrations, applyMigration } from './registry.mjs';
@@ -42,12 +42,13 @@ export async function main() {
     renameSync(join(repoRoot, from), join(repoRoot, to));
   };
   const readTemplate = (p) => (existsSync(join(canonRoot, p)) ? readFileSync(join(canonRoot, p), 'utf8') : null);
+  // Beyond the classic set, for the scheduling-fields codemod: which task folders
+  // carry a declaration is the repo's own disk (the registry says why it is inert
+  // without it).
   const listDir = (p) => { try { return readdirSync(join(repoRoot, p)); } catch { return null; } };
-  const remove = (p) => rmSync(join(repoRoot, p), { force: true });
-  const importModule = (p) => import(pathToFileURL(join(repoRoot, p)).href);
 
   const applied = [];
-  for (const m of migrations) applied.push(...(await applyMigration(m, { exists, move, read, write, readTemplate, listDir, remove, importModule })));
+  for (const m of migrations) applied.push(...(await applyMigration(m, { exists, move, read, write, readTemplate, listDir })));
   if (applied.length) console.log(`Applied migrations:\n${applied.map((x) => `  ${x}`).join('\n')}`);
 }
 

@@ -155,7 +155,7 @@ already closed and there is nothing left to wait on but the release itself.
   shows what is still unproven about it — [RULES.md](../../RULES.md)' *Filing an issue that
   belongs under another*, applied where there is no PR left to carry the link.
 - **`In-production-when:`** names a thing to *read*, never a duration to wait.
-  "`missingbulb/Shepherd`'s `.claudinite-settings.json` stamps `packVersions.tidy-repo` at 8 or
+  "`missingbulb/Shepherd`'s `.claudinite-settings.json` stamps `packVersions.basics` at 60906.12 or
   higher." "Any session started after this
   landed — check the vendored copy under `.claudinite/shared/` carries the new text." A merge
   is not a production condition, neither is elapsed time, and neither is anything the run
@@ -163,7 +163,7 @@ already closed and there is nothing left to wait on but the release itself.
 - **`Verify:`** is an assertion with a pass condition, not a topic — and a read the run can
   actually make (the gate above): a file's content, an issue's state, a run's conclusion.
   "Issue #100 on that repo is closed with a comment citing the scheduler runs" beats "check
-  tidy-issues works". A `Verify:` naming a person's step does not belong in this form at all —
+  the sweep works". A `Verify:` naming a person's step does not belong in this form at all —
   that is the rare human step above, an ordinary issue that never carries the mark.
 - **`Not-before:`** is the queue's own wait field: adoption holds the run until the moment has
   passed. Aim it just past the release you expect — the re-arm covers a miss, so don't pad it.

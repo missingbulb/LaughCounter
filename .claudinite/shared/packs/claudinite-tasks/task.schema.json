@@ -2,12 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/missingbulb/Claudinite/blob/main/packs/claudinite-tasks/task.schema.json",
   "title": "Claudinite task declaration",
-  "description": "A tasks/<name>/task.json: what a scheduled task is, when it runs, and what its run does to pull requests. The runtime contract is packs/claudinite-tasks/task-contract.mjs; the enums here mirror its lists and a test holds them in step. Absent, preconditions is run-always, automerge is nothing and agent_model is none; the timeouts have no default.",
+  "description": "A tasks/<name>/task.json: what a task is, when it runs — its preconditions, cadence included — and what its run does to pull requests. The runtime contract is packs/claudinite-tasks/task-contract.mjs; the enums here mirror its lists and a test holds them in step. Absent, automerge is nothing and agent_model is none; preconditions and the timeouts have no default.",
   "type": "object",
   "required": [
     "id",
     "description",
-    "frequency",
     "expected_outcome"
   ],
   "additionalProperties": false,
@@ -33,16 +32,24 @@
         "monthly",
         "manual"
       ],
-      "description": "The anchor the task is instantiated on. `manual` is woken by whatever knows the event happened."
+      "deprecated": true,
+      "description": "The retired cadence field; read at the door as the first condition it always meant (`due:<cadence>`) with a `schedule` trigger, and `manual` as no condition at all with a `request` trigger. Write those two fields instead."
+    },
+    "trigger": {
+      "type": "string",
+      "enum": [
+        "schedule",
+        "request"
+      ],
+      "description": "Who mints an occurrence of this task. `schedule` is asked by the scheduler at every tick, and runs when its `preconditions` hold. `request` is asked by nobody: it runs only from an item somebody creates — a marked issue, a wake, a chain link, a fan-out target — at whose pick those same conditions are judged. A declaration stating no trigger is read off the shape of its `preconditions` for one convergence window (#1789)."
     },
     "preconditions": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "string",
         "minLength": 1
       },
-      "description": "The conditions that must all hold for the task to run: built-in terms (e.g. \"substantive-change\", \"commits-under:<dir>\"), terms the task's own preconditions.mjs exports, `||` between alternatives. Optional: absent, the task runs always ([\"none\"])."
+      "description": "When the task runs — every listed condition must hold, `||` between alternatives. A cadence first where the task keeps one (`due:daily|weekly|monthly` on the repo's schedule, or `last-run-over:<12h|1d|7d>`), `last-run-not-failed` to stop past the task's own failure park, then the built-in movement terms (e.g. \"substantive-change\", \"commits-under:<dir>\") or terms the task's own preconditions.mjs exports. The same conditions are judged whether the run was asked for by the scheduler or by a person, so this field never says WHETHER the task is on the schedule — `trigger` does. A scheduled task with no cadence term is asked at every tick and runs whenever its other conditions hold; a task with no conditions at all runs whenever an occurrence exists."
     },
     "expected_outcome": {
       "type": "string",

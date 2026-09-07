@@ -124,7 +124,7 @@ unattended and captured nothing at all.
 WHY DAILY. The file is the whole past-data plane the dashboard renders from
 (claudinite-dashboard) — every panel that reaches further back than one page of live reads
 comes from here. It folded hourly until the scheduler's cron went to two ticks a day
-(tasks-dispatch DESIGN §17): a frequency finer than the cron cannot be honoured, since the
+(tasks-dispatch DESIGN §17): a cadence finer than the cron cannot be honoured, since the
 anchor is only ever seen when a tick comes. Nothing about the DATA changes — hour rows are
 still recomputed from source across a three-day window, so only the newest rows' freshness
 moves, and the dashboard already tops up the freshest hours from the live run listing it

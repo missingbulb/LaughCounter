@@ -33,3 +33,26 @@
 - **Answering "why did the mount not update"** — read the member's own artifacts (its declaration,
   its stamp, the head sha's runs) before theorizing about a platform setting; propose a settings
   change as a conclusion, never as a diagnosis.
+
+- **A file a vendored module references but that is absent from `.claudinite/shared/`** — that is
+  evidence about the vendor set, not the canon: check the canon itself (a shallow clone, or a
+  canon-scoped session) before filing an issue claiming it was never shipped, and where you can't,
+  report only that the mount lacks the file.
+
+- **An engine source comment under the mount points at a design doc** (`DESIGN.md`) — the mount
+  vendors `.mjs` sources and pack docs only, never the canon's internal design-doc tree, so the
+  pointer dangles in every member. Read the module's own header comment, which restates what the
+  missing section would have said. (1)
+
+- **Running `check_the_world.mjs` or `check_the_work.mjs` and seeing no output** — that is the
+  clean result, not a stall: a run with no findings prints nothing and exits `0`. Append
+  `; echo "EXIT:$?"` if in doubt, rather than a second pass of `--help`/`head`/`tail` hunting for
+  confirmation that silence is safe. (2)
+
+- **Pushing a change that touches `.github/workflows/`, `.claudinite-checks.json` or pack config**
+  — the world sweep runs in CI, not the Stop hook, so run it locally first rather than spend a
+  push → CI → fix round trip on a finding it reports in seconds:
+
+  ```
+  node .claudinite/shared/engine/checks/check_the_world.mjs
+  ```

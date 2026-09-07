@@ -12,7 +12,6 @@
 // event's payload on disk and wires `exists`/`isPackDeclared`/`loadTask` to the
 // checkout, so validating a dispatch costs no GitHub call at all.
 
-import { dirname } from 'node:path';
 import { normalizeTaskDeclaration, validateTaskDeclaration } from './task-contract.mjs';
 import { siblingTaskDeclaration } from './task-declaration.mjs';
 import { resolveModel } from './model-map.mjs';
@@ -61,10 +60,8 @@ export function validateDispatchBody(body, { exists, isPackDeclared, loadTask, l
 
   const gone = (reason) => reject(reason, { gone: true, pack, task });
   if (!exists(taskPath)) return gone(`task file ${taskPath} does not exist at HEAD — the repo no longer carries this task`);
-  const sibling = siblingTaskDeclaration(taskPath, exists);
-  if (sibling.both) return reject(`${dirname(taskPath)} carries both a task.json and a task.mjs — delete the task.mjs, task.json is the declaration`, { pack, task });
-  if (!sibling.file) return gone(`the task.json sibling of ${taskPath} is missing — the repo no longer carries this task`);
-  const declPath = sibling.file;
+  const declPath = siblingTaskDeclaration(taskPath, exists);
+  if (!declPath) return gone(`the task.json sibling of ${taskPath} is missing — the repo no longer carries this task`);
   if (!builtIn && !isPackDeclared(pack)) return gone(`pack "${pack}" is not declared in .claudinite-settings.json — this task is not active here`);
 
   let decl;
