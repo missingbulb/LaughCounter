@@ -7,7 +7,7 @@
 // the slice of the engine's context a check actually uses — `files`, `tracked`
 // and `read` — so no git checkout is needed.
 //
-// Five of these rules are DECLARATIONS (declared-checks.json), so their half of
+// Six of these rules are DECLARATIONS (declared-checks.json), so their half of
 // the file compiles them through the mounted engine and needs `.claudinite/shared/`
 // present; the three coded rules are imported directly.
 import { test } from 'node:test';
@@ -34,6 +34,7 @@ const engineConstructionConfined = declared('laugh-counter/engine-construction-c
 const noNetworkClient = declared('laugh-counter/no-network-client');
 const noAudioPersistence = declared('laugh-counter/no-audio-persistence');
 const noListener = declared('laugh-counter/no-listener');
+const halQueryConfined = declared('laugh-counter/hal-query-confined');
 
 // Fixture ctx: an in-memory tree of { path: contents }. `tracked` mirrors
 // `files` — the declared rules' scan sweep reads both.
@@ -127,6 +128,40 @@ test('input-node-confined ignores comments that discuss engine.inputNode', () =>
 
 test('input-node-confined stays quiet on the real sources', () => {
   assert.deepEqual(inputNodeConfined.run(realCtx(...REAL_SWIFT)), []);
+});
+
+test('hal-query-confined fires on a HAL property read outside AudioDiagnostics', () => {
+  const findings = halQueryConfined.run(ctxOf({
+    'mac/Sources/LaughCounter/MicProbe.swift':
+      'import CoreAudio\n'
+      + 'func isAlive(_ device: AudioObjectID) -> Bool {\n'
+      + '    var addr = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyDeviceIsAlive,\n'
+      + '                                           mScope: kAudioObjectPropertyScopeGlobal,\n'
+      + '                                           mElement: kAudioObjectPropertyElementMain)\n'
+      + '    var size = UInt32(MemoryLayout<UInt32>.size)\n'
+      + '    var value: UInt32 = 0\n'
+      + '    return AudioObjectGetPropertyData(device, &addr, 0, nil, &size, &value) == noErr\n'
+      + '}\n',
+  }));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].line, 8);
+  assert.match(findings[0].what, /outside AudioDiagnostics\.swift/);
+});
+
+// A comment merely discussing the API must not fire — the exact false alarm
+// RULES.md's placement-convention lesson warns a text-matching check invites.
+test('hal-query-confined ignores a comment that only discusses the API', () => {
+  const findings = halQueryConfined.run(ctxOf({
+    'mac/Sources/LaughCounter/AppDelegate.swift':
+      '// Ask the HAL directly — AudioObjectGetPropertyData(device, ...) — rather\n'
+      + '// than opening the device, the way AudioDiagnostics already does.\n'
+      + 'func requestListening() {}\n',
+  }));
+  assert.deepEqual(findings, []);
+});
+
+test('hal-query-confined stays quiet on the real sources', () => {
+  assert.deepEqual(halQueryConfined.run(realCtx(...REAL_SWIFT)), []);
 });
 
 // ------------------------------------------------------- the privacy boundary

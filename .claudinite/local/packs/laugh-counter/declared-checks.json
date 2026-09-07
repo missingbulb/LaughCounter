@@ -55,6 +55,22 @@
     ]
   },
   {
+    "id": "laugh-counter/hal-query-confined",
+    "severity": "blocking",
+    "since": "2026-09-07",
+    "failureMessage": "AudioDiagnostics is the only thing that answers questions about the device — a second reader of these HAL properties is a second place a future change can forget \"presence is not usability\"",
+    "scanFiles": "/^mac\\/Sources\\/.*\\.swift$/",
+    "excludeFiles": "mac/Sources/LaughCounter/AudioDiagnostics.swift",
+    "scanIgnoringComments": true,
+    "fix": "ask AudioDiagnostics instead of the HAL directly — add the property it should expose there and call that, rather than reading the property in a second place",
+    "matchLines": [
+      { "match": "/\\bAudioObjectGetPropertyData\\s*\\(/", "what": "AudioObjectGetPropertyData outside AudioDiagnostics.swift" },
+      { "match": "/\\bAudioObjectGetPropertyDataSize\\s*\\(/", "what": "AudioObjectGetPropertyDataSize outside AudioDiagnostics.swift" },
+      { "match": "/\\bAudioObjectSetPropertyData\\s*\\(/", "what": "AudioObjectSetPropertyData outside AudioDiagnostics.swift" },
+      { "match": "/\\bAudioObjectHasProperty\\s*\\(/", "what": "AudioObjectHasProperty outside AudioDiagnostics.swift" }
+    ]
+  },
+  {
     "id": "laugh-counter/no-listener",
     "severity": "blocking",
     "failureMessage": "a listener exposes the laugh log to whatever can reach the port — reintroducing one is a decision about who may read the room, not a feature",
