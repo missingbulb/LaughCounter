@@ -1,4 +1,4 @@
-# Tidy — improve comments
+# Improve the repo's comments
 
 Read the files this run was handed **as comments rather than as code**, fix what is wrong there,
 and leave everything else — the code included — exactly as it was.

@@ -2,8 +2,9 @@
   "$schema": "../../../claudinite-tasks/task.schema.json",
   "id": "logs-prune",
   "description": "Retention on the conversation-logs branch: deletes capture files older than the configured window so the branch stays bounded.",
-  "frequency": "daily",
+  "trigger": "schedule",
   "preconditions": [
+    "due:daily",
     "log-past-retention"
   ],
   "expected_outcome": "no_code_changes",

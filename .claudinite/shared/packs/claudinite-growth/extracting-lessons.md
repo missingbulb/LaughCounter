@@ -115,7 +115,7 @@ never a member's — decide whether a technology or methodology facet earns a pa
 trap from misusing a specific API, class, or library belongs as a comment at that usage site — and a capture
 run's write surface stops at its own packs, so **drop the candidate** rather than inflate it into a pack
 rule or collect it into a centralized gotchas list. The comments in a repo's own source belong to the
-tidy-repo pack's `improve-comments` task, which has its own trigger and its own review surface. Reserve a
+basics pack's `improve-comments` task, which has its own trigger and its own review surface. Reserve a
 central gotchas doc for what no single usage site owns: a trap you could hit *without* reading the relevant
 file (a mistake of omission), or a cross-cutting invariant.
 

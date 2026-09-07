@@ -22,6 +22,14 @@ The claims are about the world, but a repo nobody works in has nothing riding
 on them: the sweep sleeps while it is silent and resumes on the first active
 window. Which pack paths it revalidates is task.md's.
 
+The `automerge` scope is the local-pack tree, `under:.claudinite/local/packs` —
+any change of any kind inside it, because this task's write surface is wider
+than prose: a disproved premise takes its check and its fixture with it, and a
+claim whose surface is gone takes its file. The canon shelf is covered by no
+term, so a run that corrected a pack this repo publishes to others parks for the
+owner — those rules reach every member, and the probe evidence a reviewer reads
+is the one thing the diff does not carry.
+
 Never narrow this to a movement gate: the repo does not move when its claims
 expire, so movement is exactly the wrong evidence. And never gate on the
 previous round still being open — the round runs and appends to that PR, which

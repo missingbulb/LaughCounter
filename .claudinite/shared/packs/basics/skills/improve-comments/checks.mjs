@@ -4,7 +4,7 @@ import { COMMENT_CHECKABLE, commentOnly } from '../../../../engine/checks/helper
 
 // The write-surface gate for the improve-comments pass. Its skill bounds every edit
 // to comments in code files and to `README.md` documents; the pass runs unattended
-// and writes the repo's OWN SOURCE — the one surface no other tidy-repo task
+// and writes the repo's OWN SOURCE — the one surface no other scheduled task
 // touches — so the boundary needs a machine guarantee rather than a prose request.
 //
 // THE PERMISSION IS READ, NEVER ASSERTED. A file passes because its code is
@@ -30,7 +30,7 @@ import { COMMENT_CHECKABLE, commentOnly } from '../../../../engine/checks/helper
 //
 // RELEVANCE IS THE PINNED COMMIT SUBJECT, the same self-gating shape
 // claudinite-growth's capture gate uses: the run marks itself, so this rule can run
-// everywhere tidy-repo is active — at the session Stop hook and on every PR — and
+// everywhere basics is declared — at the session Stop hook and on every PR — and
 // costs ~nothing on a branch that is not this pass.
 export const IMPROVE_COMMENTS_RUN = /^Claudinite tidy: improve comments/;
 
@@ -46,7 +46,7 @@ const rule = {
   id: 'improve-comments-scope',
   severity: 'blocking',
   scope: 'work',
-  doc: 'packs/tidy-repo/skills/improve-comments/SKILL.md',
+  doc: 'packs/basics/skills/improve-comments/SKILL.md',
   description: 'An improve-comments run changes only comments in code files outside the .claudinite/ mount, and README.md documents',
   why: 'the pass runs unattended against the repo\'s own source, and its whole safety case is that a comment cannot change behaviour — a run that also moved a line has made an unreviewed code change wearing a housekeeping title',
 

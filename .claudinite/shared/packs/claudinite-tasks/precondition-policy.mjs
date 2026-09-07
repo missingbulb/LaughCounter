@@ -14,18 +14,29 @@
 //   stops running — so an unknown term, a malformed argument or an unreadable
 //   signal returns `{ error }`, a failed run in the queue's failure lane.
 //
-// `none` is the empty precondition, legal only as the sole entry: any real
-// condition beside it would be the actual precondition.
+// THE EXPRESSION IS WHAT MUST HOLD, NEVER WHO ASKS (tasks-dispatch DESIGN §5). The
+// engine keeps no calendar: every scheduler tick asks every task whose declaration
+// says `trigger: 'schedule'`, and the cadence such a task keeps is one of its own
+// conditions, read off its own run history — `due:<cadence>`,
+// `last-run-over:<duration>` — beside whatever else it requires. The same
+// conditions are judged, identically, at the pick of an item somebody created, so
+// this module never asks which of the two happened. `none` is retired: a task with
+// nothing to require states no condition, and the empty expression holds.
 //
-// THE VOCABULARY HAS TWO HOMES. The built-ins below are the movement and
-// pending-PR conditions every repo shares. A task whose gate is its own ships a
+// THE VOCABULARY HAS TWO HOMES. The built-ins below are the run-history, movement
+// and pending-PR conditions every repo shares. A task whose gate is its own ships a
 // `preconditions.mjs` beside its `task.json` exporting `terms`, resolved after the
 // built-ins in one flat namespace where a collision is loud — so the declaration
 // and the gate it names are one directory apart.
 //
 // Import-light and pure over the signals: no I/O, so the same evaluation runs at
-// the scheduler's anchor read and at the executor's pick.
+// the scheduler's tick and at the executor's pick.
 
+import { anchorInstant, CADENCES, DUE_TERM, ELAPSED_TERM, NOT_FAILED_TERM, parseDuration } from './calendar.mjs';
+
+// The retired empty precondition. The contract's door still strips it from a
+// declaration that carries a `frequency` (the cadence term takes its place); on
+// its own it is an error, named below.
 export const NONE = 'none';
 
 const ALTERNATIVE = '||';
@@ -48,14 +59,14 @@ function parseTerm(text) {
     : { name: raw.slice(0, colon).trim(), arg: raw.slice(colon + 1).trim(), text: raw };
 }
 
-// Parse a declaration into `{ kind: 'none' }`, `{ kind: 'conditions', conditions }`
-// (each condition an array of alternatives), or `{ kind: 'invalid', reason }`.
-// Names are not resolved here — that needs the task's own terms, which the
-// static check and the evaluator each supply.
+// Parse a declaration into `{ kind: 'conditions', conditions }` (each condition an
+// array of alternatives) or `{ kind: 'invalid', reason }`. Names are not resolved
+// here — that needs the task's own terms, which the static check and the
+// evaluator each supply.
 export function parsePreconditions(preconditions) {
   const invalid = (reason) => ({ kind: 'invalid', reason });
-  if (!Array.isArray(preconditions) || preconditions.length === 0) {
-    return invalid('it is not a non-empty array of condition strings');
+  if (!Array.isArray(preconditions)) {
+    return invalid('it is not an array of condition strings');
   }
   if (!preconditions.every((e) => typeof e === 'string' && e.trim() !== '')) {
     return invalid('every entry must be a non-empty string');
@@ -65,10 +76,7 @@ export function parsePreconditions(preconditions) {
     return invalid(`an alternative around "${ALTERNATIVE}" is empty`);
   }
   if (conditions.flat().some((t) => t.name === NONE)) {
-    if (preconditions.length !== 1 || conditions[0].length !== 1) {
-      return invalid(`"${NONE}" is the empty precondition and is legal only as the sole entry — any real condition beside it would be the actual precondition`);
-    }
-    return { kind: NONE };
+    return invalid(`"${NONE}" is retired — a task with no condition states none: leave "preconditions" out, and the task runs only from an item somebody creates. Otherwise state when it runs: a cadence (\`${DUE_TERM}:daily\`, \`${ELAPSED_TERM}:7d\`) or the movement it waits for`);
   }
   return { kind: 'conditions', conditions };
 }
@@ -100,6 +108,16 @@ export function preconditionSignals(preconditions, taskTerms) {
   return [...out];
 }
 
+// Whether the expression reads the item itself — a term declaring `needsItem`
+// (the request implementer's `request-eligible`, about one named issue). The
+// scheduler's own ask has no item, so there is nothing to judge such a task
+// against at a tick: it runs only from an item somebody created.
+export function preconditionNeedsItem(preconditions, taskTerms) {
+  const parsed = parsePreconditions(preconditions);
+  if (parsed.kind !== 'conditions') return false;
+  return parsed.conditions.flat().some((ref) => resolveTerm(ref.name, taskTerms)?.needsItem === true);
+}
+
 // --- static validation --------------------------------------------------------
 
 // Everything about a declaration that is decidable without signals: the grammar,
@@ -117,10 +135,9 @@ export function validatePreconditions(preconditions, taskTerms = new Map()) {
   const parsed = parsePreconditions(preconditions);
   if (parsed.kind === 'invalid') {
     bad(`"preconditions" is not a legal expression: ${parsed.reason}`,
-      `write a list of conditions, all of which must hold — e.g. ["substantive-change", "no-open-pr-titled:My sweep"] — or ["${NONE}"] for a task whose trigger is the calendar or the filed item itself`);
+      `write a list of conditions, all of which must hold — a cadence first where the task keeps one ("${DUE_TERM}:<daily|weekly|monthly>" or "${ELAPSED_TERM}:<12h|1d|7d>"), then what it waits for, e.g. ["${DUE_TERM}:weekly", "substantive-change", "no-open-pr-titled:My sweep"]; a task that runs only from an item somebody creates states no "preconditions" at all`);
     return problems;
   }
-  if (parsed.kind === NONE) return problems;
   for (const ref of parsed.conditions.flat()) {
     const term = resolveTerm(ref.name, taskTerms);
     if (!term) {
@@ -128,14 +145,27 @@ export function validatePreconditions(preconditions, taskTerms = new Map()) {
         `use a built-in (${[...BUILTIN_TERMS.keys()].join(', ')}) or a term this task's preconditions.mjs exports`);
       continue;
     }
-    if (term.takesArg && !ref.arg) {
-      bad(`the precondition "${ref.name}" takes an inline argument and was given none`, `write it as "${ref.name}:<${term.argName ?? 'value'}>"`);
-    }
-    if (!term.takesArg && ref.arg !== null) {
-      bad(`the precondition "${ref.name}" takes no argument but was given "${ref.arg}"`, `write it as "${ref.name}"`);
-    }
+    const argProblem = argumentProblem(term, ref);
+    if (argProblem) bad(argProblem.what, argProblem.fix);
   }
   return problems;
+}
+
+// A term's argument, judged statically: present where it takes one, absent where
+// it does not, and — for a term that names its legal values — one of them. The
+// evaluator asks the same question, so an author-time finding and a run-time
+// error can never disagree about a declaration.
+function argumentProblem(term, ref) {
+  if (term.takesArg && !ref.arg) {
+    return { what: `the precondition "${ref.name}" takes an inline argument and was given none`, fix: `write it as "${ref.name}:<${term.argName ?? 'value'}>"` };
+  }
+  if (!term.takesArg && ref.arg !== null) {
+    return { what: `the precondition "${ref.name}" takes no argument but was given "${ref.arg}"`, fix: `write it as "${ref.name}"` };
+  }
+  if (term.takesArg && term.argOk && !term.argOk(ref.arg)) {
+    return { what: `"${ref.name}" takes ${term.argHint}, not "${ref.arg}"`, fix: `write it as "${ref.name}:<${term.argName ?? 'value'}>" — ${term.argHint}` };
+  }
+  return null;
 }
 
 // --- the built-in vocabulary --------------------------------------------------
@@ -161,6 +191,26 @@ export function validatePreconditions(preconditions, taskTerms = new Map()) {
 
 const commitsOf = (s) => s?.commits ?? {};
 const touchedPaths = (s) => commitsOf(s).touchedPaths ?? [];
+
+// THE RUN HISTORY: this task's own unqualified work items, newest first, other
+// than the item under evaluation — what the `runs` collector reads off the issue
+// list over a fixed horizon. Each `{ number, createdAt, closedAt, state, status,
+// park, outcome }`. The engine keeps no other memory of a task: the queue IS the
+// record, which is why a renamed task simply reads as never having run.
+const runsOf = (s) => s?.runs?.list ?? [];
+const newestRun = (s) => runsOf(s)[0] ?? null;
+const ms = (t) => (t == null ? null : new Date(t).getTime());
+const ago = (fromMs, nowMs) => {
+  const h = Math.round((nowMs - fromMs) / 3600e3);
+  return h < 48 ? `${h}h` : `${Math.round(h / 24)}d`;
+};
+
+// A person's wake stands in for the cadence: the cadence terms hold on a woken
+// item, and everything else the task requires still applies, so a force that
+// finds no work still says so.
+const wokenReason = (item) => (item?.woken === true
+  ? { holds: true, reason: `#${item.number ?? '?'} was woken by hand — the wake stands in for the cadence` }
+  : null);
 const substantiveShas = (s) => (commitsOf(s).list ?? []).filter((c) => c.substantive).map((c) => c.sha.slice(0, 7));
 
 // A capped list plus what it dropped — the shape every scope-naming context uses.
@@ -193,8 +243,76 @@ const capturedInWindow = (s, windowDays) => {
 const openPrs = (s) => s?.prs?.open ?? [];
 
 const BUILTIN_TERMS = new Map(Object.entries({
+  // --- the run-history terms (tasks-dispatch DESIGN §5) ----------------------
+  // Judged before any other signal is collected — the `runs` bundle comes off the
+  // issue list the scheduler already holds — so a task whose cadence declines
+  // costs no read at all on the ticks it does not run.
+
+  // No run since the cadence's most recent anchor on this repo's schedule. Both
+  // halves of the old occurrence guard: an item CREATED since the anchor is this
+  // period's, and so is one CLOSED since it — an item that started before the
+  // anchor and ran past it consumed this period, and a second one is a double run.
+  [DUE_TERM]: {
+    signals: ['runs'],
+    takesArg: true,
+    argName: 'daily|weekly|monthly',
+    argOk: (arg) => CADENCES.includes(arg),
+    argHint: `one of ${CADENCES.join(', ')}`,
+    holds(s, { arg, item, now, schedule }) {
+      const woken = wokenReason(item);
+      if (woken) return woken;
+      // The instant is the caller's to supply (a term never reads the clock); the
+      // schedule falls back to the documented defaults the way every anchor read does.
+      if (ms(now) === null || Number.isNaN(ms(now))) return { error: `${DUE_TERM}:${arg} has no instant to anchor on — the caller supplied no \`now\`` };
+      const anchor = anchorInstant(arg, schedule ?? {}, now);
+      const anchorMs = anchor.getTime();
+      const since = runsOf(s).find((r) => (ms(r.createdAt) ?? -Infinity) >= anchorMs || (ms(r.closedAt) ?? -Infinity) >= anchorMs);
+      return since
+        ? { holds: false, reason: `#${since.number} already ran since the ${arg} anchor at ${anchor.toISOString()}` }
+        : { holds: true, reason: `no run since the ${arg} anchor at ${anchor.toISOString()}` };
+    },
+  },
+
+  // The newest run STARTED more than the duration ago — an item's creation is when
+  // the task was last asked and said yes. No run in the horizon holds: the task
+  // has not run in longer than any duration this term can state.
+  [ELAPSED_TERM]: {
+    signals: ['runs'],
+    takesArg: true,
+    argName: '12h|1d|7d',
+    argOk: (arg) => parseDuration(arg) !== null,
+    argHint: 'a whole number of hours or days, e.g. 12h, 1d, 7d',
+    holds(s, { arg, item, now }) {
+      const woken = wokenReason(item);
+      if (woken) return woken;
+      const newest = newestRun(s);
+      if (!newest) return { holds: true, reason: `no run of this task in the last ${s?.runs?.horizonDays ?? '?'} days` };
+      const nowMs = ms(now);
+      const startedMs = ms(newest.createdAt);
+      if (nowMs === null || startedMs === null) return { error: `${ELAPSED_TERM}:${arg} cannot measure — the instant or #${newest.number}'s start is unknown` };
+      return nowMs - startedMs > parseDuration(arg)
+        ? { holds: true, reason: `the newest run, #${newest.number}, started ${ago(startedMs, nowMs)} ago — over ${arg}` }
+        : { holds: false, reason: `the newest run, #${newest.number}, started ${ago(startedMs, nowMs)} ago, inside ${arg}` };
+    },
+  },
+
+  // Whether a failed run stops the next one is the task's to say, and only by
+  // stating this: absent, the next occurrence is filed beside the park. Only the
+  // newest run speaks — a failure behind a later clean run is history.
+  [NOT_FAILED_TERM]: {
+    signals: ['runs'],
+    holds(s) {
+      const newest = newestRun(s);
+      if (!newest) return { holds: true, reason: 'no run of this task to have failed' };
+      return newest.park === 'failure'
+        ? { holds: false, reason: `the newest run, #${newest.number}, stands at a failure park — this task declares it does not run past its own failure` }
+        : { holds: true, reason: `the newest run, #${newest.number}, did not fail` };
+    },
+  },
+
+  // --- the movement terms -----------------------------------------------------
   // The positive umbrella over all four activity dimensions — what a
-  // calendar-triggered task states when its value is zero on a repo nobody works
+  // cadence-triggered task states when its value is zero on a repo nobody works
   // in. The first active window resumes it.
   'repo-active': {
     signals: ['commits', 'issues', 'prs', 'conversationLogs'],
@@ -347,29 +465,47 @@ export const BUILTIN_TERM_NAMES = [...BUILTIN_TERMS.keys()];
 
 // Evaluate a declaration over collected signals. Returns `{ run, reason, context }`
 // — or `{ error }`, which is a failed run rather than a decline.
-export function evaluatePreconditions({ preconditions, signals = {}, config = {}, item = null, terms = new Map(), windowDays = null, now = null }) {
+//
+// `schedule` is the repo's `taskScheduler` anchor settings, which `due:` reads.
+//
+// PARTIAL MODE (`partial: true`) judges what the bundle so far can decide: a term
+// whose signal has not been collected is UNKNOWN rather than false, a conjunct
+// with an unknown alternative and no held one stays open, and the verdict is `{
+// run: null, undecided: true, missing }` unless some conjunct is already decided
+// false — a decline that cost nothing beyond the run history — or every conjunct
+// held. The scheduler asks this way first, with the `runs` bundle alone, so a
+// task whose cadence declines never collects its other signals. In full mode a
+// missing signal is a term that does not hold, as it always was.
+export function evaluatePreconditions({
+  preconditions, signals = {}, config = {}, item = null, terms = new Map(), windowDays = null, now = null,
+  schedule = null, partial = false,
+}) {
   const parsed = parsePreconditions(preconditions);
   if (parsed.kind === 'invalid') return { error: `the "preconditions" declaration is not legal: ${parsed.reason}` };
-  if (parsed.kind === NONE) {
-    return { run: true, reason: 'this task states no precondition — its trigger is the calendar, or the work item somebody filed', context: [] };
-  }
 
   const held = [];
   const context = [];
+  const missing = new Set();
   let declined = null;
+  let undecided = false;
   for (const alternatives of parsed.conditions) {
     const outcomes = [];
+    let unknown = false;
     for (const ref of alternatives) {
       const term = resolveTerm(ref.name, terms);
       if (!term) return { error: `unknown precondition "${ref.name}" — no built-in and none this task's preconditions.mjs exports` };
-      if (term.takesArg && !ref.arg) return { error: `the precondition "${ref.name}" takes an inline argument and was given none` };
-      if (!term.takesArg && ref.arg !== null) return { error: `the precondition "${ref.name}" takes no argument but was given "${ref.arg}"` };
+      const argProblem = argumentProblem(term, ref);
+      if (argProblem) return { error: argProblem.what };
       // An unreadable signal is never a verdict: the term would be ruling on data
       // that was not there, and a decline taken that way is permanent silence.
       const unreadable = (term.signals ?? []).find((n) => signals?.[n]?.error);
       if (unreadable) return { error: `${ref.name}: the \`${unreadable}\` signal could not be read — ${signals[unreadable].error}` };
+      if (partial) {
+        const absent = (term.signals ?? []).filter((n) => signals?.[n] === undefined);
+        if (absent.length) { absent.forEach((n) => missing.add(n)); unknown = true; continue; }
+      }
       let out;
-      try { out = term.holds(signals, { arg: ref.arg, config, item, windowDays, now }) ?? {}; }
+      try { out = term.holds(signals, { arg: ref.arg, config, item, windowDays, now, schedule }) ?? {}; }
       catch (e) { return { error: `the precondition "${ref.name}" threw: ${e.message}` }; }
       if (out.error) return { error: `${ref.name}: ${out.error}` };
       outcomes.push({ ref, out });
@@ -378,11 +514,13 @@ export function evaluatePreconditions({ preconditions, signals = {}, config = {}
     if (winner) {
       held.push(winner.out.reason ?? winner.ref.text);
       context.push(...(winner.out.context ?? []));
+    } else if (unknown) {
+      undecided = true;
     } else if (declined === null) {
       declined = outcomes.map((o) => o.out.reason ?? `${o.ref.text} does not hold`).join('; nor ');
     }
   }
-  return declined === null
-    ? { run: true, reason: held.join('; '), context }
-    : { run: false, reason: declined };
+  if (declined !== null) return { run: false, reason: declined };
+  if (undecided) return { run: null, undecided: true, missing: [...missing] };
+  return { run: true, reason: held.length ? held.join('; ') : 'no conditions stated — the item itself is the ask', context };
 }

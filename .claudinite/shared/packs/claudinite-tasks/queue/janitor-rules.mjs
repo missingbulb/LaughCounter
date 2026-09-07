@@ -3,17 +3,30 @@
 // pure, returning the items it claims plus the comment it would post; the
 // janitor task's worker is the only I/O shell over them.
 //
+// THE JANITOR IS A FALLBACK (owner, 2026-09-06). Every rule below repairs something
+// that already went wrong — a label swap that tore, a session that died, a park
+// nobody answered, a terminal nobody closed — and the healthy flow of a task never
+// passes through here: an item the machinery handled correctly is settled by
+// whoever handled it, before any of this runs. So a new rule here is a claim that a
+// failure mode exists and that nothing nearer to it can close it out; the
+// alternative to writing one is usually fixing the flow that left the mess.
+//
+// AND IT ONLY EVER READS OPEN ITEMS. An item somebody closed is finished, park
+// label and all: a person ending a park by closing its issue is an answer, not a
+// state to repair, and nothing here reopens, re-labels or re-nags one.
+//
 // What is NOT here: the executing-leash reclaim, which rides the scheduler run (a
 // deterministic label rule, serialized and hourly, recovering a dead executor's
 // item in ~2h instead of ~25h). That amends the single-recovery-site split in
 // siting, not in principle — recovery still happens once, in one place per rule,
 // in code, and never as a sweep inside a session that is executing something.
 
-import { periodMs } from './anchors.mjs';
+import { taskPeriodMs } from './anchors.mjs';
+import { isScheduledTask } from '../task-contract.mjs';
 import {
   READY, AGENT, requeueHint,
   STATUS_READY, STATUS_RUNNING_AGENT, STATUS_BLOCKED, STATUS_DONE, STATUS_REJECTED, isStatus, statusOf,
-  isParked, parkKindOf, originOf, ORIGIN_AD_HOC,
+  isParked, parkKindOf, originOf, ASKED_FOR_ORIGINS, STATUS_NEEDS_HUMAN_FAILURE, isStandingItem,
   parseWorkItemTitle, parseWorkItemBody, taskIdFromPath,
 } from './work-item.mjs';
 
@@ -37,8 +50,8 @@ const idle = (item, now) => ms(now) - (ms(item.updated_at) ?? ms(item.created_at
 
 // Rule A — STALE READY. An item no executor picked for ~2 of its own periods comes
 // out of the queue as a human's problem. The period is read from the task's
-// declared `frequency` at HEAD (no title parsing — that was the slot grammar); an
-// item whose task is unknown falls back to a day.
+// declared cadence term at HEAD (no title parsing — that was the slot grammar); an
+// item whose task is unknown, or keeps no cadence, falls back to a day.
 //
 // WHICH TASK, on a marked issue: its title is the person's own, so the id comes
 // from the worker path its machine block names — without that fallback a request
@@ -136,16 +149,19 @@ export const statelessComment = () =>
 // live one is the machinery working — and only the kinds that named something
 // broken (`SUPERSEDABLE_PARKS`).
 //
-// NEVER AN AD-HOC ITEM (#1498). The whole rule rests on one item being a FUNGIBLE
-// OCCURRENCE of a repeating task: a later clean run did the same work, so this
-// park's question is answered. An ad-hoc item is the opposite — it is somebody's
-// own issue, adopted as itself, and every one of them runs the SAME task
+// NEVER AN ITEM SOMEBODY ASKED FOR (#1498). The whole rule rests on one item being
+// a FUNGIBLE OCCURRENCE of a repeating task: a later clean run did the same work,
+// so this park's question is answered. Both origins a person's action produces are
+// the opposite of fungible, for their own reasons. An AD-HOC item is somebody's own
+// issue, adopted as itself, and every one of them runs the SAME task
 // (`implement-request`), so any later ad-hoc run at all reads as evidence about
 // every parked one. That is not a near miss: two verification issues were closed
 // citing a third issue's run, their own `Verify:` assertion never executed and the
-// owed verification silently discarded (#1161, #1253, on #1154's evidence). What
-// answers an ad-hoc park is its own work being done, which is rule G's `Ends-when`
-// or a person.
+// owed verification silently discarded (#1161, #1253, on #1154's evidence). A
+// MANUAL item names a task the queue does know, but somebody pulled its lever to
+// ask something the schedule was not asking — usually a qualifier scoping the run —
+// so the task's next clean occurrence did different work. What answers either park
+// is its own work being done, which is rule G's `Ends-when` or a person.
 //
 // `doneAfter(taskId, since)` answers "the newest item for this task that converged
 // done strictly after `since`", or null. The worker supplies it from the closed
@@ -153,7 +169,7 @@ export const statelessComment = () =>
 export function supersededItems(open = [], { doneAfter = () => null } = {}) {
   return open.filter((item) => {
     if (!isParked(item)) return false;
-    if (originOf(item) === ORIGIN_AD_HOC) return false;
+    if (ASKED_FOR_ORIGINS.includes(originOf(item))) return false;
     if (!SUPERSEDABLE_PARKS.includes(parkKindOf(item))) return false;
     const p = parseWorkItemTitle(item.title) ?? taskIdFromPath(parseWorkItemBody(item.body).taskPath);
     if (!p) return false;
@@ -222,11 +238,15 @@ export const orphanedParkComment = (id, headPath = null) => (headPath
 // the resolution of that target is the verdict:
 //
 //   merged   → the work this park was holding LANDED, so the item is `done`
-//   closed   → it was abandoned, so the item is `rejected`
+//   closed   → the task was REJECTED, so the item is `rejected`
 //
 // The distinction is the whole point of reading merged-ness rather than state: a
 // park closed as `rejected` when its pull request in fact merged would report a
 // delivered run as one that never happened.
+//
+// EITHER OUTCOME ENDS THE ITEM, and the shell closes the issue on both. A person
+// who closed the pull request unmerged has already said what happens to this run;
+// an item left open under that verdict is the queue asking them to say it twice.
 //
 // `resolutionOf(n)` answers `'merged' | 'closed' | null` — null for open, unknown,
 // or unreadable, all of which mean the park stands. Only parked items: a live item
@@ -246,10 +266,11 @@ export const endedParkComment = (target, resolution) => (resolution === 'merged'
   : `#${target} was closed without merging, which ends what this item was parked waiting for. `
     + `Closing it \`${STATUS_REJECTED}\` — nothing landed, so if the work is still wanted, re-queue it (${requeueHint}).`);
 
-// The period of a task, for rule A — read from the declaration at HEAD.
+// The period of a task, for rule A — read from the cadence term its declaration
+// at HEAD states; null (a day, in rule A) for a task that keeps none.
 export const periodForTasks = (tasks = []) => {
   const byId = new Map(tasks.map((t) => [`${t.pack}/${t.id}`, t]));
-  return (id) => periodMs(byId.get(id)?.decl?.frequency);
+  return (id) => taskPeriodMs(byId.get(id)?.decl);
 };
 
 // Rule H — THE UNCLOSED TERMINAL (#1526). A terminal status says the item is over:
@@ -284,3 +305,48 @@ export const unclosedTerminalComment = (status) => (status === STATUS_DONE
     + 'so it has been sitting in the open queue looking like live work. Closing it, which is all the terminal was missing.'
   : `This item carries \`${STATUS_REJECTED}\` — it was taken out of the queue — but it was never closed, `
     + `so it has been sitting open looking like live work. Closing it; if the work is still wanted, re-queue it (${requeueHint}).`);
+
+// Rule I — THE ABANDONED FAILURE PARK (#1785). A `failure` park is the one kind that
+// HOLDS THE TASK'S LANE (`isBlockingPark`, honoured in `planSchedulerRun` job 1), and
+// that is what makes it the one kind with no terminating condition of its own. Rule E
+// answers a park with a later clean run of the same task — but while this park stands
+// no further occurrence is ever filed, so that answer can never arrive. The other
+// three kinds all have one: `action` does not hold the lane, so later runs happen and
+// rule E fires; `approval` ends when its pull request resolves (rule G); `decision` is
+// a choice a person owes. `failure` alone sits forever
+// (missingbulb/TLDR#275: parked by the agent leash, untouched for over three weeks).
+//
+// So the CLOCK is the answer here, and closing the item is the whole of it: the lane
+// is released, the scheduler files a fresh occurrence, and a fault that is still there
+// re-parks against a run from this week rather than leaving a month-old trace to read.
+//
+// STANDING ONLY, and structurally (`isStandingItem` against HEAD's declaration): the
+// warrant is that this item is a FUNGIBLE OCCURRENCE, which is exactly what a
+// qualified item, a `request` task's item and an adopted issue are not — each is
+// somebody's own work, and no clock answers those. A task absent from HEAD states no
+// trigger and so is not standing either; that item is rule F's.
+export const ABANDONED_PARK_MS = 10 * 86400e3;
+
+export function abandonedParkItems(open = [], now, { scheduledFor = () => null, boundMs = ABANDONED_PARK_MS } = {}) {
+  return open.filter((item) => {
+    if (statusOf(item) !== STATUS_NEEDS_HUMAN_FAILURE) return false;
+    const p = parseWorkItemTitle(item.title);
+    if (!p) return false;
+    if (!isStandingItem(item, scheduledFor(`${p.pack}/${p.task}`))) return false;
+    return idle(item, now) >= boundMs;
+  });
+}
+
+export const abandonedParkComment = () =>
+  `Nothing has touched this park in over ${Math.round(ABANDONED_PARK_MS / 86400e3)} days. Leaving it standing does not preserve the `
+  + 'report — nobody is going to read it now, and where the task declares `last-run-not-failed` it also keeps the task from '
+  + 'running again at all. A later clean run is '
+  + `what would otherwise have closed this. Closing it \`${STATUS_REJECTED}\`: the next scheduled occurrence runs, and if the `
+  + `fault is still there it parks again against a trace worth reading. If you were part-way through diagnosing it, re-queue it (${requeueHint}).`;
+
+// Whether a task at HEAD is on the schedule, for rule I's standing test — null for a
+// task this repo no longer carries, which reads as not standing.
+export const scheduledForTasks = (tasks = []) => {
+  const byId = new Map(tasks.map((t) => [`${t.pack}/${t.id}`, t]));
+  return (id) => (byId.has(id) ? isScheduledTask(byId.get(id).decl) : null);
+};

@@ -1,6 +1,6 @@
 ---
 name: writing-migration-plans
-description: Where a plan and a design live, and how to order a plan's phases so nothing stalls mid-run — the plan is a tracking issue (never a plan document in the repo), the design doc carries only the end state with rationale and alternatives; front-load the out-of-band setup, write ALL the code including the cleanup and take one approval for the stack, then chain every execution step to the verification of the one before it as a queued continuation, size the links (how many PRs, what each one's diff is predicted to touch and the automerge policy that prediction becomes) and write the chain to survive a policy park, a red CI or a PR closed unmerged, and keep the tracking issue append-only while implementing. Use BEFORE writing any DESIGN.md, migration plan, phased implementation plan, rollout or cutover plan — including the moment you are about to create a docs/<initiative>/ file — when asked to run a plan as a chain of ad-hoc tasks, and when working through a plan's tracking issue.
+description: Where a plan and a design live, and how to order a plan's phases so nothing stalls mid-run — the plan is a tracking issue (never a plan document in the repo), the design doc carries only the end state with rationale and alternatives; front-load the out-of-band setup, write ALL the code including the cleanup and take one approval for the stack, get the owner's approval of the plan itself — a line per step, the dependency graph, each link's automerge policy — before filing any of its issues, then chain every execution step to the verification of the one before it as a queued continuation, size the links (how many PRs, what each one's diff is predicted to touch and the automerge policy that prediction becomes) and write the chain to survive a policy park, a red CI or a PR closed unmerged, and keep the tracking issue append-only while implementing. Use BEFORE writing any DESIGN.md, migration plan, phased implementation plan, rollout or cutover plan — including the moment you are about to create a docs/<initiative>/ file — when asked to run a plan as a chain of ad-hoc tasks, and when working through a plan's tracking issue.
 metadata:
   force-load-on-file-edits-paths:
     - 'docs/**/DESIGN.md'
@@ -140,13 +140,40 @@ removal link takes a narrow predicted-folder policy like any other. Where it *we
 past what a later PR can undo — the mount that no longer resolves, the credential that no longer
 validates — the link is `nothing`, whatever its diff turns out to look like.
 
+## The approval that turns the plan into issues
+
+*Agreed* is an event with a date, and everything below happens after it. Draft the plan, put it to
+the owner whole, and file nothing — not the tracking issue's plan body, not a chain link, not a
+`Blocked-by:` edge — until they have said yes. A plan filed first and asked about second hands the
+owner a structure to react to instead of a decision to make, and every change they then want is a
+sweep across issues that already point at each other.
+
+One submission, carrying three things and stopping there:
+
+- **A line per step.** What it does and what it leaves behind, in the order they run. Not the
+  brief — the brief is the link's own body, written when the link is filed.
+- **The dependency graph.** Which step waits on which, and where the graph forks or joins. This is
+  what the owner reads to see how long the run is and where it can stall; a flat list hides both.
+- **The automerge policy per link, beside the prediction it came from** — the folders and kinds
+  the PR is expected to touch, then the policy that prediction becomes, then the count of `nothing`
+  links. That count is the owner's own workload, and it is the half of the plan they cannot
+  reconstruct from the steps. **Sizing the links** below is therefore answered before the
+  submission, not after it.
+
+This approves the plan's *shape*, and only the shape: the code stack still comes back for its own
+review pass (**2. Review and authorization gates** above), and a step added after the approval is a
+new ask, not a detail of an approved one (basics' *Acting on an approval to merge, ship or
+proceed*). Where the plan changes before implementation starts because the owner says it misreads
+what they asked for, that is a correction to the draft, handled as **Working through the plan**
+below sets out. (2)
+
 ## The chain
 
 Everything after the approval is a run that arms the next run. The mechanism is the queue's own
 ad-hoc lane — the one `/do-later` and `verify-in-production` file into — and nothing here adds
 machinery beside it: an ordinary issue, marked for the queue, carrying its own brief.
 
-**File the whole chain when the plan is agreed**, not as each step falls due. One issue per
+**File the whole chain once the plan is approved** (above), not as each step falls due. One issue per
 execution step, each naming the previous in `Blocked-by:`, so the queue does the waiting: a
 blocked item is released when its blocker closes, which is exactly "the step before it finished".
 Filing the chain up front is what makes it a mechanism rather than a habit — a chain that depends
@@ -205,6 +232,12 @@ per link, at plan time, and record the answers in the tracking issue:
   test would hold the other hostage. One PR for everything spends one approval but stalls on any
   red; a PR per division buys exit conditions at the cost of a rebase each. The count is what
   remains after both are refused.
+- **What each split has to buy.** A link exists to be **validated on its own** — its own
+  automerge policy, its own exit condition, its own production check. Two links landing in the
+  same files, under the same policy, proven by the same test have none of that: they are one link
+  written twice, and the second one's issue, brief, rebase and converge are pure toil. Split where
+  the halves sit in different parts of the system and can be judged apart; keep them together
+  where the only difference between them is how much work each is. (3)
 - **What the diff will touch.** Name the folders and kinds, and the size. Then the policy is
   that prediction, written narrow (basics' *Choosing an automerge policy*): `under:<folder>`
   intersected with the kind where the kind is known, the same folder's `test-changes` and
@@ -296,3 +329,5 @@ Run the same sort over it. The findings worth raising, in order of what they cos
 7. A destructive step scheduled before the replacement has been observed working.
 8. A phase with no stated exit condition, or one only a person can judge.
 9. A step handed to a human that the agent could have performed itself.
+10. Links split with no checkpoint between them — same files, same policy, same test — buying
+    the plan an issue, a brief and a rebase and nothing else.

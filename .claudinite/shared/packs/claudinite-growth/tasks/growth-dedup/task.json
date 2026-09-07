@@ -2,8 +2,9 @@
   "$schema": "../../../claudinite-tasks/task.schema.json",
   "id": "growth-dedup",
   "description": "The growth lifecycle's pruning stage: reconciles this repository's local packs against the canon it mounts, removing local items the canon now covers and keeping those the canon states too generally.",
-  "frequency": "weekly",
+  "trigger": "schedule",
   "preconditions": [
+    "due:weekly",
     "mount-moved || commits-under:.claudinite/local"
   ],
   "expected_outcome": "supersede_existing_pr",

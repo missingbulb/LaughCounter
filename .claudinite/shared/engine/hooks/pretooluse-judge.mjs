@@ -13,8 +13,8 @@
 //    as context, so a bias is heard at the moment it applies. The context
 //    carries no permissionDecision: `allow` would skip the permission prompt
 //    for the call, and an advisory has no business approving anything. The
-//    same declarations run again over the transcript at Stop, the backstop
-//    for a hook that never fired;
+//    same declarations run again over the transcript at Stop, advisory
+//    there whatever the severity — the record for a hook that never fired;
 //  - a Bash command that deletes a remote branch is blocked (the delete-push
 //    fails in this environment, so it can never succeed).
 // Registered on every tool (the converge's PRETOOLUSE_MATCHER) — see

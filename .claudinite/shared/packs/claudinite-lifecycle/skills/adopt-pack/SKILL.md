@@ -66,7 +66,7 @@ The new packs' prose, checks, and skills must land under the tracked `.claudinit
 run its install runner against the checkout — sessions never fetch:
 
 ```
-node <canon>/updates/install.mjs --target . <pack-id> [<pack-id>…]
+node <canon>/packs/claudinite-lifecycle/updates/install.mjs --target . <pack-id> [<pack-id>…]
 ```
 
 **Do not hand-roll this with `apply-vendor-set.mjs`.** It lays the files down correctly and does one

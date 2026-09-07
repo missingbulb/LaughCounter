@@ -26,6 +26,10 @@ a concrete next-time saving, it found nothing — and that's fine.
   read with plain git in the checkout — `git show origin/conversation-logs:<file>`. The log carries
   per-entry timestamps, per-message token usage, and the `tool_use`/`tool_result` pairs behind every
   wall-time number, which is exactly what the measured analysis below needs. This is the routine path.
+  A small line-count `offset`/`limit` is not a safe way to `Read` the checked-out file: one JSONL line
+  can be a single `tool_use`/`tool_result` running tens of thousands of characters, so even a short
+  window can overflow the read cap. Check line lengths first (e.g. `awk '{print length}' <file> |
+  sort -n | tail`) or condense the file with a script before attempting a raw read.
 - **The live session**, when an owner asks in plain words for a retrospective. Same method; deliver the
   capture as a branch + PR **for a human to review**, never one that self-merges.
 
