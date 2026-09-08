@@ -1,9 +1,9 @@
-// THE TERMINAL TRANSITION, IN CODE (#892; tasks-dispatch DESIGN §6.5, §15.18).
+// THE TERMINAL TRANSITION, IN CODE (#892; docs/PRINCIPLES.md).
 // A work-item session ends by performing five ordered side effects — comment,
 // drop `task:agent`, add the outcome label, carry the execution record, close
 // with the right state reason — on the item it holds, and nothing else: a
-// converge never writes to another work item (§15.19, reversed by §15.31 /
-// #1373). Releasing a dependent a close may have freed is the scheduler run's
+// converge never writes to another work item (docs/PRINCIPLES.md; #1373 reversed
+// an earlier attempt). Releasing a dependent a close may have freed is the scheduler run's
 // job alone. Asking a session to perform these effects from prose is asking for
 // it at the moment its context is fullest and the remaining work looks like
 // formality; both of the first two live agentic runs got part of it wrong,
@@ -83,7 +83,7 @@ export function parseArgs(argv) {
 // notion of which item it holds came from an untrusted fire payload.
 export function refusal(item, issue) {
   if (!item) return `#${issue} could not be read`;
-  // A marked issue IS its own item (DESIGN §16.1), so the title test cannot be the
+  // A marked issue IS its own item (PRINCIPLES.md), so the title test cannot be the
   // membership test any more: what says this is one is the machine block adoption
   // wrote — never the body's first line, which on a marked issue is a person's prose.
   //
@@ -160,7 +160,7 @@ export function convergeOps(item, plan) {
     ops.push({ kind: 'setBody', issue: item.number, body: editItemBody(item.body, (m) => withEndsWhen(m, plan.pr)) });
   }
 
-  // SUPERSEDING (DESIGN §6.4b). The executor decided at resolution which of this
+  // SUPERSEDING (PRINCIPLES.md). The executor decided at resolution which of this
   // task's earlier pull requests a `supersede_existing_pr` run replaces and stamped
   // them on the item; they close only once THIS run's own pull request exists — a
   // run that delivered nothing, or broke, leaves them where they were, so a review
@@ -174,7 +174,7 @@ export function convergeOps(item, plan) {
 
   if (spec.closes) {
     // A DONE TERMINAL CLOSES THE ISSUE IT STANDS ON, marked or filed (#1489,
-    // reversing §16.1/§16.5's "never a marked issue"). `done` is the one outcome
+    // reversing docs/PRINCIPLES.md's "never a marked issue"). `done` is the one outcome
     // that means nothing is left for anyone to act on, so an issue left open under
     // it asks its author to come and agree with what the run already settled. Every
     // other outcome parks, and a park leaves the issue open to be waited on.
@@ -183,7 +183,7 @@ export function convergeOps(item, plan) {
   }
 
   // A REQUEST ITEM WRITES BACK TO ITS ISSUE, on the one end that is its business
-  // (§16.5). Only the approval park: a failure deliberately writes nothing and
+  // (PRINCIPLES.md). Only the approval park: a failure deliberately writes nothing and
   // leaves `claude-queued` standing, because re-arming work that writes code is a
   // person's decision and that standing label is what stops the next scheduler run
   // queueing a second run of the same request. Only a LEGACY shadow item writes

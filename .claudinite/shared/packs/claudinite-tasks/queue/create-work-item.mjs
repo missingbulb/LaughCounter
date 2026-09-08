@@ -1,4 +1,4 @@
-// The two operator levers (tasks-dispatch DESIGN §8), which are the whole of
+// The two operator levers (docs/PRINCIPLES.md), which are the whole of
 // urgency, forcing, fan-out and retry:
 //
 //   create-work-item <pack>/<task> [--urgent] [--context …] [--not-before ISO]
@@ -16,7 +16,7 @@
 // reduced to these two levers and was deleted (#974).
 //
 // FORCING AD-HOC WORK IS CREATING AN ITEM — a parameterized run, an unscheduled
-// task's run, a fan-out target. Ad-hoc is STRUCTURAL (DESIGN §15.26): an unscheduled
+// task's run, a fan-out target. Ad-hoc is STRUCTURAL (PRINCIPLES.md): an unscheduled
 // task is never asked by the scheduler, and a qualified title is a different title
 // from the standing one — so such an item is invisible to the scheduler run's
 // guards in both directions, neither suppressing the next occurrence nor consuming
@@ -66,7 +66,7 @@ export async function wakeItem(gh, repo, number, { urgent = false } = {}) {
   const issue = await api.readIssue(gh, repo, number);
   if (!issue) return { ok: false, error: `#${number} could not be read` };
   // `Woken:` is what lets the task's cadence terms hold at the next pick — the wake
-  // stands in for the cadence (DESIGN §5, §8) — while everything else it requires
+  // stands in for the cadence (docs/PRINCIPLES.md) — while everything else it requires
   // still applies; a wake is the one write that stamps it.
   const body = withWoken(withNotBefore(issue.body ?? '', null), new Date().toISOString());
   if (body !== issue.body) await gh(`/repos/${repo}/issues/${number}`, { method: 'PATCH', body: { body } });
@@ -116,7 +116,7 @@ export async function createWorkItem(gh, repo, { pack, task, taskPath, scheduled
     }),
     // A hand-created item is `manual` by construction — a declared task, and
     // nobody's schedule asked for it — and the origin is worn for life beside
-    // whatever status it holds (§3).
+    // whatever status it holds (PRINCIPLES.md).
     labels: [ORIGIN_MANUAL, blocked ? BLOCKED : READY, ...(opts.urgent ? [URGENT] : [])],
   });
   if (!res.number) return { ok: false, error: `could not create the item: ${res.status}` };

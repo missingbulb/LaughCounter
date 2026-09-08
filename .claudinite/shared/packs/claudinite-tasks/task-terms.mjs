@@ -1,5 +1,5 @@
 // Loading a task's OWN precondition terms — the extension mechanism the built-in
-// vocabulary leaves room for (task-preconditions DESIGN, "The term vocabulary").
+// vocabulary leaves room for (docs/PRINCIPLES.md).
 // A task whose gate is its own (an age against a configured retention, a manifest
 // against a release tag, a fleet read) ships `preconditions.mjs` beside its
 // `task.json`, exporting `terms`: a map from term name to

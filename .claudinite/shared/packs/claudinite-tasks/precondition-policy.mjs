@@ -1,4 +1,4 @@
-// The precondition engine (task-preconditions DESIGN): may THIS task run now? A
+// The precondition engine (docs/PRINCIPLES.md): may THIS task run now? A
 // task declares `preconditions` — a list of named conditions — and this module
 // turns that declaration plus the collected signals into a verdict. Sibling of
 // merge-policy.mjs beside it, and deliberately its mirror image in two ways:
@@ -14,7 +14,7 @@
 //   stops running — so an unknown term, a malformed argument or an unreadable
 //   signal returns `{ error }`, a failed run in the queue's failure lane.
 //
-// THE EXPRESSION IS WHAT MUST HOLD, NEVER WHO ASKS (tasks-dispatch DESIGN §5). The
+// THE EXPRESSION IS WHAT MUST HOLD, NEVER WHO ASKS (docs/PRINCIPLES.md). The
 // engine keeps no calendar: every scheduler tick asks every task whose declaration
 // says `trigger: 'schedule'`, and the cadence such a task keeps is one of its own
 // conditions, read off its own run history — `due:<cadence>`,
@@ -243,7 +243,7 @@ const capturedInWindow = (s, windowDays) => {
 const openPrs = (s) => s?.prs?.open ?? [];
 
 const BUILTIN_TERMS = new Map(Object.entries({
-  // --- the run-history terms (tasks-dispatch DESIGN §5) ----------------------
+  // --- the run-history terms (docs/PRINCIPLES.md) ----------------------
   // Judged before any other signal is collected — the `runs` bundle comes off the
   // issue list the scheduler already holds — so a task whose cadence declines
   // costs no read at all on the ticks it does not run.

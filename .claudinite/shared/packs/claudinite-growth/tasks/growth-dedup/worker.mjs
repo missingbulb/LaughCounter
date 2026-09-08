@@ -13,8 +13,8 @@
 // local item more strongly than a stated line does, and it is invisible in the
 // prose corpus. The brief carries both.
 //
-// The channel is the REPOSITORY, per the code-work contract (task-code-work DESIGN
-// §3): no code→agent data channel exists, so the brief is posted as a COMMENT on
+// The channel is the REPOSITORY, per the code-work contract:
+// no code→agent data channel exists, so the brief is posted as a COMMENT on
 // the run's own work item, whose number code-work is handed as CLAUDINITE_ITEM.
 // The item is where the agentic phase is already reading, the brief describes THIS
 // window and nothing else, and both die together when the item converges — which

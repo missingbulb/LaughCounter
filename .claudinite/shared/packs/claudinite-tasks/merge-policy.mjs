@@ -1,4 +1,4 @@
-// The auto-merge policy engine (tasks-dispatch DESIGN §16.11): may THIS diff land
+// The auto-merge policy engine (docs/PRINCIPLES.md): may THIS diff land
 // without a person? A task declares `automerge` — `'nothing'`, `'anything'`,
 // or a list of named diff classes — and this module turns that declaration plus
 // the branch's actual diff into a verdict. The call is arithmetic over the diff,

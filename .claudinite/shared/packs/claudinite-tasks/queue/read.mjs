@@ -6,7 +6,7 @@
 import { WORK_PREFIX, ORIGIN_AD_HOC, STATUS_DONE, labelNames, statusOf } from './work-item.mjs';
 
 // IS THIS ISSUE AN ITEM? Two shapes, and the second is what the one-issue request
-// model added (DESIGN §16.1): a filed `[claudinite-work]` issue, or an ordinary
+// model added (PRINCIPLES.md): a filed `[claudinite-work]` issue, or an ordinary
 // issue somebody marked `task:origin:ad-hoc` that has been ADOPTED — the mark alone
 // is a request awaiting adoption, not yet an item, and reading it as one would have
 // the janitor's stateless-repair rule park the person's issue for having no status.

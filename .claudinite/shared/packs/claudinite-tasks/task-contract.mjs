@@ -1,4 +1,4 @@
-// The task declaration contract (per-project-scheduling DESIGN §1) — the single
+// The task declaration contract (docs/PRINCIPLES.md) — the single
 // source of truth for what a `tasks/<name>/task.json` must carry.
 // Both the author-time `task-declaration-shape` check and the executor-side
 // `validate-dispatch` validate against this one function, so the accepted shape
@@ -16,7 +16,7 @@ const isPositiveInt = (n) => Number.isInteger(n) && n > 0;
 
 // A code-work command must stay inside its own task directory — no absolute
 // path and no `..` traversal in the command string — the same containment the
-// worker-file rule gives agent_instructions (task-code-work DESIGN §2).
+// worker-file rule gives agent_instructions (docs/PRINCIPLES.md).
 const escapesTaskDir = (cmd) => /(^|\s)\//.test(cmd) || cmd.includes('..');
 
 // Task execution is two similar, consecutive phases — deterministic CODE-WORK,
@@ -50,8 +50,8 @@ export const LEGACY_FIELDS = {
 // dashboard's browser bundle can fill them the way the loader does.
 export { DEFAULT_AUTOMERGE, DEFAULT_AGENT_MODEL } from './task-defaults.mjs';
 
-// WHO MINTS AN OCCURRENCE, and WHAT MUST HOLD once one exists (tasks-dispatch
-// DESIGN §5). Two fields, one sentence: `trigger` says whether the scheduler asks
+// WHO MINTS AN OCCURRENCE, and WHAT MUST HOLD once one exists (docs/PRINCIPLES.md).
+// Two fields, one sentence: `trigger` says whether the scheduler asks
 // this task at every tick, `preconditions` says what has to be true for the run to
 // go ahead — judged identically at a tick and at a pick. A `request` task is asked
 // by nobody and runs from an item somebody created: a marked issue, a wake, a chain
@@ -79,7 +79,7 @@ export function normalizeTaskDeclaration(decl, terms = new Map()) {
       delete out[legacy];
     }
   }
-  // THE FREQUENCY DOOR (tasks-dispatch DESIGN §5). `frequency` is retired: a task's
+  // THE FREQUENCY DOOR (docs/PRINCIPLES.md). `frequency` is retired: a task's
   // cadence is one of its own preconditions, read off its run history. A declaration
   // still carrying the field reads exactly as it always did — the field becomes the
   // cadence term it always meant, first in the expression, and a `none` beside it
@@ -133,8 +133,8 @@ export function normalizeTaskDeclaration(decl, terms = new Map()) {
   return applyTaskDefaults(out);
 }
 
-// What a task's run does to PULL REQUESTS (tasks-dispatch DESIGN §6.4b, decision
-// §15.32) — the write ceiling and the target in one word, resolved once by the
+// What a task's run does to PULL REQUESTS (docs/PRINCIPLES.md, decision
+// PRINCIPLES.md) — the write ceiling and the target in one word, resolved once by the
 // executor before code-work and handed to both phases:
 //   no_code_changes                  — never opens one.
 //   fresh_pr                         — one on a freshly minted branch; the task's
@@ -194,12 +194,12 @@ export function canonicalOutcome(outcome) {
 export const SESSION_SCOPES = ['self', 'fleet'];
 
 // What must happen to a task's work item when a recovery path would re-execute it
-// (tasks-dispatch DESIGN §6). `requeue` is the safe-side default for sweep-shaped
+// (docs/PRINCIPLES.md). `requeue` is the safe-side default for sweep-shaped
 // work; `needs-human` is the at-most-once dial a one-shot side effect declares.
 export const INTERRUPT_POLICIES = ['requeue', 'needs-human'];
 
 
-// The signal-collector vocabulary (DESIGN §3.3). A task collects only the union
+// The signal-collector vocabulary (PRINCIPLES.md). A task collects only the union
 // of what its due tasks declare. `fleet` is canon-only (consumers cannot declare
 // it) — that restriction is enforced where signals are collected, not here; the
 // shape check only asserts a declared name is a real collector.
@@ -303,7 +303,7 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
   if (decl.precondition !== undefined) {
     bad('the task declares a "precondition" function, which is retired', 'move the gate into "preconditions" — a built-in condition, or a term this task\'s preconditions.mjs exports');
   }
-  // OPTIONAL (DESIGN §5): a task may require nothing, and then every occurrence of
+  // OPTIONAL (PRINCIPLES.md): a task may require nothing, and then every occurrence of
   // it runs. What is NOT read off this list is whether the scheduler asks the task —
   // `trigger` says that. A retired `frequency` arrives here already turned into its
   // cadence term by the door.
@@ -316,7 +316,7 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
    * A task that declares it runs at the model the ITEM names (`Model:`, written by
    * the scheduler run from a write-gated label), falling back to `agent_model` when the item
    * names none. It is the only field that lets anything on an item define behaviour,
-   * so it is fenced rather than waved through (DESIGN §16.7): the shape check accepts
+   * so it is fenced rather than waved through (docs/PRINCIPLES.md, "Requests"): the shape check accepts
    * only `true`, and discovery gives pack tasks no way to be the built-in one.
    */
   if (decl.model_from_request !== undefined && decl.model_from_request !== true) {
@@ -337,7 +337,7 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
     bad(`"session_scope" ${JSON.stringify(decl.session_scope)} is not a legal session scope`, `drop it — the field is read by nothing; name an "invocation_endpoint" if the task needs wider reach`);
   }
 
-  // Code-work (task-code-work DESIGN §2) — OPTIONAL. The deterministic first phase
+  // Code-work (docs/PRINCIPLES.md) — OPTIONAL. The deterministic first phase
   // of task execution, a command the scheduler runs as a subprocess. When present
   // it must be a non-empty, task-local command AND carry a positive-integer
   // code_work_timeout — the hard kill that bounds the subprocess.
@@ -360,9 +360,9 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
     }
   }
 
-  // --- the work-item queue's three optional declarations (tasks-dispatch DESIGN) ---
+  // --- the work-item queue's three optional declarations (docs/PRINCIPLES.md) ---
 
-  // `schedule_after` — ordering, declared (DESIGN §9). A list of `<pack>/<task>` ids this
+  // `schedule_after` — ordering, declared (PRINCIPLES.md). A list of `<pack>/<task>` ids this
   // task yields to WHILE THEY ARE LIVE THIS CYCLE. It compiles to the executor's
   // pick-time yield, never to a `Blocked-by` edge: a standing item that rolls
   // never closes, so blocked-by would starve every dependent of a quiet upstream
@@ -374,7 +374,7 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
     bad('"schedule_after" is not an array of "<pack>/<task>" ids', 'e.g. "schedule_after": ["claudinite-lifecycle/update"] — this task is not scheduled onto an executor while those are live this cycle');
   }
 
-  // `on_interrupt` — the ack-early/ack-late dial (DESIGN §6). Most of this fleet's
+  // `on_interrupt` — the ack-early/ack-late dial (PRINCIPLES.md). Most of this fleet's
   // tasks are sweep-shaped and converge safely on a re-run, so the default is
   // `requeue`. A genuinely one-shot side effect (a store submission, an external
   // notification) declares `needs-human`, and every recovery path that would
@@ -384,7 +384,7 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
     bad(`"on_interrupt" ${JSON.stringify(decl.on_interrupt)} is not a legal policy`, `set one of: ${INTERRUPT_POLICIES.join(', ')} (default "requeue")`);
   }
 
-  // `invocation_endpoint` — a NAME, never a URL (DESIGN §12). The repo's config
+  // `invocation_endpoint` — a NAME, never a URL (PRINCIPLES.md). The repo's config
   // maps the name to the URL and to the name of the Actions secret holding its
   // token, so no vendored pack file carries deployment detail or anything adjacent
   // to a credential. This is also what replaces session_scope: reach is a property
@@ -394,7 +394,7 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
     bad('"invocation_endpoint" is not a kebab-case endpoint name', 'name a key from the repo\'s taskScheduler.agenticTaskInvocationEndpoints map, e.g. "fleet" — never a URL');
   }
 
-  // The repo Actions secrets this task's code work needs configured (DESIGN §9). Purely
+  // The repo Actions secrets this task's code work needs configured (PRINCIPLES.md). Purely
   // DECLARATIVE — like a pack's adoption `questions`, its job is to drive the ask
   // (adoption interactively, the scheduler by owner issue), not to gate anything
   // here. So the only shape asserted is "a list of names"; whether the repo has
@@ -425,7 +425,7 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
     }
   }
 
-  // Execution bound (task-code-work DESIGN §2, §6) — an agentic task MUST
+  // Execution bound (docs/PRINCIPLES.md) — an agentic task MUST
   // declare a positive-integer agent_execution_timeout: there is no default,
   // because a running agent always has a bound. Enforcement is best-effort (the
   // executor surfaces the value to the subagent). A `none` task runs no agent,
@@ -435,7 +435,7 @@ export function validateTaskDeclaration(raw, terms = new Map()) {
   }
 
   // An agentless task (agent_model: none) runs no agent, so its ONLY work is
-  // code-work — a `none` task with no code-work does nothing (DESIGN §4, retiring
+  // code-work — a `none` task with no code-work does nothing (PRINCIPLES.md, retiring
   // the in-process inline path). Require the command.
   if (decl.agent_model === 'none' && decl.code_work === undefined) {
     bad('an agentless task (agent_model: "none") declares no "code_work"', 'add "code_work" (a none task does its work in that subprocess) — or give the task an agent_model');

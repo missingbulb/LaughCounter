@@ -1,5 +1,5 @@
 // The dispatch issue — how a due (task, slot) becomes exactly-once, bounded,
-// recoverable agent work (per-project-scheduling DESIGN §4). This module is the
+// recoverable agent work (docs/PRINCIPLES.md). This module is the
 // PURE half: issue identity (title/body/parse) and the create / skip / suppress
 // decision over the issues that already exist. A thin scheduler shell does the
 // GitHub I/O (search state=all, create, label, comment) and applies the verdict
@@ -8,11 +8,11 @@
 //
 // All behavior-defining content (agent_model, expected_outcome, agent_instructions) is read from the
 // tracked task files, never from the issue — the body only points at the task
-// file and carries the precondition's binding Context (DESIGN §4).
+// file and carries the precondition's binding Context (PRINCIPLES.md).
 
 // The labels this machinery drives. `ready-for-agent` is what the executor
 // routine fires on; `needs-human` is the single triage state every anomaly
-// converges to (DESIGN §4 lifecycle). Kept here as the shared source for the
+// converges to (PRINCIPLES.md lifecycle). Kept here as the shared source for the
 // scheduler side; the executor reuses these plus `agent-running`.
 export const READY_LABEL = 'ready-for-agent';
 // A fleet-scoped task (session_scope: 'fleet') dispatches to a DISTINCT ready
@@ -52,7 +52,7 @@ export const SCHEDULER_LABELS = [
 // counting it across a fleet means fetching and parsing every dispatch issue, while a
 // label is a search facet (`label:escalation:checks-not-green`) any repo-set query can
 // aggregate — which is what sizing the versioned-updates pack-apply stage needs (#768,
-// the versioned-updates design, §7).
+// the versioned-updates design, PRINCIPLES.md).
 //
 // DERIVED from the code the worker fired, never a list of codes kept here: the codes
 // live in the code-work worker that raises them (a pack), the engine may not import a
@@ -72,7 +72,7 @@ export function escalationLabel(code) {
   };
 }
 
-// Title: `[claudinite-task] <pack>/<task> <slot-id>` (DESIGN §4). The prefix is
+// Title: `[claudinite-task] <pack>/<task> <slot-id>` (PRINCIPLES.md). The prefix is
 // what keeps these issues invisible to the scheduler's own signals (self-trigger
 // exclusion) and searchable as a family.
 export const DISPATCH_PREFIX = '[claudinite-task]';
@@ -97,7 +97,7 @@ export function parseDispatchTitle(title) {
 // collectors apply so the scheduler never sees its own dispatch issues as work.
 export const isDispatchTitle = (title) => parseDispatchTitle(title) !== null;
 
-// The dispatch issue body (DESIGN §4). First line is the task-file path — the
+// The dispatch issue body (PRINCIPLES.md). First line is the task-file path — the
 // only thing the executor reads to locate the worker; everything below is human
 // framing plus the precondition's binding Context. The Context block is emitted
 // only when the precondition produced lines (an empty scope has nothing to bind).
@@ -124,7 +124,7 @@ export function deliveredLines(delivered) {
 // reporting "code-work created nothing" about a cycle that just merged a PR
 // (EdFringeAllocator#82).
 //
-// The condition and its counts, never the findings — those stay in the repo (DESIGN §3).
+// The condition and its counts, never the findings — those stay in the repo (PRINCIPLES.md).
 // Absence is meaningful here too: a worker too old to name a reason says nothing, and
 // the agent falls back to its task file's own sweep.
 export function escalationLines(reason) {
@@ -163,7 +163,7 @@ export function dispatchBody({ taskPath, pack, task, slotId, context = [], deliv
 // The filing decision for one due (task, slot), given `existing` — the issues
 // the shell fetched for this task's family (title starts with the task key),
 // each `{ number, title, state, labels }` with state 'open' | 'closed'. Two
-// guards (DESIGN §4):
+// guards (PRINCIPLES.md):
 //   - exactly-once per (task, slot): a state=all title match for THIS slot → skip
 //     (makes double-runs and crash-retries safe).
 //   - at-most-one-LIVE per task: an open family issue that is still live work
@@ -230,7 +230,7 @@ function slotPeriodMs(slotId) {
   return SLOT_PERIOD_MS[String(slotId ?? '')[0]] ?? null;
 }
 
-// Open dispatch issues older than `factor` of their own period (DESIGN §4: ~2
+// Open dispatch issues older than `factor` of their own period (PRINCIPLES.md: ~2
 // periods) — the scheduler's backstop when no executor session drains them. The
 // shell adds the escalation comment + `needs-human` to each. `issue.created_at`
 // is the ISO string GitHub returns; a title that doesn't parse (or an unknown

@@ -133,7 +133,7 @@
         "relevantWhen": { "pathExists": ".github/workflows/claudinite-scheduler.yml" },
         "forbid": "/^\\s*schedule:/m",
         "what": "carries a `schedule:` trigger, but the vendored claudinite-scheduler.yml is this repo's only permitted cron",
-        "fix": "port this workflow's steps into the scheduler task that owns the work and delete the workflow in the same commit (per-project-scheduling §3)"
+        "fix": "port this workflow's steps into the scheduler task that owns the work and delete the workflow in the same commit"
       },
       {
         "relevantWhen": { "pathAbsent": ".github/workflows/claudinite-scheduler.yml" },

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Bring a repo's task declarations up to the current scheduling vocabulary: the
-// retired `frequency` field (tasks-dispatch DESIGN §5, #1725) folded into
+// retired `frequency` field (docs/PRINCIPLES.md, #1725) folded into
 // `preconditions` as the cadence term it always meant, and the `trigger` its
 // conditions already implied stated outright. Patched as ANCHORED TEXT, never
 // re-serialized — a member's task.json is its author's, and a round-trip would

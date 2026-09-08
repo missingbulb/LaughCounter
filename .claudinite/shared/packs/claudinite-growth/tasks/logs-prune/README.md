@@ -30,7 +30,7 @@ in preconditions.mjs beside it.
 A CLOCK crossing a boundary, not repo movement (the term beside this file):
 the prune must keep firing on exactly the repos that went quiet.
 It opens no PR: its whole write is remove commits on the non-default logs
-branch, which is outside the outcome taxonomy (per-project-scheduling DESIGN §1).
+branch, which is outside the outcome taxonomy.
 One ls-remote, one fetch, one tree read, at most one push — against a branch
 whose size retention itself bounds. Seconds. The bound is protection against a
 hung network call, not headroom for work, so it sits just past the slowest

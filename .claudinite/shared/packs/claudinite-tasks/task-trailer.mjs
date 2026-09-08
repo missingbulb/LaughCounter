@@ -1,5 +1,5 @@
 // The commit trailer that says "a scheduled task wrote this", and the reader that
-// recognizes it (task-preconditions DESIGN, "Classifying task output structurally").
+// recognizes it (docs/PRINCIPLES.md).
 //
 // The silence gate needs to tell the project moving from the machinery running,
 // and it must not do so by pattern-matching what a task happened to TITLE its PR:

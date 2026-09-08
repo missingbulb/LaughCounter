@@ -1,4 +1,4 @@
-// The signal collectors (per-project-scheduling DESIGN §3.3). Each reads a
+// The signal collectors (docs/PRINCIPLES.md). Each reads a
 // bounded, cheap slice of the repo's GitHub state (or local disk) for one signal
 // name; `collectSignals` gathers only the union the PICKED task declared, so an
 // hourly task never pays for a daily task's signals. Every collector takes the
@@ -19,7 +19,7 @@ import { isQueueItem } from '../queue/read.mjs';
 import { APPROVAL_RE } from '../built-in-tasks.mjs';
 import { taskFromMessage } from '../task-trailer.mjs';
 
-// How far back the run history reads (tasks-dispatch DESIGN §5): the longest any
+// How far back the run history reads (docs/PRINCIPLES.md): the longest any
 // cadence term looks, a month, plus slack. A run older than this is not in the
 // record — a task then reads as not having run in that long, which is the honest
 // state-free answer. The scheduler's own queue read is bounded by the same figure.
@@ -246,7 +246,7 @@ const COLLECTORS = {
     const since = new Date(ctx.sinceIso);
     // Exclude PRs (the issues endpoint returns both) and the scheduler's own
     // work items, its schedule board, and standing trackers — invisible to
-    // signals (DESIGN §3.3). The board especially: every rewrite would land in
+    // signals (PRINCIPLES.md). The board especially: every rewrite would land in
     // `issues.touched` and wake an issue-gated task on the queue's own churn (F8).
     const real = open.filter((i) => !i.pull_request
       && !/^\[claudinite-(task|work|schedule)\]/.test(i.title ?? '')
@@ -385,10 +385,10 @@ const COLLECTORS = {
     };
   },
 
-  // Fleet aggregate — canon-only, over the fleet PAT (DESIGN §3.3). A consumer
+  // Fleet aggregate — canon-only, over the fleet PAT (PRINCIPLES.md). A consumer
   // cannot declare it; the collector returns null unless the caller supplied a
   // fleet reader (wired on the canon and fleet-enforcer repos in Phase 2).
-  // THE REQUEST READ (tasks-dispatch DESIGN §16.4). Unlike every collector beside
+  // THE REQUEST READ (docs/PRINCIPLES.md). Unlike every collector beside
   // it, this one reads a single named object rather than a window: the issue THIS
   // item was created for, off `ctx.item.request`. That is what the precondition's
   // third argument buys — a verdict about one issue, which no window of repo
@@ -460,7 +460,7 @@ const COLLECTORS = {
     };
   },
 
-  // THE RUN HISTORY (tasks-dispatch DESIGN §5): this task's own unqualified work
+  // THE RUN HISTORY (docs/PRINCIPLES.md): this task's own unqualified work
   // items over the horizon, newest first, the item under evaluation excluded — what
   // the cadence terms and the since-last-run window read. Off `ctx.items` where the
   // caller already holds the queue (the scheduler run fetched it, so the whole

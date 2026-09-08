@@ -1,5 +1,5 @@
 // The one vendored place that computes a repo's stable scheduler cron MINUTE
-// (per-project-scheduling DESIGN §3). The per-repo scheduler workflow runs hourly
+// (docs/PRINCIPLES.md). The per-repo scheduler workflow runs hourly
 // on a repo-hashed minute constrained to :10–:50 — spreading the fleet across the
 // band, dodging GitHub's :00 stampede, and staying clear of the hour boundary the
 // anchor arithmetic works from.
@@ -41,7 +41,7 @@ export function hashedMinute(fullName) {
 const DEFAULT_DAILY_HOUR = 4;
 
 // The full cron line for a repo — what the vendored workflow's `cron:` holds. TWO TICKS A DAY
-// (DESIGN §17): the anchor tick at the repo's own `dailyHour`, which covers every occurrence the
+// (PRINCIPLES.md): the anchor tick at the repo's own `dailyHour`, which covers every occurrence the
 // calendar can produce, and the drain tick twelve hours later for the work that has no anchor —
 // adopting a marked issue, releasing a `Not-before`, reclaiming a dead claim.
 //

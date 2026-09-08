@@ -1,4 +1,4 @@
-// Agent invocation (tasks-dispatch DESIGN §12, §14.6). The executor starts the
+// Agent invocation (docs/PRINCIPLES.md). The executor starts the
 // agent session with an API CALL rather than by arming a label event, which is
 // what retires the re-arm, the grace window and the transport dance — and what
 // makes a lost hand-off a synchronous, visible failure at the executor instead of
@@ -16,7 +16,7 @@
 // THE PROMPT NAMES ONE ITEM AND CARRIES NO INSTRUCTIONS. Everything
 // behavior-defining is read by the session from the tracked task files at HEAD;
 // the prompt says which issue and which nonce, and the session validates both in
-// code before acting (DESIGN §7).
+// code before acting (PRINCIPLES.md).
 
 import { ENDPOINTS_KEY, LEGACY_ENDPOINTS_KEY } from '../../../engine/checks/helpers/repo-context.mjs';
 import { secretValue } from './secrets-bag.mjs';
@@ -107,7 +107,7 @@ export function agentInvoker({ repo, config, env = process.env, fetchImpl = fetc
     if (!token) {
       // The `code_work_required_secrets` posture, applied to the endpoint token: nothing
       // fails silently, the task just doesn't work yet, and the item names what to
-      // fix (DESIGN §14.7).
+      // fix (PRINCIPLES.md).
       //
       // WHAT WAS OBSERVED, AND BOTH CAUSES. The first version asserted "the secret
       // is not set in this repo", which this code cannot see: on the member that

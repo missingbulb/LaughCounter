@@ -581,8 +581,8 @@ export async function applySettingsReshape(migration, { read, write, move, exist
 // other: that omission is silent (the record simply does nothing on that path) and
 // is exactly what a member would never notice.
 
-// Write side — "a task's cadence is one of its own conditions" (tasks-dispatch
-// DESIGN §5, #1725): fold the retired `frequency` of every local pack's task.json
+// Write side — "a task's cadence is one of its own conditions"
+// (docs/PRINCIPLES.md, #1725): fold the retired `frequency` of every local pack's task.json
 // into its `preconditions`, as anchored text. A NAMED CODEMOD like the declaration
 // normalization above: which files carry the field is the repo's own disk.
 // The record declares `updateTaskSchedulingFields: true`; the rewrite ships with the

@@ -1,4 +1,4 @@
-// THE CONTINUATION OF A DEAD EXECUTOR RUN (tasks-dispatch DESIGN §10, S36).
+// THE CONTINUATION OF A DEAD EXECUTOR RUN (docs/PRINCIPLES.md, S36).
 //
 // A run that dies — crash, timeout, cancellation, runner loss — never reaches its
 // own re-dispatch, so without this the queue would sit until the next scheduled

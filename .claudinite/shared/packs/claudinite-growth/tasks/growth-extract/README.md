@@ -5,7 +5,7 @@
 Carried over from the declaration's comments when it became `task.json`.
 
 claudinite-growth task: growth-extract — the growth lifecycle's CAPTURE
-stage (per-project-scheduling DESIGN §6). ONE task over BOTH lesson sources:
+stage. ONE task over BOTH lesson sources:
 it runs the extract-from-activity skill over the window's commits/PRs/issues
 and the extract-from-conversations skill over the captured conversation logs,
 then runs prose-to-checks over what it just wrote to see whether any of it
@@ -20,8 +20,8 @@ dedup surface and the landing mechanics, so splitting them bought nothing and
 cost a second opus dispatch, a second PR, and two runs deduping against a
 corpus the other one was concurrently writing. One task, two source skills.
 
-The ordering, declared (tasks-dispatch DESIGN §9) — and now the ONLY thing carrying it, since
-the staggered anchor hours retired with the twice-daily cron (§17.1). This task reads a mount
+The ordering, declared with `schedule_after:` — and now the ONLY thing carrying it, since
+the staggered anchor hours retired with the twice-daily cron. This task reads a mount
 `claudinite-lifecycle/update` converges, so it yields while that task's item is live this
 cycle and runs the moment it converges — or rolls. The offset only ever implied this; the
 declaration enforces it.

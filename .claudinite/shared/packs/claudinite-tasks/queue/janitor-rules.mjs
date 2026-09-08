@@ -1,4 +1,4 @@
-// The janitor's queue rules (tasks-dispatch DESIGN §11) — the recovery that needs
+// The janitor's queue rules (docs/PRINCIPLES.md) — the recovery that needs
 // judgment or a longer horizon than the scheduler run's hourly label mechanics. Each rule is
 // pure, returning the items it claims plus the comment it would post; the
 // janitor task's worker is the only I/O shell over them.

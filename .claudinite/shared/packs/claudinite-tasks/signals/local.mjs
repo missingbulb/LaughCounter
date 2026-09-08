@@ -1,5 +1,5 @@
 // The LOCAL-DISK half of the signal collectors' `ctx` (per-project-scheduling
-// DESIGN §3.3). Two collectors read facts off `ctx` that no GitHub read can
+// PRINCIPLES.md). Two collectors read facts off `ctx` that no GitHub read can
 // supply — the shipped manifest version and whether this repo publishes at all
 // (`release.manifestVersion`, `release.shipsPipeline`), and the configured log
 // retention (`conversationLogs.retentionDays`). The scheduler runs Action-side

@@ -1,11 +1,11 @@
 // The queue's leases and bounds, in one place because three surfaces must agree
-// on them (tasks-dispatch DESIGN §11): the scheduler run reclaims on the executing leash,
+// on them (docs/PRINCIPLES.md): the scheduler run reclaims on the executing leash,
 // the janitor sweeps on the agent leash and the stale bounds, and the task
 // contract rejects at author time any code-work whose declared timeout reaches the
 // executing leash (F17 — a code-work reclaimed while alive livelocks its item).
 //
 // The vendored workflows carry the fourth agreement, and the heartbeat reframed
-// it (§15.15): what must hold is HEARTBEAT INTERVAL < EXECUTING LEASH, so a
+// it (PRINCIPLES.md): what must hold is HEARTBEAT INTERVAL < EXECUTING LEASH, so a
 // holder that is alive is never reclaimed, rather than a run cap short enough to
 // kill a hung runner before its claim is reaped. The cap bought the guarantee
 // that a zombie's code-work never ran beside its replacement's; what carries that

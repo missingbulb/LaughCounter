@@ -22,12 +22,12 @@ import { DEFAULT_SCHEDULE } from './calendar.mjs';
 import { loadConfig, ENDPOINTS_KEY, LEGACY_ENDPOINTS_KEY } from '../../engine/checks/helpers/repo-context.mjs';
 
 export const SCHEDULER_WORKFLOW = '.github/workflows/claudinite-scheduler.yml';
-// The queue's second workflow (tasks-dispatch DESIGN §14). The first one keeps the
+// The queue's second workflow (docs/PRINCIPLES.md). The first one keeps the
 // path above: `claudinite-scheduler.yml` holds the scheduler run and its drain, so the repo
 // still has exactly one cron at one well-known path.
 export const EXECUTOR_WORKFLOW = '.github/workflows/claudinite-executor.yml';
-// Endpoint tokens ride the same rail as a task's declared secrets (DESIGN §12,
-// §14.6): the config maps an endpoint name to a URL and to the NAME of the Actions
+// Endpoint tokens ride the same rail as a task's declared secrets (PRINCIPLES.md,
+// PRINCIPLES.md): the config maps an endpoint name to a URL and to the NAME of the Actions
 // secret holding its token, and the stamp puts that name in the executor's env
 // exactly as a `code_work_required_secrets` entry. The executor reads it only at the
 // moment of the invocation call; nothing else in a task's life ever sees it.
@@ -76,7 +76,7 @@ export async function declaredSecrets(root, config) {
 // A stub says WHERE with the `# claudinite:secrets` marker. Marker or nothing: the
 // scheduler-run stub carries no marker and must not be stamped — it has two jobs
 // carrying GITHUB_TOKEN and only the executing one may ever see a secret, and its
-// drain dispatches the executor rather than running task code (§15.16).
+// drain dispatches the executor rather than running task code (PRINCIPLES.md).
 export const SECRETS_MARKER = /^[ \t]*# claudinite:secrets\b.*$/m;
 
 // The env line one secret travels on, and the read of it. The stamp writes these
@@ -97,7 +97,7 @@ export function withDeclaredSecrets(stubText, names = []) {
     : stubText;
 }
 
-// `dailyHour` picks BOTH of the cron's hours (DESIGN §17): the anchor tick and the drain tick
+// `dailyHour` picks BOTH of the cron's hours (PRINCIPLES.md): the anchor tick and the drain tick
 // twelve hours after it. Optional, and absent means the documented default — an unset key is the
 // default, never a misconfiguration — so a caller that does not read the repo's schedule still
 // writes the right cron for every repo that has not moved its anchor.

@@ -1,4 +1,4 @@
-// The janitor's sweep over the WORK-ITEM QUEUE (tasks-dispatch DESIGN §11) — the
+// The janitor's sweep over the WORK-ITEM QUEUE (docs/PRINCIPLES.md) — the
 // half of this task that runs where `taskScheduler.dispatch` is `"queue"`.
 //
 // It shrinks twice over against the slot-mechanism sweep beside it. The re-arm and
