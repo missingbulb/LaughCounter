@@ -1,5 +1,5 @@
-// WHEN A BLOCKED ITEM MAY RUN (tasks-dispatch DESIGN §9, decision §15.19,
-// reversed by decision §15.31 / #1373). One caller asks this question: the
+// WHEN A BLOCKED ITEM MAY RUN (docs/PRINCIPLES.md; #1373 reversed an earlier
+// attempt). One caller asks this question: the
 // scheduler run, hourly, over every open item. A close does not — releasing a
 // dependent is deciding whether the world has moved on, which is what the
 // scheduler run exists to re-derive, and a task execution converging its own

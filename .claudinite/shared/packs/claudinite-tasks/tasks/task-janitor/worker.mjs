@@ -103,7 +103,7 @@ export async function sweep(gh, repo, now) {
   return result;
 }
 
-// WHICH SWEEP is the repo's dispatch mode (tasks-dispatch DESIGN §14): the two
+// WHICH SWEEP is the repo's dispatch mode (docs/PRINCIPLES.md): the two
 // mechanisms have disjoint issue families, so a janitor that ran both sweeps would
 // find nothing in one of them and a janitor that ran the wrong one would find
 // nothing at all — and report a clean bill of health either way. One repo, one

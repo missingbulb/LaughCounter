@@ -105,7 +105,7 @@ export function pushGenerated(root, { remote, baseSha, branch, files, message })
 }
 
 // Which branch the regenerate lands on and which pull request it updates — THE
-// EXECUTOR'S DECISION, handed in (tasks-dispatch DESIGN §6.4b): `branch` is the
+// EXECUTOR'S DECISION, handed in (docs/PRINCIPLES.md): `branch` is the
 // one it resolved, `pr` the open pull request it said to amend, or null for a fresh
 // one on that branch. A named pull request the open list no longer carries was
 // closed under the run; the branch is still the one to push to, and a new pull

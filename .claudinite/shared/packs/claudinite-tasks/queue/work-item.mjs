@@ -1,4 +1,4 @@
-// The work item — the queue's one durable object (tasks-dispatch DESIGN §3, §4).
+// The work item — the queue's one durable object (docs/PRINCIPLES.md).
 // An issue titled `[claudinite-work] <pack>/<task> [qualifier]`, whose labels are
 // its state, whose body's first line is the task path, and whose optional body
 // fields (`Not-before`, `Blocked-by`, and a request's `Request` / `Model`) are the
@@ -6,11 +6,11 @@
 //
 // PURE, and deliberately the whole schema: everything else — anchors, guards,
 // yields, leashes, verdicts — is computed fresh at every scheduler run and pick from the
-// engine and the declarations at HEAD (DESIGN §14). The label-and-field vocabulary
+// engine and the declarations at HEAD (PRINCIPLES.md). The label-and-field vocabulary
 // here is therefore the compatibility surface across engine versions, which is why
 // additive change is the strongly preferred shape and a rename needs a migration.
 //
-// Parse/serialize of those fields lives here and nowhere else (DESIGN §9).
+// Parse/serialize of those fields lives here and nowhere else (PRINCIPLES.md).
 //
 // The one import, and a frozen constant at that: the pack-rename map, which this
 // module needs to keep reading titles written before a rename (see parseWorkItemTitle).
@@ -18,10 +18,10 @@ import { canonicalPackId } from '../../../engine/pack_loader/renamed-packs.mjs';
 
 // The title prefix. Disjoint from the slot mechanism's `[claudinite-task]` on
 // purpose: the two mechanisms coexist per-repo behind `taskScheduler.dispatch`,
-// and neither may read the other's issues (DESIGN §14, S29).
+// and neither may read the other's issues (PRINCIPLES.md, S29).
 export const WORK_PREFIX = '[claudinite-work]';
 
-// --- the canonical vocabulary (DESIGN §4, the migration of #1119) -------------
+// --- the canonical vocabulary (PRINCIPLES.md, the migration of #1119) -------------
 // Every label the machinery writes is one of three things — the item's single
 // STATUS, its lifelong ORIGIN, or the URGENCY flag — and all of them live in the
 // `task:` namespace. These are the spellings a reader compares against: decode
@@ -43,7 +43,7 @@ export const STATUS_REJECTED = `${STATUS_PREFIX}rejected`;
 
 // The four statuses an OPEN item may wear before it parks or converges. An open
 // item wearing no decodable status at all is off the state machine — a torn label
-// swap's leavings, which the janitor repairs (DESIGN §6.2, §11).
+// swap's leavings, which the janitor repairs (docs/PRINCIPLES.md).
 export const LIVE_STATUSES = Object.freeze([
   STATUS_BLOCKED, STATUS_READY, STATUS_RUNNING_EXECUTOR, STATUS_RUNNING_AGENT,
 ]);
@@ -56,7 +56,7 @@ export const STATUS_LABELS = Object.freeze([
   ...LIVE_STATUSES, ...PARK_STATUSES, STATUS_DONE, STATUS_REJECTED,
 ]);
 
-// THE ORIGIN (DESIGN §3, decision §15.29) — who asked for this item, worn for the
+// THE ORIGIN (docs/PRINCIPLES.md) — who asked for this item, worn for the
 // item's whole life beside whatever status it holds. Read here; the writers arrive
 // with the write-side flip.
 export const ORIGIN_PREFIX = 'task:origin:';
@@ -92,7 +92,7 @@ export const TASK_OBSOLETE = STATUS_REJECTED;
 // Every spelling any fielded engine has written. They are literals rather than
 // aliases of the constants above precisely because those constants moved: a decode
 // map built from them would have mapped today's spelling to itself and forgotten
-// the vocabulary it exists to read (DESIGN §4).
+// the vocabulary it exists to read (PRINCIPLES.md).
 // @legacy-tolerance advisory:none retire:#1642
 export const LEGACY_BLOCKED = 'task:blocked';
 // @legacy-tolerance advisory:none retire:#1642
@@ -130,7 +130,7 @@ export const LEGACY_TASK_DONE = 'task:done';
 // @legacy-tolerance advisory:none retire:#1642
 export const LEGACY_TASK_OBSOLETE = 'task:obsolete';
 
-// @deprecated The origin marker (DESIGN §15.26). Nothing writes it and nothing
+// @deprecated The origin marker (PRINCIPLES.md). Nothing writes it and nothing
 // branches on it: whether an item is a task's standing occurrence or an ad-hoc run
 // is STRUCTURAL — see `isStandingItem` — so a marker that could disagree with the
 // structure was a second authority over the same fact. Kept exported and inert
@@ -179,7 +179,7 @@ export const TRIAGE_LABELS = PARK_STATUSES;
 // rather than quietly joining the mechanical lane.
 export const isBlockingPark = (item) => statusOf(item) === STATUS_NEEDS_HUMAN_FAILURE;
 
-// --- the decode (DESIGN §4, "legacy spellings — written never, read forever") --
+// --- the decode (PRINCIPLES.md, "legacy spellings — written never, read forever") --
 // Labels are STORED DATA: open items filed by a fielded engine wear its spellings,
 // closed items keep theirs forever, and members converge on their own schedules. So
 // every reader here goes through one pass that maps every spelling ever written
@@ -260,7 +260,7 @@ export function spellingsOf(status) {
 
 // THE RE-QUEUE LEVER, in words — one home, because it is written into every message
 // that parks an item and a stale copy of it is an instruction that no longer works.
-// Clearing the status IS the re-ask (DESIGN §16.3): a park is one label now, so
+// Clearing the status IS the re-ask (PRINCIPLES.md): a park is one label now, so
 // there is nothing else to take off.
 export const requeueHint = `clear its status label and add \`${STATUS_READY}\``;
 
@@ -288,7 +288,7 @@ export function outcomeOf(issue) {
   return hasLabel(issue, OUTCOME_DELIVERED) ? 'delivered' : null;
 }
 
-// --- the request vocabulary, retired (DESIGN §4's legacy table, §16.1) --------
+// --- the request vocabulary, retired (docs/PRINCIPLES.md's legacy table) --------
 // @deprecated The three labels the SHADOW-ITEM request model used. The mark is
 // `task:origin:ad-hoc` now and the marked issue is the item itself, so nothing here
 // applies these — but they are read forever: `claude-task` is still accepted as a
@@ -299,7 +299,7 @@ export function outcomeOf(issue) {
 // appliable from the issue page on a phone, and it is write-gated by the platform —
 // applying a label needs triage or write access — which is the first half of the
 // security story (the second is the precondition's permission read at pickup,
-// §16.4). A request's PARAMETERS are body fields (`parseRequestFields`), gated on
+// PRINCIPLES.md). A request's PARAMETERS are body fields (`parseRequestFields`), gated on
 // the author's push access instead, and no label carries one: a `claude-model:` or
 // `claude-automerge` label applied by hand asks for nothing.
 export const REQUEST_LABEL = 'claude-task';
@@ -313,7 +313,7 @@ export const REQUEST_MODELS = Object.freeze(['opus', 'sonnet', 'haiku']);
 
 // The four state labels an open item may wear. An open item wearing none of them
 // and no `needs-human` is off the state machine entirely — a torn label swap's
-// leavings, which the janitor repairs (DESIGN §6.2, §11).
+// leavings, which the janitor repairs (docs/PRINCIPLES.md).
 export const STATE_LABELS = [BLOCKED, READY, EXECUTING, AGENT];
 
 // The canonical statuses the same four decode to — what a reader tests against,
@@ -328,7 +328,7 @@ export { LIVE_STATUSES as STATE_STATUSES };
 // The LEGACY block below is ensured too, and that is deliberate: nothing writes
 // those spellings any more, but open items filed by a fielded engine wear them and
 // deleting a label strips it from every issue that carries it — including closed
-// ones, which are stored data (DESIGN §4).
+// ones, which are stored data (PRINCIPLES.md).
 export const QUEUE_LABELS = [
   { name: STATUS_BLOCKED, color: 'c5def5', description: 'Claudinite queue: waiting on Blocked-by and/or Not-before' },
   { name: STATUS_READY, color: '0e8a16', description: 'Claudinite queue: available for an executor to pick up' },
@@ -365,8 +365,8 @@ export const hasLabel = (issue, name) => labelNames(issue).includes(name);
 
 // Title. The optional qualifier exists ONLY for deliberately concurrent items —
 // a fan-out naming its target — and it is part of the identity the same-title
-// mutex reads (DESIGN §6.1). Nothing ever encodes a date here: that was the slot
-// grammar, and the issue number is the identity (DESIGN §5).
+// mutex reads (PRINCIPLES.md). Nothing ever encodes a date here: that was the slot
+// grammar, and the issue number is the identity (PRINCIPLES.md).
 export const workItemTitle = ({ pack, task, qualifier = null }) =>
   `${WORK_PREFIX} ${pack}/${task}${qualifier ? ` ${qualifier}` : ''}`;
 
@@ -386,7 +386,7 @@ export function parseWorkItemTitle(title) {
 export const isWorkItemTitle = (title) => parseWorkItemTitle(title) !== null;
 
 // The `<pack>/<task>` id a WORKER PATH names — the identity half a marked issue's
-// title cannot carry (DESIGN §16.1), read off the path its machine block names. Two
+// title cannot carry (PRINCIPLES.md), read off the path its machine block names. Two
 // shapes, because tasks have two homes: the `tasks/` slot a declared pack contributes,
 // and the queue's own built-in root. The `.claudinite/shared/` prefix is optional in
 // both — a member's mount is there and the canon runs its own tree.
@@ -412,7 +412,7 @@ export function taskIdFromPath(path) {
   return builtIn ? { pack: 'engine', task: builtIn[1] } : null;
 }
 
-// STANDING OR AD-HOC, DERIVED (DESIGN §15.26). A task's standing item is the one
+// STANDING OR AD-HOC, DERIVED (PRINCIPLES.md). A task's standing item is the one
 // the scheduler files when the task says yes: its title names the task and nothing
 // else, and the task it names is on the schedule. Everything else is ad-hoc — an
 // unscheduled task's item (the scheduler never asks it) and every qualified item
@@ -435,7 +435,7 @@ export function isStandingItem(item, scheduled) {
 // The three comments the protocol reads back. They are HTML comments so a human
 // reading the item sees prose, and they are here — with the labels and the body
 // fields — because together they ARE the item's vocabulary, the one compatibility
-// surface across engine versions (DESIGN §14).
+// surface across engine versions (PRINCIPLES.md).
 //
 // The CLAIM comment carries who and when (executor identity is an unbounded set
 // and must never become a label). The HANDOFF comment names the session and the
@@ -463,7 +463,7 @@ export const BLOCKED_BY_FIELD = 'Blocked-by';
 export const ENDS_WHEN_FIELD = 'Ends-when';
 export const ENDS_WHEN_CLOSED = 'closed';
 
-// THE TARGET (DESIGN §6.4b) — which branch and pull request this run works on,
+// THE TARGET (PRINCIPLES.md) — which branch and pull request this run works on,
 // decided by the executor once the precondition said go and stamped here at the
 // hand-off, so the agent reads it where it reads everything else and never picks a
 // branch of its own. `Target-pr` is present only when the run AMENDS an open pull
@@ -474,23 +474,23 @@ export const TARGET_BRANCH_FIELD = 'Target-branch';
 export const TARGET_PR_FIELD = 'Target-pr';
 export const SUPERSEDES_FIELD = 'Supersedes';
 
-// WOKEN (DESIGN §5, §8) — the instant somebody created this item by hand or woke
+// WOKEN (docs/PRINCIPLES.md) — the instant somebody created this item by hand or woke
 // it: a hand-created item, a forced mint, a `--wake`. The cadence terms hold on a
 // woken item (a person's wake stands in for the cadence), so an item the scheduler
 // filed on its own never carries the field. Stamped by the lever that woke it,
 // never inferred from a comment.
 export const WOKEN_FIELD = 'Woken';
 
-// The three fields a REQUEST item carries (DESIGN §16.3, §16.11). `Request` is the issue this
+// The three fields a REQUEST item carries (docs/PRINCIPLES.md). `Request` is the issue this
 // run implements — the whole payload, since the request task has no code-work phase
 // to hand one over. `Model` is the family the asker chose, copied here by the scheduler run
 // from a write-gated label and read only by a task that declares
 // `model_from_request`; it is the first thing an item carries that defines
-// behaviour, which is why it is fenced rather than waved through (§16.7).
+// behaviour, which is why it is fenced rather than waved through (PRINCIPLES.md).
 export const REQUEST_FIELD = 'Request';
 export const MODEL_FIELD = 'Model';
 
-// `Task` is the TARGETING field (DESIGN §16, the one-issue request): which task a
+// `Task` is the TARGETING field (PRINCIPLES.md, the one-issue request): which task a
 // marked issue asks for, as `<pack>/<task>`. Absent, the ask is the built-in
 // request implementer, which is what an ordinary "implement this issue" mark means.
 // It rides the same author gate as `Model` and `Merge`: naming a task is choosing
@@ -559,7 +559,7 @@ export const LEGACY_DELIVERED_HEADINGS = Object.freeze([
   'Delivered by code_work',
 ]);
 
-// --- the machine block (DESIGN §16.1, §16.3) ----------------------------------
+// --- the machine block (docs/PRINCIPLES.md) ----------------------------------
 // A one-issue request's item IS the issue somebody marked, so the item's fields
 // share a body a person authored and keeps editing. They live in one delimited
 // block, appended at adoption and rewritten in place after that: everything outside
@@ -649,7 +649,7 @@ export function workItemBody({
 
 // The `Blocked-by` numbers a body names, from a work item's body or from an
 // ORDINARY issue's — a request marked for implementation states what it waits on in
-// the same field spelling, and adoption carries it onto the item it births (§16.11).
+// the same field spelling, and adoption carries it onto the item it births (PRINCIPLES.md).
 export function parseBlockedBy(body) {
   const bb = BLOCKED_BY_RE.exec(String(body ?? ''))?.[1] ?? '';
   return [...bb.matchAll(/#(\d+)/g)].map((m) => Number(m[1]));
@@ -666,7 +666,7 @@ export function parseWorkItemBody(body) {
   const request = REQUEST_RE.exec(text) ? Number(REQUEST_RE.exec(text)[1]) : null;
   // An unrecognised family reads as absent rather than as itself: the item's model
   // is behaviour-defining, so the only values that leave this parser are ones the
-  // engine can actually dispatch at (§16.7).
+  // engine can actually dispatch at (PRINCIPLES.md).
   const askedModel = MODEL_RE.exec(text)?.[1] ?? null;
   const model = REQUEST_MODELS.includes(askedModel) ? askedModel : null;
   // Same fencing as the model: an authorization that does not read as a policy
@@ -684,7 +684,7 @@ export function parseWorkItemBody(body) {
   return { taskPath, notBefore: nb, blockedBy, request, model, merge, endsWhen, targetBranch, targetPr, supersedes, woken };
 }
 
-// THE ITEM'S OWN FACTS, as a precondition term sees them (DESIGN §16.4, §5): the
+// THE ITEM'S OWN FACTS, as a precondition term sees them (docs/PRINCIPLES.md): the
 // body's fields plus the two the terms read that are not fields — the issue number,
 // and whether somebody created or woke this item. `woken` is everything that is
 // NOT the scheduler's own ask: an item stamped by a lever, one born ad-hoc (a
@@ -704,7 +704,7 @@ export function itemFacts(item) {
   };
 }
 
-// WHAT A MARKED ISSUE ASKS FOR (DESIGN §16.3, §16.7, §16.11) — read from the
+// WHAT A MARKED ISSUE ASKS FOR (docs/PRINCIPLES.md) — read from the
 // person's own text at every adoption, so each ask names its parameters afresh and
 // nothing stale outranks a new one.
 //

@@ -1,5 +1,5 @@
 // APPLYING a status transition — the write half of the vocabulary whose read half
-// is `work-item.mjs`'s decode (tasks-dispatch DESIGN §4, the migration of #1119).
+// is `work-item.mjs`'s decode (docs/PRINCIPLES.md, the migration of #1119).
 //
 // One rule, and it is why this is not a plain `swapLabel`: the item may wear ANY
 // engine version's spelling of the status it is leaving. A member's items outlive
@@ -10,7 +10,7 @@
 //
 // Writes stay granular (add and remove named labels, never a set-write): with
 // several executors and a scheduler run moving labels at once, a set-write from a
-// stale snapshot clobbers a concurrent transition (DESIGN §4).
+// stale snapshot clobbers a concurrent transition (PRINCIPLES.md).
 // The removes are UNCONDITIONAL — every spelling of the status being left, not
 // only the ones the caller's snapshot shows. A caller holds the labels it read
 // before its own earlier transitions, so filtering on that snapshot would skip

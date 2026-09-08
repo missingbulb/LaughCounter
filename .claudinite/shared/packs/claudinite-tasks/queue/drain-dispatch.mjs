@@ -1,4 +1,4 @@
-// THE POST-SCHEDULER-RUN DRAIN (tasks-dispatch DESIGN §10, §15.16, §15.30). The
+// THE POST-SCHEDULER-RUN DRAIN (docs/PRINCIPLES.md). The
 // scheduler run's own concurrency group serializes scheduler runs — its
 // duplicate-standing-item self-heal depends on exactly that — and a drain running
 // inside the group would make each tick queue behind the previous one's work,

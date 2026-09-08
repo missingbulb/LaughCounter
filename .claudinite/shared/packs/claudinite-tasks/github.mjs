@@ -3,7 +3,7 @@
 // with their callers; these are here so the slot machinery and the work-item queue
 // share one implementation of each, rather than two that drift.
 //
-// LABEL WRITES ARE GRANULAR, ALWAYS (tasks-dispatch DESIGN §4, RESEARCH §2): add
+// LABEL WRITES ARE GRANULAR, ALWAYS (docs/PRINCIPLES.md): add
 // and remove NAMED labels (POST/DELETE), never write the label SET (PUT). A
 // set-write replaces from a stale snapshot and clobbers concurrent transitions —
 // a bug class GitHub's own CLI shipped (cli/cli#4861) — and with a scheduler run and
@@ -48,7 +48,7 @@ export const removeLabel = (gh, repo, number, name) =>
 // GitHub has no atomic label swap. That is safe because labels are visibility and
 // the pick filter, never the arbiter (the claim comments are); what a torn swap
 // CAN leave is an open item wearing no state label at all, which the janitor
-// repairs (tasks-dispatch DESIGN §6.2, §11).
+// repairs (tasks-dispatch docs/PRINCIPLES.md).
 export async function swapLabel(gh, repo, number, from, to) {
   await removeLabel(gh, repo, number, from);
   return addLabel(gh, repo, number, to);
@@ -59,7 +59,7 @@ export const comment = (gh, repo, number, body) =>
 
 // The ONE sanctioned edit to a comment, and the reason the arbitration record is
 // no longer strictly append-only: an executor striking its OWN claim on the way
-// out (tasks-dispatch DESIGN §6.2). Only a claim's author ever edits it, so a
+// out (docs/PRINCIPLES.md). Only a claim's author ever edits it, so a
 // claim can be withdrawn but never forged earlier, and comment ids still give the
 // total order arbitration reads.
 export const editComment = (gh, repo, commentId, body) =>
@@ -94,7 +94,7 @@ export async function createIssue(gh, repo, { title, body, labels = [] }) {
 }
 
 // The one write here that is not an issue mutation: fire a `workflow_dispatch`.
-// It is how the queue CHAINS (DESIGN §10) — a run that settled its item starts a
+// It is how the queue CHAINS (PRINCIPLES.md) — a run that settled its item starts a
 // fresh one rather than leaving the remainder for the cron — and `workflow_dispatch`
 // is one of the two events the default `GITHUB_TOKEN` may fire, the explicit
 // exemption in the same recursion guard that suppresses its label events, so no

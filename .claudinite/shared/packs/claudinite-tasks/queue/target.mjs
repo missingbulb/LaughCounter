@@ -1,5 +1,5 @@
-// THE TARGET — which pull request a run works on (tasks-dispatch DESIGN §6.4b,
-// decision §15.32). A task's `expected_outcome` says what its run does to pull
+// THE TARGET — which pull request a run works on (docs/PRINCIPLES.md,
+// docs/PRINCIPLES.md). A task's `expected_outcome` says what its run does to pull
 // requests; the executor resolves that into a concrete branch and pull request
 // ONCE, after the precondition said go and before code-work, and hands the
 // answer to both phases (code-work as environment, the agent as item fields).

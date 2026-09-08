@@ -9,7 +9,7 @@ import * as declarationText from '../task-declaration-text.mjs';
 // THE ADVISORY HALF OF THE TASK CONTRACT'S FIELD TOLERANCES. `normalizeTaskDeclaration`
 // accepts two generations of field names, the retired one-word outcome ceilings,
 // the retired `frequency` field (which reads as the cadence term it always meant,
-// tasks-dispatch DESIGN §5) and a declaration stating no `trigger` (whose value is
+// docs/PRINCIPLES.md) and a declaration stating no `trigger` (whose value is
 // derived from the shape of its conditions), so a task declared in the oldest
 // vocabulary runs exactly like one declared today — and nothing told its author that
 // the acceptance ends a convergence window after this advisory ships (#1642, #1725).

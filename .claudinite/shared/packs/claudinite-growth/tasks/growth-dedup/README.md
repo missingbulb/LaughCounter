@@ -5,7 +5,7 @@
 Carried over from the declaration's comments when it became `task.json`.
 
 claudinite-growth task: growth-dedup — the growth lifecycle's PRUNING stage
-(per-project-scheduling DESIGN §6). Prunes local-pack items the canon now
+Prunes local-pack items the canon now
 covers, keeping items the canon states too generally; lands the prunes through
 one PR against the default branch, delivered per the repo's delivery settings.
 Worker: task.md.

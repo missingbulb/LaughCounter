@@ -1,5 +1,5 @@
 // The scheduling CALENDAR — the frequency vocabulary and the anchor arithmetic
-// (tasks-dispatch DESIGN §5). Pure and stateless: given the repo's `schedule`
+// (docs/PRINCIPLES.md). Pure and stateless: given the repo's `schedule`
 // anchor (dailyHour, weeklyDay, monthlyDay), a frequency and a `now`, it answers
 // exactly one question — WHEN is that frequency's most recent occurrence at or
 // before `now`.
@@ -25,8 +25,8 @@
 export const FREQUENCIES = ['daily', 'weekly', 'monthly', 'manual'];
 
 // The retired spellings, and what each reads as. `hourly` cannot mean anything under a cron that
-// fires twice a day (DESIGN §17.1), and the `daily±Nh` offsets staggered dependent tasks by clock
-// hour where `after:` (§9) declares the same intent and actually enforces it.
+// fires twice a day (PRINCIPLES.md), and the `daily±Nh` offsets staggered dependent tasks by clock
+// hour where `after:` (PRINCIPLES.md) declares the same intent and actually enforces it.
 //
 // This map is PERMANENT, not a migration window. A task declaration is member-owned data that no
 // vendoring pass rewrites, so a member can carry a retired token indefinitely and must keep
@@ -43,7 +43,7 @@ export const LEGACY_FREQUENCIES = Object.freeze({});
 // What a declaration may CARRY, as against what a new one may be WRITTEN with.
 export const ACCEPTED_FREQUENCIES = [...FREQUENCIES, ...Object.keys(LEGACY_FREQUENCIES)];
 
-// THE ONE DOOR (DESIGN §17.1). Applied by `normalizeTaskDeclaration`, so every reader downstream
+// THE ONE DOOR (PRINCIPLES.md). Applied by `normalizeTaskDeclaration`, so every reader downstream
 // of a loaded declaration sees a canonical token — and there is more downstream than the
 // calendar: `periodMs` feeds the janitor's stale-ready bound (`queue/janitor-rules.mjs`) and the
 // precondition's signal window (`queue/signals.mjs`). Normalizing only the anchor would leave a
@@ -51,7 +51,7 @@ export const ACCEPTED_FREQUENCIES = [...FREQUENCIES, ...Object.keys(LEGACY_FREQU
 // exactly the members this tolerance exists for.
 export const normalizeFrequency = (frequency) => LEGACY_FREQUENCIES[frequency] ?? frequency;
 
-// The documented anchor defaults (per-project-scheduling DESIGN §2) — applied
+// The documented anchor defaults (docs/PRINCIPLES.md) — applied
 // when a repo omits `schedule` or any of its keys. This is the single source of
 // these values; the checks layer's load-time range validation
 // (engine/checks/helpers/repo-context.mjs) only bounds them, it does not
@@ -124,7 +124,7 @@ export function anchorInstant(frequency, schedule, now) {
     let year = at.getUTCFullYear();
     let month = at.getUTCMonth();
     for (;;) {
-      const day = Math.min(s.monthlyDay, daysInMonth(year, month)); // clamp to month length (DESIGN §2)
+      const day = Math.min(s.monthlyDay, daysInMonth(year, month)); // clamp to month length (docs/PRINCIPLES.md)
       const time = new Date(Date.UTC(year, month, day) + s.dailyHour * HOUR_MS);
       if (time.getTime() <= nowMs) return time;
       month -= 1;
@@ -136,8 +136,8 @@ export function anchorInstant(frequency, schedule, now) {
 }
 
 // --- the cadence terms ----------------------------------------------------------
-// How a task states WHEN it runs, inside its own `preconditions` (tasks-dispatch
-// DESIGN §5): the engine keeps no calendar of its own, so the cadence is one of the
+// How a task states WHEN it runs, inside its own `preconditions`
+// (docs/PRINCIPLES.md): the engine keeps no calendar of its own, so the cadence is one of the
 // task's conditions, read off its own run history at every scheduler tick.
 //
 //   due:<daily|weekly|monthly>   no run since that cadence's most recent anchor on

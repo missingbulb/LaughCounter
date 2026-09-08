@@ -8,7 +8,7 @@ metadata:
 
 # /do-later — defer a change into a chained request run
 
-File the deferred change as an **ad-hoc request** (tasks-dispatch DESIGN §16): an issue the
+File the deferred change as an **ad-hoc request**: an issue the
 queue picks up on its own, held behind what is still in flight — never an ordinary issue,
 which waits for somebody to remember it.
 

@@ -54,7 +54,7 @@ async function gh(token, path, { method = 'GET', body } = {}) {
 
 // One branch per run, dated and seeded like baselining's: two runs on one day must
 // not collide, and a name that carries its date is one a human can read a week later.
-// Minted only under an executor that hands no target in (DESIGN §6.4b) — see the
+// Minted only under an executor that hands no target in — see the
 // tolerance in `main`, and #1698 for its removal.
 export const updateBranchName = (day, seed) => `${UPDATE_PREFIX}-${day}-${seed}`;
 
@@ -128,7 +128,7 @@ export async function main() {
   // left; every other repo — the normal shape, the key absent — has it landed.
   const delivery = deliveryFor(declaration);
 
-  // THE TARGET (tasks-dispatch DESIGN §6.4b). Which branch this run pushes to, and
+  // THE TARGET. Which branch this run pushes to, and
   // what becomes of the previous cycle's pull request, is the executor's decision:
   // the task declares `supersede_existing_pr`, the executor resolved it before this
   // subprocess started — landing a green incumbent, or closing the rest once this

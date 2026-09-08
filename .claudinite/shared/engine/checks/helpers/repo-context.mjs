@@ -122,7 +122,7 @@ function vendoredSet(root, files) {
 // because every member wants the same thing, and the one that doesn't should have
 // to say so (#1252).
 // `taskScheduler` is the per-repo maintenance anchor the vendored hourly scheduler
-// reads (per-project-scheduling DESIGN §2) — { dailyHour, weeklyDay, monthlyDay },
+// reads (docs/PRINCIPLES.md) — { dailyHour, weeklyDay, monthlyDay },
 // all UTC. Absence means the documented defaults, so an omitted key is not an
 // error; a present one is range-validated at load below. Its declaration is also
 // the per-repo cutover marker during the scheduling rollout (MIGRATION Phase 0.6).
@@ -186,7 +186,7 @@ export const ENDPOINTS_KEY = 'agenticTaskInvocationEndpoints';
 export const LEGACY_ENDPOINTS_KEY = 'endpoints';
 
 // `taskScheduler.dispatch` chose between the slot scheduler and the work-item
-// queue while the two coexisted (tasks-dispatch DESIGN §14). The slot scheduler is
+// queue while the two coexisted (docs/PRINCIPLES.md). The slot scheduler is
 // deleted (#974), so `queue` is the only mechanism and the key means nothing.
 //
 // It stays VALIDATED rather than merely ignored, and `"slots"` is now an error:
@@ -370,7 +370,7 @@ export function loadConfig(root) {
       if (monthlyDay !== undefined && !(Number.isInteger(monthlyDay) && monthlyDay >= 1 && monthlyDay <= 31)) {
         errors.push({ what: `"taskScheduler.monthlyDay" must be an integer 1–31, got ${JSON.stringify(monthlyDay)}`, fix: 'set a day of the month, 1 through 31 (clamped to the month length)' });
       }
-      // The tasks this repo does not want instantiated (task-preconditions DESIGN,
+      // The tasks this repo does not want instantiated (docs/PRINCIPLES.md,
       // "What is not a precondition"). Repo shape — "this repo ships the store
       // pipeline", "this repo has a vendored mount" — is a fact adoption settled,
       // so it is answered once here rather than re-asked by a precondition every
@@ -396,7 +396,7 @@ export function loadConfig(root) {
           fix: 'omit the key — the work-item queue is the only dispatch mechanism; "slots" named the slot scheduler, which is deleted',
         });
       }
-      // The endpoint map (tasks-dispatch DESIGN §12): a name → { url, tokenSecret }.
+      // The endpoint map (docs/PRINCIPLES.md): a name → { url, tokenSecret }.
       // `tokenSecret` is the NAME of a repo Actions secret and never a value —
       // that indirection is the whole reason a task may declare an endpoint at all,
       // since a task declaration is vendored verbatim into every consuming repo.

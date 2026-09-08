@@ -1,4 +1,4 @@
-// Fresh-path wiring convergence (task-code-work DESIGN §7, the primitive absorbed from
+// Fresh-path wiring convergence (docs/PRINCIPLES.md, the primitive absorbed from
 // #405). The deterministic half of the self-refresh that has nothing to do with the
 // vendored mount's CONTENT: the repo-specific wiring EVERY Claudinite member carries,
 // converged idempotently in code so the nightly refresh never needs a model to re-enact

@@ -1,19 +1,19 @@
-// Code-work, executor-side (tasks-dispatch DESIGN §6.5, §14). The contract is
+// Code-work, executor-side (docs/PRINCIPLES.md). The contract is
 // unchanged from the slot mechanism — a subprocess with the task dir as cwd, the
 // declared `code_work_required_secrets` as environment, a hard timeout, and the conditional
 // `CLAUDINITE_REQUEST_AGENT` hand-off — so this module is a thin adapter that
 // gives the queue's item identity where the slot id used to go, and adds the two
 // things the queue states explicitly:
 //
-//  - RE-ENTRANCY IS THE REQUIREMENT, NOT IDEMPOTENCY (§6). A dead executor's
+//  - RE-ENTRANCY IS THE REQUIREMENT, NOT IDEMPOTENCY (PRINCIPLES.md). A dead executor's
 //    claim is reclaimed and the item re-picked, so code-work can run again over its
 //    own half-done work. That is convergence — check what exists, continue from
 //    there — and it was always true of code-work; the contract simply never said so.
-//    Since the heartbeat replaced the run cap (§15.15), overlap is no longer
+//    Since the heartbeat replaced the run cap (PRINCIPLES.md), overlap is no longer
 //    excluded by construction: a partitioned runner keeps working while its beats
 //    fail to post, its claim is reclaimed on that silence, and the replacement
 //    starts. Re-entrancy is what makes that safe, which is why it is the contract.
-//  - A DECLARED SECRET THAT IS NOT CONFIGURED IS NAMED, NOT GUESSED AT (§14.7).
+//  - A DECLARED SECRET THAT IS NOT CONFIGURED IS NAMED, NOT GUESSED AT (PRINCIPLES.md).
 //    Code-work is the only task code that ever sees a secret VALUE, so this is the
 //    one place that can tell "unset" from "empty", and the item converges to
 //    triage naming exactly which one is missing.
@@ -63,15 +63,15 @@ export const codeWorkEnv = ({ root, repo, defaultBranch, task, item, context = [
   CLAUDINITE_REPO: repo,
   CLAUDINITE_DEFAULT_BRANCH: defaultBranch ?? '',
   // The item's identity where the slot id used to be: the queue has no slot, and
-  // the issue number IS the occurrence (§3).
+  // the issue number IS the occurrence (PRINCIPLES.md).
   CLAUDINITE_ITEM: String(item.number),
   CLAUDINITE_PACK: task.pack,
   CLAUDINITE_TASK: task.id,
   // The item's binding scope, one line per Context bullet — and the channel an
-  // operator's parameters ride (§8).
+  // operator's parameters ride (PRINCIPLES.md).
   CLAUDINITE_CONTEXT: context.join('\n'),
   CLAUDINITE_REQUEST_AGENT: requestPath,
-  // WHICH BRANCH AND PULL REQUEST THIS RUN WORKS ON (DESIGN §6.4b), decided by the
+  // WHICH BRANCH AND PULL REQUEST THIS RUN WORKS ON (PRINCIPLES.md), decided by the
   // executor before this subprocess started. A worker pushes to the branch and
   // opens or updates the pull request it is told about — never finds one itself.
   ...targetEnv(target),

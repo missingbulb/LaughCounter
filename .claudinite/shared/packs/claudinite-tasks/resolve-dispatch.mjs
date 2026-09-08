@@ -1,6 +1,6 @@
 // The executor's entry gate: identify the ONE dispatch this session was started
 // for, and validate it in code BEFORE any model judgment (per-project-scheduling
-// DESIGN §5.2). This is the CLI shell `validate-dispatch.mjs` was written to be
+// PRINCIPLES.md). This is the CLI shell `validate-dispatch.mjs` was written to be
 // driven by — it wires that pure core's `exists` / `isPackDeclared` / `loadTask`
 // capabilities to this checkout and hands it the issue body.
 //

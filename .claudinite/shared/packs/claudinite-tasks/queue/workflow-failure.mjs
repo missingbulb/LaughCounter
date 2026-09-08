@@ -1,5 +1,5 @@
-// THE ESCALATION SURFACE FOR A WORKFLOW THAT FAILED AS A WHOLE (tasks-dispatch
-// DESIGN §10). A scheduled run reaches no one when it goes red — nothing is
+// THE ESCALATION SURFACE FOR A WORKFLOW THAT FAILED AS A WHOLE (docs/PRINCIPLES.md).
+// A scheduled run reaches no one when it goes red — nothing is
 // watching the Actions tab — so a run-level failure becomes a human-visible
 // issue instead.
 //

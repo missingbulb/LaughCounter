@@ -11,7 +11,7 @@
 // policy covers the actual diff). Whether the PR actually
 // lands unreviewed is the MEMBER REPO's call — `dailyClaudiniteUpdatesRequirePrReview`
 // in its settings file, where `true` degrades every authorized landing to review
-// (member config wins, per-project-scheduling DESIGN §1). Tasks stay
+// (member config wins, docs/PRINCIPLES.md). Tasks stay
 // unaware of that setting by construction: they hand their PR to landDelivery()
 // (directly, or through deliver-generated.mjs) and the repo-shape nuances stay
 // here:
@@ -400,7 +400,7 @@ export function failureSummary(runs) {
 // ref alone: disposal needs its number and head sha.
 //
 // @deprecated Which pull request a run works on is the executor's decision since
-// #1695 (`queue/target.mjs`, tasks-dispatch DESIGN §6.4b): a `supersede_existing_pr`
+// #1695 (`queue/target.mjs`, docs/PRINCIPLES.md): a `supersede_existing_pr`
 // task's incumbent is judged, landed or closed there, and the worker is handed a
 // branch. Still exported for the update worker's own path under an executor that
 // predates the hand-off; #1698 removes both.

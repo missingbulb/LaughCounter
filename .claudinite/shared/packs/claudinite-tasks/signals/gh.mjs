@@ -1,5 +1,5 @@
 // The Action-side GitHub reader for the scheduler (per-project-scheduling
-// DESIGN §10: packs/claudinite-tasks/ is the one place that legitimately uses the
+// PRINCIPLES.md: packs/claudinite-tasks/ is the one place that legitimately uses the
 // Action's GITHUB_TOKEN — everything session-side stays MCP-only). A minimal
 // REST client over global fetch: `gh(path) -> { status, json }`, the same shape
 // the fleet planner's injected reader uses, so the collectors read uniformly and
@@ -40,7 +40,7 @@ export function makeGh({ token = process.env.GITHUB_TOKEN, api = API, fetchImpl 
 export const SCHEDULER_WORKFLOW_FILE = 'claudinite-scheduler.yml';
 
 // The executor workflow's file name, same contract: identical in every member,
-// and the target of every `workflow_dispatch` in the queue's chain (DESIGN §10) —
+// and the target of every `workflow_dispatch` in the queue's chain (PRINCIPLES.md) —
 // the close-time drain, a run's own re-dispatch, and the failure continuation.
 export const EXECUTOR_WORKFLOW_FILE = 'claudinite-executor.yml';
 

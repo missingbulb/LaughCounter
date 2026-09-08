@@ -45,7 +45,7 @@ export function entriesIn(body) {
   } catch { return null; }
 }
 
-// THE WORK LIST IS A MARKED ISSUE (tasks-dispatch DESIGN §16.1, §16.12). The
+// THE WORK LIST IS A MARKED ISSUE. The
 // enforcer marks each work-list issue `task:origin:ad-hoc` and names the member
 // task in the body's `Task:` field, so the member's ordinary hourly scheduler run
 // adopts it: the issue becomes the work item, and the run that drains it plays out

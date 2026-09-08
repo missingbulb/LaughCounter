@@ -4,12 +4,12 @@
 
 Carried over from the declaration's comments when it became `task.json`.
 
-The request implementer (tasks-dispatch DESIGN §16) — the engine's one built-in
+The request implementer (docs/PRINCIPLES.md) — the engine's one built-in
 task, and the only one that may read an item's `Model`.
 
 A person marks an ordinary issue `task:origin:ad-hoc`; the scheduler run adopts
 it by writing the machine block onto that issue and applying the first status —
-the issue IS the item (§16.1); this task's precondition decides, at pickup,
+the issue IS the item (PRINCIPLES.md); this task's precondition decides, at pickup,
 whether the run happens; the session implements the issue and leaves a pull
 request. There is no code-work phase at all: the authorization a worker would
 have performed is the precondition's, and the item's `Request:` field — which
@@ -27,7 +27,7 @@ The default when the asker named no family; the item's `Model:` overrides it,
 and only because this task declares the field below.
 The ceiling the executor enforces in code. The task's own policy is the full
 `anything` because the REAL decider is per-request: the asker's `Automerge:`
-becomes the item's `Merge:` field (§16.11), a policy expression the worker
+becomes the item's `Merge:` field (PRINCIPLES.md), a policy expression the worker
 hands to the policy engine, and the task ceiling must not sit below whatever
 an asker may legitimately authorize. A ceiling is a maximum, not an
 instruction: with no such field the worker opens a pull request and parks at

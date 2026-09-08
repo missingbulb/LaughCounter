@@ -1,4 +1,4 @@
-// The `ctx` every signal collector reads (per-project-scheduling DESIGN §3.3) —
+// The `ctx` every signal collector reads (docs/PRINCIPLES.md) —
 // the already-resolved facts a collector may not go and fetch for itself, built
 // once per collection and handed to `collectSignals`.
 //

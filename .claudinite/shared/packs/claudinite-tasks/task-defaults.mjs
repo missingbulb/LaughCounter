@@ -8,7 +8,7 @@
 // subprocess always carries its own time limit, so the field is required
 // wherever the phase it bounds is declared. `preconditions` and `expected_outcome`
 // have no default either — each is a choice the author makes: the expression is
-// the whole of when the task runs (tasks-dispatch DESIGN §5), and an absent one has
+// the whole of when the task runs (docs/PRINCIPLES.md), and an absent one has
 // not said.
 // A task that declares a field keeps it; only an absent one is filled.
 export const DEFAULT_AUTOMERGE = 'nothing';

@@ -1,14 +1,14 @@
-// The scheduler run (tasks-dispatch DESIGN §5) — the whole of the queue's
+// The scheduler run (docs/PRINCIPLES.md) — the whole of the queue's
 // scheduled machinery, and a stateless loop: at every tick it asks every declared
 // task, through the task's own preconditions, whether it wants to run now, and
-// files an issue only on a yes (decision §15.33).
+// files an issue only on a yes (docs/PRINCIPLES.md).
 //
 // Four jobs: ASK — every task on the schedule, through the injectable `evaluate`
 // seam; a yes creates the work item, a no is a log line, and a read the scheduler
 // cannot make fails OPEN and creates the item for the executor to decide; READY
 // blocked items whose dependencies have resolved and whose not-before has passed;
 // ADOPT the issues somebody marked for implementation; and RECLAIM dead executor
-// claims. The executor still re-evaluates at pick (§6.4). The engine keeps no
+// claims. The executor still re-evaluates at pick (PRINCIPLES.md). The engine keeps no
 // memory of an ask: a task's cadence is a condition over its own run history,
 // read off the queue, so a decline is simply asked again at the next tick and
 // nothing durable can eat a run. One invariant is the engine's own — ONE LIVE ITEM
@@ -16,7 +16,7 @@
 // Beside job 1, the reap of a standing item whose task is no longer declared at
 // HEAD.
 //
-// The run's last act is the DRAIN GATE (§15.30): it reports whether it left
+// The run's last act is the DRAIN GATE (PRINCIPLES.md): it reports whether it left
 // anything pickable, and the workflow's drain job starts an executor only then —
 // an idle tick costs this one run rather than two.
 //
@@ -48,7 +48,7 @@ import { RUN_HORIZON_DAYS } from '../signals/index.mjs';
 
 // The scheduler run owns the executing-leash reclaim because it is deterministic and
 // hourly, which recovers a dead executor's item in ~2h rather than the janitor's
-// ~25h (DESIGN §11, owner decision 6).
+// ~25h (PRINCIPLES.md, owner decision 6).
 export { EXECUTING_LEASH_MS };
 
 const ms = (t) => (t == null ? null : new Date(t).getTime());
@@ -86,8 +86,7 @@ export async function planSchedulerRun({
   const nowMs = ms(now);
   const ops = [];
   const asked = [];
-  // REPO SHAPE IS NOT A PRECONDITION (task-preconditions DESIGN, "What is not a
-  // precondition"). "This repo ships the store pipeline", "this repo is a canon
+  // REPO SHAPE IS NOT A PRECONDITION (docs/PRINCIPLES.md). "This repo ships the store pipeline", "this repo is a canon
   // home with a fleet token" are facts adoption settled, not questions worth
   // re-asking every tick — so a repo that carries a pack but not one task's
   // subject names that task in `taskScheduler.disabledTasks` and it is never
@@ -129,16 +128,16 @@ export async function planSchedulerRun({
   const live = (i) => LIVE_STATUSES.some((s) => isStatus(i, s));
   for (const task of tasks) {
     // A task whose declaration says `trigger: 'request'` runs only from an item
-    // somebody created (DESIGN §5, §8): the schedule never asks it, and its items
+    // somebody created (docs/PRINCIPLES.md): the schedule never asks it, and its items
     // keep their own titles.
     if (!isScheduledTask(task.decl)) continue;
     const key = `${task.pack}/${task.id}`;
     if (disabled.has(key)) continue;
     const title = workItemTitle({ pack: task.pack, task: task.id });
     // The family is title-EXACT, which is also what makes it STRUCTURALLY the
-    // standing family (§15.26): this task is on the schedule and the title carries
+    // standing family (PRINCIPLES.md): this task is on the schedule and the title carries
     // no qualifier, so a fan-out target or a request — qualified, both of them — is
-    // a different title and neither suppresses nor consumes an occurrence (§3).
+    // a different title and neither suppresses nor consumes an occurrence (PRINCIPLES.md).
     const family = items.filter((i) => (i.title ?? '').trim() === title);
     // ONE LIVE ITEM PER TASK, the engine's one invariant: an open item that is
     // blocked, waiting or running is the task's current occurrence, and the task is
@@ -169,7 +168,7 @@ export async function planSchedulerRun({
     const verdict = (await evaluate(task)) ?? {};
     if (verdict.error) {
       // Fail open: never fewer runs because a read failed — the executor, which
-      // holds the credentials, decides at pick (§6.4).
+      // holds the credentials, decides at pick (PRINCIPLES.md).
       asked.push({ task: key, verdict: 'fail-open', reason: verdict.error });
     } else if (verdict.run !== true) {
       // No work, no item, nothing written: the next tick asks again.
@@ -181,7 +180,7 @@ export async function planSchedulerRun({
     ops.push({
       kind: 'create', pack: task.pack, task: task.id, title,
       // THE ORIGIN, worn for the item's whole life beside whatever status it holds
-      // (DESIGN §3): the schedule filed this one, so it is `planned`.
+      // (PRINCIPLES.md): the schedule filed this one, so it is `planned`.
       labels: [ORIGIN_PLANNED, READY],
       body: workItemBody({
         taskPath: task.taskPath,
@@ -192,15 +191,15 @@ export async function planSchedulerRun({
   }
 
   // ---- job 2: ready whatever is due (any origin) --------------------------
-  // The only site that ever releases a blocked item (§15.19, reversed by
-  // §15.31 / #1373): a converge writes only to the item it holds, so nothing
-  // else asks this question.
+  // The only site that ever releases a blocked item (docs/PRINCIPLES.md; #1373
+  // reversed an earlier attempt to release one at close instead): a converge
+  // writes only to the item it holds, so nothing else asks this question.
   for (const item of items) {
     if (closedByThisRun.has(item.number)) continue;
     if (isReleasable(item, { stateOf, nowMs })) ops.push({ kind: 'ready', issue: item.number });
   }
 
-  // ---- job 4: adopt the issues somebody marked (DESIGN §16.3, §16.1) ------
+  // ---- job 4: adopt the issues somebody marked (docs/PRINCIPLES.md) ------
   // Label mechanics like the other three: no precondition, no signal, and no
   // judgment about WHETHER the marked issue may run — that verdict is the request
   // task's precondition, at pickup, where every verdict is.
@@ -224,14 +223,14 @@ export async function planSchedulerRun({
     if (req.state !== 'open' || !marked || statusOf(req) !== null) continue;
 
     // The parameters ride the person's own text, re-read and re-gated at every
-    // adoption (§16.7): the body is author-editable where a label was
+    // adoption (PRINCIPLES.md): the body is author-editable where a label was
     // platform-write-gated, so `Task:`, `Model:` and `Automerge:` are honoured only
     // for an author who holds push access. An ungated ask still runs — at the
     // default task and model, and authorized to land nothing.
     const asked = parseRequestFields(req.body, { gated: req.authorHasPush === true });
     const task = byTaskId.get(asked.task ?? REQUEST_TASK_ID) ?? null;
     if (!task) continue;
-    // WHAT THE REQUEST WAITS ON (§16.11). A marked issue may name its blockers in
+    // WHAT THE REQUEST WAITS ON (PRINCIPLES.md). A marked issue may name its blockers in
     // the same `Blocked-by:` field an item uses, which is how a follow-up filed
     // mid-session queues BEHIND the work in flight instead of racing it. A blocker
     // already closed holds nothing back — it is dropped here rather than carried and
@@ -260,17 +259,17 @@ export async function planSchedulerRun({
       notBefore,
       merge: asked.merge,
       ungated: asked.ungated,
-      // Origins are for life (§3), so an issue marked with the retired spelling gains
+      // Origins are for life (PRINCIPLES.md), so an issue marked with the retired spelling gains
       // the one it will be read by. Nothing removes the old label: it is stored data.
       origin: hasLabel(req, ORIGIN_AD_HOC) ? null : ORIGIN_AD_HOC,
     });
   }
 
-  // ---- job 3: reclaim dead executor claims (DESIGN §11) -------------------
+  // ---- job 3: reclaim dead executor claims (PRINCIPLES.md) -------------------
   const policyOf = new Map(tasks.map((t) => [`${t.pack}/${t.id}`, t.decl.on_interrupt ?? 'requeue']));
   for (const item of items) {
     if (item.state !== 'open' || !isStatus(item, STATUS_RUNNING_EXECUTOR)) continue;
-    // SILENCE IS THE HOLDER'S, not the issue's (§11, #924). `updated_at` moves on
+    // SILENCE IS THE HOLDER'S, not the issue's (PRINCIPLES.md, #924). `updated_at` moves on
     // any comment — including the one an executor that LOST the claim race writes
     // on its way out — which defers the reclaim of an item nobody is working on.
     // `livenessAt` is the shell's read of the holder's last claim or heartbeat;
@@ -304,7 +303,7 @@ export async function planSchedulerRun({
   return { ops, asked };
 }
 
-// --- the forced wake (DESIGN §8) ----------------------------------------------
+// --- the forced wake (PRINCIPLES.md) ----------------------------------------------
 
 // Which standing items a `wake` dispatch names. Forcing a scheduled task IS waking
 // its standing item, and this is that same lever reached from OUTSIDE the repo: the
@@ -322,7 +321,7 @@ export async function planSchedulerRun({
 // alone and reported as `already`, never re-woken — an episode boundary dropped on
 // a live claim is exactly the livelock F18 describes.
 //
-// WHEN THE STANDING ITEM DOES NOT EXIST, forcing MINTS it (§8's other lever). A
+// WHEN THE STANDING ITEM DOES NOT EXIST, forcing MINTS it (PRINCIPLES.md's other lever). A
 // task that completes closes its item, and the next one appears only when the
 // task next says yes — so between the two there is nothing to wake, and that gap
 // is the common case rather than an edge: a daily task is missing its item for
@@ -403,8 +402,8 @@ const IN_FLIGHT = [STATUS_READY, STATUS_RUNNING_EXECUTOR, STATUS_RUNNING_AGENT];
 // widest period, so the listing stops once it is past that.
 //
 // MEMBERSHIP IS `isQueueItem`, the shared predicate, and not the title prefix
-// (#1497). An adopted marked issue IS an item under the one-issue model (DESIGN
-// §16.1) and keeps the person's own title forever, so a prefix test drops exactly
+// (#1497). An adopted marked issue IS an item under the one-issue model
+// (docs/PRINCIPLES.md) and keeps the person's own title forever, so a prefix test drops exactly
 // that class — and job 2 is the ONLY site that releases a blocked item, so an
 // ad-hoc item born blocked on a `Not-before:` sat sleeping past its instant with
 // nothing left to wake it (#1267, #1349, #1351, #1396). The executor and the
@@ -444,7 +443,7 @@ export async function listWorkItems(gh, repo, { since = null } = {}) {
 // hour, and one it misses TWICE is a request nobody notices was never picked up.
 //
 // The author's push permission comes back with each issue, because adoption gates
-// the body's parameters on it (§16.7) and the payload's `author_association` is not
+// the body's parameters on it (PRINCIPLES.md) and the payload's `author_association` is not
 // that fact: `MEMBER` is any org member whatever their repo permission, and
 // `COLLABORATOR` includes read-only collaborators (F30). A read that cannot answer
 // leaves the flag `null`, which gates the parameters off — the safe end of a field
@@ -462,7 +461,7 @@ export async function listMarkedIssues(gh, repo, { permissionOf = null } = {}) {
   // comma-separated list selects the issues carrying EVERY name on it — so asking
   // for both marks at once asks for issues wearing both, which nothing does. The
   // retired `claude-task` spelling keeps working for whoever has it in muscle memory
-  // or in a template, decoded forever like every legacy spelling (§4), and that
+  // or in a template, decoded forever like every legacy spelling (PRINCIPLES.md), and that
   // costs a second listing rather than a wider one.
   const seen = new Map();
   for (const label of [ORIGIN_AD_HOC, REQUEST_LABEL]) {
@@ -483,7 +482,7 @@ export async function listMarkedIssues(gh, repo, { permissionOf = null } = {}) {
         // already an item, and re-adopting one would rewrite its body under the run
         // holding it.
         if ((i.title ?? '').startsWith(WORK_PREFIX)) continue;
-        // ANY status means this mark has been adopted — the exactly-once guard (§16.3).
+        // ANY status means this mark has been adopted — the exactly-once guard (PRINCIPLES.md).
         // Filtering here rather than in the plan keeps the permission reads to the
         // issues actually awaiting adoption.
         if (statusOf(i) !== null) continue;
@@ -512,7 +511,7 @@ export async function listMarkedIssues(gh, repo, { permissionOf = null } = {}) {
 //
 // A marked issue's blockers count the same way: adoption decides whether the item
 // it births is born blocked or ready, and an unread state is never `closed`, so a
-// missing read delays the request rather than releasing it (§16.11).
+// missing read delays the request rather than releasing it (PRINCIPLES.md).
 //
 // Extracted from `main` so it can be called at all. Nothing else here drives
 // `main`, whose body is I/O against a live Action, so an identifier it names and
@@ -532,7 +531,7 @@ export function blockersToResolve(items, requests, known) {
 }
 
 async function main() {
-  // THE OPERATOR HOLD, FIRST ACT (§15.24) — before the config load, before the
+  // THE OPERATOR HOLD, FIRST ACT (PRINCIPLES.md) — before the config load, before the
   // first API call, so a held queue reads nothing and writes nothing rather than
   // deriving the world and then declining to act on it.
   if (isSuspended()) { console.log('## Claudinite scheduler run\n'); console.log(suspendedNotice()); return; }
@@ -581,7 +580,7 @@ async function main() {
     item.livenessAt = lastLivenessAt(await listComments(gh, repo, item.number));
   }
 
-  // THE ASK (DESIGN §5), in two passes. The task's run-history terms — its
+  // THE ASK (PRINCIPLES.md), in two passes. The task's run-history terms — its
   // cadence, its view of its last failure — read only the queue this run already
   // holds, so they are judged FIRST, and a task they decline costs no other read at
   // all: a weekly task asked twice a day collects nothing on the thirteen ticks it
@@ -736,11 +735,11 @@ async function main() {
         title: workItemTitle({ pack: c.pack, task: c.task }),
         // `Woken:` is what lets the task's cadence terms hold at pick — a person's
         // wake stands in for the cadence — while everything else it requires
-        // still applies (§5, §8).
+        // still applies (docs/PRINCIPLES.md).
         body: workItemBody({ taskPath: c.taskPath, context: [FORCED_WAKE_CONTEXT], woken: now.toISOString() }),
         // A forced mint stands in for the occurrence the schedule would have filed,
         // so it wears the same origin: the task IS on the schedule, and this item is
-        // its current occurrence (§8).
+        // its current occurrence (PRINCIPLES.md).
         labels: [ORIGIN_PLANNED, READY],
       });
       if (res.number) {
@@ -759,7 +758,7 @@ async function main() {
   await announcePickable(gh, repo, tasks, readied);
 }
 
-// THE DRAIN GATE (§15.30). Every workflow run is a billed invocation whatever it
+// THE DRAIN GATE (PRINCIPLES.md). Every workflow run is a billed invocation whatever it
 // finds — Actions rounds each job's minutes up — so the drain job dispatches an
 // executor only when this run's parting look at the queue found something
 // pickable. On a quiet repo that is the difference between 24 executor runs a day

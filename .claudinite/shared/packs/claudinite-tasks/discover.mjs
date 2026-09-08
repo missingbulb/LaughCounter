@@ -1,4 +1,4 @@
-// Task discovery for the scheduler (per-project-scheduling DESIGN §3.2). One
+// Task discovery for the scheduler (docs/PRINCIPLES.md). One
 // uniform scan of every ACTIVE pack's `tasks/<name>/task.json`, activation-gated
 // by the repo's `packs` declaration exactly like checks and skills. Reuses the
 // pack registry so the same scan works across all three layouts without knowing
@@ -29,7 +29,7 @@ import { BUILT_IN_PACK, builtInTasksRoot } from './built-in-tasks.mjs';
 // carrying two declarations become errors, never a sunk scan.
 export function taskDeclarationFiles(root, activePacks) {
   const errors = [];
-  // The BUILT-IN root beside the pack scan (DESIGN §16.2). The engine ships one
+  // The BUILT-IN root beside the pack scan (PRINCIPLES.md). The engine ships one
   // task of its own — the request implementer — so a marked issue is an ordinary
   // run rather than a special item shape. It is not a pack and declares nothing:
   // wherever the queue runs, it is active, which is also what stops any pack

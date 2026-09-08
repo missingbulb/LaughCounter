@@ -10,7 +10,7 @@ import { validatePreconditions, termsMap, preconditionNeedsItem } from '../../cl
 import { TASK_DECLARATION_PATH_RE, readDeclarationFields } from '../../claudinite-tasks/task-declaration-text.mjs';
 
 // Every scheduler task is a `tasks/<name>/task.json` carrying the declaration
-// contract (per-project-scheduling DESIGN §1) with legal enum values. This
+// contract (docs/PRINCIPLES.md) with legal enum values. This
 // asserts that shape statically at author time — the executor and scheduler
 // validate the same contract at run time (task-contract.mjs), so an illegal
 // condition/model/outcome, or a missing field, is caught here first.
@@ -72,7 +72,7 @@ const rule = {
         if (v === null) flag(`declares no "${key}"`, `add "${key}": one of ${legal.join(', ')}`);
         else if (!legal.includes(v)) flag(`"${key}" is "${v}", not a legal value`, `use one of: ${legal.join(', ')}`);
       };
-      // `frequency` is retired (tasks-dispatch DESIGN §5): the cadence is a condition
+      // `frequency` is retired (docs/PRINCIPLES.md): the cadence is a condition
       // in `preconditions`, and the door reads the field as exactly that term. ADVISORY
       // for the same reason as every rename below — the file keeps working, and the
       // nightly update rewrites a member's own — so what blocks is only a declaration
@@ -183,7 +183,7 @@ const rule = {
         }
       }
 
-      // The code-work/timeout guards (task-code-work DESIGN §2). TWO generations of
+      // The code-work/timeout guards (docs/PRINCIPLES.md). TWO generations of
       // legacy field names still satisfy the contract — the loader normalizes both —
       // but each earns its own rename finding so the fleet converges on the
       // canonical names.

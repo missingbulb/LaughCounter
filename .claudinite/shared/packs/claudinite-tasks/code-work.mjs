@@ -1,4 +1,4 @@
-// The CODE-WORK phase of task execution (task-code-work DESIGN §3): the
+// The CODE-WORK phase of task execution (docs/PRINCIPLES.md): the
 // deterministic first phase, run as a SUBPROCESS before the agentic phase (when
 // there is one) — code work, Action-side, over the one sanctioned non-MCP
 // surface (the Action GITHUB_TOKEN, inherited in `env`). Code-work and agentic
@@ -11,12 +11,12 @@
 // to the script beside task.json (the containment the contract enforces); the repo
 // root and item context are handed in via CLAUDINITE_* env so the worker can act
 // on the whole repo. Nothing the subprocess prints is threaded into the agent —
-// code-work communicates only through the repository (DESIGN §3).
+// code-work communicates only through the repository (PRINCIPLES.md).
 //
 // THE LOG IS NOT THAT CHANNEL. The child's output is ECHOED to the scheduler's own
 // stdout/stderr as it arrives, so the Action log carries what the worker actually
 // did. That is an observability decision, not a data channel: no agent reads the
-// log, and §3's "communicate only through the repository" is untouched. It is echoed
+// log, and PRINCIPLES.md's "communicate only through the repository" is untouched. It is echoed
 // LIVE rather than dumped at exit for the case that needs it most — a worker SIGKILLed
 // at its timeout, whose buffered output would otherwise die with it. Before this,
 // a failed worker surfaced as a bare `code-work exited 1` plus a three-line
@@ -84,14 +84,14 @@ export function runCodeWork(command, {
   });
 }
 
-// The conditional-handoff signal (task-code-work DESIGN §3, E4). A task with
+// The conditional-handoff signal (docs/PRINCIPLES.md, E4). A task with
 // BOTH code-work AND a non-`none` agent_model hands off to the agent
 // ONLY when its worker requests it — so a task can absorb its work into
 // code-work and be AGENTLESS on the quiet nights. The scheduler hands the
 // worker this path via CLAUDINITE_REQUEST_AGENT and hands off to an agent iff
 // the worker created it. It is a pure control signal: the worker communicates
-// DATA to the agent only through the repository, never through this file (DESIGN
-// §3, "no code→agent data channel"). The hand-off condition must name work
+// DATA to the agent only through the repository, never through this file
+// (docs/PRINCIPLES.md, "no code→agent data channel"). The hand-off condition must name work
 // code-work COULD not do — never re-check whether the run should have happened;
 // the precondition already decided that.
 export function agentRequestPath({ pack, task, slotId }) {
@@ -104,7 +104,7 @@ export function agentRequested(path) { return existsSync(path); }
 // JSON `{ delivered: { branch, pr, merged }, reason: { code, detail } }`, and the
 // executor records both on the work item, which is where the agent reads them.
 //
-// This is the one thing that crosses the code→agent boundary as data (§3's named
+// This is the one thing that crosses the code→agent boundary as data (PRINCIPLES.md's named
 // exception): identifiers for what this run created — a PR number, a branch ref — and
 // the NAME of the condition that woke the agent. Never findings and never instructions:
 // `reason.detail` says which gate fired and how many of what, and the findings

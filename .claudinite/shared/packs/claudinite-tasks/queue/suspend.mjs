@@ -1,4 +1,4 @@
-// THE OPERATOR HOLD (tasks-dispatch DESIGN §8, decision §15.24). One repository
+// THE OPERATOR HOLD (docs/PRINCIPLES.md). One repository
 // Actions variable stops the whole queue: every Claudinite workflow stamps it
 // into its env, and every engine entry point checks it as its FIRST act — before
 // any read, like the dormancy gate beside it — and exits cleanly having fired
@@ -10,7 +10,7 @@
 // dormancy, which needs a commit and a converge to take effect and another to
 // undo. A variable takes effect on the next run and clears the same way.
 //
-// What it freezes: STARTS, and — since the drain became batched (§15.30) — each
+// What it freezes: STARTS, and — since the drain became batched (PRINCIPLES.md) — each
 // PICK inside a running drain. A run already past this gate finishes the item it
 // holds: killing live work would leave exactly the half-done state the leash
 // exists to recover. Nothing NEW is ever picked.
@@ -26,7 +26,7 @@ export const SUSPEND_ALL_VAR = 'CLAUDINITE_TASKS_SUSPEND_ALL';
 export const isSuspended = (env = process.env) =>
   ['true', '1', 'yes'].includes(String(env[SUSPEND_ALL_VAR] ?? '').trim().toLowerCase());
 
-// THE BETWEEN-ITEMS READ (§15.30). `vars.*` reaches a run's env at START only, so
+// THE BETWEEN-ITEMS READ (PRINCIPLES.md). `vars.*` reaches a run's env at START only, so
 // a batched drain — which may legally run for hours — cannot see a hold set after
 // it began by re-reading its own environment. This asks the API instead, at each
 // item boundary, for as long as asking can still change the answer.

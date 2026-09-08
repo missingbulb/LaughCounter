@@ -1,13 +1,22 @@
 import { finding } from '../../../engine/checks/helpers/findings.mjs';
+import { stripComments } from '../../../engine/checks/helpers/code-scanning.mjs';
 
-// A deleted path a migration record (migrations/<date>-<slug>/) still names
-// isn't stale — it's the declared legacy shape the record documents.
+// A deleted path a migration record (<pack>/migrations/<date>-<slug>/) still
+// names isn't stale — it's the declared legacy shape the record documents.
 // Matched on basename: a legacy alias usually carries a consumer-side prefix.
-const MIGRATION_SPEC = /^migrations\/[^/]+\/migration\.mjs$/;
-const migrationGoverns = (work) => (gone) => {
-  const base = gone.split('/').pop();
-  return work.files.some((f) =>
-    MIGRATION_SPEC.test(f) && !f.endsWith('.test.mjs') && (work.read(f) ?? '').includes(base));
+// Read from the tracked tree, since what a record governs follows from the
+// record existing, not from this branch happening to touch it — and from the
+// record's declarations, not the prose around them.
+const MIGRATION_SPEC = /(^|\/)migrations\/[^/]+\/migration\.mjs$/;
+const migrationGoverns = (work) => {
+  let records = null;
+  return (gone) => {
+    records ??= (work.tracked ?? [])
+      .filter((f) => MIGRATION_SPEC.test(f))
+      .map((f) => stripComments(work.read(f) ?? ''))
+      .join('\n');
+    return records.includes(gone.split('/').pop());
+  };
 };
 
 const rule = {

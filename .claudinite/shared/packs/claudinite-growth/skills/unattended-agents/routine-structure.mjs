@@ -1,7 +1,7 @@
 import { dirname, join, basename } from 'node:path';
 import { finding } from '../../../../engine/checks/helpers/findings.mjs';
 
-// A routine (or a per-project-scheduling task, §1) is a folder whose entry point is
+// A routine (or a scheduled task, the writing-tasks skill's folder shape) is a folder whose entry point is
 // `routine.md` OR `task.md`, alongside the deterministic scripts it invokes. This
 // check asserts the prose↔script wiring that the unattended-agents skill mandates,
 // for both shapes: a legacy `dev/routines/<name>/routine.md` and a converted

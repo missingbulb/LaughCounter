@@ -1,4 +1,4 @@
-// THE HOLDER'S SIGN OF LIFE (tasks-dispatch DESIGN §6.5, §11, decision §15.15).
+// THE HOLDER'S SIGN OF LIFE (docs/PRINCIPLES.md).
 // A work step is the work: it may legitimately run for hours, and while it does
 // the item goes dark and the executing leash cannot tell it from a dead runner.
 // So the executor comments on its own item at a fixed interval, and the scheduler run's

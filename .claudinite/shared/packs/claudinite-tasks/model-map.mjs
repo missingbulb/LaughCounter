@@ -1,5 +1,5 @@
 // The one vendored place that maps a task's declared model FAMILY to the model
-// the executor dispatches its subagent at (per-project-scheduling DESIGN §1, §3).
+// the executor dispatches its subagent at (docs/PRINCIPLES.md).
 // A model-generation bump is a single edit HERE — task files and the executor
 // only ever speak in families, never concrete ids.
 //
@@ -19,7 +19,7 @@ export const MODEL_MAP = {
   none: null,
 };
 
-// `none` means "pure code, no agent" (DESIGN §1) — the scheduler runs the
+// `none` means "pure code, no agent" (PRINCIPLES.md) — the scheduler runs the
 // worker .mjs as code-work rather than handing off to an agent session.
 export const isAgentless = (family) => family === 'none';
 

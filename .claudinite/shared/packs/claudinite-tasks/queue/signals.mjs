@@ -1,4 +1,4 @@
-// Signal collection for ONE task (tasks-dispatch DESIGN §5, §6.4): exactly that
+// Signal collection for ONE task (docs/PRINCIPLES.md): exactly that
 // task's declared union, collected at the moment a verdict is asked for. Two
 // callers ask — the scheduler run at every tick (a read it cannot make fails open
 // there) and the executor at pick, which re-derives rather than trusting the
@@ -97,7 +97,7 @@ export function collectSignalsForTask({ gh, repo, root, config, defaultBranch, i
     const ctx = buildSignalContext({
       root, repo, defaultBranch, now: nowIso, sinceIso: window.sinceIso, config, fleet, packConfigFor,
       // The occurrence's own facts, for the collector that reads one named object
-      // rather than a window (the request read, DESIGN §16.4).
+      // rather than a window (the request read, PRINCIPLES.md).
       item: facts, task: taskRef, items,
     });
     return { ...out, ...(await collectSignals(gh, ctx, rest)) };

@@ -1,14 +1,14 @@
 // THE SECURITY CHECK for the request implementer, as a precondition term — the
 // one gate that decides whether a marked issue actually runs. It happens where
-// every verdict happens: once, at pickup, on the executor (tasks-dispatch DESIGN
-// §6.4). It is task-local because its subject is one named issue rather than a
+// every verdict happens: once, at pickup, on the executor (docs/PRINCIPLES.md
+// PRINCIPLES.md). It is task-local because its subject is one named issue rather than a
 // window of repo activity, which is also why the term reads the `item` it is
 // handed.
 //
 // Three refusals, each a plain no-go that converges the item to the rejected
 // terminal — a refusal is nobody's inbox, and an ad-hoc item has no anchor to
 // roll to. The terminal closes the issue it stands on, marked or filed: nothing
-// ran and nothing will, so there is no question left open (§16.5).
+// ran and nothing will, so there is no question left open (PRINCIPLES.md).
 //
 // A READ FAILURE IS NOT A VERDICT (F27). The decline's write-back cannot reach an
 // issue it cannot read, so declining on a rate limit or a 500 would strand the

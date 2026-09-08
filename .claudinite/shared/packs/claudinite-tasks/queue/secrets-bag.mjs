@@ -1,6 +1,6 @@
-// The executor's per-task secret selection (tasks-dispatch DESIGN §14).
+// The executor's per-task secret selection (docs/PRINCIPLES.md).
 //
-// WHAT THIS MODULE IS FOR NOW: making DESIGN §14.4's claim true. A task's code-work
+// WHAT THIS MODULE IS FOR NOW: making PRINCIPLES.md's claim true. A task's code-work
 // gets exactly the names that task declared, selected here, where before every task's
 // work step inherited the executor's whole environment and saw every stamped secret.
 // That selection is independent of how the secrets arrive, and it is why this module

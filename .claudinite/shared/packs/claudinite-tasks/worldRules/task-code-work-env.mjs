@@ -3,7 +3,7 @@ import { stripComments } from '../../../engine/checks/helpers/code-scanning.mjs'
 import { CODE_WORK_ENV_VARS } from '../../claudinite-tasks/queue/code-work-run.mjs';
 
 // A task's code may read only the CLAUDINITE_* variables code-work is actually
-// handed (`codeWorkEnv`, tasks-dispatch DESIGN §6.5). Anything else is a variable
+// handed (`codeWorkEnv`, docs/PRINCIPLES.md). Anything else is a variable
 // nobody sets, which fails in the one way nothing catches: `process.env.X` is
 // `undefined`, the worker's parse of it yields an empty result, and the run goes
 // green having quietly done something other than what it was asked.

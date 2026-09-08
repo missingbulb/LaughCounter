@@ -1,4 +1,4 @@
-// The executor (tasks-dispatch DESIGN §6) — a pull worker over the queue. Each
+// The executor (docs/PRINCIPLES.md) — a pull worker over the queue. Each
 // iteration: pick the next ready item, claim it by a verified lease, re-evaluate
 // the precondition (the scheduler run asked once at the anchor; a chained stage
 // re-derives world state rather than trusting a verdict passed forward), then on
@@ -43,7 +43,7 @@ const titleOf = (item) => (item.title ?? '').trim();
 // does. Decoded, never a literal label test: the item may wear any engine's spelling.
 const running = (item) => isStatus(item, STATUS_RUNNING_EXECUTOR) || isStatus(item, STATUS_RUNNING_AGENT);
 // WHICH TASK AN ITEM NAMES. A filed `[claudinite-work]` item says so in its title;
-// a marked issue (DESIGN §16.1) keeps its own human title and names its task in the
+// a marked issue (PRINCIPLES.md) keeps its own human title and names its task in the
 // machine block's first line, so the id comes from the task whose worker path that
 // is. `pathTo` is that lookup, injected because only the run holds the task set.
 const taskIdOf = (item, pathTo = () => null) => {
@@ -52,11 +52,11 @@ const taskIdOf = (item, pathTo = () => null) => {
   return pathTo(parseWorkItemBody(item.body).taskPath) ?? null;
 };
 
-// The pick order (DESIGN §6.1): urgent first, then RANDOM among the ready, with
+// The pick order (PRINCIPLES.md): urgent first, then RANDOM among the ready, with
 // two skip rules read live at pick time. Random rather than oldest-first because
 // nothing leans on FIFO aging — the stale-ready escalation is period-scale — while
 // a deterministic order lets one unlucky head dominate every run of a chain
-// (DESIGN §15.20).
+// (PRINCIPLES.md).
 //
 //  - SAME-TITLE MUTEX (S15/F6): skip an item whose exact title has another open
 //    item executing or handed to an agent — one task, one execution at a time,
@@ -64,14 +64,14 @@ const taskIdOf = (item, pathTo = () => null) => {
 //  - THE `after` YIELD (S23): skip a scheduled item whose task declares `after:
 //    [T]` while T's standing item is live THIS CYCLE (ready / executing / agent).
 //    A declined upstream holds nothing back — it has no item at all (a no files
-//    nothing, DESIGN §5) — and neither does one sitting `needs-human`: a broken
+//    nothing, PRINCIPLES.md) — and neither does one sitting `needs-human`: a broken
 //    upstream must not halt its dependents indefinitely.
 //
 // `open` is every open work item; `taskAfter(id)` gives a task's declared
 // upstreams as `<pack>/<task>` ids, and `scheduledOf(id)` whether that task is
 // asked by the scheduler at HEAD (`isScheduledTask`; null where the repo no longer
 // carries it) — which is half of what says whether an item is a standing
-// occurrence or an ad-hoc run (§15.26). `random` is the tie-break draw, injected
+// occurrence or an ad-hoc run (PRINCIPLES.md). `random` is the tie-break draw, injected
 // so a test can pin an order the production call deliberately does not have.
 export function pickOrder(open = [], { taskAfter = () => [], scheduledOf = () => null, random = Math.random, pathTo = () => null } = {}) {
   const idOf = (item) => taskIdOf(item, pathTo);
@@ -99,11 +99,11 @@ export function pickOrder(open = [], { taskAfter = () => [], scheduledOf = () =>
 
 // The claim comment carries WHO and WHEN — the executor id and its run URL —
 // because executor identity is an unbounded set and must never become a label
-// (DESIGN §4).
+// (PRINCIPLES.md).
 export const claimComment = ({ executor, runUrl, at }) =>
   `${CLAIM_MARKER}\nClaimed by executor \`${executor}\` at ${at}.${runUrl ? `\n\nRun: ${runUrl}` : ''}`;
 
-// Who won the claim, out of an item's comments (DESIGN §6.2). Three precisions,
+// Who won the claim, out of an item's comments (PRINCIPLES.md). Three precisions,
 // each an implicit assumption made explicit:
 //
 //  - "EARLIEST" MEANS LOWEST COMMENT ID, never timestamp. GitHub comment
@@ -147,7 +147,7 @@ export function conflictsWithEarlierClaim(item, myClaimId, others, { taskAfter =
   });
 }
 
-// The no-go outcome (DESIGN §6.4): every decline CLOSES the item with the
+// The no-go outcome (PRINCIPLES.md): every decline CLOSES the item with the
 // reason. The roll — `Not-before` stamped, open-blocked, waiting out the period —
 // is gone, and so is the schedule board: a scheduled task's next occurrence is
 // the scheduler run's ask at its next tick, and the closed item is itself the
@@ -170,15 +170,15 @@ export function noGoPlan(item, task, schedule, now, reason) {
 
 const nowIso = () => new Date().toISOString();
 
-// ONE EXECUTOR RUN DRAINS THE QUEUE (DESIGN §6, §10, decision §15.30, reversing
-// §15.22's one-item run). Actions bills each job's runtime rounded UP to the next
+// ONE EXECUTOR RUN DRAINS THE QUEUE (docs/PRINCIPLES.md, reversing
+// one-item-per-run). Actions bills each job's runtime rounded UP to the next
 // minute, so a day's cost is the RUN count: a run that performed one item paid a
 // whole invocation — checkout, setup, rounding — per item. So a run claims an
 // item, sees it to its settle, then picks the next, and ends when nothing is
 // pickable. Items still settle ONE AT A TIME: this moved the run boundary, not
 // the occupancy model, and capacity is still executor width.
 //
-// What still starts a run is the enumerable list of §10, each cause on the
+// What still starts a run is the enumerable list docs/PRINCIPLES.md names, each cause on the
 // record: the scheduler run's drain job (dispatched only when that run leaves
 // something pickable), a label event, an agent session's close-time drain, and
 // the workflow's failure-continuation job when a run dies mid-drain. Self-
@@ -198,7 +198,7 @@ const nowIso = () => new Date().toISOString();
 //
 // Injected seams keep the run testable end to end without GitHub, code-work
 // subprocesses or an invocation endpoint. `heldNow` is the operator hold, asked
-// between items (§15.30): `vars.*` reaches the env at start only, so a drain that
+// between items (PRINCIPLES.md): `vars.*` reaches the env at start only, so a drain that
 // outlives the hold's arrival can only see it by asking.
 export async function runExecutor({
   gh, repo, root, config, tasks, executorId, runUrl = null,
@@ -217,7 +217,7 @@ export async function runExecutor({
   // resolves to nothing and the item is malformed rather than guessed at.
   const byPath = new Map(tasks.map((t) => [t.taskPath, `${t.pack}/${t.id}`]));
   const pathTo = (p) => byPath.get(p) ?? null;
-  // THE TARGET SEAM (DESIGN §6.4b): which branch and pull request a run works on,
+  // THE TARGET SEAM (PRINCIPLES.md): which branch and pull request a run works on,
   // resolved from the task's declared outcome against the repo's open pull
   // requests. The member's delivery preference is what says whether a green
   // incumbent may be landed on the way; it is read once, from the same config the
@@ -279,7 +279,7 @@ export async function runExecutor({
     });
     done.push({ issue: candidate.number, outcome });
 
-    // --- the hold, between items (§15.30) -----------------------------------
+    // --- the hold, between items (PRINCIPLES.md) -----------------------------------
     // Asked after the settle rather than before the pick that follows it, so a
     // run that had nothing more to do never spends the read. The item just
     // finished is untouched: suspension stops picking, never running work.
@@ -310,7 +310,7 @@ async function executeItem({
 }) {
   const parsed = parseWorkItemTitle(item.title);
   const { taskPath } = parseWorkItemBody(item.body);
-  // A marked issue's identity is its machine block, not its title (§16.1): the id
+  // A marked issue's identity is its machine block, not its title (PRINCIPLES.md): the id
   // is whichever task owns the worker path the block names.
   const id = parsed ? `${parsed.pack}/${parsed.task}` : pathTo(taskPath);
   const task = id ? byId.get(id) : null;
@@ -364,12 +364,12 @@ async function executeItem({
     return 'needs-human';
   }
 
-  // --- the single precondition evaluation (DESIGN §6.4) --------------------
+  // --- the single precondition evaluation (PRINCIPLES.md) --------------------
   const at = now();
   // The item's own facts — its fields, its number, whether somebody woke it — are
   // what the terms judge over: a request item's verdict is about the issue it
-  // names, which no signal bundle can single out on its own (DESIGN §16.4), and
-  // the cadence terms hold on a woken item (§5). The signals are collected FOR
+  // names, which no signal bundle can single out on its own (PRINCIPLES.md), and
+  // the cadence terms hold on a woken item (PRINCIPLES.md). The signals are collected FOR
   // THIS OCCURRENCE, its own run history excluding it.
   const fields = itemFacts(item);
   const signals = await collectSignalsFor(task, at, item);
@@ -390,13 +390,13 @@ async function executeItem({
 
   if (verdict.run !== true) {
     const plan = noGoPlan(item, task, schedule, at, verdict.reason || 'no work');
-    // A DECLINED REQUEST IS DISARMED IN THE SAME CONVERGENCE (DESIGN §16.5).
+    // A DECLINED REQUEST IS DISARMED IN THE SAME CONVERGENCE (PRINCIPLES.md).
     // Nothing else would: an issue left carrying `claude-queued` after its run was
     // refused is one no later scheduler run adopts and no person is told about, and one
     // whose mark — if re-applied — walks into the same refusal forever.
     // A LEGACY shadow item wrote its decline back to the issue it named. A marked
     // issue IS the item, so the decline's comment and its `rejected` status already
-    // land where the person is looking and there is nothing to mirror (§16.5).
+    // land where the person is looking and there is nothing to mirror (PRINCIPLES.md).
     if (fields.request && fields.request !== item.number) {
       await declineRequest(api, gh, repo, fields.request, item.number, plan.reason);
     }
@@ -419,7 +419,7 @@ async function executeItem({
   // a hand-created item's parameters unreachable (#974).
   const context = mergeContext(parseContextLines(item.body), verdict.context ?? []);
 
-  // --- the target: which pull request this run works on (DESIGN §6.4b) ------
+  // --- the target: which pull request this run works on (PRINCIPLES.md) ------
   // Decided ONCE, here, between the go and the work, and handed to both phases —
   // code-work as environment, the agent as item fields — so neither phase
   // discovers, chooses or disposes of a pull request on its own. A read the
@@ -447,7 +447,7 @@ async function executeItem({
   }
 
   if (task.decl.code_work) {
-    // The work step may legitimately run for hours (§15.15). While it does, the
+    // The work step may legitimately run for hours (PRINCIPLES.md). While it does, the
     // item's only sign of life is this beat — which is also what the scheduler run's leash
     // measures, so a long run is legal rather than reclaimed underneath itself.
     const result = await withHeartbeat(() => runTaskCodeWork(task, { item, context, target }), {
@@ -573,7 +573,7 @@ export function evaluatePrecondition(task, signals, packConfig = {}, item = null
 // why, and the queued label off, so the request was disarmed rather than left
 // looking pending. Nothing writes it for an item filed under the one-issue model,
 // where the item and the issue are the same object; it stays for the shadow items
-// still draining, whose issue is a different one (DESIGN §16.5).
+// still draining, whose issue is a different one (PRINCIPLES.md).
 async function declineRequest(api, gh, repo, request, item, reason) {
   await api.comment(gh, repo, request,
     `Not implementing this: ${reason}\n\nThe queued run (#${item}) is closed and \`${QUEUED_LABEL}\` is removed. `
@@ -590,7 +590,7 @@ export function rollBody(body, until, reason, at) {
   return withSection(stamped, LAST_VERDICT_HEADING, lastVerdictLines({ at, reason, until }));
 }
 
-// Hand off to an agent session (DESIGN §6.6). ONE call per item, ever — which is
+// Hand off to an agent session (PRINCIPLES.md). ONE call per item, ever — which is
 // what lets this be as short as it is. The nonce goes on the item before the call
 // and travels in the payload, so the session can prove the fire it arrived on is
 // the hand-off this item recorded and stop if it is not.
@@ -643,13 +643,13 @@ async function handOff({ api, gh, repo, item, task, id, context, result, target 
   return 'unknown';
 }
 
-// LETTING GO OF AN OPEN ITEM KILLS YOUR CLAIM (DESIGN §6.2, F24). An executor
+// LETTING GO OF AN OPEN ITEM KILLS YOUR CLAIM (PRINCIPLES.md, F24). An executor
 // that stops owning an item without closing it — the roll, and every
 // `needs-human` park — strikes its own claim by appending the episode marker to
 // it. `claimWinner` already treats the last marker as the boundary, so a struck
 // claim stops outranking anything and the next claimant wins on its first try.
 //
-// APPENDING rather than commenting is what lets the roll stay silent (§5): an
+// APPENDING rather than commenting is what lets the roll stay silent (PRINCIPLES.md): an
 // hourly task that declines every hour adds no timeline entry. A successful
 // hand-off deliberately does NOT strike — the episode is still live, owned by the
 // agent session — and neither does a close, since nothing re-claims a closed item.
@@ -669,7 +669,7 @@ async function strikeClaim(api, gh, repo, claim) {
 // happened — the terminal-state discipline the incidents bought. The claim sits
 // before the body so every state argument is grouped ahead of the prose.
 //
-// THE COMMENT CARRIES THE EXECUTION RECORD (DESIGN §6.5, §15.18). Actions logs
+// THE COMMENT CARRIES THE EXECUTION RECORD (docs/PRINCIPLES.md). Actions logs
 // expire, and for an agentless run — the majority — the item is the only durable
 // trace there will ever be, so the record goes where the item is rather than into
 // a log that ages out. The bracketed field is this item's issue number, which is
@@ -693,7 +693,7 @@ const recordFor = (item, status) => {
 };
 
 // Park an item for a human. ONE label: the park IS the status, and its kind is what
-// the human is being asked for (DESIGN §4). The two-label park it replaces could be
+// the human is being asked for (PRINCIPLES.md). The two-label park it replaces could be
 // half-applied, which was a torn state of its own.
 async function converge(api, gh, repo, item, from, park, claim, body, status = 'failed') {
   await strikeClaim(api, gh, repo, claim);
@@ -701,15 +701,15 @@ async function converge(api, gh, repo, item, from, park, claim, body, status = '
   await swapStatus(api, gh, repo, item, from, park);
 }
 
-// A close writes only to the item it holds (§15.19, reversed by §15.31 /
-// #1373): a dependent this close may make due is released solely by the
+// A close writes only to the item it holds (docs/PRINCIPLES.md; #1373 reversed
+// an earlier attempt): a dependent this close may make due is released solely by the
 // scheduler run's own readiness job, on its next hourly pass, never here.
 async function close(api, gh, repo, item, from, outcome, stateReason, body, status) {
   await api.comment(gh, repo, item.number, body + recordFor(item, status));
   await clearStatus(api, gh, repo, item, from);
   await api.addLabel(gh, repo, item.number, outcome);
   // A TERMINAL CLOSES THE ISSUE IT STANDS ON, marked or filed, and both terminals do
-  // (§16.5, owner 2026-09-06). `done` means nothing is left to act on; `rejected`
+  // (PRINCIPLES.md, owner 2026-09-06). `done` means nothing is left to act on; `rejected`
   // means nothing will happen. Neither is a question, so neither leaves an open issue
   // behind asking a person to agree with a verdict already reached — and re-asking is
   // what it always was, clearing the status.
@@ -719,7 +719,7 @@ async function close(api, gh, repo, item, from, outcome, stateReason, body, stat
 // --- CLI ----------------------------------------------------------------------
 
 async function main() {
-  // THE OPERATOR HOLD, FIRST ACT (§15.24) — before the config load, before the
+  // THE OPERATOR HOLD, FIRST ACT (PRINCIPLES.md) — before the config load, before the
   // first API call, so a held queue reads nothing and writes nothing rather than
   // deriving the world and then declining to act on it.
   if (isSuspended()) { console.log('## Claudinite executor\n'); console.log(suspendedNotice()); return; }
