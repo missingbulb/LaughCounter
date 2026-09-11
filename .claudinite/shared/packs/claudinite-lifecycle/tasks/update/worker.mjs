@@ -69,6 +69,18 @@ export const updateBranchName = (day, seed) => `${UPDATE_PREFIX}-${day}-${seed}`
 // rather than by someone noticing a suspiciously fast green.
 export const REHEARSAL_MARKER = 'claudinite-rehearsal: converged';
 
+// Does this run UPDATE the pull request the executor named, or open one? The
+// executor resolves `amend_existing_or_create_new_pr` before this subprocess
+// starts and hands the number in; all this decides is whether the answer still
+// holds by the time the branch is pushed.
+//
+// A named pull request that is no longer open was closed under the run. The branch
+// is still the one to push to — it is the target the executor chose — but the
+// delivery has to be a NEW pull request: a push onto a closed one changes nothing
+// anybody sees, and the run would report a delivery it did not make.
+export const amendsPull = (targetPr, pull) =>
+  Boolean(targetPr) && pull?.state === 'open' && pull?.number === Number(targetPr);
+
 // The PR title and body for a terminal. The body is what a human reads when the run
 // stopped, so it says WHICH terminal fired and why in its first line — a PR that only
 // says "an update ran" makes every reader re-derive the thing the run already knew.
@@ -94,7 +106,7 @@ export function updatePullText(terminal, { engine, packs }) {
   if (terminal.action === 'needs-human') {
     lines.push('This PR stays open. Nothing merges on a non-green terminal — see the label.');
   } else if (terminal.action === 'apply-stage') {
-    lines.push('The deterministic half is done. The agent stage applies the new rules to this repo\'s own content before anything merges.');
+    lines.push('The deterministic half is done. The agent stage applies the new rules to this repo\'s own content and runs its tests over what this converge wrote, before anything merges.');
   }
   return { title, body: `${lines.join('\n')}\n` };
 }
@@ -128,13 +140,19 @@ export async function main() {
   // left; every other repo — the normal shape, the key absent — has it landed.
   const delivery = deliveryFor(declaration);
 
-  // THE TARGET. Which branch this run pushes to, and
-  // what becomes of the previous cycle's pull request, is the executor's decision:
-  // the task declares `supersede_existing_pr`, the executor resolved it before this
-  // subprocess started — landing a green incumbent, or closing the rest once this
-  // run's own pull request exists — and handed the branch in. Nothing here reads
-  // the open pull requests or picks a name.
+  // THE TARGET. Which branch this run pushes to, and which pull request it delivers
+  // on, is the executor's decision: the task declares
+  // `amend_existing_or_create_new_pr`, the executor resolved it before this
+  // subprocess started — this cycle's own branch where the last one's pull request
+  // is gone or conflicted, that pull request's own branch otherwise — and handed
+  // both in. Nothing here reads the open pull requests or picks a name.
+  //
+  // Reusing it is what keeps a member that cannot land from accumulating a line of
+  // obsolete pull requests, one a night: the converge is a full recompute from the
+  // base, so the force-push below REWRITES the open one into this cycle's answer
+  // rather than stacking a second delivery beside it.
   const targetBranch = process.env.CLAUDINITE_TARGET_BRANCH || null;
+  const targetPr = process.env.CLAUDINITE_TARGET_PR || null;
   if (!targetBranch) {
     // AN EXECUTOR THAT PREDATES THE HAND-OFF sets no target, and then the disposal
     // this worker used to do on its own still has to happen, or incumbents pile up
@@ -234,13 +252,47 @@ export async function main() {
       // The trailer is what classifies this converge as machinery to every
       // movement-gated task: the mount refreshing is not the project moving.
       'commit', ...(staged.length ? [] : ['--allow-empty']), '-m', withTaskTrailer(title, UPDATE_TASK_ID)]);
-    git(['-C', root, 'push', '--force', `https://x-access-token:${token}@github.com/${repo}.git`, `HEAD:refs/heads/${branch}`]);
+    // A REWRITE THAT CHANGES NOTHING IS NOT A REWRITE, and force-pushing one is not
+    // free: it gives the pull request a new head, which discards every check that had
+    // already run on it. The converge recomputes the same tree from the same base
+    // every night, so a member whose pull request is waiting — on slow CI, or on a
+    // person — would have its checks reset on every cycle and could never reach
+    // green. Compared as TREES rather than commits: this cycle's commit is new by
+    // construction (its own timestamp), and it is the content that decides whether
+    // anything is owed.
+    const remote = `https://x-access-token:${token}@github.com/${repo}.git`;
+    let standing = null;
+    try {
+      git(['-C', root, 'fetch', '--depth', '1', remote, `refs/heads/${branch}`]);
+      standing = { sha: git(['-C', root, 'rev-parse', 'FETCH_HEAD']).trim(), tree: git(['-C', root, 'rev-parse', 'FETCH_HEAD^{tree}']).trim() };
+    } catch { /* no such branch on the remote yet — this run opens it */ }
+    const pushed = standing?.tree !== git(['-C', root, 'rev-parse', 'HEAD^{tree}']).trim();
+    if (pushed) git(['-C', root, 'push', '--force', remote, `HEAD:refs/heads/${branch}`]);
+    else console.log(`update: ${branch} already carries this converge — left standing, so its checks are not reset`);
 
-    const created = await gh(token, `/repos/${repo}/pulls`, { method: 'POST', body: { head: branch, base, title, body } });
-    const failure = pullCreateError(created.status, created.json);
-    if (failure) throw new Error(`could not open the update PR for ${branch}: ${failure}`);
-    const pr = created.json;
-    console.log(`update: opened PR #${pr.number} on ${branch} (${terminal.action})`);
+    // The head the branch now carries, which the landing lane polls the checks of. A
+    // pull request READ back carries the previous cycle's sha, and polling that one
+    // waits on runs that will never come — while on the cycle that pushed nothing,
+    // the sha with the checks on it is the one already standing.
+    const head = pushed ? git(['-C', root, 'rev-parse', 'HEAD']).trim() : standing.sha;
+
+    const named = targetPr ? await gh(token, `/repos/${repo}/pulls/${targetPr}`) : null;
+    let pr;
+    if (amendsPull(targetPr, named?.json)) {
+      // Rewritten, title and body included: both say which terminal fired and what
+      // moved, and this cycle's answer to that is not the last one's.
+      const patched = await gh(token, `/repos/${repo}/pulls/${targetPr}`, { method: 'PATCH', body: { title, body } });
+      if (patched.status !== 200) throw new Error(`could not update PR #${targetPr}: ${patched.json?.message ?? `HTTP ${patched.status}`}`);
+      pr = patched.json;
+      console.log(`update: rewrote PR #${pr.number} on ${branch} (${terminal.action})`);
+    } else {
+      const created = await gh(token, `/repos/${repo}/pulls`, { method: 'POST', body: { head: branch, base, title, body } });
+      const failure = pullCreateError(created.status, created.json);
+      if (failure) throw new Error(`could not open the update PR for ${branch}: ${failure}`);
+      pr = created.json;
+      console.log(`update: opened PR #${pr.number} on ${branch} (${terminal.action})`);
+    }
+    pr = { ...pr, head: { ...pr.head, ref: branch, sha: head } };
 
     // The terminal, acted on. Only one action merges, and it is the one the flow
     // already judged green — everything else leaves the PR standing, labelled or
