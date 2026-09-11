@@ -158,6 +158,11 @@ its worker are written to: the declaration's fields, the code-work and agentic p
 precondition as the only place a task may decide not to run, and how a work item converges. That
 contract is what the four task checks below judge against, and it is a skill rather than a rule
 because it is wanted when a task is being written, not carried by every session in every repo.
+[**learning-a-technology**](skills/learning-a-technology/SKILL.md) is the method for the ask that
+arrives as one job but is two: teaching a repo a technology nobody there has used, for a job of its
+own. It keeps the portable half separable from the project's own parameters — the egress probe that
+settles whether the vendor was actually read, the split between the technology skill and the task
+beside it, and the three checks that keep such a skill liftable.
 Adoption itself — `adopt-claudinite`, `adopt-pack` and the `adopt-requested-packs` task — is not
 here: its subject is Claudinite's own surface, not lesson capture.
 
@@ -258,6 +263,9 @@ made the change, and is one sweep away from being closed as stale.
 | `task-worker-restores-main` | high | correctness | check: blocking |
 | `legacy-check-spellings` | low | complexity | check: advisory |
 | `in-session-github-access` | high | correctness | check: blocking |
+| `technology-skill-cites-dated-sources` | high | correctness | check: blocking |
+| `technology-skill-links-inside-its-folder` | medium | complexity | check: blocking |
+| `technology-skill-code-imports-inside-its-folder` | medium | complexity | check: blocking |
 | `references-integrity` | high | correctness | check: blocking |
 | `routine-structure` | medium | complexity | check: blocking |
 | `task-declaration-matches-folder` | high | correctness | check: blocking |
