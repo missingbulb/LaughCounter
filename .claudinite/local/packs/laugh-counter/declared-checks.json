@@ -42,6 +42,30 @@
     ]
   },
   {
+    "id": "laugh-counter/no-telemetry-sdk",
+    "severity": "blocking",
+    "since": "2026-09-13",
+    "failureMessage": "a telemetry, analytics or crash-reporting SDK is an egress path exactly like the clients no-network-client already bans — RULES.md names \"a crash reporter\" as its own example",
+    "scanFiles": "/^mac\\/Sources\\/.*\\.swift$/",
+    "scanIgnoringComments": true,
+    "fix": "drop the import; adding any telemetry, analytics or crash-reporting SDK is a product decision that belongs in RULES.md and the README Privacy section before a line of it is written",
+    "matchLines": [
+      { "match": "/^\\s*import\\s+Sentry\\b/", "what": "Sentry (crash reporting) imported in the app" },
+      { "match": "/^\\s*import\\s+Firebase[A-Za-z]*\\b/", "what": "a Firebase module (analytics/crashlytics) imported in the app" },
+      { "match": "/^\\s*import\\s+Crashlytics\\b/", "what": "Crashlytics imported in the app" },
+      { "match": "/^\\s*import\\s+Bugsnag\\b/", "what": "Bugsnag (crash reporting) imported in the app" },
+      { "match": "/^\\s*import\\s+Mixpanel\\b/", "what": "Mixpanel (analytics) imported in the app" },
+      { "match": "/^\\s*import\\s+Amplitude\\b/", "what": "Amplitude (analytics) imported in the app" },
+      { "match": "/^\\s*import\\s+PostHog\\b/", "what": "PostHog (analytics) imported in the app" },
+      { "match": "/^\\s*import\\s+Countly\\b/", "what": "Countly (analytics) imported in the app" },
+      { "match": "/^\\s*import\\s+AppsFlyer\\b/", "what": "AppsFlyer (analytics) imported in the app" },
+      { "match": "/^\\s*import\\s+Flurry\\b/", "what": "Flurry (analytics) imported in the app" },
+      { "match": "/^\\s*import\\s+Instabug\\b/", "what": "Instabug (crash reporting) imported in the app" },
+      { "match": "/^\\s*import\\s+TelemetryDeck\\b/", "what": "TelemetryDeck (telemetry) imported in the app" },
+      { "match": "/^\\s*import\\s+Datadog[A-Za-z]*\\b/", "what": "a Datadog module (crash reporting / RUM) imported in the app" }
+    ]
+  },
+  {
     "id": "laugh-counter/no-audio-persistence",
     "severity": "blocking",
     "failureMessage": "the product promise is that only derived metadata is kept and no audio is stored — a file-writing audio API in the capture path is how that promise breaks",
@@ -52,6 +76,22 @@
       { "match": "/\\bAVAudioRecorder\\s*\\(/", "what": "AVAudioRecorder in the capture path" },
       { "match": "/\\bExtAudioFileCreateWithURL\\s*\\(/", "what": "ExtAudioFileCreateWithURL in the capture path" },
       { "match": "/\\bAudioFileCreateWithURL\\s*\\(/", "what": "AudioFileCreateWithURL in the capture path" }
+    ]
+  },
+  {
+    "id": "laugh-counter/hal-query-confined",
+    "severity": "blocking",
+    "since": "2026-09-07",
+    "failureMessage": "AudioDiagnostics is the only thing that answers questions about the device — a second reader of these HAL properties is a second place a future change can forget \"presence is not usability\"",
+    "scanFiles": "/^mac\\/Sources\\/.*\\.swift$/",
+    "excludeFiles": "mac/Sources/LaughCounter/AudioDiagnostics.swift",
+    "scanIgnoringComments": true,
+    "fix": "ask AudioDiagnostics instead of the HAL directly — add the property it should expose there and call that, rather than reading the property in a second place",
+    "matchLines": [
+      { "match": "/\\bAudioObjectGetPropertyData\\s*\\(/", "what": "AudioObjectGetPropertyData outside AudioDiagnostics.swift" },
+      { "match": "/\\bAudioObjectGetPropertyDataSize\\s*\\(/", "what": "AudioObjectGetPropertyDataSize outside AudioDiagnostics.swift" },
+      { "match": "/\\bAudioObjectSetPropertyData\\s*\\(/", "what": "AudioObjectSetPropertyData outside AudioDiagnostics.swift" },
+      { "match": "/\\bAudioObjectHasProperty\\s*\\(/", "what": "AudioObjectHasProperty outside AudioDiagnostics.swift" }
     ]
   },
   {

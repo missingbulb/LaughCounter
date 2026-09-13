@@ -18,6 +18,7 @@ versioned and not distributed — the commit and its PR are its record.
 | Rule | How enforced |
 | --- | --- |
 | No outbound client in capture path | `no-network-client` check (`mac/Sources/**.swift`) |
+| No telemetry/analytics/crash-reporting SDK imported | `no-telemetry-sdk` check (`mac/Sources/**.swift`) |
 | Speech recognition on-device | `on-device-speech` check (`SFSpeechAudioBufferRecognitionRequest`) |
 | Metadata persists, audio doesn't | `no-audio-persistence` check (`AVAudioFile`/`AVAudioRecorder`/`ExtAudioFileCreateWithURL`/`AudioFileCreateWithURL`) |
 | One deletable directory | `single-storage-directory` check (only `.applicationSupportDirectory` as a search-path root) |
