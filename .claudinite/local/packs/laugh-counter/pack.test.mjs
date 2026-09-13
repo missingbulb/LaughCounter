@@ -35,6 +35,7 @@ const noNetworkClient = declared('laugh-counter/no-network-client');
 const noAudioPersistence = declared('laugh-counter/no-audio-persistence');
 const noListener = declared('laugh-counter/no-listener');
 const halQueryConfined = declared('laugh-counter/hal-query-confined');
+const noTelemetrySdk = declared('laugh-counter/no-telemetry-sdk');
 
 // Fixture ctx: an in-memory tree of { path: contents }. `tracked` mirrors
 // `files` — the declared rules' scan sweep reads both.
@@ -311,6 +312,43 @@ test("no-listener stays quiet on the mic's listening vocabulary", () => {
 
 test('no-listener stays quiet on the real sources', () => {
   assert.deepEqual(noListener.run(realCtx(...REAL_SWIFT)), []);
+});
+
+test('no-telemetry-sdk fires on every shape of telemetry/crash-reporting import', () => {
+  const findings = noTelemetrySdk.run(ctxOf({
+    'mac/Sources/LaughCounter/Diagnostics.swift':
+      'import Sentry\n'
+      + 'import FirebaseCrashlytics\n'
+      + 'import Bugsnag\n',
+    'mac/Sources/LaughCounter/Metrics.swift':
+      'import Mixpanel\n'
+      + 'import Amplitude\n'
+      + 'import DatadogRUM\n',
+  }));
+  assert.equal(findings.length, 6);
+  assert.deepEqual(findings.map((f) => f.line), [1, 2, 3, 1, 2, 3]);
+  assert.match(findings[0].what, /Sentry/);
+  assert.match(findings[1].what, /Firebase/);
+  assert.match(findings[2].what, /Bugsnag/);
+  assert.match(findings[3].what, /Mixpanel/);
+  assert.match(findings[4].what, /Amplitude/);
+  assert.match(findings[5].what, /Datadog/);
+});
+
+// The false alarm this app is built to invite: "amplitude" is an ordinary word
+// in an audio detector's own vocabulary, and must never read as the SDK import.
+test("no-telemetry-sdk stays quiet on the audio-analysis vocabulary", () => {
+  const findings = noTelemetrySdk.run(ctxOf({
+    'mac/Sources/LaughCounter/LaughDetector.swift':
+      'let amplitude = buffer.peakAmplitude()\n'
+      + '// Segment the buffer into fixed-size windows before scoring.\n'
+      + 'func segment(_ buffer: AVAudioPCMBuffer) -> [AVAudioPCMBuffer] { [] }\n',
+  }));
+  assert.deepEqual(findings, []);
+});
+
+test('no-telemetry-sdk stays quiet on the real sources', () => {
+  assert.deepEqual(noTelemetrySdk.run(realCtx(...REAL_SWIFT)), []);
 });
 
 // -------------------------------------------------------- build and packaging
