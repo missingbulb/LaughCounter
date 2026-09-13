@@ -18,8 +18,11 @@ import { LOCAL_PACKS_SUBDIR } from '../../../engine/pack_loader/pack-registry.mj
 //
 //  (2) A dedup run must SHRINK the pack it prunes. Scoped to a run whose commits
 //      announce a dedup (extract legitimately GROWS a pack, so the shrink
-//      invariant can't be unscoped): a modified local-pack prose file whose head
-//      has more lines than its base grew instead of pruning.
+//      invariant can't be unscoped): a modified local-pack prose file that ends
+//      up longer than its base — in lines, or in characters once a re-wrap has
+//      hidden the growth from the line count — grew instead of pruning. This is
+//      the only measure of shrink-only there is: the task's auto-merge policy
+//      scopes a prune to the local-pack tree and judges nothing about its shape.
 //
 //      A commit message saying "dedup" is not enough on its own — a change that
 //      FIXES the dedup routine says "dedup" too, and it edits the canon while
@@ -74,12 +77,18 @@ const rule = {
         // A file absent at base (new pack) or gone at head (whole-file prune)
         // did not grow — only a modified-in-place file can.
         if (base === null || head === null) continue;
+        // Lines AND characters, because re-wrapping trades one for the other:
+        // a strip that pulls text up across line boundaries can shrink the line
+        // count while the entry itself grows.
         const baseLines = base.split('\n').length;
         const headLines = head.split('\n').length;
-        if (headLines > baseLines) {
+        const grew = headLines > baseLines ? `from ${baseLines} to ${headLines} lines`
+          : head.length > base.length ? `from ${base.length} to ${head.length} characters`
+            : null;
+        if (grew) {
           findings.push(finding(rule, {
             file,
-            what: `a dedup run grew ${file} from ${baseLines} to ${headLines} lines — a prune/strip removes duplicated text, it never grows the pack`,
+            what: `a dedup run grew ${file} ${grew} — a prune/strip removes duplicated text, it never grows the pack`,
             fix: 'strip each covered item down to its project residue (a deletion that shrinks the entry); if you are keeping an item, leave it unchanged rather than rewording it',
           }));
         }

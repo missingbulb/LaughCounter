@@ -27,9 +27,12 @@ local-pack movement batched into one run.
 Either side of the comparison moving is worth a re-check: the mounted canon
 gained content that may now cover a local item, or the local packs gained
 items to check against it.
-A prune may remove lines or cut one down, never grow one — and only inside
-the local packs it prunes; the same edit to the repo's own prose is somebody
-else's document. A `review` member still reviews.
+A prune may land anywhere inside the local packs it prunes — a stripped rule, a
+duplicated check with its declaration and its test — and nowhere else; the same
+edit to the repo's own prose is somebody else's document. The policy judges
+scope, not shape: a strip that re-wraps a paragraph pulls text up across a line
+boundary and reads as growth to a line-aligned trim test, so shrink-only is the
+`dedup-prune-integrity` check's to measure. A `review` member still reviews.
 The deterministic half: what the mounted canon ADDED in the window — prose
 lines and new checks alike — posted as a comment on the run's own work item,
 the brief the agentic phase starts from. Reading a diff is code work, and the
