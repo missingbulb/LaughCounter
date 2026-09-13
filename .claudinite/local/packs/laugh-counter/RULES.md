@@ -75,11 +75,6 @@ deliberately.** The owner's Mac installs the DMG from CI and has no Xcode comman
 line tools, so anything needed to diagnose a live failure is either shell built
 into macOS or compiled into the app by CI.
 
-**Every intentional stop bumps `restartGeneration`, and cancelling in-flight
-restarts must reset `restartInFlight`, `restartQueued` and `suppressConfigChange`
-too** — canon's generation-guard rule, in this app's names; leave a latch set and
-every future start is blocked.
-
 ## Build, packaging and maintenance
 
 **Ship a version the running app can state, and bump it whenever a build has to be
@@ -126,9 +121,3 @@ explicit invocation snippet but never shows one for `verify-outcome.mjs`. The
 vendored engine carries no `scheduler/` directory — so call it by its real
 path directly: `node -e "import('./.claudinite/shared/packs/claudinite-tasks/verify-outcome.mjs')
   .then(m => console.log(JSON.stringify(m.verifyOutcome({outcome, openedPr, mergedPr}))))"`. (6)
-
-**A command block handed to the owner to paste straight into an interactive terminal
-must carry no trailing `# comment`.** Interactive zsh — the owner's default shell —
-only treats `#` as a comment start under `setopt interactive_comments`, which is off
-by default, unlike a script file. Put the explanation in prose around the block
-instead of inline. (7)
