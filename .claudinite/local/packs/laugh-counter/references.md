@@ -32,7 +32,3 @@ daily agentic work: no rule sends its reader here, and no session loads it.
 - **(RULES-6)** Without the direct invocation, a session reaches for `--help`
   (which prints nothing for a plain ESM export) or writes a scratchpad file to
   probe the call before finding the real one. (#185)
-- **(RULES-7)** `pmset displaysleepnow      # screen goes dark, wake it
-  whenever you like` (from the display-sleep repro this repo's own audio
-  diagnostics use) ran `wake it whenever you like` as a second command and
-  errored `command not found: wake`. (#76)
